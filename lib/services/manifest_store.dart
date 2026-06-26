@@ -80,6 +80,20 @@ class ManifestStore {
     return total;
   }
 
+  Future<int> chapterCacheSizeBytes(String bookId, String chapterId) async {
+    final root = await _audioRoot(bookId);
+    int total = 0;
+    final manifest = File(p.join(root.path, '$chapterId.manifest.json'));
+    if (await manifest.exists()) total += await manifest.length();
+
+    final chapterDir = Directory(p.join(root.path, chapterId));
+    if (!await chapterDir.exists()) return total;
+    await for (final entity in chapterDir.list(recursive: true)) {
+      if (entity is File) total += await entity.length();
+    }
+    return total;
+  }
+
   Future<void> _deleteDirectoryIfExists(Directory dir) async {
     if (!await dir.exists()) return;
     final failures = <String>[];

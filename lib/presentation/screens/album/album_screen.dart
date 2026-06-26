@@ -15,8 +15,9 @@ import '../player/player_screen.dart';
 
 class AlbumScreen extends ConsumerStatefulWidget {
   final drift_db.Book book;
+  final String? initialChapterId;
 
-  const AlbumScreen({super.key, required this.book});
+  const AlbumScreen({super.key, required this.book, this.initialChapterId});
 
   @override
   ConsumerState<AlbumScreen> createState() => _AlbumScreenState();
@@ -25,6 +26,14 @@ class AlbumScreen extends ConsumerStatefulWidget {
 class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   final Map<String, GenerationProgress> _generationProgress = {};
   final Set<String> _generatingChapterIds = {};
+  final ScrollController _scrollController = ScrollController();
+  bool _didScrollToInitialChapter = false;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   Future<void> _playChapter(drift_db.Chapter chapter, int index) async {
     final manifestStore = ref.read(manifestStoreProvider);
@@ -45,6 +54,62 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       return;
     }
 
+    await _generateChapterThenPlay(chapter);
+  }
+
+  Future<void> _clearChapterCache(drift_db.Chapter chapter) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('清除章节音频？'),
+        content: Text('将删除 ${chapter.title} 已生成的音频。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('清除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final handler = await ref.read(luminaAudioHandlerProvider.future);
+    await handler.unloadIfChapter(widget.book.id, chapter.id);
+    await ref
+        .read(cacheManagerProvider)
+        .clearChapter(widget.book.id, chapter.id);
+    if (!mounted) return;
+    setState(() {});
+    _showSnackBar('已清除：${chapter.title}');
+  }
+
+  Future<void> _regenerateChapter(drift_db.Chapter chapter) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('重新生成音频？'),
+        content: Text('将删除 ${chapter.title} 的旧音频，并使用当前 TTS 设置重新合成。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('重新生成'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final handler = await ref.read(luminaAudioHandlerProvider.future);
+    await handler.unloadIfChapter(widget.book.id, chapter.id);
+    await ref
+        .read(cacheManagerProvider)
+        .clearChapter(widget.book.id, chapter.id);
     await _generateChapterThenPlay(chapter);
   }
 
@@ -220,7 +285,10 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
         builder: (context, snapshot) {
           final chapters = snapshot.data ?? const <drift_db.Chapter>[];
 
+          _scrollToInitialChapter(chapters);
+
           return CustomScrollView(
+            controller: _scrollController,
             slivers: [
               SliverAppBar(
                 expandedHeight: 300,
@@ -317,7 +385,11 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                 SliverList(
                   delegate: SliverChildBuilderDelegate((context, index) {
                     final chapter = chapters[index];
+                    final highlighted = chapter.id == widget.initialChapterId;
                     return ListTile(
+                      tileColor: highlighted
+                          ? AppColors.surface.withValues(alpha: 0.55)
+                          : null,
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 4,
@@ -350,10 +422,12 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                           fontSize: 14,
                         ),
                       ),
-                      trailing: _ChapterCacheStatus(
+                      trailing: _ChapterActions(
                         bookId: widget.book.id,
                         chapterId: chapter.id,
                         progress: _generationProgress[chapter.id],
+                        onClearCache: () => _clearChapterCache(chapter),
+                        onRegenerate: () => _regenerateChapter(chapter),
                       ),
                       onTap: () => _playChapter(chapter, index),
                     );
@@ -367,6 +441,23 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
         },
       ),
     );
+  }
+
+  void _scrollToInitialChapter(List<drift_db.Chapter> chapters) {
+    final targetId = widget.initialChapterId;
+    if (targetId == null || _didScrollToInitialChapter) return;
+    final index = chapters.indexWhere((chapter) => chapter.id == targetId);
+    if (index < 0) return;
+    _didScrollToInitialChapter = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+      final target = 300.0 + 56.0 + index * 64.0;
+      _scrollController.animateTo(
+        target.clamp(0.0, _scrollController.position.maxScrollExtent),
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOut,
+      );
+    });
   }
 
   Widget _buildAlbumPlayButton(List<drift_db.Chapter> chapters) {
@@ -402,14 +493,18 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   }
 }
 
-class _ChapterCacheStatus extends StatelessWidget {
+class _ChapterActions extends StatelessWidget {
   final String bookId;
   final String chapterId;
   final GenerationProgress? progress;
+  final VoidCallback onClearCache;
+  final VoidCallback onRegenerate;
 
-  const _ChapterCacheStatus({
+  const _ChapterActions({
     required this.bookId,
     required this.chapterId,
+    required this.onClearCache,
+    required this.onRegenerate,
     this.progress,
   });
 
@@ -417,30 +512,34 @@ class _ChapterCacheStatus extends StatelessWidget {
   Widget build(BuildContext context) {
     final progress = this.progress;
     if (progress != null) {
-      return SizedBox(
-        width: 44,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(
-                value: progress.percent == 0 ? null : progress.percent,
-                strokeWidth: 2,
-                color: AppColors.primary,
+      return _TrailingRow(
+        status: SizedBox(
+          width: 38,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  value: progress.percent == 0 ? null : progress.percent,
+                  strokeWidth: 2,
+                  color: AppColors.primary,
+                ),
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '${(progress.percent * 100).round()}%',
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 10,
+              const SizedBox(height: 4),
+              Text(
+                '${(progress.percent * 100).round()}%',
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 10,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
+        onClearCache: onClearCache,
+        onRegenerate: onRegenerate,
       );
     }
 
@@ -448,14 +547,14 @@ class _ChapterCacheStatus extends StatelessWidget {
       future: ManifestStore().load(bookId, chapterId),
       builder: (context, snapshot) {
         final manifest = snapshot.data;
+        Widget status;
         if (manifest != null && manifest.isReady) {
-          return const Tooltip(
+          status = const Tooltip(
             message: '音频已缓存',
             child: Icon(Icons.download_done, color: AppColors.primary),
           );
-        }
-        if (manifest != null && manifest.readyCount > 0) {
-          return Tooltip(
+        } else if (manifest != null && manifest.readyCount > 0) {
+          status = Tooltip(
             message: '部分音频已缓存',
             child: Text(
               '${manifest.readyCount}/${manifest.segments.length}',
@@ -466,9 +565,71 @@ class _ChapterCacheStatus extends StatelessWidget {
               ),
             ),
           );
+        } else {
+          status = const Icon(Icons.more_vert, color: AppColors.textSecondary);
         }
-        return const Icon(Icons.more_vert, color: AppColors.textSecondary);
+        return _TrailingRow(
+          status: status,
+          onClearCache: onClearCache,
+          onRegenerate: onRegenerate,
+        );
       },
+    );
+  }
+}
+
+class _TrailingRow extends StatelessWidget {
+  final Widget status;
+  final VoidCallback onClearCache;
+  final VoidCallback onRegenerate;
+
+  const _TrailingRow({
+    required this.status,
+    required this.onClearCache,
+    required this.onRegenerate,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 92,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          SizedBox(width: 38, child: Center(child: status)),
+          PopupMenuButton<String>(
+            tooltip: '章节操作',
+            color: AppColors.surface,
+            icon: const Icon(Icons.more_horiz, color: AppColors.textSecondary),
+            onSelected: (value) {
+              if (value == 'clear') onClearCache();
+              if (value == 'regenerate') onRegenerate();
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 'clear',
+                child: Row(
+                  children: [
+                    Icon(Icons.cleaning_services_outlined, size: 18),
+                    SizedBox(width: 8),
+                    Text('清除音频'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'regenerate',
+                child: Row(
+                  children: [
+                    Icon(Icons.refresh, size: 18),
+                    SizedBox(width: 8),
+                    Text('重新生成'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

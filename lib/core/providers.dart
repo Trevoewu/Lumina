@@ -7,6 +7,7 @@ import '../services/generation_orchestrator.dart';
 import '../services/kokoro_model_manager.dart';
 import '../services/lumina_audio_handler.dart';
 import '../services/manifest_store.dart';
+import '../services/sleep_timer_service.dart';
 
 /// Drift 数据库单例。
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
@@ -52,4 +53,10 @@ final luminaAudioHandlerProvider = FutureProvider<LuminaAudioHandler>((
   final handler = await initLuminaAudioHandler();
   ref.onDispose(handler.dispose);
   return handler;
+});
+
+final sleepTimerServiceProvider = Provider<SleepTimerService>((ref) {
+  final service = SleepTimerService();
+  ref.onDispose(service.dispose);
+  return service;
 });

@@ -31,6 +31,12 @@ class CacheManager {
     return CacheUsage(await manifestStore.bookCacheSizeBytes(bookId));
   }
 
+  Future<CacheUsage> usageForChapter(String bookId, String chapterId) async {
+    return CacheUsage(
+      await manifestStore.chapterCacheSizeBytes(bookId, chapterId),
+    );
+  }
+
   Future<CacheUsage> totalUsage() async {
     final dir = await getApplicationDocumentsDirectory();
     final audioRoot = Directory(p.join(dir.path, 'audio'));

@@ -32,6 +32,21 @@ void main() {
     expect(paragraphs, ['Real text.']);
   });
 
+  test('EPUB html parser merges lowercase continuation blocks', () {
+    final paragraphs = BookParser.htmlToPlainParagraphsForTest('''
+      <body>
+        <p>"We have to practice for the athletic meet on Friday-I</p>
+        <p>know</p>
+        <p>They started walking home.</p>
+      </body>
+    ''');
+
+    expect(paragraphs, [
+      '"We have to practice for the athletic meet on Friday-I know',
+      'They started walking home.',
+    ]);
+  });
+
   test('EPUB parser skips obvious non-story front matter sections', () {
     expect(
       BookParser.shouldSkipEpubChapterForTest('Table of Contents', [

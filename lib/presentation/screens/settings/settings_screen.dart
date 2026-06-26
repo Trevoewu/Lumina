@@ -27,11 +27,29 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final _minimaxKeyController = TextEditingController();
+  double _speed = 1.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPlaybackPreferences();
+  }
 
   @override
   void dispose() {
     _minimaxKeyController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadPlaybackPreferences() async {
+    final value = await ref
+        .read(appDatabaseProvider)
+        .getSetting('playback_speed');
+    final speed = double.tryParse(value ?? '') ?? 1.0;
+    if (!mounted) return;
+    setState(() => _speed = speed.clamp(0.5, 3.0));
+    final handler = await ref.read(luminaAudioHandlerProvider.future);
+    await handler.setSpeed(_speed);
   }
 
   /// 为每个 Provider 返回一个图标，便于快速识别。
@@ -111,12 +129,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _buildInfoTile(
             icon: Icons.speed,
             title: '播放倍速',
-            subtitle: '支持 0.5x - 3.0x',
+            subtitle: '${_speed.toStringAsFixed(1)}x',
+            onTap: _showSpeedSheet,
           ),
-          _buildInfoTile(
-            icon: Icons.bedtime_outlined,
-            title: '定时关闭',
-            subtitle: '15/30/60 分钟 / 本章结束',
+          StreamBuilder(
+            stream: ref.watch(sleepTimerServiceProvider).stream,
+            initialData: ref.watch(sleepTimerServiceProvider).state,
+            builder: (context, snapshot) {
+              return _buildInfoTile(
+                icon: Icons.bedtime_outlined,
+                title: '定时关闭',
+                subtitle: snapshot.data?.label ?? '关闭',
+                onTap: _showSleepTimerSheet,
+              );
+            },
           ),
           _sectionDivider(),
           _buildVersionFooter(),
@@ -283,11 +309,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  /// 纯展示用的 ListTile（暂未实现跳转）。
   Widget _buildInfoTile({
     required IconData icon,
     required String title,
     required String subtitle,
+    VoidCallback? onTap,
   }) {
     return Material(
       color: AppColors.surface,
@@ -313,8 +339,195 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
         ),
+        trailing: onTap == null
+            ? null
+            : const Icon(Icons.chevron_right, color: AppColors.textSecondary),
+        onTap: onTap,
       ),
     );
+  }
+
+  void _showSpeedSheet() {
+    var draft = _speed;
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: AppColors.surface,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            '播放倍速',
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          '${draft.toStringAsFixed(1)}x',
+                          style: const TextStyle(
+                            color: AppColors.primary,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    SliderTheme(
+                      data: SliderTheme.of(context).copyWith(
+                        activeTrackColor: AppColors.primary,
+                        inactiveTrackColor: AppColors.surfaceHighlight,
+                        thumbColor: AppColors.primary,
+                      ),
+                      child: Slider(
+                        min: 0.5,
+                        max: 3.0,
+                        divisions: 25,
+                        value: draft,
+                        onChanged: (value) =>
+                            setSheetState(() => draft = value),
+                      ),
+                    ),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        for (final value in const [0.8, 1.0, 1.2, 1.5, 2.0])
+                          ChoiceChip(
+                            label: Text('${value.toStringAsFixed(1)}x'),
+                            selected: (draft - value).abs() < 0.01,
+                            onSelected: (_) =>
+                                setSheetState(() => draft = value),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        icon: const Icon(Icons.check),
+                        label: const Text('应用'),
+                        onPressed: () => _applySpeed(context, draft),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _applySpeed(BuildContext sheetContext, double speed) async {
+    final clamped = speed.clamp(0.5, 3.0);
+    await ref
+        .read(appDatabaseProvider)
+        .setSetting('playback_speed', clamped.toStringAsFixed(2));
+    final handler = await ref.read(luminaAudioHandlerProvider.future);
+    await handler.setSpeed(clamped);
+    if (!mounted) return;
+    setState(() => _speed = clamped);
+    if (!sheetContext.mounted) return;
+    Navigator.of(sheetContext).pop();
+  }
+
+  void _showSleepTimerSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: AppColors.surface,
+      builder: (context) {
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '定时关闭',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    for (final minutes in const [15, 30, 60])
+                      ActionChip(
+                        avatar: const Icon(Icons.timer_outlined, size: 18),
+                        label: Text('$minutes 分钟'),
+                        onPressed: () => _scheduleSleepDuration(
+                          context,
+                          Duration(minutes: minutes),
+                        ),
+                      ),
+                    ActionChip(
+                      avatar: const Icon(Icons.flag_outlined, size: 18),
+                      label: const Text('本章结束'),
+                      onPressed: () => _scheduleSleepChapterEnd(context),
+                    ),
+                    ActionChip(
+                      avatar: const Icon(Icons.close, size: 18),
+                      label: const Text('关闭'),
+                      onPressed: () => _cancelSleepTimer(context),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _scheduleSleepDuration(
+    BuildContext sheetContext,
+    Duration duration,
+  ) async {
+    final handler = await ref.read(luminaAudioHandlerProvider.future);
+    await ref
+        .read(sleepTimerServiceProvider)
+        .scheduleDuration(duration, handler);
+    if (!mounted) return;
+    if (!sheetContext.mounted) return;
+    Navigator.of(sheetContext).pop();
+  }
+
+  Future<void> _scheduleSleepChapterEnd(BuildContext sheetContext) async {
+    final handler = await ref.read(luminaAudioHandlerProvider.future);
+    await ref.read(sleepTimerServiceProvider).scheduleChapterEnd(handler);
+    if (!mounted) return;
+    if (!sheetContext.mounted) return;
+    Navigator.of(sheetContext).pop();
+  }
+
+  Future<void> _cancelSleepTimer(BuildContext sheetContext) async {
+    await ref.read(sleepTimerServiceProvider).cancel();
+    if (!mounted) return;
+    if (!sheetContext.mounted) return;
+    Navigator.of(sheetContext).pop();
   }
 
   /// 底部版本信息。

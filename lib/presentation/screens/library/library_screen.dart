@@ -90,6 +90,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     MaterialPageRoute(builder: (_) => AlbumScreen(book: book)),
                   );
                 },
+                onEdit: () => _showEditBookSheet(book),
+                onClearCache: () => _confirmClearBookCache(book),
                 onDelete: () => _confirmDeleteBook(book),
               );
             },
@@ -347,6 +349,216 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     }
   }
 
+  Future<void> _confirmClearBookCache(drift_db.Book book) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('清除音频缓存？'),
+        content: Text('将删除《${book.title}》已经生成的所有音频，书籍和章节内容会保留。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('清除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      final handler = await ref.read(luminaAudioHandlerProvider.future);
+      await handler.unloadIfBook(book.id);
+      await ref.read(cacheManagerProvider).clearBook(book.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('已清除《${book.title}》音频缓存')));
+      setState(() => _reloadToken++);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 6),
+          content: Text('清除失败：$e'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _showEditBookSheet(drift_db.Book book) async {
+    final titleController = TextEditingController(text: book.title);
+    final authorController = TextEditingController(text: book.author ?? '');
+    String? coverPath = book.coverPath;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SafeArea(
+              top: false,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  24,
+                  8,
+                  24,
+                  24 + MediaQuery.viewInsetsOf(context).bottom,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '编辑书籍',
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          width: 96,
+                          height: 96,
+                          child: BookCover(
+                            coverPath: coverPath,
+                            borderRadius: 8,
+                            iconSize: 42,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            children: [
+                              _darkTextField(
+                                controller: titleController,
+                                hint: '书名',
+                                icon: Icons.title,
+                              ),
+                              const SizedBox(height: 10),
+                              _darkTextField(
+                                controller: authorController,
+                                hint: '作者',
+                                icon: Icons.person_outline,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        ActionChip(
+                          avatar: const Icon(Icons.image_outlined, size: 18),
+                          label: const Text('更换封面'),
+                          onPressed: () async {
+                            final picked = await FilePicker.pickFiles(
+                              type: FileType.image,
+                            );
+                            final path = picked?.files.single.path;
+                            if (path == null) return;
+                            final appDir =
+                                await getApplicationDocumentsDirectory();
+                            final coverDir = Directory(
+                              p.join(appDir.path, 'books', book.id),
+                            );
+                            await coverDir.create(recursive: true);
+                            final ext = p.extension(path).toLowerCase();
+                            final target = p.join(
+                              coverDir.path,
+                              'cover_custom$ext',
+                            );
+                            await File(path).copy(target);
+                            setSheetState(() => coverPath = target);
+                          },
+                        ),
+                        if (coverPath != null)
+                          ActionChip(
+                            avatar: const Icon(
+                              Icons.hide_image_outlined,
+                              size: 18,
+                            ),
+                            label: const Text('移除封面'),
+                            onPressed: () =>
+                                setSheetState(() => coverPath = null),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        icon: const Icon(Icons.check),
+                        label: const Text('保存'),
+                        onPressed: () async {
+                          final title = titleController.text.trim();
+                          if (title.isEmpty) return;
+                          await ref
+                              .read(appDatabaseProvider)
+                              .updateBookMetadata(
+                                book.id,
+                                title: title,
+                                author: authorController.text.trim(),
+                                clearAuthor: authorController.text
+                                    .trim()
+                                    .isEmpty,
+                                coverPath: coverPath,
+                                clearCover: coverPath == null,
+                              );
+                          if (!mounted) return;
+                          if (!context.mounted) return;
+                          Navigator.of(context).pop();
+                          setState(() => _reloadToken++);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    titleController.dispose();
+    authorController.dispose();
+  }
+
+  Widget _darkTextField({
+    required TextEditingController controller,
+    required String hint,
+    required IconData icon,
+  }) {
+    return TextField(
+      controller: controller,
+      style: const TextStyle(color: AppColors.textPrimary),
+      decoration: InputDecoration(
+        filled: true,
+        fillColor: AppColors.background,
+        hintText: hint,
+        hintStyle: const TextStyle(color: AppColors.textSecondary),
+        prefixIcon: Icon(icon, color: AppColors.textSecondary),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide.none,
+        ),
+      ),
+    );
+  }
+
   Future<void> _deleteImportedBookFiles(drift_db.Book book) async {
     final source = File(book.sourcePath);
     final parent = source.parent;
@@ -369,11 +581,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 class _BookCard extends StatelessWidget {
   final drift_db.Book book;
   final VoidCallback onTap;
+  final VoidCallback onEdit;
+  final VoidCallback onClearCache;
   final VoidCallback onDelete;
 
   const _BookCard({
     required this.book,
     required this.onTap,
+    required this.onEdit,
+    required this.onClearCache,
     required this.onDelete,
   });
 
@@ -496,7 +712,11 @@ class _BookCard extends StatelessWidget {
                         SizedBox(
                           width: 28,
                           height: 18,
-                          child: _BookActionsButton(onDelete: onDelete),
+                          child: _BookActionsButton(
+                            onEdit: onEdit,
+                            onClearCache: onClearCache,
+                            onDelete: onDelete,
+                          ),
                         ),
                       ],
                     ),
@@ -512,9 +732,15 @@ class _BookCard extends StatelessWidget {
 }
 
 class _BookActionsButton extends StatelessWidget {
+  final VoidCallback onEdit;
+  final VoidCallback onClearCache;
   final VoidCallback onDelete;
 
-  const _BookActionsButton({required this.onDelete});
+  const _BookActionsButton({
+    required this.onEdit,
+    required this.onClearCache,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -525,9 +751,31 @@ class _BookActionsButton extends StatelessWidget {
       iconSize: 18,
       icon: const Icon(Icons.more_horiz, color: AppColors.textSecondary),
       onSelected: (value) {
+        if (value == 'edit') onEdit();
+        if (value == 'cache') onClearCache();
         if (value == 'delete') onDelete();
       },
       itemBuilder: (context) => const [
+        PopupMenuItem(
+          value: 'edit',
+          child: Row(
+            children: [
+              Icon(Icons.edit_outlined, size: 18),
+              SizedBox(width: 8),
+              Text('编辑'),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'cache',
+          child: Row(
+            children: [
+              Icon(Icons.cleaning_services_outlined, size: 18),
+              SizedBox(width: 8),
+              Text('清除音频'),
+            ],
+          ),
+        ),
         PopupMenuItem(
           value: 'delete',
           child: Row(

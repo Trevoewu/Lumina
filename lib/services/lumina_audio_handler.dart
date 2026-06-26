@@ -48,6 +48,7 @@ class LuminaAudioHandler extends BaseAudioHandler
       mediaItem.valueOrNull?.extras?['paragraphId'] as String? ??
       mediaItem.valueOrNull?.id;
   String? get currentBookId => _manifest?.bookId;
+  String? get currentChapterId => _manifest?.chapterId;
 
   Future<void> loadChapter({
     required ChapterManifest manifest,
@@ -147,6 +148,17 @@ class LuminaAudioHandler extends BaseAudioHandler
 
   Future<void> unloadIfBook(String bookId) async {
     if (_manifest?.bookId != bookId) return;
+    await unload();
+  }
+
+  Future<void> unloadIfChapter(String bookId, String chapterId) async {
+    if (_manifest?.bookId != bookId || _manifest?.chapterId != chapterId) {
+      return;
+    }
+    await unload();
+  }
+
+  Future<void> unload() async {
     await _player.stop();
     await _player.clearAudioSources();
     _manifest = null;

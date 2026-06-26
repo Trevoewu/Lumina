@@ -158,6 +158,33 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
+  Future<void> updateBookMetadata(
+    String bookId, {
+    String? title,
+    String? author,
+    String? coverPath,
+    String? voiceId,
+    bool clearAuthor = false,
+    bool clearCover = false,
+  }) async {
+    await (update(books)..where((b) => b.id.equals(bookId))).write(
+      BooksCompanion(
+        title: title == null ? const Value.absent() : Value(title),
+        author: clearAuthor
+            ? const Value(null)
+            : author == null
+            ? const Value.absent()
+            : Value(author),
+        coverPath: clearCover
+            ? const Value(null)
+            : coverPath == null
+            ? const Value.absent()
+            : Value(coverPath),
+        voiceId: voiceId == null ? const Value.absent() : Value(voiceId),
+      ),
+    );
+  }
+
   Future<void> deleteBook(String id) =>
       (delete(books)..where((b) => b.id.equals(id))).go();
 
@@ -200,6 +227,16 @@ class AppDatabase extends _$AppDatabase {
             ..orderBy([(c) => OrderingTerm.asc(c.chapterIndex)]))
           .get();
 
+  Future<List<Chapter>> getAllChapters() =>
+      (select(chapters)..orderBy([
+            (c) => OrderingTerm.asc(c.bookId),
+            (c) => OrderingTerm.asc(c.chapterIndex),
+          ]))
+          .get();
+
+  Future<Chapter?> getChapter(String id) =>
+      (select(chapters)..where((c) => c.id.equals(id))).getSingleOrNull();
+
   Future<void> insertChapters(List<Chapter> entries) async {
     await batch((b) => b.insertAll(chapters, entries));
   }
@@ -211,6 +248,14 @@ class AppDatabase extends _$AppDatabase {
             ..where((p) => p.chapterId.equals(chapterId))
             ..orderBy([(p) => OrderingTerm.asc(p.paragraphIndex)]))
           .get();
+
+  Future<List<Paragraph>> searchParagraphs(String query, {int limit = 80}) {
+    return (select(paragraphs)
+          ..where((p) => p.content.like('%$query%'))
+          ..orderBy([(p) => OrderingTerm.asc(p.paragraphIndex)])
+          ..limit(limit))
+        .get();
+  }
 
   Future<void> insertParagraphs(List<Paragraph> entries) async {
     await batch((b) => b.insertAll(paragraphs, entries));

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../screens/library/library_screen.dart';
+import '../screens/search/search_screen.dart';
 import '../screens/settings/settings_screen.dart';
 import 'mini_player.dart';
 
@@ -23,7 +24,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
   Widget _rootPageFor(int index) {
     return switch (index) {
       0 => const LibraryScreen(),
-      1 => const Scaffold(body: Center(child: Text('Search (Coming Soon)'))),
+      1 => const SearchScreen(),
       2 => const SettingsScreen(),
       _ => const LibraryScreen(),
     };

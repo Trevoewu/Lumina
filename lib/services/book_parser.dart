@@ -218,7 +218,7 @@ class BookParser {
       if (_isContentParagraph(text)) blocks.add(text);
     }
 
-    if (blocks.isNotEmpty) return blocks;
+    if (blocks.isNotEmpty) return _mergeContinuationParagraphs(blocks);
 
     final fallback = html
         .replaceAll(
@@ -231,11 +231,40 @@ class BookParser {
         .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
         .replaceAll(RegExp(r'<[^>]+>'), ' ');
 
-    return fallback
-        .split(RegExp(r'\n+'))
-        .map(_decodeHtmlText)
-        .where(_isContentParagraph)
-        .toList();
+    return _mergeContinuationParagraphs(
+      fallback
+          .split(RegExp(r'\n+'))
+          .map(_decodeHtmlText)
+          .where(_isContentParagraph)
+          .toList(),
+    );
+  }
+
+  static List<String> _mergeContinuationParagraphs(List<String> paragraphs) {
+    final merged = <String>[];
+    for (final text in paragraphs) {
+      if (merged.isNotEmpty && _looksLikeContinuation(merged.last, text)) {
+        merged[merged.length - 1] = '${merged.last} $text'
+            .replaceAll(RegExp(r'\s+'), ' ')
+            .trim();
+      } else {
+        merged.add(text);
+      }
+    }
+    return merged;
+  }
+
+  static bool _looksLikeContinuation(String previous, String next) {
+    final prev = previous.trim();
+    final current = next.trim();
+    if (prev.isEmpty || current.isEmpty) return false;
+    if (current.length > 160) return false;
+    if (RegExp(r'^[A-Z0-9“"(\[]').hasMatch(current)) return false;
+    if (RegExp(r"^[a-z][a-z’']*\b").hasMatch(current)) {
+      return !RegExp(r'[.!?。！？…”")\]]$').hasMatch(prev) ||
+          RegExp(r'[-—–][A-Za-z]*$').hasMatch(prev);
+    }
+    return false;
   }
 
   static String _htmlFragmentToText(String fragment) {
@@ -304,10 +333,27 @@ class BookParser {
       'title page',
       'cover',
       'cover page',
+      'half title',
+      'halftitle',
+      'also by',
+      'books by',
+      'about the author',
+      'about author',
+      'praise',
+      'newsletter',
     };
     if (matchesAny(alwaysSkip)) return true;
 
-    const shortFrontMatter = {'dedication', 'dedications', 'epigraph'};
+    const shortFrontMatter = {
+      'dedication',
+      'dedications',
+      'epigraph',
+      'acknowledgments',
+      'acknowledgements',
+      'notes',
+      'bibliography',
+      'index',
+    };
     if (matchesAny(shortFrontMatter)) {
       final charCount = paragraphTexts.fold<int>(
         0,

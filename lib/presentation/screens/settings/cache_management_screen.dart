@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/app_colors.dart';
 import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart' as drift_db;
 import '../../../services/cache_manager.dart';
@@ -22,7 +23,11 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
     final cache = ref.watch(cacheManagerProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('缓存管理')),
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.background,
+        title: const Text('缓存管理'),
+      ),
       body: FutureBuilder<_CachePageData>(
         future: _loadData(db, cache),
         builder: (context, snapshot) {
@@ -40,12 +45,19 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                Card(
+                _SurfaceTile(
                   child: ListTile(
-                    leading: const Icon(Icons.storage_outlined),
-                    title: const Text('总音频缓存'),
+                    leading: const Icon(
+                      Icons.storage_outlined,
+                      color: AppColors.textSecondary,
+                    ),
+                    title: const Text(
+                      '总音频缓存',
+                      style: TextStyle(color: AppColors.textPrimary),
+                    ),
                     subtitle: Text(data.total.humanReadable),
-                    trailing: FilledButton.tonalIcon(
+                    trailing: IconButton(
+                      tooltip: '清空',
                       onPressed: _clearing || data.total.bytes == 0
                           ? null
                           : () => _clearAll(cache),
@@ -56,15 +68,23 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.delete_sweep_outlined),
-                      label: const Text('清空'),
                     ),
                   ),
                 ),
                 const SizedBox(height: 16),
-                Text('按书籍清理', style: Theme.of(context).textTheme.titleMedium),
+                const Padding(
+                  padding: EdgeInsets.only(left: 4, bottom: 8),
+                  child: Text(
+                    '按书籍清理',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 8),
                 if (data.books.isEmpty)
-                  const Card(
+                  const _SurfaceTile(
                     child: Padding(
                       padding: EdgeInsets.all(24),
                       child: Text('暂无导入书籍'),
@@ -72,33 +92,44 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                   )
                 else
                   for (final row in data.books)
-                    Card(
+                    _SurfaceTile(
                       child: ExpansionTile(
-                        leading: const Icon(Icons.menu_book_outlined),
-                        title: Text(row.book.title),
+                        collapsedIconColor: AppColors.textSecondary,
+                        iconColor: AppColors.textSecondary,
+                        leading: const Icon(
+                          Icons.menu_book_outlined,
+                          color: AppColors.textSecondary,
+                        ),
+                        title: Text(
+                          row.book.title,
+                          style: const TextStyle(color: AppColors.textPrimary),
+                        ),
                         subtitle: Text(
                           '${row.usage.humanReadable} · ${row.book.chapterCount} 章',
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                          ),
                         ),
                         children: [
                           OverflowBar(
                             alignment: MainAxisAlignment.end,
                             children: [
-                              TextButton.icon(
+                              IconButton(
+                                tooltip: '清理整本书音频',
                                 onPressed: row.usage.bytes == 0 || _clearing
                                     ? null
                                     : () => _clearBook(cache, row.book),
                                 icon: const Icon(Icons.delete_outline),
-                                label: const Text('清理整本书音频'),
                               ),
                             ],
                           ),
-                          FutureBuilder<List<drift_db.Chapter>>(
-                            future: db.getChapters(row.book.id),
+                          FutureBuilder<List<_ChapterCacheRow>>(
+                            future: _loadChapterRows(db, cache, row.book.id),
                             builder: (context, chapterSnapshot) {
-                              final chapters =
+                              final chaptersRows =
                                   chapterSnapshot.data ??
-                                  const <drift_db.Chapter>[];
-                              if (chapters.isEmpty) {
+                                  const <_ChapterCacheRow>[];
+                              if (chaptersRows.isEmpty) {
                                 return const Padding(
                                   padding: EdgeInsets.all(16),
                                   child: Text('暂无章节'),
@@ -106,19 +137,33 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                               }
                               return Column(
                                 children: [
-                                  for (final chapter in chapters)
+                                  for (final chapterRow in chaptersRows)
                                     ListTile(
                                       dense: true,
-                                      title: Text(chapter.title),
-                                      trailing: TextButton(
+                                      title: Text(
+                                        chapterRow.chapter.title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: AppColors.textPrimary,
+                                        ),
+                                      ),
+                                      subtitle: Text(
+                                        chapterRow.usage.humanReadable,
+                                        style: const TextStyle(
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
+                                      trailing: IconButton(
+                                        tooltip: '清理章节音频',
                                         onPressed: _clearing
                                             ? null
                                             : () => _clearChapter(
                                                 cache,
                                                 row.book,
-                                                chapter,
+                                                chapterRow.chapter,
                                               ),
-                                        child: const Text('清理'),
+                                        icon: const Icon(Icons.delete_outline),
                                       ),
                                     ),
                                 ],
@@ -148,6 +193,24 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
       );
     }
     return _CachePageData(total: await cache.totalUsage(), books: rows);
+  }
+
+  Future<List<_ChapterCacheRow>> _loadChapterRows(
+    drift_db.AppDatabase db,
+    CacheManager cache,
+    String bookId,
+  ) async {
+    final chapters = await db.getChapters(bookId);
+    final rows = <_ChapterCacheRow>[];
+    for (final chapter in chapters) {
+      rows.add(
+        _ChapterCacheRow(
+          chapter: chapter,
+          usage: await cache.usageForChapter(bookId, chapter.id),
+        ),
+      );
+    }
+    return rows;
   }
 
   Future<void> _clearAll(CacheManager cache) async {
@@ -237,4 +300,29 @@ class _BookCacheRow {
   final CacheUsage usage;
 
   const _BookCacheRow({required this.book, required this.usage});
+}
+
+class _ChapterCacheRow {
+  final drift_db.Chapter chapter;
+  final CacheUsage usage;
+
+  const _ChapterCacheRow({required this.chapter, required this.usage});
+}
+
+class _SurfaceTile extends StatelessWidget {
+  final Widget child;
+
+  const _SurfaceTile({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        child: child,
+      ),
+    );
+  }
 }
