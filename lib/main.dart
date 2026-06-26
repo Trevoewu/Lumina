@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/app_colors.dart';
+import 'core/appearance.dart';
 import 'core/theme.dart';
 import 'presentation/widgets/app_scaffold.dart';
 
@@ -11,19 +12,45 @@ void main() {
   runApp(const ProviderScope(child: LuminaApp()));
 }
 
-class LuminaApp extends StatelessWidget {
+class LuminaApp extends ConsumerStatefulWidget {
   const LuminaApp({super.key});
 
   @override
+  ConsumerState<LuminaApp> createState() => _LuminaAppState();
+}
+
+class _LuminaAppState extends ConsumerState<LuminaApp> {
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(
+      () => ref.read(appearanceControllerProvider.notifier).load(),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final appearance = ref.watch(appearanceControllerProvider);
+    final theme = AppTheme.darkTheme(
+      accentColor: appearance.accentColor,
+      fontFamily: appearance.fontOption.fontFamily,
+    );
+
     return MaterialApp(
       title: 'Lumina',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.darkTheme,
-      darkTheme: AppTheme.darkTheme,
+      theme: theme,
+      darkTheme: theme,
       themeMode: ThemeMode.dark, // 强制深色模式
-      builder: (context, child) =>
-          _MacWindowInset(child: child ?? const SizedBox.shrink()),
+      builder: (context, child) {
+        final media = MediaQuery.of(context);
+        return MediaQuery(
+          data: media.copyWith(
+            textScaler: TextScaler.linear(appearance.fontScale),
+          ),
+          child: _MacWindowInset(child: child ?? const SizedBox.shrink()),
+        );
+      },
       home: const AppScaffold(),
     );
   }

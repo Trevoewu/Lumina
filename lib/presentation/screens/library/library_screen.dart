@@ -30,6 +30,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(appDatabaseProvider);
+    final accent = Theme.of(context).colorScheme.primary;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -48,12 +49,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             tooltip: '导入书籍',
             onPressed: _importing ? null : () => _importBook(context),
             icon: _importing
-                ? const SizedBox(
+                ? SizedBox(
                     width: 22,
                     height: 22,
                     child: CircularProgressIndicator(
                       strokeWidth: 2.5,
-                      color: AppColors.primary,
+                      color: accent,
                     ),
                   )
                 : const Icon(Icons.add, color: AppColors.textPrimary),
@@ -136,6 +137,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   /// 空状态：大图标 + 优雅文案 + 导入按钮。
   Widget _buildEmptyState() {
+    final accent = Theme.of(context).colorScheme.primary;
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -165,7 +167,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             const SizedBox(height: 32),
             FilledButton.icon(
               style: FilledButton.styleFrom(
-                backgroundColor: AppColors.primary,
+                backgroundColor: accent,
                 foregroundColor: Colors.black,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 28,

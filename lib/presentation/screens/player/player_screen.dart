@@ -294,6 +294,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     Duration position,
     Duration duration,
   ) {
+    final accent = Theme.of(context).colorScheme.primary;
     final progress = duration.inMilliseconds <= 0
         ? 0.0
         : (position.inMilliseconds / duration.inMilliseconds)
@@ -357,8 +358,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               child: Container(
                 width: 64,
                 height: 64,
-                decoration: const BoxDecoration(
-                  color: AppColors.primary,
+                decoration: BoxDecoration(
+                  color: accent,
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -483,7 +484,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                   ? Colors.white
                                   : Colors.white.withValues(alpha: 0.3),
                               height: 1.4,
-                              fontFamily: 'Inter',
                             ),
                             child: Text(paragraph.content),
                           ),
@@ -770,7 +770,6 @@ class _LyricsList extends StatelessWidget {
                     ? Colors.white
                     : Colors.white.withValues(alpha: 0.42),
                 height: 1.35,
-                fontFamily: 'Inter',
               ),
               child: Text(paragraph.content),
             ),

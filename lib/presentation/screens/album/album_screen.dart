@@ -461,6 +461,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   }
 
   Widget _buildAlbumPlayButton(List<drift_db.Chapter> chapters) {
+    final accent = Theme.of(context).colorScheme.primary;
     final firstChapterId = chapters.isEmpty ? null : chapters.first.id;
     final progress = firstChapterId == null
         ? null
@@ -470,7 +471,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       iconSize: 36,
       padding: const EdgeInsets.all(16),
       style: IconButton.styleFrom(
-        backgroundColor: AppColors.primary,
+        backgroundColor: accent,
         foregroundColor: Colors.black,
       ),
       icon: progress == null
@@ -510,6 +511,7 @@ class _ChapterActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     final progress = this.progress;
     if (progress != null) {
       return _TrailingRow(
@@ -524,7 +526,7 @@ class _ChapterActions extends StatelessWidget {
                 child: CircularProgressIndicator(
                   value: progress.percent == 0 ? null : progress.percent,
                   strokeWidth: 2,
-                  color: AppColors.primary,
+                  color: accent,
                 ),
               ),
               const SizedBox(height: 4),
@@ -549,17 +551,17 @@ class _ChapterActions extends StatelessWidget {
         final manifest = snapshot.data;
         Widget status;
         if (manifest != null && manifest.isReady) {
-          status = const Tooltip(
+          status = Tooltip(
             message: '音频已缓存',
-            child: Icon(Icons.download_done, color: AppColors.primary),
+            child: Icon(Icons.download_done, color: accent),
           );
         } else if (manifest != null && manifest.readyCount > 0) {
           status = Tooltip(
             message: '部分音频已缓存',
             child: Text(
               '${manifest.readyCount}/${manifest.segments.length}',
-              style: const TextStyle(
-                color: AppColors.primary,
+              style: TextStyle(
+                color: accent,
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
               ),

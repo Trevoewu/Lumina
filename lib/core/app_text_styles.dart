@@ -10,21 +10,21 @@ class AppTextStyles {
     fontSize: 24,
     fontWeight: FontWeight.bold,
     color: AppColors.textPrimary,
-    letterSpacing: -0.5,
+    letterSpacing: 0,
   );
 
   static const TextStyle heading2 = TextStyle(
     fontSize: 20,
     fontWeight: FontWeight.w700,
     color: AppColors.textPrimary,
-    letterSpacing: -0.3,
+    letterSpacing: 0,
   );
 
   static const TextStyle heading3 = TextStyle(
     fontSize: 16,
     fontWeight: FontWeight.w600,
     color: AppColors.textPrimary,
-    letterSpacing: -0.1,
+    letterSpacing: 0,
   );
 
   static const TextStyle bodyLarge = TextStyle(

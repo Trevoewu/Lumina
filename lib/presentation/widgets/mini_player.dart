@@ -13,6 +13,7 @@ class MiniPlayer extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final handlerAsync = ref.watch(luminaAudioHandlerProvider);
+    final accent = Theme.of(context).colorScheme.primary;
 
     return handlerAsync.when(
       loading: () => const SizedBox.shrink(),
@@ -144,9 +145,7 @@ class MiniPlayer extends ConsumerWidget {
                               value: progress,
                               minHeight: 2,
                               backgroundColor: Colors.transparent,
-                              valueColor: const AlwaysStoppedAnimation<Color>(
-                                AppColors.primary,
-                              ),
+                              valueColor: AlwaysStoppedAnimation<Color>(accent),
                             );
                           },
                         ),

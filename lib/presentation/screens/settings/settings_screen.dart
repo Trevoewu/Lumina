@@ -11,6 +11,7 @@ import '../../../tts/providers/fish_audio_local_tts_provider.dart';
 import '../../../tts/providers/kokoro_local_tts_provider.dart';
 import '../../../tts/providers/minimax_tts_provider.dart';
 import '../../../tts/tts_provider.dart';
+import 'appearance_screen.dart';
 import 'cache_management_screen.dart';
 import 'voice_library_screen.dart';
 
@@ -126,6 +127,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           _sectionDivider(),
           _sectionHeader('阅读偏好'),
+          _buildNavTile(
+            icon: Icons.palette_outlined,
+            title: 'Appearance',
+            subtitle: '字体、字号、主题色',
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const AppearanceScreen()),
+              );
+            },
+          ),
           _buildInfoTile(
             icon: Icons.speed,
             title: '播放倍速',
@@ -180,6 +191,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     required KokoroModelManager kokoroModelManager,
     required LocalTtsModelManager fishAudioModelManager,
   }) {
+    final accent = Theme.of(context).colorScheme.primary;
     final localModelManager = switch (p.id) {
       KokoroLocalTtsProvider.idValue => kokoroModelManager,
       FishAudioLocalTtsProvider.idValue => fishAudioModelManager,
@@ -202,7 +214,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
             leading: Icon(
               _providerIcon(p.id),
-              color: selected ? AppColors.primary : AppColors.textSecondary,
+              color: selected ? accent : AppColors.textSecondary,
             ),
             title: Text(
               p.displayName,
@@ -247,11 +259,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     onDetails: () => _showMiniMaxDetails(),
                   )
                 : selected
-                ? const Icon(
-                    Icons.check_circle,
-                    color: AppColors.primary,
-                    size: 22,
-                  )
+                ? Icon(Icons.check_circle, color: accent, size: 22)
                 : const Icon(
                     Icons.radio_button_unchecked,
                     color: AppColors.surfaceHighlight,
@@ -354,6 +362,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       showDragHandle: true,
       backgroundColor: AppColors.surface,
       builder: (context) {
+        final accent = Theme.of(context).colorScheme.primary;
         return StatefulBuilder(
           builder: (context, setSheetState) {
             return SafeArea(
@@ -378,8 +387,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         ),
                         Text(
                           '${draft.toStringAsFixed(1)}x',
-                          style: const TextStyle(
-                            color: AppColors.primary,
+                          style: TextStyle(
+                            color: accent,
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                           ),
@@ -389,9 +398,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     const SizedBox(height: 16),
                     SliderTheme(
                       data: SliderTheme.of(context).copyWith(
-                        activeTrackColor: AppColors.primary,
+                        activeTrackColor: accent,
                         inactiveTrackColor: AppColors.surfaceHighlight,
-                        thumbColor: AppColors.primary,
+                        thumbColor: accent,
                       ),
                       child: Slider(
                         min: 0.5,
@@ -575,6 +584,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       showDragHandle: true,
       backgroundColor: AppColors.surface,
       builder: (context) {
+        final accent = Theme.of(context).colorScheme.primary;
         return StreamBuilder<KokoroModelStatus>(
           stream: manager.statusStream,
           initialData: initialStatus,
@@ -613,7 +623,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             style: IconButton.styleFrom(
                               backgroundColor: downloading
                                   ? AppColors.surfaceHighlight
-                                  : AppColors.primary,
+                                  : accent,
                               foregroundColor: downloading
                                   ? AppColors.textPrimary
                                   : Colors.black,
@@ -656,9 +666,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         value: status.progress <= 0 ? null : status.progress,
                         minHeight: 4,
                         backgroundColor: AppColors.surfaceHighlight,
-                        valueColor: const AlwaysStoppedAnimation<Color>(
-                          AppColors.primary,
-                        ),
+                        valueColor: AlwaysStoppedAnimation<Color>(accent),
                       ),
                       const SizedBox(height: 8),
                       Text(
@@ -703,6 +711,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
       builder: (context) {
+        final accent = Theme.of(context).colorScheme.primary;
         return SafeArea(
           top: false,
           child: Padding(
@@ -732,7 +741,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       message: '保存 API Key',
                       child: IconButton.filled(
                         style: IconButton.styleFrom(
-                          backgroundColor: AppColors.primary,
+                          backgroundColor: accent,
                           foregroundColor: Colors.black,
                         ),
                         icon: const Icon(Icons.save_outlined),
@@ -790,10 +799,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(
-                        color: AppColors.primary,
-                        width: 1.5,
-                      ),
+                      borderSide: BorderSide(color: accent, width: 1.5),
                     ),
                   ),
                 ),
@@ -913,10 +919,11 @@ class _LocalModelInlineStatus extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     final color = switch (status.state) {
-      KokoroModelInstallState.installed => AppColors.primary,
+      KokoroModelInstallState.installed => accent,
       KokoroModelInstallState.failed => Colors.redAccent,
-      KokoroModelInstallState.downloading => AppColors.primary,
+      KokoroModelInstallState.downloading => accent,
       _ => AppColors.textSecondary,
     };
 
@@ -975,15 +982,16 @@ class _LocalModelProviderActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         if (status.isInstalled)
-          const Tooltip(
+          Tooltip(
             message: '模型已安装',
             child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12),
-              child: Icon(Icons.download_done, color: AppColors.primary),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Icon(Icons.download_done, color: accent),
             ),
           )
         else
@@ -1009,7 +1017,7 @@ class _LocalModelProviderActions extends StatelessWidget {
         ),
         Icon(
           selected ? Icons.check_circle : Icons.radio_button_unchecked,
-          color: selected ? AppColors.primary : AppColors.surfaceHighlight,
+          color: selected ? accent : AppColors.surfaceHighlight,
           size: 22,
         ),
       ],
@@ -1028,6 +1036,7 @@ class _MiniMaxProviderActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1041,7 +1050,7 @@ class _MiniMaxProviderActions extends StatelessWidget {
         ),
         Icon(
           selected ? Icons.check_circle : Icons.radio_button_unchecked,
-          color: selected ? AppColors.primary : AppColors.surfaceHighlight,
+          color: selected ? accent : AppColors.surfaceHighlight,
           size: 22,
         ),
       ],
