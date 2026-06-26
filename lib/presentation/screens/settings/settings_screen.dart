@@ -75,11 +75,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final active = ref.watch(activeTtsProviderIdProvider);
     final kokoroModelManager = ref.watch(kokoroModelManagerProvider);
     final fishAudioModelManager = ref.watch(fishAudioModelManagerProvider);
+    final topTint = Color.lerp(
+      AppColors.background,
+      Theme.of(context).colorScheme.primary,
+      0.18,
+    )!;
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
+        backgroundColor: topTint,
         elevation: 0,
         title: const Text(
           '设置',

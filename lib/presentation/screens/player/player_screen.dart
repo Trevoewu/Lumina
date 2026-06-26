@@ -7,6 +7,18 @@ import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart' as drift_db;
 import '../../widgets/book_cover.dart';
 
+Color _accentTint(BuildContext context, double amount) {
+  return Color.lerp(
+    AppColors.background,
+    Theme.of(context).colorScheme.primary,
+    amount,
+  )!;
+}
+
+String? _themeFontFamily(BuildContext context) {
+  return Theme.of(context).textTheme.bodyMedium?.fontFamily;
+}
+
 class PlayerScreen extends ConsumerStatefulWidget {
   final drift_db.Book book;
   final drift_db.Chapter? initialChapter;
@@ -86,18 +98,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   Widget build(BuildContext context) {
     final handlerAsync = ref.watch(luminaAudioHandlerProvider);
+    final topTint = _accentTint(context, 0.22);
 
     return Scaffold(
       backgroundColor: Colors.transparent, // Let the gradient show through
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF2A2A2A), // Dark grey at top
-              AppColors.background, // Black at bottom
-            ],
+            colors: [topTint, AppColors.background],
           ),
         ),
         child: SafeArea(
@@ -124,11 +134,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       child: Text(
                         widget.book.title,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
                           letterSpacing: 1.2,
                           fontWeight: FontWeight.bold,
                           color: Colors.white70,
+                          fontFamily: _themeFontFamily(context),
                         ),
                       ),
                     ),
@@ -389,10 +400,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (chapterId == null) return const SizedBox.shrink();
 
     final db = ref.watch(appDatabaseProvider);
+    final cardColor = _accentTint(context, 0.3);
+    final fontFamily = _themeFontFamily(context);
     return Container(
       margin: const EdgeInsets.fromLTRB(24, 0, 24, 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF1B4D30).withValues(alpha: 0.4), // 深绿色半透明背景
+        color: cardColor,
         borderRadius: BorderRadius.circular(16),
       ),
       child: ClipRRect(
@@ -405,12 +418,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
+                  Text(
                     'Lyrics',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
                       color: Colors.white,
+                      fontFamily: fontFamily,
                     ),
                   ),
                   Row(
@@ -484,6 +498,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                   ? Colors.white
                                   : Colors.white.withValues(alpha: 0.3),
                               height: 1.4,
+                              fontFamily: fontFamily,
                             ),
                             child: Text(paragraph.content),
                           ),
@@ -612,16 +627,18 @@ class _FullScreenLyricsSheetState
   Widget build(BuildContext context) {
     final db = ref.watch(appDatabaseProvider);
     final handlerAsync = ref.watch(luminaAudioHandlerProvider);
+    final topTint = _accentTint(context, 0.42);
+    final fontFamily = _themeFontFamily(context);
 
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Container(
         height: MediaQuery.sizeOf(context).height,
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF1B4D30), AppColors.background],
+            colors: [topTint, AppColors.background],
           ),
         ),
         child: SafeArea(
@@ -645,11 +662,12 @@ class _FullScreenLyricsSheetState
                         textAlign: TextAlign.center,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Colors.white70,
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                           letterSpacing: 1.2,
+                          fontFamily: fontFamily,
                         ),
                       ),
                     ),
@@ -657,8 +675,8 @@ class _FullScreenLyricsSheetState
                   ],
                 ),
               ),
-              const Padding(
-                padding: EdgeInsets.fromLTRB(24, 12, 24, 8),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
@@ -667,6 +685,7 @@ class _FullScreenLyricsSheetState
                       color: Colors.white,
                       fontSize: 28,
                       fontWeight: FontWeight.w800,
+                      fontFamily: fontFamily,
                     ),
                   ),
                 ),
@@ -746,6 +765,7 @@ class _LyricsList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final fontFamily = _themeFontFamily(context);
     return ListView.builder(
       controller: scrollController,
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 48),
@@ -770,6 +790,7 @@ class _LyricsList extends StatelessWidget {
                     ? Colors.white
                     : Colors.white.withValues(alpha: 0.42),
                 height: 1.35,
+                fontFamily: fontFamily,
               ),
               child: Text(paragraph.content),
             ),
