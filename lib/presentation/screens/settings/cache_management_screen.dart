@@ -21,13 +21,15 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
   Widget build(BuildContext context) {
     final db = ref.watch(appDatabaseProvider);
     final cache = ref.watch(cacheManagerProvider);
+    final topTint = Color.lerp(
+      AppColors.background,
+      Theme.of(context).colorScheme.primary,
+      0.18,
+    )!;
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        title: const Text('缓存管理'),
-      ),
+      appBar: AppBar(backgroundColor: topTint, title: const Text('缓存管理')),
       body: FutureBuilder<_CachePageData>(
         future: _loadData(db, cache),
         builder: (context, snapshot) {

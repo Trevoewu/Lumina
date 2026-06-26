@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/app_colors.dart';
 import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart' as drift_db;
 import '../../../tts/models/tts_capabilities.dart';
@@ -41,9 +42,15 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
     final db = ref.watch(appDatabaseProvider);
     final provider = ref.watch(activeTtsProviderProvider);
     final capabilities = provider.capabilities;
+    final topTint = Color.lerp(
+      AppColors.background,
+      Theme.of(context).colorScheme.primary,
+      0.18,
+    )!;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('音色库')),
+      backgroundColor: AppColors.background,
+      appBar: AppBar(backgroundColor: topTint, title: const Text('音色库')),
       body: RefreshIndicator(
         onRefresh: () async => setState(() {}),
         child: ListView(

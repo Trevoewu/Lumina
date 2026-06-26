@@ -12,11 +12,12 @@ class AppearanceScreen extends ConsumerWidget {
     final appearance = ref.watch(appearanceControllerProvider);
     final controller = ref.read(appearanceControllerProvider.notifier);
     final accent = Theme.of(context).colorScheme.primary;
+    final topTint = Color.lerp(AppColors.background, accent, 0.18)!;
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
+        backgroundColor: topTint,
         title: const Text('Appearance'),
         actions: [
           IconButton(
