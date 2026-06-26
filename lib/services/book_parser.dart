@@ -67,6 +67,26 @@ class BookParser {
     }
   }
 
+  static Future<ParsedBook> reparseExisting({
+    required String sourcePath,
+    required String bookId,
+    required String appDir,
+  }) async {
+    final ext = p.extension(sourcePath).toLowerCase();
+    switch (ext) {
+      case '.epub':
+        return _parseEpub(
+          sourcePath: sourcePath,
+          bookId: bookId,
+          appDir: appDir,
+        );
+      case '.txt':
+        return _parseTxt(sourcePath: sourcePath, bookId: bookId);
+      default:
+        throw UnsupportedError('不支持的文件格式: $ext');
+    }
+  }
+
   // ── EPUB ──
 
   static Future<ParsedBook> _parseEpub({
@@ -206,19 +226,23 @@ class BookParser {
   }
 
   static List<String> _extractHtmlBlocks(String html) {
-    final blocks = <String>[];
-    final blockPattern = RegExp(
-      r'<(p|div|section|article|blockquote|li|h[1-6])\b[^>]*>(.*?)</\1>',
-      caseSensitive: false,
-      dotAll: true,
+    final leafBlocks = _extractBlocksForTags(
+      html,
+      r'p|blockquote|li|h[1-6]',
+      skipNestedBlockContent: false,
     );
-
-    for (final match in blockPattern.allMatches(html)) {
-      final text = _htmlFragmentToText(match.group(2) ?? '');
-      if (_isContentParagraph(text)) blocks.add(text);
+    if (leafBlocks.isNotEmpty) {
+      return _mergeContinuationParagraphs(leafBlocks);
     }
 
-    if (blocks.isNotEmpty) return _mergeContinuationParagraphs(blocks);
+    final containerBlocks = _extractBlocksForTags(
+      html,
+      r'div|section|article',
+      skipNestedBlockContent: true,
+    );
+    if (containerBlocks.isNotEmpty) {
+      return _mergeContinuationParagraphs(containerBlocks);
+    }
 
     final fallback = html
         .replaceAll(
@@ -238,6 +262,33 @@ class BookParser {
           .where(_isContentParagraph)
           .toList(),
     );
+  }
+
+  static List<String> _extractBlocksForTags(
+    String html,
+    String tags, {
+    required bool skipNestedBlockContent,
+  }) {
+    final blocks = <String>[];
+    final blockPattern = RegExp(
+      '<($tags)\\b[^>]*>(.*?)</\\1>',
+      caseSensitive: false,
+      dotAll: true,
+    );
+    final nestedBlockPattern = RegExp(
+      r'<(p|div|section|article|blockquote|li|h[1-6])\b',
+      caseSensitive: false,
+    );
+
+    for (final match in blockPattern.allMatches(html)) {
+      final fragment = match.group(2) ?? '';
+      if (skipNestedBlockContent && nestedBlockPattern.hasMatch(fragment)) {
+        continue;
+      }
+      final text = _htmlFragmentToText(fragment);
+      if (_isContentParagraph(text)) blocks.add(text);
+    }
+    return blocks;
   }
 
   static List<String> _mergeContinuationParagraphs(List<String> paragraphs) {

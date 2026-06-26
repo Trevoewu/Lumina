@@ -91,6 +91,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   );
                 },
                 onEdit: () => _showEditBookSheet(book),
+                onReparse: () => _confirmReparseBook(book),
                 onClearCache: () => _confirmClearBookCache(book),
                 onDelete: () => _confirmDeleteBook(book),
               );
@@ -388,6 +389,105 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     }
   }
 
+  Future<void> _confirmReparseBook(drift_db.Book book) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('重新解析书籍？'),
+        content: Text('将重建《${book.title}》的章节和段落，并清除这本书已生成的音频缓存。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('重新解析'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    if (!mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      messenger.showSnackBar(
+        SnackBar(content: Text('正在重新解析《${book.title}》...')),
+      );
+      final handler = await ref.read(luminaAudioHandlerProvider.future);
+      await handler.unloadIfBook(book.id);
+      await ref.read(cacheManagerProvider).clearBook(book.id);
+
+      final appDir = await getApplicationDocumentsDirectory();
+      final parsed = await BookParser.reparseExisting(
+        sourcePath: book.sourcePath,
+        bookId: book.id,
+        appDir: appDir.path,
+      );
+      await ref
+          .read(appDatabaseProvider)
+          .replaceBookData(
+            book: drift_db.Book(
+              id: parsed.book.id,
+              title: parsed.book.title,
+              author: parsed.book.author,
+              format: parsed.book.format.name,
+              sourcePath: parsed.book.sourcePath,
+              coverPath: parsed.book.coverPath,
+              chapterCount: parsed.book.chapterCount,
+              paragraphCount: parsed.book.paragraphCount,
+              currentChapterId: parsed.book.currentChapterId,
+              currentParagraphIndex: parsed.book.currentParagraphIndex,
+              playbackOffsetMs: parsed.book.playbackOffsetMs,
+              voiceId: book.voiceId,
+              importedAt: book.importedAt,
+              lastReadAt: DateTime.now().millisecondsSinceEpoch,
+            ),
+            chapterEntries: parsed.chapters
+                .map(
+                  (c) => drift_db.Chapter(
+                    id: c.id,
+                    bookId: c.bookId,
+                    chapterIndex: c.index,
+                    title: c.title,
+                    textOffset: c.textOffset,
+                  ),
+                )
+                .toList(),
+            paragraphEntries: parsed.paragraphs
+                .map(
+                  (p) => drift_db.Paragraph(
+                    id: p.id,
+                    chapterId: p.chapterId,
+                    bookId: p.bookId,
+                    paragraphIndex: p.index,
+                    content: p.text,
+                  ),
+                )
+                .toList(),
+          );
+
+      if (!mounted) return;
+      setState(() => _reloadToken++);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            '重新解析完成：${parsed.chapters.length} 章，${parsed.paragraphs.length} 段',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 8),
+          content: Text('重新解析失败：$e'),
+        ),
+      );
+    }
+  }
+
   Future<void> _showEditBookSheet(drift_db.Book book) async {
     final titleController = TextEditingController(text: book.title);
     final authorController = TextEditingController(text: book.author ?? '');
@@ -582,6 +682,7 @@ class _BookCard extends StatelessWidget {
   final drift_db.Book book;
   final VoidCallback onTap;
   final VoidCallback onEdit;
+  final VoidCallback onReparse;
   final VoidCallback onClearCache;
   final VoidCallback onDelete;
 
@@ -589,6 +690,7 @@ class _BookCard extends StatelessWidget {
     required this.book,
     required this.onTap,
     required this.onEdit,
+    required this.onReparse,
     required this.onClearCache,
     required this.onDelete,
   });
@@ -714,6 +816,7 @@ class _BookCard extends StatelessWidget {
                           height: 18,
                           child: _BookActionsButton(
                             onEdit: onEdit,
+                            onReparse: onReparse,
                             onClearCache: onClearCache,
                             onDelete: onDelete,
                           ),
@@ -733,11 +836,13 @@ class _BookCard extends StatelessWidget {
 
 class _BookActionsButton extends StatelessWidget {
   final VoidCallback onEdit;
+  final VoidCallback onReparse;
   final VoidCallback onClearCache;
   final VoidCallback onDelete;
 
   const _BookActionsButton({
     required this.onEdit,
+    required this.onReparse,
     required this.onClearCache,
     required this.onDelete,
   });
@@ -752,6 +857,7 @@ class _BookActionsButton extends StatelessWidget {
       icon: const Icon(Icons.more_horiz, color: AppColors.textSecondary),
       onSelected: (value) {
         if (value == 'edit') onEdit();
+        if (value == 'reparse') onReparse();
         if (value == 'cache') onClearCache();
         if (value == 'delete') onDelete();
       },
@@ -763,6 +869,16 @@ class _BookActionsButton extends StatelessWidget {
               Icon(Icons.edit_outlined, size: 18),
               SizedBox(width: 8),
               Text('编辑'),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'reparse',
+          child: Row(
+            children: [
+              Icon(Icons.auto_fix_high_outlined, size: 18),
+              SizedBox(width: 8),
+              Text('重新解析'),
             ],
           ),
         ),

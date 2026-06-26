@@ -47,6 +47,24 @@ void main() {
     ]);
   });
 
+  test('EPUB html parser prefers paragraph tags inside large containers', () {
+    final paragraphs = BookParser.htmlToPlainParagraphsForTest('''
+      <body>
+        <div class="chapter">
+          <p>Like most small children, I learned my home address.</p>
+          <p>In kindergarten, my teacher asked where I lived.</p>
+          <p>My address was where I spent most of my time.</p>
+        </div>
+      </body>
+    ''');
+
+    expect(paragraphs, [
+      'Like most small children, I learned my home address.',
+      'In kindergarten, my teacher asked where I lived.',
+      'My address was where I spent most of my time.',
+    ]);
+  });
+
   test('EPUB parser skips obvious non-story front matter sections', () {
     expect(
       BookParser.shouldSkipEpubChapterForTest('Table of Contents', [

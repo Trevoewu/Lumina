@@ -241,6 +241,23 @@ class AppDatabase extends _$AppDatabase {
     await batch((b) => b.insertAll(chapters, entries));
   }
 
+  Future<void> replaceBookData({
+    required Book book,
+    required List<Chapter> chapterEntries,
+    required List<Paragraph> paragraphEntries,
+  }) async {
+    await transaction(() async {
+      await (delete(bookmarks)..where((b) => b.bookId.equals(book.id))).go();
+      await (delete(paragraphs)..where((p) => p.bookId.equals(book.id))).go();
+      await (delete(chapters)..where((c) => c.bookId.equals(book.id))).go();
+      await into(books).insertOnConflictUpdate(book);
+      await batch((b) {
+        b.insertAll(chapters, chapterEntries);
+        b.insertAll(paragraphs, paragraphEntries);
+      });
+    });
+  }
+
   // ── 段落 ──
 
   Future<List<Paragraph>> getParagraphs(String chapterId) =>
