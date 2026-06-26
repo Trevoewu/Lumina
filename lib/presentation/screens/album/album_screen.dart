@@ -566,7 +566,13 @@ class _ChapterActions extends StatelessWidget {
             ),
           );
         } else {
-          status = const Icon(Icons.more_vert, color: AppColors.textSecondary);
+          status = const Tooltip(
+            message: '音频未缓存',
+            child: Icon(
+              Icons.download_for_offline_outlined,
+              color: AppColors.textSecondary,
+            ),
+          );
         }
         return _TrailingRow(
           status: status,
@@ -600,7 +606,7 @@ class _TrailingRow extends StatelessWidget {
           PopupMenuButton<String>(
             tooltip: '章节操作',
             color: AppColors.surface,
-            icon: const Icon(Icons.more_horiz, color: AppColors.textSecondary),
+            icon: const Icon(Icons.more_vert, color: AppColors.textSecondary),
             onSelected: (value) {
               if (value == 'clear') onClearCache();
               if (value == 'regenerate') onRegenerate();
