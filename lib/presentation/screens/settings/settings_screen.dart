@@ -7,6 +7,7 @@ import '../../../services/kokoro_model_manager.dart';
 import '../../../tts/models/tts_capabilities.dart';
 import '../../../tts/provider_registry.dart';
 import '../../../tts/providers/edge_tts_provider.dart';
+import '../../../tts/providers/fish_audio_api_tts_provider.dart';
 import '../../../tts/providers/fish_audio_local_tts_provider.dart';
 import '../../../tts/providers/kokoro_local_tts_provider.dart';
 import '../../../tts/providers/minimax_tts_provider.dart';
@@ -28,6 +29,7 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final _minimaxKeyController = TextEditingController();
+  final _fishApiKeyController = TextEditingController();
   double _speed = 1.0;
 
   @override
@@ -39,6 +41,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   void dispose() {
     _minimaxKeyController.dispose();
+    _fishApiKeyController.dispose();
     super.dispose();
   }
 
@@ -62,6 +65,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         return Icons.memory;
       case FishAudioLocalTtsProvider.idValue:
         return Icons.graphic_eq;
+      case FishAudioApiTtsProvider.idValue:
+        return Icons.waves_outlined;
       case EdgeTtsProvider.idValue:
         return Icons.cloud_outlined;
       default:
@@ -203,6 +208,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       _ => null,
     };
     final isMiniMax = p.id == MinimaxTtsProvider.idValue;
+    final isFishApi = p.id == FishAudioApiTtsProvider.idValue;
 
     return Material(
       color: AppColors.surface,
@@ -259,9 +265,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                   )
                 : isMiniMax
-                ? _MiniMaxProviderActions(
+                ? _ApiKeyProviderActions(
                     selected: selected,
                     onDetails: () => _showMiniMaxDetails(),
+                  )
+                : isFishApi
+                ? _ApiKeyProviderActions(
+                    selected: selected,
+                    onDetails: () => _showFishApiDetails(),
                   )
                 : selected
                 ? Icon(Icons.check_circle, color: accent, size: 22)
@@ -853,6 +864,155 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
+  void _showFishApiDetails() {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      builder: (context) {
+        final accent = Theme.of(context).colorScheme.primary;
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              24,
+              8,
+              24,
+              24 + MediaQuery.viewInsetsOf(context).bottom,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Fish Audio API Key',
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    Tooltip(
+                      message: '保存 API Key',
+                      child: IconButton.filled(
+                        style: IconButton.styleFrom(
+                          backgroundColor: accent,
+                          foregroundColor: Colors.black,
+                        ),
+                        icon: const Icon(Icons.save_outlined),
+                        onPressed: () => _saveFishApiKey(context),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Tooltip(
+                      message: '测试连接',
+                      child: IconButton(
+                        icon: const Icon(Icons.wifi_tethering_outlined),
+                        color: AppColors.textSecondary,
+                        onPressed: () => _testFishApiConnection(context),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  '用于 Fish Audio 云端 TTS。密钥会保存在系统安全存储中。',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                TextField(
+                  controller: _fishApiKeyController,
+                  obscureText: true,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 15,
+                  ),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: AppColors.background,
+                    hintText: '在这里填入 Fish Audio API Key',
+                    hintStyle: const TextStyle(color: AppColors.textSecondary),
+                    prefixIcon: const Icon(
+                      Icons.key_outlined,
+                      color: AppColors.textSecondary,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 16,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: accent, width: 1.5),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                _buildModelInfoRow(
+                  icon: Icons.psychology_outlined,
+                  label: '模型',
+                  value: FishAudioApiTtsProvider.model,
+                ),
+                _buildModelInfoRow(
+                  icon: Icons.lock_outline,
+                  label: '存储',
+                  value: 'flutter_secure_storage',
+                ),
+                _buildModelInfoRow(
+                  icon: Icons.record_voice_over_outlined,
+                  label: '音色',
+                  value: '默认声音 / 已训练 Fish voice model',
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _saveFishApiKey(BuildContext sheetContext) async {
+    final sheetNavigator = Navigator.of(sheetContext);
+    final provider = ref
+        .read(providerRegistryProvider)
+        .get(FishAudioApiTtsProvider.idValue);
+    if (provider is! FishAudioApiTtsProvider) return;
+
+    await provider.setApiKey(_fishApiKeyController.text.trim());
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Fish Audio API Key 已保存到安全存储')),
+    );
+    sheetNavigator.pop();
+  }
+
+  Future<void> _testFishApiConnection(BuildContext sheetContext) async {
+    final provider = ref
+        .read(providerRegistryProvider)
+        .get(FishAudioApiTtsProvider.idValue);
+    final ok = provider is FishAudioApiTtsProvider && await provider.validate();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(ok ? 'Fish Audio 连接正常' : 'Fish Audio 连接失败')),
+    );
+  }
+
   Widget _buildModelInfoRow({
     required IconData icon,
     required String label,
@@ -1030,11 +1190,11 @@ class _LocalModelProviderActions extends StatelessWidget {
   }
 }
 
-class _MiniMaxProviderActions extends StatelessWidget {
+class _ApiKeyProviderActions extends StatelessWidget {
   final bool selected;
   final VoidCallback onDetails;
 
-  const _MiniMaxProviderActions({
+  const _ApiKeyProviderActions({
     required this.selected,
     required this.onDetails,
   });

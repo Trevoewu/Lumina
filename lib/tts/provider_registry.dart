@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../tts/providers/edge_tts_provider.dart';
+import '../tts/providers/fish_audio_api_tts_provider.dart';
 import '../tts/providers/fish_audio_local_tts_provider.dart';
 import '../tts/providers/kokoro_local_tts_provider.dart';
 import '../tts/providers/minimax_tts_provider.dart';
@@ -19,11 +20,15 @@ class ProviderRegistry {
   ProviderRegistry() {
     final kokoro = KokoroLocalTtsProvider();
     final fish = FishAudioLocalTtsProvider();
+    final fishApi = FishAudioApiTtsProvider(
+      storage: const FlutterSecureStorage(),
+    );
     final minimax = MinimaxTtsProvider(storage: const FlutterSecureStorage());
     final edge = EdgeTtsProvider();
 
     _providers[kokoro.id] = kokoro;
     _providers[fish.id] = fish;
+    _providers[fishApi.id] = fishApi;
     _providers[minimax.id] = minimax;
     _providers[edge.id] = edge;
   }
