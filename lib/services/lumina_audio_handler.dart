@@ -56,28 +56,33 @@ class LuminaAudioHandler extends BaseAudioHandler
     String? bookTitle,
     String? chapterTitle,
   }) async {
-    _manifest = manifest;
     final readySegments = manifest.segments
         .where((segment) => segment.state == ParagraphAudioState.ready)
         .toList(growable: false);
 
-    _paragraphIds = readySegments
-        .map((segment) => segment.paragraphId)
-        .toList(growable: false);
-    _chapterDurationMs = manifest.totalDurationMs;
+    final playableSegments = <SegmentEntry>[];
+    for (final segment in readySegments) {
+      final file = File('$audioRoot/${segment.audioFile}');
+      if (await file.exists() && await file.length() > 64) {
+        playableSegments.add(segment);
+      }
+    }
+
+    if (playableSegments.isEmpty) {
+      throw StateError('这一章没有可播放的缓存音频，请重新生成。');
+    }
 
     var offsetMs = 0;
     final offsets = <int>[];
-    for (final segment in readySegments) {
+    for (final segment in playableSegments) {
       offsets.add(offsetMs);
       offsetMs += segment.durationMs;
     }
-    _paragraphStartOffsetsMs = offsets;
 
     final items = <MediaItem>[];
     final sources = <AudioSource>[];
-    for (var i = 0; i < readySegments.length; i++) {
-      final segment = readySegments[i];
+    for (var i = 0; i < playableSegments.length; i++) {
+      final segment = playableSegments[i];
       final file = File('$audioRoot/${segment.audioFile}');
       final item = MediaItem(
         id: segment.paragraphId,
@@ -98,11 +103,28 @@ class LuminaAudioHandler extends BaseAudioHandler
     }
 
     queue.add(items);
-    if (items.isNotEmpty) {
-      mediaItem.add(items.first);
-      _currentParagraphController.add(items.first.id);
+    try {
+      await _player.setAudioSources(sources);
+    } catch (e) {
+      try {
+        await _player.stop();
+        await _player.clearAudioSources();
+      } catch (_) {}
+      await _resetLoadedState();
+      throw StateError('音频缓存无法播放，请清除后重新生成。$e');
     }
-    await _player.setAudioSources(sources);
+
+    _manifest = manifest;
+    _paragraphIds = playableSegments
+        .map((segment) => segment.paragraphId)
+        .toList(growable: false);
+    _paragraphStartOffsetsMs = offsets;
+    _chapterDurationMs = playableSegments.fold<int>(
+      0,
+      (total, segment) => total + segment.durationMs,
+    );
+    mediaItem.add(items.first);
+    _currentParagraphController.add(items.first.id);
     _broadcastState(_player.playbackEvent);
   }
 
@@ -161,6 +183,11 @@ class LuminaAudioHandler extends BaseAudioHandler
   Future<void> unload() async {
     await _player.stop();
     await _player.clearAudioSources();
+    await _resetLoadedState();
+    _broadcastState(_player.playbackEvent);
+  }
+
+  Future<void> _resetLoadedState() async {
     _manifest = null;
     _paragraphIds = const [];
     _paragraphStartOffsetsMs = const [];
@@ -168,7 +195,6 @@ class LuminaAudioHandler extends BaseAudioHandler
     queue.add(const []);
     mediaItem.add(null);
     _currentParagraphController.add(null);
-    _broadcastState(_player.playbackEvent);
   }
 
   @override

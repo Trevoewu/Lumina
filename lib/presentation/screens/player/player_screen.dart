@@ -35,13 +35,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   final ScrollController _lyricsScrollController = ScrollController();
   final Map<String, GlobalKey> _paragraphKeys = {};
   List<drift_db.Paragraph> _inlineLyricsParagraphs = const [];
+  double _speed = 1.0;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _listenToAudioHandler();
+      _loadPlaybackSpeed();
     });
+  }
+
+  Future<void> _loadPlaybackSpeed() async {
+    final value = await ref.read(appDatabaseProvider).getSetting('playback_speed');
+    final speed = (double.tryParse(value ?? '') ?? 1.0).clamp(0.5, 3.0);
+    final handler = await ref.read(luminaAudioHandlerProvider.future);
+    await handler.setSpeed(speed);
+    if (!mounted) return;
+    setState(() => _speed = speed.toDouble());
   }
 
   void _listenToAudioHandler() async {
@@ -355,9 +366,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             IconButton(
-              icon: const Icon(Icons.shuffle),
+              tooltip: '播放倍速',
+              icon: Text(
+                '${_speed.toStringAsFixed(1)}x',
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
               color: AppColors.textSecondary,
-              onPressed: () {},
+              onPressed: _showSpeedSheet,
             ),
             IconButton(
               icon: const Icon(Icons.skip_previous, size: 36),
@@ -527,6 +546,113 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Future<void> _playParagraph(drift_db.Paragraph paragraph) async {
     final handler = await ref.read(luminaAudioHandlerProvider.future);
     await handler.playFromParagraph(paragraph.id);
+  }
+
+  void _showSpeedSheet() {
+    var draft = _speed;
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: AppColors.surface,
+      builder: (context) {
+        final accent = Theme.of(context).colorScheme.primary;
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            '播放倍速',
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          '${draft.toStringAsFixed(1)}x',
+                          style: TextStyle(
+                            color: accent,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    SliderTheme(
+                      data: SliderTheme.of(context).copyWith(
+                        activeTrackColor: accent,
+                        inactiveTrackColor: AppColors.surfaceHighlight,
+                        thumbColor: accent,
+                      ),
+                      child: Slider(
+                        min: 0.5,
+                        max: 3.0,
+                        divisions: 25,
+                        value: draft,
+                        onChanged: (value) {
+                          setSheetState(() => draft = value);
+                          _applySpeed(value);
+                        },
+                      ),
+                    ),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final value in const [
+                          0.8,
+                          1.0,
+                          1.2,
+                          1.5,
+                          2.0,
+                          2.5,
+                        ])
+                          ChoiceChip(
+                            label: Text('${value.toStringAsFixed(1)}x'),
+                            selected: (draft - value).abs() < 0.01,
+                            selectedColor: accent,
+                            labelStyle: TextStyle(
+                              color: (draft - value).abs() < 0.01
+                                  ? Colors.black
+                                  : AppColors.textPrimary,
+                            ),
+                            onSelected: (_) {
+                              setSheetState(() => draft = value);
+                              _applySpeed(value);
+                            },
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _applySpeed(double speed) async {
+    final clamped = speed.clamp(0.5, 3.0).toDouble();
+    final handler = await ref.read(luminaAudioHandlerProvider.future);
+    await handler.setSpeed(clamped);
+    await ref
+        .read(appDatabaseProvider)
+        .setSetting('playback_speed', clamped.toStringAsFixed(2));
+    if (!mounted) return;
+    setState(() => _speed = clamped);
   }
 
   void _showFullScreenLyrics(String chapterId) {

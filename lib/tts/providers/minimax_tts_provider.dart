@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../api_key_store.dart';
 import '../models/tts_capabilities.dart';
 import '../models/tts_chunk.dart';
 import '../models/tts_voice.dart';
@@ -27,11 +27,11 @@ class MinimaxTtsProvider implements TtsProvider {
   static const String _storageKey = 'minimax_api_key';
 
   final Dio _dio;
-  final FlutterSecureStorage _secureStorage;
+  final ApiKeyStore _apiKeyStore;
 
-  MinimaxTtsProvider({Dio? dio, FlutterSecureStorage? storage})
+  MinimaxTtsProvider({Dio? dio, ApiKeyStore? apiKeyStore})
     : _dio = dio ?? Dio(),
-      _secureStorage = storage ?? const FlutterSecureStorage();
+      _apiKeyStore = apiKeyStore ?? ApiKeyStore();
 
   @override
   String get id => idValue;
@@ -60,12 +60,11 @@ class MinimaxTtsProvider implements TtsProvider {
 
   // ── 配置 ──
 
-  Future<String?> get apiKey => _secureStorage.read(key: _storageKey);
+  Future<String?> get apiKey => _apiKeyStore.read(_storageKey);
 
-  Future<void> setApiKey(String key) =>
-      _secureStorage.write(key: _storageKey, value: key);
+  Future<void> setApiKey(String key) => _apiKeyStore.write(_storageKey, key);
 
-  Future<void> clearApiKey() => _secureStorage.delete(key: _storageKey);
+  Future<void> clearApiKey() => _apiKeyStore.delete(_storageKey);
 
   @override
   Future<bool> validate() async {
@@ -211,7 +210,7 @@ class MinimaxTtsProvider implements TtsProvider {
       'audio_setting': {
         'sample_rate': 32000,
         'bitrate': 128000,
-        'format': 'mp3',
+        'format': 'wav',
         'channel': 1,
       },
       'language_boost': 'auto',

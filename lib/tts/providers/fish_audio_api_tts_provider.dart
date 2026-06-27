@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../api_key_store.dart';
 import '../models/tts_capabilities.dart';
 import '../models/tts_chunk.dart';
 import '../models/tts_voice.dart';
@@ -21,11 +21,11 @@ class FishAudioApiTtsProvider implements TtsProvider {
   static const String _defaultVoiceId = 'fish_api_default';
 
   final Dio _dio;
-  final FlutterSecureStorage _secureStorage;
+  final ApiKeyStore _apiKeyStore;
 
-  FishAudioApiTtsProvider({Dio? dio, FlutterSecureStorage? storage})
+  FishAudioApiTtsProvider({Dio? dio, ApiKeyStore? apiKeyStore})
     : _dio = dio ?? Dio(),
-      _secureStorage = storage ?? const FlutterSecureStorage();
+      _apiKeyStore = apiKeyStore ?? ApiKeyStore();
 
   @override
   String get id => idValue;
@@ -51,12 +51,12 @@ class FishAudioApiTtsProvider implements TtsProvider {
     ),
   );
 
-  Future<String?> get apiKey => _secureStorage.read(key: _storageKey);
+  Future<String?> get apiKey => _apiKeyStore.read(_storageKey);
 
   Future<void> setApiKey(String key) =>
-      _secureStorage.write(key: _storageKey, value: key.trim());
+      _apiKeyStore.write(_storageKey, key.trim());
 
-  Future<void> clearApiKey() => _secureStorage.delete(key: _storageKey);
+  Future<void> clearApiKey() => _apiKeyStore.delete(_storageKey);
 
   @override
   Future<bool> validate() async {

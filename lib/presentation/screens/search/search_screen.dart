@@ -258,15 +258,23 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               segment.paragraphId == hit.paragraph.id &&
               segment.state == ParagraphAudioState.ready,
         )) {
-      final handler = await ref.read(luminaAudioHandlerProvider.future);
-      final audioRoot = await manifestStore.audioRoot(book.id);
-      await handler.loadChapter(
-        manifest: manifest,
-        audioRoot: audioRoot.path,
-        bookTitle: book.title,
-        chapterTitle: chapter.title,
-      );
-      await handler.playFromParagraph(hit.paragraph.id);
+      try {
+        final handler = await ref.read(luminaAudioHandlerProvider.future);
+        final audioRoot = await manifestStore.audioRoot(book.id);
+        await handler.loadChapter(
+          manifest: manifest,
+          audioRoot: audioRoot.path,
+          bookTitle: book.title,
+          chapterTitle: chapter.title,
+        );
+        await handler.playFromParagraph(hit.paragraph.id);
+      } catch (_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('播放缓存失败，请清除音频后重新生成')));
+        return;
+      }
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).push(
         MaterialPageRoute(

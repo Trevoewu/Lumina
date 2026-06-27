@@ -28,6 +28,7 @@ class Books extends Table {
   TextColumn get voiceId => text().nullable()();
   IntColumn get importedAt => integer()();
   IntColumn get lastReadAt => integer().withDefault(const Constant(0))();
+  TextColumn get kind => text().withDefault(const Constant('book'))();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -140,7 +141,17 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onCreate: (m) => m.createAll(),
+    onUpgrade: (m, from, to) async {
+      if (from < 2) {
+        await m.addColumn(books, books.kind);
+      }
+    },
+  );
 
   // ── 书籍 ──
 

@@ -256,6 +256,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           voiceId: parsed.book.voiceId,
           importedAt: parsed.book.importedAt,
           lastReadAt: parsed.book.lastReadAt,
+          kind: 'book',
         ),
       );
 
@@ -445,6 +446,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               voiceId: book.voiceId,
               importedAt: book.importedAt,
               lastReadAt: DateTime.now().millisecondsSinceEpoch,
+              kind: book.kind,
             ),
             chapterEntries: parsed.chapters
                 .map(

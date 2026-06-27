@@ -158,6 +158,16 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('book'),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -174,6 +184,7 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
     voiceId,
     importedAt,
     lastReadAt,
+    kind,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -296,6 +307,12 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
         ),
       );
     }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    }
     return context;
   }
 
@@ -361,6 +378,10 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
         DriftSqlType.int,
         data['${effectivePrefix}last_read_at'],
       )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
     );
   }
 
@@ -385,6 +406,7 @@ class Book extends DataClass implements Insertable<Book> {
   final String? voiceId;
   final int importedAt;
   final int lastReadAt;
+  final String kind;
   const Book({
     required this.id,
     required this.title,
@@ -400,6 +422,7 @@ class Book extends DataClass implements Insertable<Book> {
     this.voiceId,
     required this.importedAt,
     required this.lastReadAt,
+    required this.kind,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -426,6 +449,7 @@ class Book extends DataClass implements Insertable<Book> {
     }
     map['imported_at'] = Variable<int>(importedAt);
     map['last_read_at'] = Variable<int>(lastReadAt);
+    map['kind'] = Variable<String>(kind);
     return map;
   }
 
@@ -453,6 +477,7 @@ class Book extends DataClass implements Insertable<Book> {
           : Value(voiceId),
       importedAt: Value(importedAt),
       lastReadAt: Value(lastReadAt),
+      kind: Value(kind),
     );
   }
 
@@ -478,6 +503,7 @@ class Book extends DataClass implements Insertable<Book> {
       voiceId: serializer.fromJson<String?>(json['voiceId']),
       importedAt: serializer.fromJson<int>(json['importedAt']),
       lastReadAt: serializer.fromJson<int>(json['lastReadAt']),
+      kind: serializer.fromJson<String>(json['kind']),
     );
   }
   @override
@@ -498,6 +524,7 @@ class Book extends DataClass implements Insertable<Book> {
       'voiceId': serializer.toJson<String?>(voiceId),
       'importedAt': serializer.toJson<int>(importedAt),
       'lastReadAt': serializer.toJson<int>(lastReadAt),
+      'kind': serializer.toJson<String>(kind),
     };
   }
 
@@ -516,6 +543,7 @@ class Book extends DataClass implements Insertable<Book> {
     Value<String?> voiceId = const Value.absent(),
     int? importedAt,
     int? lastReadAt,
+    String? kind,
   }) => Book(
     id: id ?? this.id,
     title: title ?? this.title,
@@ -533,6 +561,7 @@ class Book extends DataClass implements Insertable<Book> {
     voiceId: voiceId.present ? voiceId.value : this.voiceId,
     importedAt: importedAt ?? this.importedAt,
     lastReadAt: lastReadAt ?? this.lastReadAt,
+    kind: kind ?? this.kind,
   );
   Book copyWithCompanion(BooksCompanion data) {
     return Book(
@@ -566,6 +595,7 @@ class Book extends DataClass implements Insertable<Book> {
       lastReadAt: data.lastReadAt.present
           ? data.lastReadAt.value
           : this.lastReadAt,
+      kind: data.kind.present ? data.kind.value : this.kind,
     );
   }
 
@@ -585,7 +615,8 @@ class Book extends DataClass implements Insertable<Book> {
           ..write('playbackOffsetMs: $playbackOffsetMs, ')
           ..write('voiceId: $voiceId, ')
           ..write('importedAt: $importedAt, ')
-          ..write('lastReadAt: $lastReadAt')
+          ..write('lastReadAt: $lastReadAt, ')
+          ..write('kind: $kind')
           ..write(')'))
         .toString();
   }
@@ -606,6 +637,7 @@ class Book extends DataClass implements Insertable<Book> {
     voiceId,
     importedAt,
     lastReadAt,
+    kind,
   );
   @override
   bool operator ==(Object other) =>
@@ -624,7 +656,8 @@ class Book extends DataClass implements Insertable<Book> {
           other.playbackOffsetMs == this.playbackOffsetMs &&
           other.voiceId == this.voiceId &&
           other.importedAt == this.importedAt &&
-          other.lastReadAt == this.lastReadAt);
+          other.lastReadAt == this.lastReadAt &&
+          other.kind == this.kind);
 }
 
 class BooksCompanion extends UpdateCompanion<Book> {
@@ -642,6 +675,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
   final Value<String?> voiceId;
   final Value<int> importedAt;
   final Value<int> lastReadAt;
+  final Value<String> kind;
   final Value<int> rowid;
   const BooksCompanion({
     this.id = const Value.absent(),
@@ -658,6 +692,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
     this.voiceId = const Value.absent(),
     this.importedAt = const Value.absent(),
     this.lastReadAt = const Value.absent(),
+    this.kind = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   BooksCompanion.insert({
@@ -675,6 +710,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
     this.voiceId = const Value.absent(),
     required int importedAt,
     this.lastReadAt = const Value.absent(),
+    this.kind = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        title = Value(title),
@@ -696,6 +732,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
     Expression<String>? voiceId,
     Expression<int>? importedAt,
     Expression<int>? lastReadAt,
+    Expression<String>? kind,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -714,6 +751,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
       if (voiceId != null) 'voice_id': voiceId,
       if (importedAt != null) 'imported_at': importedAt,
       if (lastReadAt != null) 'last_read_at': lastReadAt,
+      if (kind != null) 'kind': kind,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -733,6 +771,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
     Value<String?>? voiceId,
     Value<int>? importedAt,
     Value<int>? lastReadAt,
+    Value<String>? kind,
     Value<int>? rowid,
   }) {
     return BooksCompanion(
@@ -751,6 +790,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
       voiceId: voiceId ?? this.voiceId,
       importedAt: importedAt ?? this.importedAt,
       lastReadAt: lastReadAt ?? this.lastReadAt,
+      kind: kind ?? this.kind,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -802,6 +842,9 @@ class BooksCompanion extends UpdateCompanion<Book> {
     if (lastReadAt.present) {
       map['last_read_at'] = Variable<int>(lastReadAt.value);
     }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -825,6 +868,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
           ..write('voiceId: $voiceId, ')
           ..write('importedAt: $importedAt, ')
           ..write('lastReadAt: $lastReadAt, ')
+          ..write('kind: $kind, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3315,6 +3359,7 @@ typedef $$BooksTableCreateCompanionBuilder =
       Value<String?> voiceId,
       required int importedAt,
       Value<int> lastReadAt,
+      Value<String> kind,
       Value<int> rowid,
     });
 typedef $$BooksTableUpdateCompanionBuilder =
@@ -3333,6 +3378,7 @@ typedef $$BooksTableUpdateCompanionBuilder =
       Value<String?> voiceId,
       Value<int> importedAt,
       Value<int> lastReadAt,
+      Value<String> kind,
       Value<int> rowid,
     });
 
@@ -3411,6 +3457,11 @@ class $$BooksTableFilterComposer extends Composer<_$AppDatabase, $BooksTable> {
 
   ColumnFilters<int> get lastReadAt => $composableBuilder(
     column: $table.lastReadAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -3493,6 +3544,11 @@ class $$BooksTableOrderingComposer
     column: $table.lastReadAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$BooksTableAnnotationComposer
@@ -3561,6 +3617,9 @@ class $$BooksTableAnnotationComposer
     column: $table.lastReadAt,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
 }
 
 class $$BooksTableTableManager
@@ -3605,6 +3664,7 @@ class $$BooksTableTableManager
                 Value<String?> voiceId = const Value.absent(),
                 Value<int> importedAt = const Value.absent(),
                 Value<int> lastReadAt = const Value.absent(),
+                Value<String> kind = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => BooksCompanion(
                 id: id,
@@ -3621,6 +3681,7 @@ class $$BooksTableTableManager
                 voiceId: voiceId,
                 importedAt: importedAt,
                 lastReadAt: lastReadAt,
+                kind: kind,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -3639,6 +3700,7 @@ class $$BooksTableTableManager
                 Value<String?> voiceId = const Value.absent(),
                 required int importedAt,
                 Value<int> lastReadAt = const Value.absent(),
+                Value<String> kind = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => BooksCompanion.insert(
                 id: id,
@@ -3655,6 +3717,7 @@ class $$BooksTableTableManager
                 voiceId: voiceId,
                 importedAt: importedAt,
                 lastReadAt: lastReadAt,
+                kind: kind,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

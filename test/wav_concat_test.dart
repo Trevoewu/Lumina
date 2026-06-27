@@ -40,6 +40,22 @@ void main() {
     return out;
   }
 
+  Uint8List makeConstantWav({
+    required int frames,
+    required int sampleRate,
+    required int sample,
+  }) {
+    final pcmBytes = frames * 2;
+    final out = makeWav(pcmBytes);
+    final d = ByteData.sublistView(out);
+    d.setUint32(24, sampleRate, Endian.little);
+    d.setUint32(28, sampleRate * 2, Endian.little);
+    for (var i = 0; i < frames; i++) {
+      d.setInt16(44 + i * 2, sample, Endian.little);
+    }
+    return out;
+  }
+
   test('concatWavPcm merges two WAVs into a single valid WAV', () {
     final wav1 = makeWav(4800);
     final wav2 = makeWav(3600);
@@ -65,5 +81,16 @@ void main() {
     final wav = makeWav(1000);
     final result = GenerationOrchestrator.concatWavPcm([wav]);
     expect(result, same(wav));
+  });
+
+  test('applyWavFadeIn fades beginning of 16-bit PCM WAV', () {
+    final wav = makeConstantWav(frames: 100, sampleRate: 1000, sample: 10000);
+    final faded = GenerationOrchestrator.applyWavFadeIn(wav, fadeInMs: 10);
+    final d = ByteData.sublistView(faded);
+
+    expect(String.fromCharCodes(faded.sublist(0, 4)), 'RIFF');
+    expect(d.getInt16(44, Endian.little), 0);
+    expect(d.getInt16(44 + 9 * 2, Endian.little), 10000);
+    expect(d.getInt16(44 + 20 * 2, Endian.little), 10000);
   });
 }

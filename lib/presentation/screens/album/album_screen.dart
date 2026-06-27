@@ -54,7 +54,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       return;
     }
 
-    await _generateChapterThenPlay(chapter);
+    await _generateChapterAudio(chapter);
   }
 
   Future<void> _clearChapterCache(drift_db.Chapter chapter) async {
@@ -110,24 +110,30 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     await ref
         .read(cacheManagerProvider)
         .clearChapter(widget.book.id, chapter.id);
-    await _generateChapterThenPlay(chapter);
+    await _generateChapterAudio(chapter);
   }
 
   Future<void> _loadAndOpenPlayer(
     ChapterManifest manifest,
     drift_db.Chapter chapter,
   ) async {
-    final handler = await ref.read(luminaAudioHandlerProvider.future);
-    final audioRoot = await ref
-        .read(manifestStoreProvider)
-        .audioRoot(widget.book.id);
-    await handler.loadChapter(
-      manifest: manifest,
-      audioRoot: audioRoot.path,
-      bookTitle: widget.book.title,
-      chapterTitle: chapter.title,
-    );
-    await handler.play();
+    try {
+      final handler = await ref.read(luminaAudioHandlerProvider.future);
+      final audioRoot = await ref
+          .read(manifestStoreProvider)
+          .audioRoot(widget.book.id);
+      await handler.loadChapter(
+        manifest: manifest,
+        audioRoot: audioRoot.path,
+        bookTitle: widget.book.title,
+        chapterTitle: chapter.title,
+      );
+      await handler.play();
+    } catch (error) {
+      if (!mounted) return;
+      _showSnackBar('播放缓存失败，请清除音频后重新生成');
+      return;
+    }
 
     if (!mounted) return;
     showModalBottomSheet(
@@ -139,7 +145,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     );
   }
 
-  Future<void> _generateChapterThenPlay(drift_db.Chapter chapter) async {
+  Future<void> _generateChapterAudio(drift_db.Chapter chapter) async {
     final messenger = ScaffoldMessenger.of(context);
     _generatingChapterIds.add(chapter.id);
     setState(() {});
@@ -181,11 +187,10 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
             content: Text(
               manifest.isReady
                   ? '已缓存：${chapter.title}'
-                  : '已缓存 ${manifest.readyCount}/${manifest.segments.length} 段，开始播放已缓存内容',
+                  : '已缓存 ${manifest.readyCount}/${manifest.segments.length} 段',
             ),
           ),
         );
-        await _loadAndOpenPlayer(manifest, chapter);
       } else {
         _showSnackBar('音频合成未完成，请检查 TTS 设置或重试');
       }

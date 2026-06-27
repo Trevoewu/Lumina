@@ -64,6 +64,8 @@ class GenerationOrchestrator {
   }) async* {
     final paragraphs = await database.getParagraphs(chapterId);
     final existing = await manifestStore.load(bookId, chapterId);
+    final fadeInEnabled =
+        await database.getSetting('audio_fade_in_enabled') != 'false';
 
     var segments = <SegmentEntry>[];
     if (existing != null &&
@@ -135,7 +137,10 @@ class GenerationOrchestrator {
         // 段落内若因超长被切成多个请求，需要按格式正确拼接。
         final format = chunks.isNotEmpty ? chunks.first.format : 'mp3';
         final bytes = format == 'wav'
-            ? concatWavPcm(chunks.map((c) => c.audioBytes).toList())
+            ? _prepareWavForCache(
+                chunks.map((c) => c.audioBytes).toList(),
+                fadeInEnabled: fadeInEnabled,
+              )
             : chunks.expand((c) => c.audioBytes).toList(growable: false);
         final duration = chunks.fold<int>(0, (sum, c) => sum + c.durationMs);
         final billed = chunks.fold<int>(
@@ -322,6 +327,93 @@ class GenerationOrchestrator {
       pos += part.length;
     }
 
+    return out;
+  }
+
+  static Uint8List _prepareWavForCache(
+    List<Uint8List> wavs, {
+    required bool fadeInEnabled,
+  }) {
+    final wav = concatWavPcm(wavs);
+    return fadeInEnabled ? applyWavFadeIn(wav) : wav;
+  }
+
+  /// 对标准 16-bit PCM WAV 添加段首淡入，降低段落切换时的突兀感。
+  ///
+  /// 当前本地 Kokoro、Fish 本地和 Fish API 都输出 WAV PCM。无法识别或非
+  /// 16-bit PCM 的 WAV 保持原样，避免破坏文件。
+  static Uint8List applyWavFadeIn(Uint8List wav, {int fadeInMs = 80}) {
+    if (fadeInMs <= 0 || wav.length < 44) return wav;
+    if (String.fromCharCodes(wav.sublist(0, 4)) != 'RIFF' ||
+        String.fromCharCodes(wav.sublist(8, 12)) != 'WAVE') {
+      return wav;
+    }
+
+    final data = ByteData.sublistView(wav);
+    int? formatCode;
+    int? channels;
+    int? sampleRate;
+    int? bitsPerSample;
+    int? blockAlign;
+    int? dataOffset;
+    int? dataSize;
+
+    var offset = 12;
+    while (offset + 8 <= wav.length) {
+      final chunkId = String.fromCharCodes(wav.sublist(offset, offset + 4));
+      final chunkSize = data.getUint32(offset + 4, Endian.little).toInt();
+      final chunkDataOffset = offset + 8;
+      if (chunkDataOffset + chunkSize > wav.length) return wav;
+
+      if (chunkId == 'fmt ' && chunkSize >= 16) {
+        formatCode = data.getUint16(chunkDataOffset, Endian.little);
+        channels = data.getUint16(chunkDataOffset + 2, Endian.little);
+        sampleRate = data.getUint32(chunkDataOffset + 4, Endian.little);
+        blockAlign = data.getUint16(chunkDataOffset + 12, Endian.little);
+        bitsPerSample = data.getUint16(chunkDataOffset + 14, Endian.little);
+      } else if (chunkId == 'data') {
+        dataOffset = chunkDataOffset;
+        dataSize = chunkSize;
+      }
+
+      offset += 8 + chunkSize;
+      if (chunkSize.isOdd) offset += 1;
+    }
+
+    if (formatCode != 1 ||
+        channels == null ||
+        sampleRate == null ||
+        bitsPerSample != 16 ||
+        blockAlign == null ||
+        dataOffset == null ||
+        dataSize == null ||
+        dataSize <= 0) {
+      return wav;
+    }
+
+    final frameCount = dataSize ~/ blockAlign;
+    if (frameCount <= 1) return wav;
+    final fadeFrames = ((sampleRate * fadeInMs) / 1000)
+        .round()
+        .clamp(1, frameCount)
+        .toInt();
+    if (fadeFrames <= 1) return wav;
+
+    final out = Uint8List.fromList(wav);
+    final outData = ByteData.sublistView(out);
+    for (var frame = 0; frame < fadeFrames; frame++) {
+      final gain = frame / (fadeFrames - 1);
+      final frameOffset = dataOffset + frame * blockAlign;
+      for (var channel = 0; channel < channels; channel++) {
+        final sampleOffset = frameOffset + channel * 2;
+        final sample = outData.getInt16(sampleOffset, Endian.little);
+        outData.setInt16(
+          sampleOffset,
+          (sample * gain).round().clamp(-32768, 32767).toInt(),
+          Endian.little,
+        );
+      }
+    }
     return out;
   }
 

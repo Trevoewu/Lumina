@@ -30,12 +30,12 @@ class SettingsScreen extends ConsumerStatefulWidget {
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final _minimaxKeyController = TextEditingController();
   final _fishApiKeyController = TextEditingController();
-  double _speed = 1.0;
+  bool _fadeInEnabled = true;
 
   @override
   void initState() {
     super.initState();
-    _loadPlaybackPreferences();
+    _loadAudioPreferences();
   }
 
   @override
@@ -45,15 +45,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     super.dispose();
   }
 
-  Future<void> _loadPlaybackPreferences() async {
+  Future<void> _loadAudioPreferences() async {
     final value = await ref
         .read(appDatabaseProvider)
-        .getSetting('playback_speed');
-    final speed = double.tryParse(value ?? '') ?? 1.0;
+        .getSetting('audio_fade_in_enabled');
     if (!mounted) return;
-    setState(() => _speed = speed.clamp(0.5, 3.0));
-    final handler = await ref.read(luminaAudioHandlerProvider.future);
-    await handler.setSpeed(_speed);
+    setState(() => _fadeInEnabled = value != 'false');
   }
 
   /// 为每个 Provider 返回一个图标，便于快速识别。
@@ -147,11 +144,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               );
             },
           ),
-          _buildInfoTile(
-            icon: Icons.speed,
-            title: '播放倍速',
-            subtitle: '${_speed.toStringAsFixed(1)}x',
-            onTap: _showSpeedSheet,
+          _buildSwitchTile(
+            icon: Icons.volume_up_outlined,
+            title: '段落淡入',
+            subtitle: '新生成的段落音频在开头淡入，减少切换突兀感',
+            value: _fadeInEnabled,
+            onChanged: _setFadeInEnabled,
           ),
           StreamBuilder(
             stream: ref.watch(sleepTimerServiceProvider).stream,
@@ -371,104 +369,51 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  void _showSpeedSheet() {
-    var draft = _speed;
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      backgroundColor: AppColors.surface,
-      builder: (context) {
-        final accent = Theme.of(context).colorScheme.primary;
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            return SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Expanded(
-                          child: Text(
-                            '播放倍速',
-                            style: TextStyle(
-                              color: AppColors.textPrimary,
-                              fontSize: 20,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                        Text(
-                          '${draft.toStringAsFixed(1)}x',
-                          style: TextStyle(
-                            color: accent,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    SliderTheme(
-                      data: SliderTheme.of(context).copyWith(
-                        activeTrackColor: accent,
-                        inactiveTrackColor: AppColors.surfaceHighlight,
-                        thumbColor: accent,
-                      ),
-                      child: Slider(
-                        min: 0.5,
-                        max: 3.0,
-                        divisions: 25,
-                        value: draft,
-                        onChanged: (value) =>
-                            setSheetState(() => draft = value),
-                      ),
-                    ),
-                    Wrap(
-                      spacing: 8,
-                      children: [
-                        for (final value in const [0.8, 1.0, 1.2, 1.5, 2.0])
-                          ChoiceChip(
-                            label: Text('${value.toStringAsFixed(1)}x'),
-                            selected: (draft - value).abs() < 0.01,
-                            onSelected: (_) =>
-                                setSheetState(() => draft = value),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        icon: const Icon(Icons.check),
-                        label: const Text('应用'),
-                        onPressed: () => _applySpeed(context, draft),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
+  Widget _buildSwitchTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    final accent = Theme.of(context).colorScheme.primary;
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(8),
+      child: SwitchListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        secondary: Icon(icon, color: AppColors.textSecondary),
+        title: Text(
+          title,
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text(
+            subtitle,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 13,
+            ),
+          ),
+        ),
+        activeThumbColor: accent,
+        value: value,
+        onChanged: onChanged,
+      ),
     );
   }
 
-  Future<void> _applySpeed(BuildContext sheetContext, double speed) async {
-    final clamped = speed.clamp(0.5, 3.0);
+  Future<void> _setFadeInEnabled(bool enabled) async {
     await ref
         .read(appDatabaseProvider)
-        .setSetting('playback_speed', clamped.toStringAsFixed(2));
-    final handler = await ref.read(luminaAudioHandlerProvider.future);
-    await handler.setSpeed(clamped);
+        .setSetting('audio_fade_in_enabled', enabled.toString());
     if (!mounted) return;
-    setState(() => _speed = clamped);
-    if (!sheetContext.mounted) return;
-    Navigator.of(sheetContext).pop();
+    setState(() => _fadeInEnabled = enabled);
   }
 
   void _showSleepTimerSheet() {
@@ -823,7 +768,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 _buildModelInfoRow(
                   icon: Icons.lock_outline,
                   label: '存储',
-                  value: 'flutter_secure_storage',
+                  value: 'Keychain / 本地回退',
                 ),
                 _buildModelInfoRow(
                   icon: Icons.auto_awesome,
@@ -845,12 +790,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         .get(MinimaxTtsProvider.idValue);
     if (provider is! MinimaxTtsProvider) return;
 
-    await provider.setApiKey(_minimaxKeyController.text.trim());
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('MiniMax API Key 已保存到安全存储')));
-    sheetNavigator.pop();
+    try {
+      await provider.setApiKey(_minimaxKeyController.text.trim());
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('MiniMax API Key 已保存')));
+      sheetNavigator.pop();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('保存失败：$error')));
+    }
   }
 
   Future<void> _testMiniMaxConnection(BuildContext sheetContext) async {
@@ -972,7 +924,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 _buildModelInfoRow(
                   icon: Icons.lock_outline,
                   label: '存储',
-                  value: 'flutter_secure_storage',
+                  value: 'Keychain / 本地回退',
                 ),
                 _buildModelInfoRow(
                   icon: Icons.record_voice_over_outlined,
@@ -994,12 +946,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         .get(FishAudioApiTtsProvider.idValue);
     if (provider is! FishAudioApiTtsProvider) return;
 
-    await provider.setApiKey(_fishApiKeyController.text.trim());
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Fish Audio API Key 已保存到安全存储')),
-    );
-    sheetNavigator.pop();
+    try {
+      await provider.setApiKey(_fishApiKeyController.text.trim());
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Fish Audio API Key 已保存')));
+      sheetNavigator.pop();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('保存失败：$error')));
+    }
   }
 
   Future<void> _testFishApiConnection(BuildContext sheetContext) async {
