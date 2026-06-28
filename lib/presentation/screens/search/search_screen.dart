@@ -88,10 +88,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
+    final topTint = Color.lerp(AppColors.background, accent, 0.18)!;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
+        backgroundColor: topTint,
         elevation: 0,
         title: const Text(
           '搜索',

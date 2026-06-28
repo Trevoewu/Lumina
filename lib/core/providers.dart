@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/database/app_database.dart';
@@ -7,6 +9,7 @@ import '../services/generation_orchestrator.dart';
 import '../services/kokoro_model_manager.dart';
 import '../services/lumina_audio_handler.dart';
 import '../services/manifest_store.dart';
+import '../services/playback_progress_service.dart';
 import '../services/sleep_timer_service.dart';
 
 /// Drift 数据库单例。
@@ -54,6 +57,17 @@ final luminaAudioHandlerProvider = FutureProvider<LuminaAudioHandler>((
   ref.onDispose(handler.dispose);
   return handler;
 });
+
+final playbackProgressServiceProvider = FutureProvider<PlaybackProgressService>(
+  (ref) async {
+    final service = PlaybackProgressService(
+      database: ref.watch(appDatabaseProvider),
+      audioHandler: await ref.watch(luminaAudioHandlerProvider.future),
+    )..start();
+    ref.onDispose(() => unawaited(service.dispose()));
+    return service;
+  },
+);
 
 final sleepTimerServiceProvider = Provider<SleepTimerService>((ref) {
   final service = SleepTimerService();

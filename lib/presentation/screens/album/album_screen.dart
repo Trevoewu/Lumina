@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -28,6 +30,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   final Set<String> _generatingChapterIds = {};
   final ScrollController _scrollController = ScrollController();
   bool _didScrollToInitialChapter = false;
+  bool _albumPlayPending = false;
 
   @override
   void dispose() {
@@ -35,7 +38,14 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     super.dispose();
   }
 
-  Future<void> _playChapter(drift_db.Chapter chapter, int index) async {
+  Future<void> _playChapter(
+    drift_db.Chapter chapter,
+    int index, {
+    int? resumeParagraphIndex,
+    int resumeOffsetMs = 0,
+    bool playAfterGeneration = false,
+    bool openPlayer = true,
+  }) async {
     final manifestStore = ref.read(manifestStoreProvider);
 
     final manifest = await manifestStore.load(widget.book.id, chapter.id);
@@ -45,7 +55,13 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
           '播放已缓存的 ${manifest.readyCount}/${manifest.segments.length} 段',
         );
       }
-      await _loadAndOpenPlayer(manifest, chapter);
+      await _loadAndOpenPlayer(
+        manifest,
+        chapter,
+        resumeParagraphIndex: resumeParagraphIndex,
+        resumeOffsetMs: resumeOffsetMs,
+        openPlayer: openPlayer,
+      );
       return;
     }
 
@@ -55,6 +71,20 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     }
 
     await _generateChapterAudio(chapter);
+    if (!playAfterGeneration || !mounted) return;
+
+    final generatedManifest = await manifestStore.load(
+      widget.book.id,
+      chapter.id,
+    );
+    if (generatedManifest == null || generatedManifest.readyCount == 0) return;
+    await _loadAndOpenPlayer(
+      generatedManifest,
+      chapter,
+      resumeParagraphIndex: resumeParagraphIndex,
+      resumeOffsetMs: resumeOffsetMs,
+      openPlayer: openPlayer,
+    );
   }
 
   Future<void> _clearChapterCache(drift_db.Chapter chapter) async {
@@ -115,8 +145,11 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
 
   Future<void> _loadAndOpenPlayer(
     ChapterManifest manifest,
-    drift_db.Chapter chapter,
-  ) async {
+    drift_db.Chapter chapter, {
+    int? resumeParagraphIndex,
+    int resumeOffsetMs = 0,
+    bool openPlayer = true,
+  }) async {
     try {
       final handler = await ref.read(luminaAudioHandlerProvider.future);
       final audioRoot = await ref
@@ -128,14 +161,27 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
         bookTitle: widget.book.title,
         chapterTitle: chapter.title,
       );
-      await handler.play();
+      if (resumeParagraphIndex != null) {
+        final restored = await handler.seekToProgress(
+          paragraphIndex: resumeParagraphIndex,
+          position: Duration(milliseconds: resumeOffsetMs),
+        );
+        if (!restored) {
+          _showSnackBar('保存位置尚未缓存，已从本章开头播放');
+        }
+      }
+      unawaited(handler.play());
     } catch (error) {
       if (!mounted) return;
       _showSnackBar('播放缓存失败，请清除音频后重新生成');
       return;
     }
 
-    if (!mounted) return;
+    if (!mounted || !openPlayer) return;
+    _openPlayer(chapter);
+  }
+
+  void _openPlayer(drift_db.Chapter chapter) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -143,6 +189,53 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       backgroundColor: Colors.transparent,
       builder: (_) => PlayerScreen(book: widget.book, initialChapter: chapter),
     );
+  }
+
+  Future<void> _resumeOrStart(List<drift_db.Chapter> chapters) async {
+    if (_albumPlayPending || chapters.isEmpty) return;
+    setState(() => _albumPlayPending = true);
+
+    try {
+      final handler = await ref.read(luminaAudioHandlerProvider.future);
+      if (handler.currentBookId == widget.book.id) {
+        final liveIndex = chapters.indexWhere(
+          (chapter) => chapter.id == handler.currentChapterId,
+        );
+        if (liveIndex >= 0) {
+          unawaited(handler.play());
+          return;
+        }
+      }
+
+      final savedBook =
+          await ref.read(appDatabaseProvider).getBook(widget.book.id) ??
+          widget.book;
+      final savedIndex = savedBook.currentChapterId == null
+          ? -1
+          : chapters.indexWhere(
+              (chapter) => chapter.id == savedBook.currentChapterId,
+            );
+
+      if (savedIndex >= 0) {
+        await _playChapter(
+          chapters[savedIndex],
+          savedIndex,
+          resumeParagraphIndex: savedBook.currentParagraphIndex,
+          resumeOffsetMs: savedBook.playbackOffsetMs,
+          playAfterGeneration: true,
+          openPlayer: false,
+        );
+      } else {
+        await _playChapter(
+          chapters.first,
+          0,
+          playAfterGeneration: true,
+          openPlayer: false,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _albumPlayPending = false);
+    }
   }
 
   Future<void> _generateChapterAudio(drift_db.Chapter chapter) async {
@@ -467,34 +560,59 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
 
   Widget _buildAlbumPlayButton(List<drift_db.Chapter> chapters) {
     final accent = Theme.of(context).colorScheme.primary;
-    final firstChapterId = chapters.isEmpty ? null : chapters.first.id;
-    final progress = firstChapterId == null
-        ? null
-        : _generationProgress[firstChapterId];
+    final handlerAsync = ref.watch(luminaAudioHandlerProvider);
 
+    return handlerAsync.when(
+      loading: () => _albumControlButton(accent: accent, busy: true),
+      error: (_, _) => _albumControlButton(accent: accent),
+      data: (handler) => StreamBuilder(
+        stream: handler.playbackState,
+        initialData: handler.playbackState.value,
+        builder: (context, snapshot) {
+          final isCurrentBook = handler.currentBookId == widget.book.id;
+          final playing = isCurrentBook && (snapshot.data?.playing ?? false);
+          return _albumControlButton(
+            accent: accent,
+            busy: _albumPlayPending,
+            playing: playing,
+            onPressed: () {
+              if (isCurrentBook) {
+                unawaited(playing ? handler.pause() : handler.play());
+              } else {
+                unawaited(_resumeOrStart(chapters));
+              }
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _albumControlButton({
+    required Color accent,
+    bool busy = false,
+    bool playing = false,
+    VoidCallback? onPressed,
+  }) {
     return IconButton.filled(
+      tooltip: playing ? '暂停' : '播放',
       iconSize: 36,
       padding: const EdgeInsets.all(16),
       style: IconButton.styleFrom(
         backgroundColor: accent,
         foregroundColor: Colors.black,
       ),
-      icon: progress == null
-          ? const Icon(Icons.play_arrow)
-          : SizedBox(
+      icon: busy
+          ? const SizedBox(
               width: 30,
               height: 30,
               child: CircularProgressIndicator(
-                value: progress.percent == 0 ? null : progress.percent,
                 strokeWidth: 3,
                 color: Colors.black,
               ),
-            ),
-      onPressed: () {
-        if (chapters.isNotEmpty) {
-          _playChapter(chapters.first, 0);
-        }
-      },
+            )
+          : Icon(playing ? Icons.pause : Icons.play_arrow),
+      onPressed: busy ? null : onPressed,
     );
   }
 }

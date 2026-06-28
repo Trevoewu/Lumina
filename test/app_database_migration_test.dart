@@ -54,5 +54,16 @@ void main() {
     expect(books, hasLength(1));
     expect(books.single.title, 'Migration Test');
     expect(books.single.kind, 'book');
+
+    await database.updateReadingProgress(
+      'book-1',
+      chapterId: 'chapter-3',
+      paragraphIndex: 17,
+      offsetMs: 2450,
+    );
+    final updated = await database.getBook('book-1');
+    expect(updated?.currentChapterId, 'chapter-3');
+    expect(updated?.currentParagraphIndex, 17);
+    expect(updated?.playbackOffsetMs, 2450);
   });
 }

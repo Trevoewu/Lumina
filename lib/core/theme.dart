@@ -27,7 +27,9 @@ class AppTheme {
       // 自定义 AppBar
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
+        scrolledUnderElevation: 0,
         centerTitle: false,
         titleTextStyle: AppTextStyles.heading1.copyWith(fontFamily: fontFamily),
         iconTheme: const IconThemeData(color: Colors.white),

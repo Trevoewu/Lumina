@@ -31,11 +31,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   Widget build(BuildContext context) {
     final db = ref.watch(appDatabaseProvider);
     final accent = Theme.of(context).colorScheme.primary;
+    final topTint = Color.lerp(AppColors.background, accent, 0.18)!;
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
+        backgroundColor: topTint,
         title: const Text(
           'Your Library',
           style: TextStyle(
