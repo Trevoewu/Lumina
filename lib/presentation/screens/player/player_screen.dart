@@ -1,11 +1,12 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/app_colors.dart';
 import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart' as drift_db;
+import '../../../services/lumina_audio_handler.dart';
 import '../../widgets/book_cover.dart';
+import '../../widgets/synced_lyrics_list.dart';
 
 Color _accentTint(BuildContext context, double amount) {
   return Color.lerp(
@@ -30,80 +31,25 @@ class PlayerScreen extends ConsumerStatefulWidget {
 }
 
 class _PlayerScreenState extends ConsumerState<PlayerScreen> {
-  String? _highlightParagraphId;
-  StreamSubscription? _paragraphSub;
-  final ScrollController _lyricsScrollController = ScrollController();
-  final Map<String, GlobalKey> _paragraphKeys = {};
-  List<drift_db.Paragraph> _inlineLyricsParagraphs = const [];
   double _speed = 1.0;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _listenToAudioHandler();
       _loadPlaybackSpeed();
     });
   }
 
   Future<void> _loadPlaybackSpeed() async {
-    final value = await ref.read(appDatabaseProvider).getSetting('playback_speed');
+    final value = await ref
+        .read(appDatabaseProvider)
+        .getSetting('playback_speed');
     final speed = (double.tryParse(value ?? '') ?? 1.0).clamp(0.5, 3.0);
     final handler = await ref.read(luminaAudioHandlerProvider.future);
     await handler.setSpeed(speed);
     if (!mounted) return;
     setState(() => _speed = speed.toDouble());
-  }
-
-  void _listenToAudioHandler() async {
-    final handler = await ref.read(luminaAudioHandlerProvider.future);
-    final currentParagraphId = handler.currentParagraphId;
-    if (mounted && currentParagraphId != null) {
-      setState(() => _highlightParagraphId = currentParagraphId);
-      _scrollToParagraph(currentParagraphId);
-    }
-
-    _paragraphSub = handler.currentParagraphIdStream.listen((paragraphId) {
-      if (!mounted) return;
-      setState(() => _highlightParagraphId = paragraphId);
-      _scrollToParagraph(paragraphId);
-    });
-  }
-
-  void _scrollToParagraph(String? paragraphId) {
-    if (paragraphId == null) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final index = _inlineLyricsParagraphs.indexWhere(
-        (paragraph) => paragraph.id == paragraphId,
-      );
-      final context = _paragraphKeys[paragraphId]?.currentContext;
-      if (context == null && index >= 0 && _lyricsScrollController.hasClients) {
-        final target = (index * 84.0).clamp(
-          0.0,
-          _lyricsScrollController.position.maxScrollExtent,
-        );
-        _lyricsScrollController.animateTo(
-          target,
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOut,
-        );
-      }
-      if (context == null) return;
-      Scrollable.ensureVisible(
-        context,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-        alignment: 0.2, // 靠上对齐
-      );
-    });
-  }
-
-  @override
-  void dispose() {
-    _paragraphSub?.cancel();
-    _lyricsScrollController.dispose();
-    super.dispose();
   }
 
   @override
@@ -292,6 +238,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                               flex: 5,
                               child: _buildLyricsCard(
                                 currentChapterId ?? widget.initialChapter?.id,
+                                handler,
                               ),
                             ),
 
@@ -415,7 +362,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
-  Widget _buildLyricsCard(String? chapterId) {
+  Widget _buildLyricsCard(String? chapterId, LuminaAudioHandler handler) {
     if (chapterId == null) return const SizedBox.shrink();
 
     final db = ref.watch(appDatabaseProvider);
@@ -477,7 +424,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 builder: (context, snapshot) {
                   final paragraphs =
                       snapshot.data ?? const <drift_db.Paragraph>[];
-                  _inlineLyricsParagraphs = paragraphs;
                   if (paragraphs.isEmpty) {
                     return const Center(
                       child: Text(
@@ -486,44 +432,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       ),
                     );
                   }
-                  if (_highlightParagraphId != null) {
-                    _scrollToParagraph(_highlightParagraphId);
-                  }
-
-                  return ListView.builder(
-                    controller: _lyricsScrollController,
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 48),
-                    itemCount: paragraphs.length,
-                    itemBuilder: (context, index) {
-                      final paragraph = paragraphs[index];
-                      final highlighted = paragraph.id == _highlightParagraphId;
-                      _paragraphKeys[paragraph.id] ??= GlobalKey();
-
-                      return InkWell(
-                        key: _paragraphKeys[paragraph.id],
-                        onTap: () => _playParagraph(paragraph),
-                        splashColor: Colors.transparent,
-                        highlightColor: Colors.transparent,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          child: AnimatedDefaultTextStyle(
-                            duration: const Duration(milliseconds: 300),
-                            style: TextStyle(
-                              fontSize: highlighted ? 24 : 18,
-                              fontWeight: highlighted
-                                  ? FontWeight.w800
-                                  : FontWeight.w600,
-                              color: highlighted
-                                  ? Colors.white
-                                  : Colors.white.withValues(alpha: 0.3),
-                              height: 1.4,
-                              fontFamily: fontFamily,
-                            ),
-                            child: Text(paragraph.content),
-                          ),
-                        ),
-                      );
-                    },
+                  return SyncedLyricsList(
+                    key: ValueKey('$chapterId:${handler.currentChapterId}'),
+                    paragraphs: paragraphs,
+                    manifest: handler.currentManifest,
+                    handler: handler,
                   );
                 },
               ),
@@ -541,11 +454,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       return '${duration.inHours}:$minutes:$seconds';
     }
     return '$minutes:$seconds';
-  }
-
-  Future<void> _playParagraph(drift_db.Paragraph paragraph) async {
-    final handler = await ref.read(luminaAudioHandlerProvider.future);
-    await handler.playFromParagraph(paragraph.id);
   }
 
   void _showSpeedSheet() {
@@ -684,71 +592,6 @@ class _FullScreenLyricsSheet extends ConsumerStatefulWidget {
 
 class _FullScreenLyricsSheetState
     extends ConsumerState<_FullScreenLyricsSheet> {
-  final ScrollController _scrollController = ScrollController();
-  final Map<String, GlobalKey> _paragraphKeys = {};
-  List<drift_db.Paragraph> _lyricsParagraphs = const [];
-  StreamSubscription<String?>? _paragraphSub;
-  String? _highlightParagraphId;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _listenToAudioHandler();
-    });
-  }
-
-  Future<void> _listenToAudioHandler() async {
-    final handler = await ref.read(luminaAudioHandlerProvider.future);
-    final currentParagraphId = handler.currentParagraphId;
-
-    if (mounted && currentParagraphId != null) {
-      setState(() => _highlightParagraphId = currentParagraphId);
-      _scrollToParagraph(currentParagraphId);
-    }
-
-    _paragraphSub = handler.currentParagraphIdStream.listen((paragraphId) {
-      if (!mounted || paragraphId == null) return;
-      setState(() => _highlightParagraphId = paragraphId);
-      _scrollToParagraph(paragraphId);
-    });
-  }
-
-  void _scrollToParagraph(String paragraphId) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final index = _lyricsParagraphs.indexWhere(
-        (paragraph) => paragraph.id == paragraphId,
-      );
-      final context = _paragraphKeys[paragraphId]?.currentContext;
-      if (context == null && index >= 0 && _scrollController.hasClients) {
-        final target = (index * 92.0).clamp(
-          0.0,
-          _scrollController.position.maxScrollExtent,
-        );
-        _scrollController.animateTo(
-          target,
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOut,
-        );
-      }
-      if (context == null) return;
-      Scrollable.ensureVisible(
-        context,
-        duration: const Duration(milliseconds: 350),
-        curve: Curves.easeInOut,
-        alignment: 0.24,
-      );
-    });
-  }
-
-  @override
-  void dispose() {
-    _paragraphSub?.cancel();
-    _scrollController.dispose();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(appDatabaseProvider);
@@ -822,7 +665,6 @@ class _FullScreenLyricsSheetState
                   builder: (context, snapshot) {
                     final paragraphs =
                         snapshot.data ?? const <drift_db.Paragraph>[];
-                    _lyricsParagraphs = paragraphs;
                     if (paragraphs.isEmpty) {
                       return const Center(
                         child: Text(
@@ -831,36 +673,25 @@ class _FullScreenLyricsSheetState
                         ),
                       );
                     }
-                    if (_highlightParagraphId != null) {
-                      _scrollToParagraph(_highlightParagraphId!);
-                    }
-
                     return handlerAsync.when(
-                      loading: () => _LyricsList(
-                        paragraphs: paragraphs,
-                        highlightedParagraphId: _highlightParagraphId,
-                        paragraphKeys: _paragraphKeys,
-                        scrollController: _scrollController,
-                        onTap: (_) {},
+                      loading: () =>
+                          const Center(child: CircularProgressIndicator()),
+                      error: (error, _) => Center(
+                        child: Text(
+                          '播放器不可用：$error',
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
                       ),
-                      error: (_, _) => _LyricsList(
+                      data: (handler) => SyncedLyricsList(
+                        key: ValueKey(
+                          '${widget.chapterId}:${handler.currentChapterId}',
+                        ),
                         paragraphs: paragraphs,
-                        highlightedParagraphId: _highlightParagraphId,
-                        paragraphKeys: _paragraphKeys,
-                        scrollController: _scrollController,
-                        onTap: (_) {},
-                      ),
-                      data: (handler) => _LyricsList(
-                        paragraphs: paragraphs,
-                        highlightedParagraphId: _highlightParagraphId,
-                        paragraphKeys: _paragraphKeys,
-                        scrollController: _scrollController,
-                        onTap: (paragraph) async {
-                          await handler.playFromParagraph(paragraph.id);
-                          if (!mounted) return;
-                          setState(() => _highlightParagraphId = paragraph.id);
-                          _scrollToParagraph(paragraph.id);
-                        },
+                        manifest: handler.currentManifest,
+                        handler: handler,
+                        expanded: true,
                       ),
                     );
                   },
@@ -870,59 +701,6 @@ class _FullScreenLyricsSheetState
           ),
         ),
       ),
-    );
-  }
-}
-
-class _LyricsList extends StatelessWidget {
-  final List<drift_db.Paragraph> paragraphs;
-  final String? highlightedParagraphId;
-  final Map<String, GlobalKey> paragraphKeys;
-  final ScrollController scrollController;
-  final ValueChanged<drift_db.Paragraph> onTap;
-
-  const _LyricsList({
-    required this.paragraphs,
-    required this.highlightedParagraphId,
-    required this.paragraphKeys,
-    required this.scrollController,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final fontFamily = _themeFontFamily(context);
-    return ListView.builder(
-      controller: scrollController,
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 48),
-      itemCount: paragraphs.length,
-      itemBuilder: (context, index) {
-        final paragraph = paragraphs[index];
-        final highlighted = paragraph.id == highlightedParagraphId;
-
-        return InkWell(
-          key: paragraphKeys.putIfAbsent(paragraph.id, GlobalKey.new),
-          onTap: () => onTap(paragraph),
-          splashColor: Colors.transparent,
-          highlightColor: Colors.transparent,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: AnimatedDefaultTextStyle(
-              duration: const Duration(milliseconds: 300),
-              style: TextStyle(
-                fontSize: highlighted ? 28 : 22,
-                fontWeight: highlighted ? FontWeight.w800 : FontWeight.w700,
-                color: highlighted
-                    ? Colors.white
-                    : Colors.white.withValues(alpha: 0.42),
-                height: 1.35,
-                fontFamily: fontFamily,
-              ),
-              child: Text(paragraph.content),
-            ),
-          ),
-        );
-      },
     );
   }
 }

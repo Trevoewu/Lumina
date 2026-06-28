@@ -1,3 +1,5 @@
+import 'audio_text_timing.dart';
+
 /// 段落音频的生成状态。
 enum ParagraphAudioState {
   /// 未生成。
@@ -42,6 +44,9 @@ class SegmentEntry {
   /// 失败原因（若 state == failed）。
   final String? error;
 
+  /// Text alignment relative to the beginning of this paragraph audio.
+  final List<AudioTextTiming> timings;
+
   const SegmentEntry({
     required this.paragraphId,
     required this.audioFile,
@@ -51,6 +56,7 @@ class SegmentEntry {
     this.billedCharacters,
     this.generatedAt,
     this.error,
+    this.timings = const [],
   });
 
   SegmentEntry copyWith({
@@ -62,6 +68,7 @@ class SegmentEntry {
     int? billedCharacters,
     int? generatedAt,
     String? error,
+    List<AudioTextTiming>? timings,
   }) {
     return SegmentEntry(
       paragraphId: paragraphId ?? this.paragraphId,
@@ -72,6 +79,7 @@ class SegmentEntry {
       billedCharacters: billedCharacters ?? this.billedCharacters,
       generatedAt: generatedAt ?? this.generatedAt,
       error: error ?? this.error,
+      timings: timings ?? this.timings,
     );
   }
 
@@ -85,6 +93,7 @@ class SegmentEntry {
       'billedCharacters': billedCharacters,
       'generatedAt': generatedAt,
       'error': error,
+      'timings': timings.map((timing) => timing.toJson()).toList(),
     };
   }
 
@@ -98,6 +107,15 @@ class SegmentEntry {
       billedCharacters: json['billedCharacters'] as int?,
       generatedAt: json['generatedAt'] as int?,
       error: json['error'] as String?,
+      timings:
+          (json['timings'] as List?)
+              ?.whereType<Map>()
+              .map(
+                (timing) =>
+                    AudioTextTiming.fromJson(Map<String, dynamic>.from(timing)),
+              )
+              .toList(growable: false) ??
+          const [],
     );
   }
 }

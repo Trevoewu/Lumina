@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import '../../domain/models/audio_text_timing.dart';
+
 /// 单次 TTS 合成结果。
 class TtsChunk {
   /// 音频字节（二进制）。
@@ -17,11 +19,15 @@ class TtsChunk {
   /// 采样率。
   final int? sampleRate;
 
+  /// Optional text alignment relative to the beginning of this audio chunk.
+  final List<AudioTextTiming> timings;
+
   const TtsChunk({
     required this.audioBytes,
     required this.durationMs,
     required this.format,
     this.billedCharacters,
     this.sampleRate,
+    this.timings = const [],
   });
 }

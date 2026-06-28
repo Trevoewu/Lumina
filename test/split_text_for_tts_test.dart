@@ -21,5 +21,11 @@ void main() {
       final chunks = splitTextForTts('abcdefghij', 4, hardMaxChars: 4);
       expect(chunks, ['abcd', 'efgh', 'ij']);
     });
+
+    test('supports provider limits above the generic hard limit', () {
+      final text = List.filled(5001, 'a').join();
+      final chunks = splitTextForTts(text, 4000);
+      expect(chunks.map((chunk) => chunk.length), [4000, 1001]);
+    });
   });
 }

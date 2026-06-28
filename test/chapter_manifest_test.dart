@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lumina/domain/models/audio_text_timing.dart';
 import 'package:lumina/domain/models/chapter_manifest.dart';
 
 void main() {
@@ -73,5 +74,24 @@ void main() {
         expect(manifest.paragraphAtOffset(2999), 'p2');
       },
     );
+  });
+
+  test('segment timing JSON is backward compatible', () {
+    const segment = SegmentEntry(
+      paragraphId: 'p1',
+      audioFile: 'c1/p1.wav',
+      durationMs: 1000,
+      state: ParagraphAudioState.ready,
+      timings: [AudioTextTiming(text: 'Hello', startMs: 100, endMs: 500)],
+    );
+
+    final restored = SegmentEntry.fromJson(segment.toJson());
+    expect(restored.timings, hasLength(1));
+    expect(restored.timings.single.text, 'Hello');
+    expect(restored.timings.single.startMs, 100);
+
+    final legacyJson = Map<String, dynamic>.from(segment.toJson())
+      ..remove('timings');
+    expect(SegmentEntry.fromJson(legacyJson).timings, isEmpty);
   });
 }

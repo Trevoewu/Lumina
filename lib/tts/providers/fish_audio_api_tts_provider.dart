@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
+import '../../domain/models/audio_text_timing.dart';
 import '../api_key_store.dart';
 import '../models/tts_capabilities.dart';
 import '../models/tts_chunk.dart';
@@ -38,7 +39,7 @@ class FishAudioApiTtsProvider implements TtsProvider {
     presetVoices: true,
     voiceCloning: true,
     voiceDescription: false,
-    maxCharsPerCall: 9000,
+    maxCharsPerCall: 4000,
     streaming: true,
     outputFormats: ['wav', 'mp3', 'pcm', 'opus'],
     requiresNetwork: true,
@@ -188,7 +189,76 @@ class FishAudioApiTtsProvider implements TtsProvider {
       'prosody': {'speed': speed.clamp(0.5, 2.0)},
     };
 
-    final resp = await _dio.post<List<int>>(
+    FishTimestampSynthesisResult result;
+    try {
+      result = await _synthesizeWithTimestamps(key: key, body: body);
+    } on DioException catch (error) {
+      final statusCode = error.response?.statusCode;
+      if (statusCode != 404 && statusCode != 405 && statusCode != 422) rethrow;
+      result = await _synthesizeWithoutTimestamps(key: key, body: body);
+    }
+
+    final bytes = result.audioBytes;
+    if (bytes.isEmpty) throw StateError('Fish Audio 返回空音频');
+
+    final durationMs = _wavDurationMs(bytes);
+
+    return TtsChunk(
+      audioBytes: bytes,
+      durationMs: durationMs > 0 ? durationMs : result.alignedDurationMs,
+      format: 'wav',
+      billedCharacters: utf8.encode(text).length,
+      sampleRate: _wavSampleRate(bytes),
+      timings: result.timings,
+    );
+  }
+
+  Future<FishTimestampSynthesisResult> _synthesizeWithTimestamps({
+    required String key,
+    required Map<String, dynamic> body,
+  }) async {
+    final response = await _dio.post<ResponseBody>(
+      '$_baseUrl/v1/tts/stream/with-timestamp',
+      data: jsonEncode(body),
+      options: Options(
+        responseType: ResponseType.stream,
+        headers: {
+          ..._headers(key),
+          'Content-Type': 'application/json',
+          'model': model,
+        },
+      ),
+    );
+    final responseBody = response.data;
+    if (responseBody == null) throw StateError('Fish Audio 返回空 SSE 响应');
+
+    final accumulator = FishTimestampSseAccumulator();
+    final dataLines = <String>[];
+    final lines = responseBody.stream
+        .cast<List<int>>()
+        .transform(utf8.decoder)
+        .transform(const LineSplitter());
+    await for (final line in lines) {
+      if (line.isEmpty) {
+        if (dataLines.isNotEmpty) {
+          accumulator.addPayload(dataLines.join('\n'));
+          dataLines.clear();
+        }
+      } else if (line.startsWith('data:')) {
+        dataLines.add(line.substring(5).trimLeft());
+      }
+    }
+    if (dataLines.isNotEmpty) {
+      accumulator.addPayload(dataLines.join('\n'));
+    }
+    return accumulator.finish();
+  }
+
+  Future<FishTimestampSynthesisResult> _synthesizeWithoutTimestamps({
+    required String key,
+    required Map<String, dynamic> body,
+  }) async {
+    final response = await _dio.post<List<int>>(
       '$_baseUrl/v1/tts',
       data: jsonEncode(body),
       options: Options(
@@ -200,15 +270,9 @@ class FishAudioApiTtsProvider implements TtsProvider {
         },
       ),
     );
-    final bytes = Uint8List.fromList(resp.data ?? const []);
-    if (bytes.isEmpty) throw StateError('Fish Audio 返回空音频');
-
-    return TtsChunk(
-      audioBytes: bytes,
-      durationMs: _wavDurationMs(bytes),
-      format: 'wav',
-      billedCharacters: utf8.encode(text).length,
-      sampleRate: _wavSampleRate(bytes),
+    return FishTimestampSynthesisResult(
+      audioBytes: Uint8List.fromList(response.data ?? const []),
+      timings: const [],
     );
   }
 
@@ -261,4 +325,81 @@ class FishAudioApiTtsProvider implements TtsProvider {
     }
     return 0;
   }
+}
+
+class FishTimestampSynthesisResult {
+  final Uint8List audioBytes;
+  final List<AudioTextTiming> timings;
+
+  const FishTimestampSynthesisResult({
+    required this.audioBytes,
+    required this.timings,
+  });
+
+  int get alignedDurationMs => timings.isEmpty ? 0 : timings.last.endMs;
+}
+
+class FishTimestampSseAccumulator {
+  final BytesBuilder _audio = BytesBuilder(copy: false);
+  final Map<int, _FishAlignmentSnapshot> _alignments = {};
+
+  void addPayload(String payload) {
+    final decoded = jsonDecode(payload);
+    if (decoded is! Map) return;
+    final event = Map<String, dynamic>.from(decoded);
+
+    final audio = event['audio_base64'] as String?;
+    if (audio != null && audio.isNotEmpty) {
+      _audio.add(base64Decode(audio));
+    }
+
+    final sequence = (event['chunk_seq'] as num?)?.toInt();
+    final alignment = event['alignment'];
+    if (sequence == null || alignment is! Map) return;
+    final alignmentMap = Map<String, dynamic>.from(alignment);
+    final rawSegments = alignmentMap['segments'];
+    if (rawSegments is! List) return;
+
+    final offsetSeconds =
+        (event['chunk_audio_offset_sec'] as num?)?.toDouble() ?? 0;
+    final timings = rawSegments
+        .whereType<Map>()
+        .map((raw) {
+          final segment = Map<String, dynamic>.from(raw);
+          final startSeconds = (segment['start'] as num?)?.toDouble() ?? 0;
+          final endSeconds =
+              (segment['end'] as num?)?.toDouble() ?? startSeconds;
+          return AudioTextTiming(
+            text: segment['text'] as String? ?? '',
+            startMs: ((offsetSeconds + startSeconds) * 1000).round(),
+            endMs: ((offsetSeconds + endSeconds) * 1000).round(),
+          );
+        })
+        .where((timing) => timing.text.isNotEmpty)
+        .toList(growable: false);
+
+    _alignments[sequence] = _FishAlignmentSnapshot(
+      sequence: sequence,
+      timings: timings,
+    );
+  }
+
+  FishTimestampSynthesisResult finish() {
+    final snapshots = _alignments.values.toList()
+      ..sort((a, b) => a.sequence.compareTo(b.sequence));
+    final timings = snapshots
+        .expand((snapshot) => snapshot.timings)
+        .toList(growable: false);
+    return FishTimestampSynthesisResult(
+      audioBytes: _audio.takeBytes(),
+      timings: timings,
+    );
+  }
+}
+
+class _FishAlignmentSnapshot {
+  final int sequence;
+  final List<AudioTextTiming> timings;
+
+  const _FishAlignmentSnapshot({required this.sequence, required this.timings});
 }

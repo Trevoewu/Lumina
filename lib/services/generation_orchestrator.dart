@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import '../data/database/app_database.dart' as db;
+import '../domain/models/audio_text_timing.dart';
 import '../domain/models/chapter_manifest.dart';
 import '../tts/models/tts_chunk.dart';
 import '../tts/models/tts_voice.dart';
@@ -143,6 +144,14 @@ class GenerationOrchestrator {
               )
             : chunks.expand((c) => c.audioBytes).toList(growable: false);
         final duration = chunks.fold<int>(0, (sum, c) => sum + c.durationMs);
+        final timings = <AudioTextTiming>[];
+        var timingOffsetMs = 0;
+        for (final chunk in chunks) {
+          timings.addAll(
+            chunk.timings.map((timing) => timing.shifted(timingOffsetMs)),
+          );
+          timingOffsetMs += chunk.durationMs;
+        }
         final billed = chunks.fold<int>(
           0,
           (sum, c) => sum + (c.billedCharacters ?? 0),
@@ -164,6 +173,7 @@ class GenerationOrchestrator {
           format: format,
           billedCharacters: billed == 0 ? null : billed,
           generatedAt: DateTime.now().millisecondsSinceEpoch,
+          timings: timings,
         );
 
         if (billed > 0) {
@@ -467,7 +477,9 @@ class GenerationOrchestrator {
 List<String> splitTextForTts(String text, int maxChars, {int? hardMaxChars}) {
   final trimmed = text.trim();
   if (trimmed.length <= maxChars) return [trimmed];
-  final hardLimit = hardMaxChars ?? (maxChars * 4).clamp(maxChars, 4000);
+  final hardLimit =
+      hardMaxChars ??
+      (maxChars <= 1000 ? (maxChars * 4).clamp(maxChars, 4000) : maxChars);
 
   final sentences = trimmed
       .split(RegExp(r'(?<=[。！？!?；;\n])'))

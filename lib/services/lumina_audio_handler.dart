@@ -49,6 +49,7 @@ class LuminaAudioHandler extends BaseAudioHandler
       mediaItem.valueOrNull?.id;
   String? get currentBookId => _manifest?.bookId;
   String? get currentChapterId => _manifest?.chapterId;
+  ChapterManifest? get currentManifest => _manifest;
   int? get currentParagraphIndex {
     final manifest = _manifest;
     final paragraphId = currentParagraphId;
@@ -138,10 +139,22 @@ class LuminaAudioHandler extends BaseAudioHandler
   }
 
   Future<void> playFromParagraph(String paragraphId) async {
+    await playFromParagraphOffset(paragraphId, Duration.zero);
+  }
+
+  Future<void> playFromParagraphOffset(
+    String paragraphId,
+    Duration position,
+  ) async {
     final index = _paragraphIds.indexOf(paragraphId);
     if (index < 0) return;
-    await _player.seek(Duration.zero, index: index);
-    await play();
+    final segment = _manifest?.segments
+        .where((entry) => entry.paragraphId == paragraphId)
+        .firstOrNull;
+    final endMs = segment?.durationMs ?? position.inMilliseconds;
+    final offsetMs = position.inMilliseconds.clamp(0, endMs);
+    await _player.seek(Duration(milliseconds: offsetMs), index: index);
+    unawaited(play());
   }
 
   Future<bool> seekToProgress({
