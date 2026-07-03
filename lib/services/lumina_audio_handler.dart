@@ -5,6 +5,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../domain/models/chapter_manifest.dart';
+import 'app_log_service.dart';
 
 /// AudioService 后台播放 Handler。
 ///
@@ -66,6 +67,11 @@ class LuminaAudioHandler extends BaseAudioHandler
     String? bookTitle,
     String? chapterTitle,
   }) async {
+    AppLogger.info(
+      'Playback',
+      '加载章节 book=${manifest.bookId} chapter=${manifest.chapterId} '
+          'segments=${manifest.segments.length}',
+    );
     final readySegments = manifest.segments
         .where((segment) => segment.state == ParagraphAudioState.ready)
         .toList(growable: false);
@@ -115,13 +121,19 @@ class LuminaAudioHandler extends BaseAudioHandler
     queue.add(items);
     try {
       await _player.setAudioSources(sources);
-    } catch (e) {
+    } catch (error, stackTrace) {
       try {
         await _player.stop();
         await _player.clearAudioSources();
       } catch (_) {}
       await _resetLoadedState();
-      throw StateError('音频缓存无法播放，请清除后重新生成。$e');
+      AppLogger.error(
+        'Playback',
+        '播放器加载音频源失败 chapter=${manifest.chapterId}',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      throw StateError('音频缓存无法播放，请清除后重新生成。$error');
     }
 
     _manifest = manifest;
@@ -136,6 +148,11 @@ class LuminaAudioHandler extends BaseAudioHandler
     mediaItem.add(items.first);
     _currentParagraphController.add(items.first.id);
     _broadcastState(_player.playbackEvent);
+    AppLogger.info(
+      'Playback',
+      '章节加载完成 chapter=${manifest.chapterId} '
+          'playable=${playableSegments.length} durationMs=$_chapterDurationMs',
+    );
   }
 
   Future<void> playFromParagraph(String paragraphId) async {
@@ -199,10 +216,27 @@ class LuminaAudioHandler extends BaseAudioHandler
   }
 
   @override
-  Future<void> play() => _player.play();
+  Future<void> play() async {
+    if (!_player.playing) {
+      AppLogger.info(
+        'Playback',
+        '开始播放 chapter=${_manifest?.chapterId} paragraph=$currentParagraphId',
+      );
+    }
+    await _player.play();
+  }
 
   @override
-  Future<void> pause() => _player.pause();
+  Future<void> pause() async {
+    if (_player.playing) {
+      AppLogger.info(
+        'Playback',
+        '暂停播放 chapter=${_manifest?.chapterId} '
+            'positionMs=${chapterPosition.inMilliseconds}',
+      );
+    }
+    await _player.pause();
+  }
 
   @override
   Future<void> stop() async {
@@ -223,6 +257,10 @@ class LuminaAudioHandler extends BaseAudioHandler
   }
 
   Future<void> unload() async {
+    AppLogger.info(
+      'Playback',
+      '卸载章节 book=${_manifest?.bookId} chapter=${_manifest?.chapterId}',
+    );
     await _player.stop();
     await _player.clearAudioSources();
     await _resetLoadedState();
@@ -255,8 +293,11 @@ class LuminaAudioHandler extends BaseAudioHandler
   Future<void> skipToPrevious() => _player.seekToPrevious();
 
   @override
-  Future<void> setSpeed(double speed) =>
-      _player.setSpeed(speed.clamp(0.5, 3.0));
+  Future<void> setSpeed(double speed) async {
+    final appliedSpeed = speed.clamp(0.5, 3.0);
+    AppLogger.info('Playback', '设置倍速 speed=$appliedSpeed');
+    await _player.setSpeed(appliedSpeed);
+  }
 
   Future<void> dispose() async {
     await _playbackEventSub?.cancel();

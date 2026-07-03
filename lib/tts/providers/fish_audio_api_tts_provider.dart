@@ -4,29 +4,80 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 
 import '../../domain/models/audio_text_timing.dart';
+import '../../services/wav_audio_utils.dart';
 import '../api_key_store.dart';
 import '../models/tts_capabilities.dart';
 import '../models/tts_chunk.dart';
 import '../models/tts_voice.dart';
 import '../tts_provider.dart';
 
+typedef TtsSettingReader = Future<String?> Function(String key);
+typedef TtsSettingWriter = Future<void> Function(String key, String value);
+
+enum FishAudioGenerationProfile {
+  fast(
+    value: 'fast',
+    label: '快速',
+    latency: 'low',
+    sampleRate: 24000,
+    concurrency: 3,
+  ),
+  quality(
+    value: 'quality',
+    label: '高质量',
+    latency: 'balanced',
+    sampleRate: 44100,
+    concurrency: 1,
+  );
+
+  final String value;
+  final String label;
+  final String latency;
+  final int sampleRate;
+  final int concurrency;
+
+  const FishAudioGenerationProfile({
+    required this.value,
+    required this.label,
+    required this.latency,
+    required this.sampleRate,
+    required this.concurrency,
+  });
+
+  static FishAudioGenerationProfile parse(String? value) {
+    for (final profile in values) {
+      if (profile.value == value) return profile;
+    }
+    return fast;
+  }
+}
+
 /// Fish Audio 云端 API Provider。
 ///
 /// 使用 raw REST API，适配 Flutter/Dart 环境。TTS 模型固定为
 /// s2.1-pro-free，便于开发和测试；API Key 存在系统安全存储中。
-class FishAudioApiTtsProvider implements TtsProvider {
+class FishAudioApiTtsProvider implements TtsProvider, TtsConcurrencyPolicy {
   static const String idValue = 'fish_audio_api';
   static const String model = 's2.1-pro-free';
   static const String _baseUrl = 'https://api.fish.audio';
   static const String _storageKey = 'fish_audio_api_key';
   static const String _defaultVoiceId = 'fish_api_default';
+  static const String generationProfileSettingKey =
+      'fish_audio_generation_profile';
 
   final Dio _dio;
   final ApiKeyStore _apiKeyStore;
+  final TtsSettingReader? settingReader;
+  final TtsSettingWriter? settingWriter;
+  FishAudioGenerationProfile? _cachedGenerationProfile;
 
-  FishAudioApiTtsProvider({Dio? dio, ApiKeyStore? apiKeyStore})
-    : _dio = dio ?? Dio(),
-      _apiKeyStore = apiKeyStore ?? ApiKeyStore();
+  FishAudioApiTtsProvider({
+    Dio? dio,
+    ApiKeyStore? apiKeyStore,
+    this.settingReader,
+    this.settingWriter,
+  }) : _dio = dio ?? Dio(),
+       _apiKeyStore = apiKeyStore ?? ApiKeyStore();
 
   @override
   String get id => idValue;
@@ -51,6 +102,25 @@ class FishAudioApiTtsProvider implements TtsProvider {
       maxSizeBytes: 50 * 1024 * 1024,
     ),
   );
+
+  Future<FishAudioGenerationProfile> get generationProfile async {
+    final cached = _cachedGenerationProfile;
+    if (cached != null) return cached;
+    final profile = FishAudioGenerationProfile.parse(
+      await settingReader?.call(generationProfileSettingKey),
+    );
+    _cachedGenerationProfile = profile;
+    return profile;
+  }
+
+  Future<void> setGenerationProfile(FishAudioGenerationProfile profile) async {
+    _cachedGenerationProfile = profile;
+    await settingWriter?.call(generationProfileSettingKey, profile.value);
+  }
+
+  @override
+  Future<int> get generationConcurrency async =>
+      (await generationProfile).concurrency;
 
   Future<String?> get apiKey => _apiKeyStore.read(_storageKey);
 
@@ -175,14 +245,15 @@ class FishAudioApiTtsProvider implements TtsProvider {
     }
     final key = await apiKey;
     if (key == null || key.isEmpty) throw StateError('Fish Audio API Key 未配置');
+    final profile = await generationProfile;
 
     final body = <String, dynamic>{
       'text': text,
       if (voice.providerVoiceId.trim().isNotEmpty)
         'reference_id': voice.providerVoiceId.trim(),
       'format': 'wav',
-      'sample_rate': 44100,
-      'latency': 'balanced',
+      'sample_rate': profile.sampleRate,
+      'latency': profile.latency,
       'chunk_length': 300,
       'min_chunk_length': 50,
       'normalize': true,
@@ -201,7 +272,7 @@ class FishAudioApiTtsProvider implements TtsProvider {
     final bytes = result.audioBytes;
     if (bytes.isEmpty) throw StateError('Fish Audio 返回空音频');
 
-    final durationMs = _wavDurationMs(bytes);
+    final durationMs = wavDurationMs(bytes);
 
     return TtsChunk(
       audioBytes: bytes,
@@ -302,28 +373,6 @@ class FishAudioApiTtsProvider implements TtsProvider {
     if (String.fromCharCodes(bytes.sublist(0, 4)) != 'RIFF') return null;
     if (String.fromCharCodes(bytes.sublist(8, 12)) != 'WAVE') return null;
     return ByteData.sublistView(bytes).getUint32(24, Endian.little);
-  }
-
-  int _wavDurationMs(Uint8List bytes) {
-    if (bytes.length < 44) return 0;
-    final data = ByteData.sublistView(bytes);
-    if (String.fromCharCodes(bytes.sublist(0, 4)) != 'RIFF') return 0;
-    if (String.fromCharCodes(bytes.sublist(8, 12)) != 'WAVE') return 0;
-
-    final byteRate = data.getUint32(28, Endian.little);
-    if (byteRate <= 0) return 0;
-
-    var offset = 12;
-    while (offset + 8 <= bytes.length) {
-      final chunkId = String.fromCharCodes(bytes.sublist(offset, offset + 4));
-      final chunkSize = data.getUint32(offset + 4, Endian.little);
-      if (chunkId == 'data') {
-        return ((chunkSize / byteRate) * 1000).round();
-      }
-      offset += 8 + chunkSize;
-      if (chunkSize.isOdd) offset += 1;
-    }
-    return 0;
   }
 }
 

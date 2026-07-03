@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import '../data/database/app_database.dart';
+import '../domain/models/listening_statistics.dart';
+import 'app_log_service.dart';
 import 'lumina_audio_handler.dart';
 
 /// Persists the active audiobook position while playback continues globally.
@@ -14,16 +16,82 @@ class PlaybackProgressService {
   DateTime? _lastQueuedAt;
   _ProgressSnapshot? _lastQueued;
   Future<void> _writeQueue = Future.value();
+  DateTime? _lastListeningTick;
+  String? _pendingListeningDate;
+  int _pendingListeningMs = 0;
+  bool _wasPlaying = false;
 
   PlaybackProgressService({required this.database, required this.audioHandler});
 
   void start() {
-    _positionSub = audioHandler.positionStream.listen((_) => _queueCurrent());
+    _positionSub = audioHandler.positionStream.listen((_) {
+      _captureListeningTime(DateTime.now());
+      _queueCurrent();
+    });
     _paragraphSub = audioHandler.currentParagraphIdStream.listen(
       (_) => _queueCurrent(force: true),
     );
     _playerStateSub = audioHandler.player.playerStateStream.listen((state) {
-      if (!state.playing) _queueCurrent(force: true);
+      final now = DateTime.now();
+      if (_wasPlaying) _captureListeningTime(now);
+      if (state.playing && !_wasPlaying) {
+        _lastListeningTick = now;
+        _queueListeningWrite(listeningDateKey(now), 0, newSession: true);
+      } else if (!state.playing) {
+        _lastListeningTick = null;
+        _flushListeningTime();
+        _queueCurrent(force: true);
+      }
+      _wasPlaying = state.playing;
+    });
+  }
+
+  void _captureListeningTime(DateTime now) {
+    if (!_wasPlaying) return;
+    final previous = _lastListeningTick;
+    _lastListeningTick = now;
+    if (previous == null) return;
+
+    final elapsedMs = now.difference(previous).inMilliseconds;
+    if (elapsedMs <= 0 || elapsedMs > 5000) return;
+    final dateKey = listeningDateKey(previous);
+    if (_pendingListeningDate != null && _pendingListeningDate != dateKey) {
+      _flushListeningTime();
+    }
+    _pendingListeningDate = dateKey;
+    _pendingListeningMs += elapsedMs;
+    if (_pendingListeningMs >= 10000) _flushListeningTime();
+  }
+
+  void _flushListeningTime() {
+    final dateKey = _pendingListeningDate;
+    final listenedMs = _pendingListeningMs;
+    _pendingListeningDate = null;
+    _pendingListeningMs = 0;
+    if (dateKey == null || listenedMs <= 0) return;
+    _queueListeningWrite(dateKey, listenedMs);
+  }
+
+  void _queueListeningWrite(
+    String dateKey,
+    int listenedMs, {
+    bool newSession = false,
+  }) {
+    _writeQueue = _writeQueue.then((_) async {
+      try {
+        await database.addListeningTime(
+          dateKey,
+          listenedMs,
+          newSession: newSession,
+        );
+      } catch (error, stackTrace) {
+        AppLogger.warning(
+          'Playback',
+          '保存每日收听统计失败 date=$dateKey',
+          error: error,
+          stackTrace: stackTrace,
+        );
+      }
     });
   }
 
@@ -58,13 +126,22 @@ class PlaybackProgressService {
           paragraphIndex: snapshot.paragraphIndex,
           offsetMs: snapshot.offsetMs,
         );
-      } catch (_) {
+      } catch (error, stackTrace) {
+        AppLogger.warning(
+          'Playback',
+          '保存播放进度失败 book=${snapshot.bookId} '
+              'chapter=${snapshot.chapterId}',
+          error: error,
+          stackTrace: stackTrace,
+        );
         if (_lastQueued == snapshot) _lastQueued = null;
       }
     });
   }
 
   Future<void> dispose() async {
+    if (_wasPlaying) _captureListeningTime(DateTime.now());
+    _flushListeningTime();
     _queueCurrent(force: true);
     await _positionSub?.cancel();
     await _paragraphSub?.cancel();

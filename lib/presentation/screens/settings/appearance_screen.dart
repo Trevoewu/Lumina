@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/app_colors.dart';
+import '../../../core/app_localizations.dart';
 import '../../../core/appearance.dart';
+import '../../widgets/collapsing_page_scaffold.dart';
 
 class AppearanceScreen extends ConsumerWidget {
   const AppearanceScreen({super.key});
@@ -12,25 +14,21 @@ class AppearanceScreen extends ConsumerWidget {
     final appearance = ref.watch(appearanceControllerProvider);
     final controller = ref.read(appearanceControllerProvider.notifier);
     final accent = Theme.of(context).colorScheme.primary;
-    final topTint = Color.lerp(AppColors.background, accent, 0.18)!;
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: topTint,
-        title: const Text('Appearance'),
-        actions: [
-          IconButton(
-            tooltip: '恢复默认',
-            icon: const Icon(Icons.restart_alt),
-            onPressed: controller.reset,
-          ),
-        ],
-      ),
+    return CollapsingPageScaffold(
+      title: context.tr('外观', 'Appearance'),
+      showBackButton: true,
+      actions: [
+        IconButton(
+          tooltip: context.tr('恢复默认', 'Restore Defaults'),
+          icon: Icon(Icons.restart_alt),
+          onPressed: controller.reset,
+        ),
+      ],
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
         children: [
-          _SectionHeader('字体'),
+          _SectionHeader(context.tr('字体', 'Font')),
           _SurfaceGroup(
             children: [
               for (final option in appearanceFontOptions)
@@ -41,12 +39,12 @@ class AppearanceScreen extends ConsumerWidget {
                         : Icons.radio_button_unchecked,
                     color: appearance.fontId == option.id
                         ? accent
-                        : AppColors.surfaceHighlight,
+                        : context.appSurfaceHighlight,
                   ),
                   title: Text(
                     option.label,
                     style: TextStyle(
-                      color: AppColors.textPrimary,
+                      color: context.appTextPrimary,
                       fontFamily: option.fontFamily,
                       fontWeight: FontWeight.w700,
                     ),
@@ -54,7 +52,7 @@ class AppearanceScreen extends ConsumerWidget {
                   subtitle: Text(
                     _fontSubtitle(option),
                     style: TextStyle(
-                      color: AppColors.textSecondary,
+                      color: context.appTextSecondary,
                       fontFamily: option.fontFamily,
                     ),
                   ),
@@ -62,23 +60,20 @@ class AppearanceScreen extends ConsumerWidget {
                 ),
             ],
           ),
-          _SectionHeader('字号'),
+          _SectionHeader(context.tr('字号', 'Text Size')),
           _SurfaceGroup(
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 18, 20, 4),
                 child: Row(
                   children: [
-                    const Icon(
-                      Icons.format_size,
-                      color: AppColors.textSecondary,
-                    ),
+                    Icon(Icons.format_size, color: context.appTextSecondary),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         '${(appearance.fontScale * 100).round()}%',
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
+                        style: TextStyle(
+                          color: context.appTextPrimary,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
@@ -99,7 +94,7 @@ class AppearanceScreen extends ConsumerWidget {
                 child: Text(
                   'The quick brown fox jumps over the lazy dog.\n播放界面歌词预览',
                   style: TextStyle(
-                    color: AppColors.textPrimary,
+                    color: context.appTextPrimary,
                     fontSize: 18,
                     height: 1.35,
                     fontFamily: appearance.fontOption.fontFamily,
@@ -108,7 +103,7 @@ class AppearanceScreen extends ConsumerWidget {
               ),
             ],
           ),
-          _SectionHeader('主题色'),
+          _SectionHeader(context.tr('主题色', 'Accent Color')),
           _SurfaceGroup(
             children: [
               Padding(
@@ -157,8 +152,8 @@ class _SectionHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
       child: Text(
         text,
-        style: const TextStyle(
-          color: AppColors.textSecondary,
+        style: TextStyle(
+          color: context.appTextSecondary,
           fontSize: 13,
           fontWeight: FontWeight.w700,
         ),
@@ -175,7 +170,7 @@ class _SurfaceGroup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.surface,
+      color: context.appSurface,
       borderRadius: BorderRadius.circular(8),
       clipBehavior: Clip.antiAlias,
       child: Column(mainAxisSize: MainAxisSize.min, children: children),
@@ -208,12 +203,12 @@ class _ColorSwatch extends StatelessWidget {
             color: color,
             shape: BoxShape.circle,
             border: Border.all(
-              color: selected ? AppColors.textPrimary : Colors.transparent,
+              color: selected ? context.appTextPrimary : Colors.transparent,
               width: 3,
             ),
           ),
           child: selected
-              ? const Icon(Icons.check, color: Colors.black, size: 22)
+              ? Icon(Icons.check, color: Colors.black, size: 22)
               : null,
         ),
       ),

@@ -3318,6 +3318,324 @@ class CostRecordsCompanion extends UpdateCompanion<CostRecord> {
   }
 }
 
+class $ListeningDaysTable extends ListeningDays
+    with TableInfo<$ListeningDaysTable, ListeningDay> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ListeningDaysTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _dateKeyMeta = const VerificationMeta(
+    'dateKey',
+  );
+  @override
+  late final GeneratedColumn<String> dateKey = GeneratedColumn<String>(
+    'date_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _listenedMsMeta = const VerificationMeta(
+    'listenedMs',
+  );
+  @override
+  late final GeneratedColumn<int> listenedMs = GeneratedColumn<int>(
+    'listened_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _sessionsMeta = const VerificationMeta(
+    'sessions',
+  );
+  @override
+  late final GeneratedColumn<int> sessions = GeneratedColumn<int>(
+    'sessions',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    dateKey,
+    listenedMs,
+    sessions,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'listening_days';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ListeningDay> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('date_key')) {
+      context.handle(
+        _dateKeyMeta,
+        dateKey.isAcceptableOrUnknown(data['date_key']!, _dateKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_dateKeyMeta);
+    }
+    if (data.containsKey('listened_ms')) {
+      context.handle(
+        _listenedMsMeta,
+        listenedMs.isAcceptableOrUnknown(data['listened_ms']!, _listenedMsMeta),
+      );
+    }
+    if (data.containsKey('sessions')) {
+      context.handle(
+        _sessionsMeta,
+        sessions.isAcceptableOrUnknown(data['sessions']!, _sessionsMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {dateKey};
+  @override
+  ListeningDay map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ListeningDay(
+      dateKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}date_key'],
+      )!,
+      listenedMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}listened_ms'],
+      )!,
+      sessions: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sessions'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ListeningDaysTable createAlias(String alias) {
+    return $ListeningDaysTable(attachedDatabase, alias);
+  }
+}
+
+class ListeningDay extends DataClass implements Insertable<ListeningDay> {
+  final String dateKey;
+  final int listenedMs;
+  final int sessions;
+  final int updatedAt;
+  const ListeningDay({
+    required this.dateKey,
+    required this.listenedMs,
+    required this.sessions,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['date_key'] = Variable<String>(dateKey);
+    map['listened_ms'] = Variable<int>(listenedMs);
+    map['sessions'] = Variable<int>(sessions);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  ListeningDaysCompanion toCompanion(bool nullToAbsent) {
+    return ListeningDaysCompanion(
+      dateKey: Value(dateKey),
+      listenedMs: Value(listenedMs),
+      sessions: Value(sessions),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory ListeningDay.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ListeningDay(
+      dateKey: serializer.fromJson<String>(json['dateKey']),
+      listenedMs: serializer.fromJson<int>(json['listenedMs']),
+      sessions: serializer.fromJson<int>(json['sessions']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'dateKey': serializer.toJson<String>(dateKey),
+      'listenedMs': serializer.toJson<int>(listenedMs),
+      'sessions': serializer.toJson<int>(sessions),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  ListeningDay copyWith({
+    String? dateKey,
+    int? listenedMs,
+    int? sessions,
+    int? updatedAt,
+  }) => ListeningDay(
+    dateKey: dateKey ?? this.dateKey,
+    listenedMs: listenedMs ?? this.listenedMs,
+    sessions: sessions ?? this.sessions,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  ListeningDay copyWithCompanion(ListeningDaysCompanion data) {
+    return ListeningDay(
+      dateKey: data.dateKey.present ? data.dateKey.value : this.dateKey,
+      listenedMs: data.listenedMs.present
+          ? data.listenedMs.value
+          : this.listenedMs,
+      sessions: data.sessions.present ? data.sessions.value : this.sessions,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ListeningDay(')
+          ..write('dateKey: $dateKey, ')
+          ..write('listenedMs: $listenedMs, ')
+          ..write('sessions: $sessions, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(dateKey, listenedMs, sessions, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ListeningDay &&
+          other.dateKey == this.dateKey &&
+          other.listenedMs == this.listenedMs &&
+          other.sessions == this.sessions &&
+          other.updatedAt == this.updatedAt);
+}
+
+class ListeningDaysCompanion extends UpdateCompanion<ListeningDay> {
+  final Value<String> dateKey;
+  final Value<int> listenedMs;
+  final Value<int> sessions;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const ListeningDaysCompanion({
+    this.dateKey = const Value.absent(),
+    this.listenedMs = const Value.absent(),
+    this.sessions = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ListeningDaysCompanion.insert({
+    required String dateKey,
+    this.listenedMs = const Value.absent(),
+    this.sessions = const Value.absent(),
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  }) : dateKey = Value(dateKey),
+       updatedAt = Value(updatedAt);
+  static Insertable<ListeningDay> custom({
+    Expression<String>? dateKey,
+    Expression<int>? listenedMs,
+    Expression<int>? sessions,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (dateKey != null) 'date_key': dateKey,
+      if (listenedMs != null) 'listened_ms': listenedMs,
+      if (sessions != null) 'sessions': sessions,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ListeningDaysCompanion copyWith({
+    Value<String>? dateKey,
+    Value<int>? listenedMs,
+    Value<int>? sessions,
+    Value<int>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return ListeningDaysCompanion(
+      dateKey: dateKey ?? this.dateKey,
+      listenedMs: listenedMs ?? this.listenedMs,
+      sessions: sessions ?? this.sessions,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (dateKey.present) {
+      map['date_key'] = Variable<String>(dateKey.value);
+    }
+    if (listenedMs.present) {
+      map['listened_ms'] = Variable<int>(listenedMs.value);
+    }
+    if (sessions.present) {
+      map['sessions'] = Variable<int>(sessions.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ListeningDaysCompanion(')
+          ..write('dateKey: $dateKey, ')
+          ..write('listenedMs: $listenedMs, ')
+          ..write('sessions: $sessions, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -3328,6 +3646,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $VoicesTable voices = $VoicesTable(this);
   late final $AppSettingsTable appSettings = $AppSettingsTable(this);
   late final $CostRecordsTable costRecords = $CostRecordsTable(this);
+  late final $ListeningDaysTable listeningDays = $ListeningDaysTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -3340,6 +3659,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     voices,
     appSettings,
     costRecords,
+    listeningDays,
   ];
 }
 
@@ -5030,6 +5350,189 @@ typedef $$CostRecordsTableProcessedTableManager =
       CostRecord,
       PrefetchHooks Function()
     >;
+typedef $$ListeningDaysTableCreateCompanionBuilder =
+    ListeningDaysCompanion Function({
+      required String dateKey,
+      Value<int> listenedMs,
+      Value<int> sessions,
+      required int updatedAt,
+      Value<int> rowid,
+    });
+typedef $$ListeningDaysTableUpdateCompanionBuilder =
+    ListeningDaysCompanion Function({
+      Value<String> dateKey,
+      Value<int> listenedMs,
+      Value<int> sessions,
+      Value<int> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$ListeningDaysTableFilterComposer
+    extends Composer<_$AppDatabase, $ListeningDaysTable> {
+  $$ListeningDaysTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get dateKey => $composableBuilder(
+    column: $table.dateKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get listenedMs => $composableBuilder(
+    column: $table.listenedMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sessions => $composableBuilder(
+    column: $table.sessions,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ListeningDaysTableOrderingComposer
+    extends Composer<_$AppDatabase, $ListeningDaysTable> {
+  $$ListeningDaysTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get dateKey => $composableBuilder(
+    column: $table.dateKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get listenedMs => $composableBuilder(
+    column: $table.listenedMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sessions => $composableBuilder(
+    column: $table.sessions,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ListeningDaysTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ListeningDaysTable> {
+  $$ListeningDaysTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get dateKey =>
+      $composableBuilder(column: $table.dateKey, builder: (column) => column);
+
+  GeneratedColumn<int> get listenedMs => $composableBuilder(
+    column: $table.listenedMs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get sessions =>
+      $composableBuilder(column: $table.sessions, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$ListeningDaysTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ListeningDaysTable,
+          ListeningDay,
+          $$ListeningDaysTableFilterComposer,
+          $$ListeningDaysTableOrderingComposer,
+          $$ListeningDaysTableAnnotationComposer,
+          $$ListeningDaysTableCreateCompanionBuilder,
+          $$ListeningDaysTableUpdateCompanionBuilder,
+          (
+            ListeningDay,
+            BaseReferences<_$AppDatabase, $ListeningDaysTable, ListeningDay>,
+          ),
+          ListeningDay,
+          PrefetchHooks Function()
+        > {
+  $$ListeningDaysTableTableManager(_$AppDatabase db, $ListeningDaysTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ListeningDaysTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ListeningDaysTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ListeningDaysTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> dateKey = const Value.absent(),
+                Value<int> listenedMs = const Value.absent(),
+                Value<int> sessions = const Value.absent(),
+                Value<int> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ListeningDaysCompanion(
+                dateKey: dateKey,
+                listenedMs: listenedMs,
+                sessions: sessions,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String dateKey,
+                Value<int> listenedMs = const Value.absent(),
+                Value<int> sessions = const Value.absent(),
+                required int updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => ListeningDaysCompanion.insert(
+                dateKey: dateKey,
+                listenedMs: listenedMs,
+                sessions: sessions,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ListeningDaysTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ListeningDaysTable,
+      ListeningDay,
+      $$ListeningDaysTableFilterComposer,
+      $$ListeningDaysTableOrderingComposer,
+      $$ListeningDaysTableAnnotationComposer,
+      $$ListeningDaysTableCreateCompanionBuilder,
+      $$ListeningDaysTableUpdateCompanionBuilder,
+      (
+        ListeningDay,
+        BaseReferences<_$AppDatabase, $ListeningDaysTable, ListeningDay>,
+      ),
+      ListeningDay,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -5048,4 +5551,6 @@ class $AppDatabaseManager {
       $$AppSettingsTableTableManager(_db, _db.appSettings);
   $$CostRecordsTableTableManager get costRecords =>
       $$CostRecordsTableTableManager(_db, _db.costRecords);
+  $$ListeningDaysTableTableManager get listeningDays =>
+      $$ListeningDaysTableTableManager(_db, _db.listeningDays);
 }

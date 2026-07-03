@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:audio_service/audio_service.dart';
 
+import '../../core/app_localizations.dart';
 import '../../core/providers.dart';
 import '../screens/library/library_screen.dart';
+import '../screens/me/me_screen.dart';
 import '../screens/search/search_screen.dart';
-import '../screens/settings/settings_screen.dart';
 import 'mini_player.dart';
 
 /// 全局骨架，包含底部导航栏和迷你播放器。
@@ -17,6 +19,7 @@ class AppScaffold extends ConsumerStatefulWidget {
 
 class _AppScaffoldState extends ConsumerState<AppScaffold> {
   int _currentIndex = 0;
+  final Set<int> _initializedTabs = {0};
   final List<GlobalKey<NavigatorState>> _navigatorKeys = List.generate(
     3,
     (_) => GlobalKey<NavigatorState>(),
@@ -26,7 +29,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     return switch (index) {
       0 => const LibraryScreen(),
       1 => const SearchScreen(),
-      2 => const SettingsScreen(),
+      2 => const MeScreen(),
       _ => const LibraryScreen(),
     };
   }
@@ -34,27 +37,44 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
   @override
   Widget build(BuildContext context) {
     ref.watch(playbackProgressServiceProvider);
+    final handlerAsync = ref.watch(luminaAudioHandlerProvider);
 
+    return handlerAsync.when(
+      loading: () => _buildScaffold(hasMiniPlayer: false),
+      error: (_, _) => _buildScaffold(hasMiniPlayer: false),
+      data: (handler) => StreamBuilder<MediaItem?>(
+        stream: handler.mediaItem,
+        initialData: handler.mediaItem.valueOrNull,
+        builder: (context, snapshot) {
+          return _buildScaffold(hasMiniPlayer: snapshot.data != null);
+        },
+      ),
+    );
+  }
+
+  Widget _buildScaffold({required bool hasMiniPlayer}) {
     return Scaffold(
       body: Stack(
         children: [
           Positioned.fill(
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 92),
-              child: IndexedStack(
-                index: _currentIndex,
-                children: List.generate(
-                  _navigatorKeys.length,
-                  (index) => Navigator(
-                    key: _navigatorKeys[index],
-                    onGenerateRoute: (_) =>
-                        MaterialPageRoute(builder: (_) => _rootPageFor(index)),
-                  ),
-                ),
+            child: IndexedStack(
+              key: const ValueKey('app-content-layer'),
+              index: _currentIndex,
+              children: List.generate(
+                _navigatorKeys.length,
+                (index) => _initializedTabs.contains(index)
+                    ? Navigator(
+                        key: _navigatorKeys[index],
+                        onGenerateRoute: (_) => MaterialPageRoute(
+                          builder: (_) => _rootPageFor(index),
+                        ),
+                      )
+                    : const SizedBox.shrink(),
               ),
             ),
           ),
-          const Positioned(left: 0, right: 0, bottom: 0, child: MiniPlayer()),
+          if (hasMiniPlayer)
+            const Positioned(left: 0, right: 0, bottom: 0, child: MiniPlayer()),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
@@ -66,23 +86,26 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
             );
             return;
           }
-          setState(() => _currentIndex = index);
+          setState(() {
+            _initializedTabs.add(index);
+            _currentIndex = index;
+          });
         },
-        items: const [
+        items: [
           BottomNavigationBarItem(
-            icon: Icon(Icons.home_outlined),
-            activeIcon: Icon(Icons.home),
-            label: '主页',
+            icon: const Icon(Icons.home_outlined),
+            activeIcon: const Icon(Icons.home),
+            label: context.tr('主页', 'Home'),
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.search_outlined),
-            activeIcon: Icon(Icons.search),
-            label: '搜索',
+            icon: const Icon(Icons.search_outlined),
+            activeIcon: const Icon(Icons.search),
+            label: context.tr('搜索', 'Search'),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings_outlined),
-            activeIcon: Icon(Icons.settings),
-            label: '设置',
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.person_outline),
+            activeIcon: Icon(Icons.person),
+            label: 'Me',
           ),
         ],
       ),

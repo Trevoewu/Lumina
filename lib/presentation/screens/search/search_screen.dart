@@ -4,9 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/app_colors.dart';
+import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart' as drift_db;
 import '../../../domain/models/chapter_manifest.dart';
+import '../../../services/app_log_service.dart';
+import '../../widgets/collapsing_page_scaffold.dart';
 import '../album/album_screen.dart';
 import '../player/player_screen.dart';
 
@@ -88,23 +91,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final accent = Theme.of(context).colorScheme.primary;
-    final topTint = Color.lerp(AppColors.background, accent, 0.18)!;
-
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: topTint,
-        elevation: 0,
-        title: const Text(
-          '搜索',
-          style: TextStyle(
-            color: AppColors.textPrimary,
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
+    return CollapsingPageScaffold(
+      title: context.tr('搜索', 'Search'),
       body: Column(
         children: [
           Padding(
@@ -113,21 +101,21 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               controller: _controller,
               onChanged: _onQueryChanged,
               autofocus: true,
-              style: const TextStyle(color: AppColors.textPrimary),
+              style: TextStyle(color: context.appTextPrimary),
               decoration: InputDecoration(
                 filled: true,
-                fillColor: AppColors.surface,
-                hintText: '搜索书籍、章节或正文',
-                hintStyle: const TextStyle(color: AppColors.textSecondary),
-                prefixIcon: const Icon(
-                  Icons.search,
-                  color: AppColors.textSecondary,
+                fillColor: context.appSurface,
+                hintText: context.tr(
+                  '搜索书籍、章节或正文',
+                  'Search books, chapters, or text',
                 ),
+                hintStyle: TextStyle(color: context.appTextSecondary),
+                prefixIcon: Icon(Icons.search, color: context.appTextSecondary),
                 suffixIcon: _controller.text.isEmpty
                     ? null
                     : IconButton(
-                        tooltip: '清空',
-                        icon: const Icon(Icons.close),
+                        tooltip: context.tr('清空', 'Clear'),
+                        icon: Icon(Icons.close),
                         onPressed: () {
                           _controller.clear();
                           setState(() => _future = _load(''));
@@ -163,14 +151,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final query = _controller.text.trim();
     if (query.isEmpty) {
       if (data.recentBooks.isEmpty) {
-        return const Center(
-          child: Text('暂无书籍', style: TextStyle(color: AppColors.textSecondary)),
+        return Center(
+          child: Text(
+            context.tr('暂无书籍', 'No books yet'),
+            style: TextStyle(color: context.appTextSecondary),
+          ),
         );
       }
       return ListView(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 120),
         children: [
-          _section('最近阅读'),
+          _section(context.tr('最近阅读', 'Recently Read')),
           for (final book in data.recentBooks)
             _BookResultTile(book: book, onTap: () => _openBook(book)),
         ],
@@ -182,8 +173,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         data.chapterHits.isEmpty &&
         data.paragraphHits.isEmpty;
     if (empty) {
-      return const Center(
-        child: Text('没有找到结果', style: TextStyle(color: AppColors.textSecondary)),
+      return Center(
+        child: Text(
+          context.tr('没有找到结果', 'No results found'),
+          style: TextStyle(color: context.appTextSecondary),
+        ),
       );
     }
 
@@ -191,12 +185,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 120),
       children: [
         if (data.bookHits.isNotEmpty) ...[
-          _section('书籍'),
+          _section(context.tr('书籍', 'Books')),
           for (final book in data.bookHits)
             _BookResultTile(book: book, onTap: () => _openBook(book)),
         ],
         if (data.chapterHits.isNotEmpty) ...[
-          _section('章节'),
+          _section(context.tr('章节', 'Chapters')),
           for (final hit in data.chapterHits)
             _ResultTile(
               icon: Icons.queue_music_outlined,
@@ -206,7 +200,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             ),
         ],
         if (data.paragraphHits.isNotEmpty) ...[
-          _section('正文'),
+          _section(context.tr('正文', 'Text')),
           for (final hit in data.paragraphHits)
             _ResultTile(
               icon: Icons.notes_outlined,
@@ -225,8 +219,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       padding: const EdgeInsets.fromLTRB(4, 16, 4, 8),
       child: Text(
         label,
-        style: const TextStyle(
-          color: AppColors.textSecondary,
+        style: TextStyle(
+          color: context.appTextSecondary,
           fontSize: 13,
           fontWeight: FontWeight.w700,
         ),
@@ -271,7 +265,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           chapterTitle: chapter.title,
         );
         await handler.playFromParagraph(hit.paragraph.id);
-      } catch (_) {
+      } catch (error, stackTrace) {
+        AppLogger.error(
+          'Playback',
+          '搜索结果播放失败 book=${book.id} chapter=${chapter.id}',
+          error: error,
+          stackTrace: stackTrace,
+        );
         if (!mounted) return;
         ScaffoldMessenger.of(
           context,
@@ -360,16 +360,16 @@ class _ResultTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.surface,
+      color: context.appSurface,
       borderRadius: BorderRadius.circular(8),
       child: ListTile(
-        leading: Icon(icon, color: AppColors.textSecondary),
+        leading: Icon(icon, color: context.appTextSecondary),
         title: Text(
           title,
           maxLines: maxTitleLines,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: AppColors.textPrimary,
+          style: TextStyle(
+            color: context.appTextPrimary,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -377,9 +377,9 @@ class _ResultTile extends StatelessWidget {
           subtitle,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: AppColors.textSecondary),
+          style: TextStyle(color: context.appTextSecondary),
         ),
-        trailing: const Icon(Icons.chevron_right),
+        trailing: Icon(Icons.chevron_right),
         onTap: onTap,
       ),
     );

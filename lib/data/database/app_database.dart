@@ -120,6 +120,17 @@ class CostRecords extends Table {
   IntColumn get createdAt => integer()();
 }
 
+/// 每日真实收听时长。日期使用设备本地时区的 YYYY-MM-DD。
+class ListeningDays extends Table {
+  TextColumn get dateKey => text()();
+  IntColumn get listenedMs => integer().withDefault(const Constant(0))();
+  IntColumn get sessions => integer().withDefault(const Constant(0))();
+  IntColumn get updatedAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {dateKey};
+}
+
 // ─────────────────────────────────────────────
 // 数据库
 // ─────────────────────────────────────────────
@@ -133,15 +144,18 @@ class CostRecords extends Table {
     Voices,
     AppSettings,
     CostRecords,
+    ListeningDays,
   ],
 )
 class AppDatabase extends _$AppDatabase {
-  AppDatabase() : super(_open());
+  final bool _repairPathsOnOpen;
 
-  AppDatabase.forTesting(super.e);
+  AppDatabase() : _repairPathsOnOpen = true, super(_open());
+
+  AppDatabase.forTesting(super.e) : _repairPathsOnOpen = false;
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -150,12 +164,23 @@ class AppDatabase extends _$AppDatabase {
       if (from < 2) {
         await m.addColumn(books, books.kind);
       }
+      if (from < 3) {
+        await m.createTable(listeningDays);
+      }
+    },
+    beforeOpen: (_) async {
+      if (_repairPathsOnOpen) {
+        final documents = await getApplicationDocumentsDirectory();
+        await repairMovedDocumentPaths(documents.path);
+      }
     },
   );
 
   // ── 书籍 ──
 
   Future<List<Book>> getAllBooks() => select(books).get();
+
+  Stream<List<Book>> watchAllBooks() => select(books).watch();
 
   Future<Book?> getBook(String id) =>
       (select(books)..where((b) => b.id.equals(id))).getSingleOrNull();
@@ -167,6 +192,34 @@ class AppDatabase extends _$AppDatabase {
     await (update(books)..where((b) => b.id.equals(bookId))).write(
       BooksCompanion(coverPath: Value(coverPath)),
     );
+  }
+
+  /// iOS may assign a new app-container UUID after an update. Repair absolute
+  /// paths saved under the previous Documents directory when the files are
+  /// still present in the current container.
+  Future<void> repairMovedDocumentPaths(String currentDocumentsPath) async {
+    final entries = await select(books).get();
+    for (final book in entries) {
+      final sourcePath = await _existingRebasedPath(
+        book.sourcePath,
+        currentDocumentsPath,
+      );
+      final coverPath = book.coverPath == null
+          ? null
+          : await _existingRebasedPath(book.coverPath!, currentDocumentsPath);
+
+      if (sourcePath == book.sourcePath && coverPath == book.coverPath) {
+        continue;
+      }
+      await (update(books)..where((row) => row.id.equals(book.id))).write(
+        BooksCompanion(
+          sourcePath: Value(sourcePath),
+          coverPath: coverPath == null
+              ? const Value.absent()
+              : Value(coverPath),
+        ),
+      );
+    }
   }
 
   Future<void> updateBookMetadata(
@@ -342,6 +395,74 @@ class AppDatabase extends _$AppDatabase {
     ).getSingle();
     return row.data['total'] as int? ?? 0;
   }
+
+  // ── 收听统计 ──
+
+  Future<void> addListeningTime(
+    String dateKey,
+    int listenedMs, {
+    bool newSession = false,
+  }) async {
+    if (listenedMs <= 0 && !newSession) return;
+    await customStatement(
+      '''
+      INSERT INTO listening_days (date_key, listened_ms, sessions, updated_at)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(date_key) DO UPDATE SET
+        listened_ms = listening_days.listened_ms + excluded.listened_ms,
+        sessions = listening_days.sessions + excluded.sessions,
+        updated_at = excluded.updated_at
+      ''',
+      [
+        dateKey,
+        listenedMs,
+        newSession ? 1 : 0,
+        DateTime.now().millisecondsSinceEpoch,
+      ],
+    );
+  }
+
+  Stream<List<ListeningDay>> watchListeningDays() => (select(
+    listeningDays,
+  )..orderBy([(row) => OrderingTerm.asc(row.dateKey)])).watch();
+}
+
+Future<String> _existingRebasedPath(
+  String storedPath,
+  String currentDocumentsPath,
+) async {
+  if (await File(storedPath).exists()) return storedPath;
+
+  final candidate = rebaseApplicationDocumentsPath(
+    storedPath,
+    currentDocumentsPath,
+  );
+  if (candidate != storedPath && await File(candidate).exists()) {
+    return candidate;
+  }
+  return storedPath;
+}
+
+/// Replaces the obsolete portion before `/Documents/` while retaining the
+/// app-owned relative path. Paths outside Documents are left unchanged.
+String rebaseApplicationDocumentsPath(
+  String storedPath,
+  String currentDocumentsPath,
+) {
+  final normalized = storedPath.replaceAll('\\', '/');
+  const marker = '/Documents/';
+  final markerIndex = normalized.lastIndexOf(marker);
+  if (markerIndex < 0) return storedPath;
+
+  final relativePath = normalized.substring(markerIndex + marker.length);
+  if (relativePath.isEmpty) return storedPath;
+
+  final candidate = p.normalize(
+    p.joinAll([currentDocumentsPath, ...p.posix.split(relativePath)]),
+  );
+  final documents = p.normalize(currentDocumentsPath);
+  if (!p.isWithin(documents, candidate)) return storedPath;
+  return candidate;
 }
 
 LazyDatabase _open() {

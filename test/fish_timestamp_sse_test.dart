@@ -4,6 +4,31 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lumina/tts/providers/fish_audio_api_tts_provider.dart';
 
 void main() {
+  test('Fish generation profiles persist speed and quality policies', () async {
+    final settings = <String, String>{};
+    final provider = FishAudioApiTtsProvider(
+      settingReader: (key) async => settings[key],
+      settingWriter: (key, value) async => settings[key] = value,
+    );
+
+    expect(await provider.generationProfile, FishAudioGenerationProfile.fast);
+    expect(await provider.generationConcurrency, 3);
+    expect(FishAudioGenerationProfile.fast.sampleRate, 24000);
+    expect(FishAudioGenerationProfile.fast.latency, 'low');
+
+    await provider.setGenerationProfile(FishAudioGenerationProfile.quality);
+    final restored = FishAudioApiTtsProvider(
+      settingReader: (key) async => settings[key],
+    );
+    expect(
+      await restored.generationProfile,
+      FishAudioGenerationProfile.quality,
+    );
+    expect(await restored.generationConcurrency, 1);
+    expect(FishAudioGenerationProfile.quality.sampleRate, 44100);
+    expect(FishAudioGenerationProfile.quality.latency, 'balanced');
+  });
+
   test('Fish timestamp SSE replaces cumulative alignment snapshots', () {
     final accumulator = FishTimestampSseAccumulator();
     accumulator.addPayload(

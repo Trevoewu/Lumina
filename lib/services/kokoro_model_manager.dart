@@ -2,9 +2,11 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+
+import 'app_log_service.dart';
+import 'resumable_file_downloader.dart';
 
 enum KokoroModelInstallState {
   unknown,
@@ -166,15 +168,23 @@ class KokoroModelManager implements LocalTtsModelManager {
   Future<void> refresh() async {
     final path = await defaultModelPath();
     final installed = await isInstalled();
+    final partialDir = Directory('$path.partial');
+    final partialBytes = installed ? 0 : await _partialBytes(partialDir);
     _emit(
       KokoroModelStatus(
         state: installed
             ? KokoroModelInstallState.installed
             : KokoroModelInstallState.notInstalled,
         modelPath: path,
-        progress: installed ? 1 : 0,
-        downloadedBytes: installed ? totalDownloadBytes : 0,
-        message: installed ? '模型已安装' : '模型未安装',
+        progress: installed
+            ? 1
+            : (partialBytes / totalDownloadBytes).clamp(0, 1),
+        downloadedBytes: installed ? totalDownloadBytes : partialBytes,
+        message: installed
+            ? '模型已安装'
+            : partialBytes > 0
+            ? '下载已暂停，可继续下载'
+            : '模型未安装',
       ),
     );
   }
@@ -209,24 +219,35 @@ class KokoroModelManager implements LocalTtsModelManager {
         return;
       }
 
-      if (await partialDir.exists()) {
+      if (replaceExisting && await partialDir.exists()) {
         await partialDir.delete(recursive: true);
       }
       await partialDir.create(recursive: true);
 
       var completedBytes = 0;
+      final persistedBytes = await _partialBytes(partialDir);
       _emit(
         KokoroModelStatus(
           state: KokoroModelInstallState.downloading,
           modelPath: targetDir.path,
-          progress: 0,
-          message: '开始下载 Kokoro 模型',
+          progress: (persistedBytes / totalDownloadBytes).clamp(0, 1),
+          downloadedBytes: persistedBytes,
+          message: persistedBytes > 0 ? '继续下载 Kokoro 模型' : '开始下载 Kokoro 模型',
         ),
+      );
+      AppLogger.info(
+        'Model',
+        '开始下载 Kokoro 模型 replaceExisting=$replaceExisting',
       );
 
       for (final modelFile in files) {
         final output = File(p.join(partialDir.path, modelFile.path));
         await output.parent.create(recursive: true);
+
+        if (await output.exists() && await output.length() >= modelFile.size) {
+          completedBytes += modelFile.size;
+          continue;
+        }
 
         await _downloadFile(
           modelFile,
@@ -254,31 +275,54 @@ class KokoroModelManager implements LocalTtsModelManager {
       await partialDir.rename(targetDir.path);
 
       await refresh();
-    } on DioException catch (e) {
+      AppLogger.info('Model', 'Kokoro 模型下载完成 path=${targetDir.path}');
+    } on DioException catch (e, stackTrace) {
       if (CancelToken.isCancel(e)) {
+        final downloadedBytes = await _partialBytes(partialDir);
         _emit(
           KokoroModelStatus(
             state: KokoroModelInstallState.notInstalled,
             modelPath: targetDir.path,
-            message: '下载已取消',
+            progress: (downloadedBytes / totalDownloadBytes).clamp(0, 1),
+            downloadedBytes: downloadedBytes,
+            message: '下载已暂停，可继续下载',
           ),
         );
+        AppLogger.info('Model', 'Kokoro 模型下载已取消');
         return;
       }
+      final downloadedBytes = await _partialBytes(partialDir);
       _emit(
         KokoroModelStatus(
           state: KokoroModelInstallState.failed,
           modelPath: targetDir.path,
+          progress: (downloadedBytes / totalDownloadBytes).clamp(0, 1),
+          downloadedBytes: downloadedBytes,
           message: '下载失败：${_describeDioError(e)}',
         ),
       );
-    } catch (e) {
+      AppLogger.error(
+        'Model',
+        'Kokoro 模型下载失败',
+        error: e,
+        stackTrace: stackTrace,
+      );
+    } catch (e, stackTrace) {
+      final downloadedBytes = await _partialBytes(partialDir);
       _emit(
         KokoroModelStatus(
           state: KokoroModelInstallState.failed,
           modelPath: targetDir.path,
+          progress: (downloadedBytes / totalDownloadBytes).clamp(0, 1),
+          downloadedBytes: downloadedBytes,
           message: '下载失败：$e',
         ),
+      );
+      AppLogger.error(
+        'Model',
+        'Kokoro 模型下载失败',
+        error: e,
+        stackTrace: stackTrace,
       );
     } finally {
       _cancelToken = null;
@@ -314,51 +358,34 @@ class KokoroModelManager implements LocalTtsModelManager {
     File output, {
     required void Function(int received, String sourceName) onProgress,
   }) async {
-    Object? lastError;
-    for (final source in sources) {
-      final url = '${source.baseUrl}/${modelFile.path}';
-      try {
-        if (await output.exists()) {
-          await output.delete();
-        }
-        await _dio.download(
-          url,
-          output.path,
-          cancelToken: _cancelToken,
-          deleteOnError: true,
-          onReceiveProgress: (received, _) {
-            onProgress(received, source.name);
-          },
+    await ResumableFileDownloader.download(
+      dio: _dio,
+      sources: [
+        for (final source in sources)
+          ResumableDownloadSource(
+            name: source.name,
+            url: '${source.baseUrl}/${modelFile.path}',
+          ),
+      ],
+      output: output,
+      expectedBytes: modelFile.size,
+      cancelToken: _cancelToken!,
+      onProgress: onProgress,
+      onSourceError: (source, error) {
+        AppLogger.warning(
+          'Model',
+          'Kokoro 下载源失败 source=${source.name} url=${source.url}',
+          error: error,
         );
-        final length = await output.length();
-        if (length <= 0) {
-          throw StateError('${modelFile.path} 下载后文件为空');
-        }
-        if (length < modelFile.size) {
-          throw StateError(
-            '${modelFile.path} 下载不完整：$length/${modelFile.size} bytes',
-          );
-        }
-        return;
-      } on DioException catch (e) {
-        if (CancelToken.isCancel(e)) rethrow;
-        lastError = e;
-        debugPrint(
-          '[KokoroModelManager] ${source.name} failed: '
-          'url=$url type=${e.type.name} message=${e.message} error=${e.error}',
-        );
-        continue;
-      } catch (e) {
-        lastError = e;
-        debugPrint('[KokoroModelManager] ${source.name} failed: $url $e');
-        continue;
-      }
-    }
+      },
+    );
+  }
 
-    if (lastError is DioException) {
-      throw lastError;
-    }
-    throw StateError('所有下载源均失败：$lastError');
+  Future<int> _partialBytes(Directory partialDir) {
+    return ResumableFileDownloader.downloadedBytes(
+      partialDir,
+      files.map((file) => (path: file.path, expectedBytes: file.size)),
+    );
   }
 
   String _describeDioError(DioException e) {

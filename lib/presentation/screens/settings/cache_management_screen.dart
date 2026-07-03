@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/app_colors.dart';
+import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart' as drift_db;
+import '../../../services/app_log_service.dart';
 import '../../../services/cache_manager.dart';
+import '../../widgets/collapsing_page_scaffold.dart';
 
 class CacheManagementScreen extends ConsumerStatefulWidget {
   const CacheManagementScreen({super.key});
@@ -21,15 +24,10 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
   Widget build(BuildContext context) {
     final db = ref.watch(appDatabaseProvider);
     final cache = ref.watch(cacheManagerProvider);
-    final topTint = Color.lerp(
-      AppColors.background,
-      Theme.of(context).colorScheme.primary,
-      0.18,
-    )!;
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(backgroundColor: topTint, title: const Text('缓存管理')),
+    return CollapsingPageScaffold(
+      title: context.tr('缓存管理', 'Audio Cache'),
+      showBackButton: true,
       body: FutureBuilder<_CachePageData>(
         future: _loadData(db, cache),
         builder: (context, snapshot) {
@@ -49,13 +47,13 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
               children: [
                 _SurfaceTile(
                   child: ListTile(
-                    leading: const Icon(
+                    leading: Icon(
                       Icons.storage_outlined,
-                      color: AppColors.textSecondary,
+                      color: context.appTextSecondary,
                     ),
-                    title: const Text(
+                    title: Text(
                       '总音频缓存',
-                      style: TextStyle(color: AppColors.textPrimary),
+                      style: TextStyle(color: context.appTextPrimary),
                     ),
                     subtitle: Text(data.total.humanReadable),
                     trailing: IconButton(
@@ -69,17 +67,17 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                               height: 16,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Icon(Icons.delete_sweep_outlined),
+                          : Icon(Icons.delete_sweep_outlined),
                     ),
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Padding(
+                Padding(
                   padding: EdgeInsets.only(left: 4, bottom: 8),
                   child: Text(
                     '按书籍清理',
                     style: TextStyle(
-                      color: AppColors.textSecondary,
+                      color: context.appTextSecondary,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -96,21 +94,19 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                   for (final row in data.books)
                     _SurfaceTile(
                       child: ExpansionTile(
-                        collapsedIconColor: AppColors.textSecondary,
-                        iconColor: AppColors.textSecondary,
-                        leading: const Icon(
+                        collapsedIconColor: context.appTextSecondary,
+                        iconColor: context.appTextSecondary,
+                        leading: Icon(
                           Icons.menu_book_outlined,
-                          color: AppColors.textSecondary,
+                          color: context.appTextSecondary,
                         ),
                         title: Text(
                           row.book.title,
-                          style: const TextStyle(color: AppColors.textPrimary),
+                          style: TextStyle(color: context.appTextPrimary),
                         ),
                         subtitle: Text(
                           '${row.usage.humanReadable} · ${row.book.chapterCount} 章',
-                          style: const TextStyle(
-                            color: AppColors.textSecondary,
-                          ),
+                          style: TextStyle(color: context.appTextSecondary),
                         ),
                         children: [
                           OverflowBar(
@@ -121,7 +117,7 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                                 onPressed: row.usage.bytes == 0 || _clearing
                                     ? null
                                     : () => _clearBook(cache, row.book),
-                                icon: const Icon(Icons.delete_outline),
+                                icon: Icon(Icons.delete_outline),
                               ),
                             ],
                           ),
@@ -146,14 +142,14 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                                         chapterRow.chapter.title,
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          color: AppColors.textPrimary,
+                                        style: TextStyle(
+                                          color: context.appTextPrimary,
                                         ),
                                       ),
                                       subtitle: Text(
                                         chapterRow.usage.humanReadable,
-                                        style: const TextStyle(
-                                          color: AppColors.textSecondary,
+                                        style: TextStyle(
+                                          color: context.appTextSecondary,
                                         ),
                                       ),
                                       trailing: IconButton(
@@ -165,7 +161,7 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                                                 row.book,
                                                 chapterRow.chapter,
                                               ),
-                                        icon: const Icon(Icons.delete_outline),
+                                        icon: Icon(Icons.delete_outline),
                                       ),
                                     ),
                                 ],
@@ -221,7 +217,8 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
     try {
       await cache.clearAll();
       if (mounted) setState(() {});
-    } catch (e) {
+    } catch (e, stackTrace) {
+      AppLogger.error('Cache', '清理全部缓存失败', error: e, stackTrace: stackTrace);
       _showError(e);
     } finally {
       if (mounted) setState(() => _clearing = false);
@@ -234,7 +231,13 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
     try {
       await cache.clearBook(book.id);
       if (mounted) setState(() {});
-    } catch (e) {
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        'Cache',
+        '清理书籍缓存失败 book=${book.id}',
+        error: e,
+        stackTrace: stackTrace,
+      );
       _showError(e);
     } finally {
       if (mounted) setState(() => _clearing = false);
@@ -251,7 +254,13 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
     try {
       await cache.clearChapter(book.id, chapter.id);
       if (mounted) setState(() {});
-    } catch (e) {
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        'Cache',
+        '清理章节缓存失败 chapter=${chapter.id}',
+        error: e,
+        stackTrace: stackTrace,
+      );
       _showError(e);
     } finally {
       if (mounted) setState(() => _clearing = false);
@@ -272,16 +281,16 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('确认清理'),
+        title: Text('确认清理'),
         content: Text(message),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('取消'),
+            child: Text('取消'),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('清理'),
+            child: Text('清理'),
           ),
         ],
       ),
@@ -321,7 +330,7 @@ class _SurfaceTile extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Material(
-        color: AppColors.surface,
+        color: context.appSurface,
         borderRadius: BorderRadius.circular(8),
         child: child,
       ),

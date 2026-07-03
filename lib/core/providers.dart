@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../data/database/app_database.dart';
 import '../services/cache_manager.dart';
 import '../services/fish_audio_model_manager.dart';
 import '../services/generation_orchestrator.dart';
@@ -11,13 +10,9 @@ import '../services/lumina_audio_handler.dart';
 import '../services/manifest_store.dart';
 import '../services/playback_progress_service.dart';
 import '../services/sleep_timer_service.dart';
+import 'database_provider.dart';
 
-/// Drift 数据库单例。
-final appDatabaseProvider = Provider<AppDatabase>((ref) {
-  final db = AppDatabase();
-  ref.onDispose(db.close);
-  return db;
-});
+export 'database_provider.dart';
 
 /// Manifest 文件存储。
 final manifestStoreProvider = Provider<ManifestStore>((ref) => ManifestStore());

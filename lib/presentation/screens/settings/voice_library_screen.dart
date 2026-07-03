@@ -5,12 +5,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/app_colors.dart';
+import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart' as drift_db;
+import '../../../services/app_log_service.dart';
 import '../../../tts/models/tts_capabilities.dart';
 import '../../../tts/models/tts_voice.dart';
 import '../../../tts/provider_registry.dart';
 import '../../../tts/providers/fish_audio_local_tts_provider.dart';
+import '../../widgets/collapsing_page_scaffold.dart';
 
 class VoiceLibraryScreen extends ConsumerStatefulWidget {
   const VoiceLibraryScreen({super.key});
@@ -23,10 +26,24 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
   bool _loadingPreset = false;
   bool _creatingVoice = false;
   bool _cloningVoice = false;
+  String? _activeVoiceId;
+  String? _feedbackMessage;
+  bool _feedbackIsError = false;
+  late Future<List<drift_db.Voice>> _voicesFuture;
   final _descriptionController = TextEditingController();
   final _nameController = TextEditingController();
   final _cloneNameController = TextEditingController();
   final _cloneTextController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    final providerId = ref.read(activeTtsProviderProvider).id;
+    _voicesFuture = ref
+        .read(appDatabaseProvider)
+        .getVoicesByProvider(providerId);
+    _loadActiveVoice();
+  }
 
   @override
   void dispose() {
@@ -39,18 +56,12 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final db = ref.watch(appDatabaseProvider);
     final provider = ref.watch(activeTtsProviderProvider);
     final capabilities = provider.capabilities;
-    final topTint = Color.lerp(
-      AppColors.background,
-      Theme.of(context).colorScheme.primary,
-      0.18,
-    )!;
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(backgroundColor: topTint, title: const Text('音色库')),
+    return CollapsingPageScaffold(
+      title: context.tr('音色库', 'Voice Library'),
+      showBackButton: true,
       body: RefreshIndicator(
         onRefresh: () async => setState(() {}),
         child: ListView(
@@ -64,7 +75,7 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.record_voice_over_outlined),
+                        Icon(Icons.record_voice_over_outlined),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -87,13 +98,26 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                               height: 18,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Icon(Icons.cloud_sync_outlined),
-                      label: const Text('同步当前 Provider 预置音色'),
+                          : Icon(Icons.cloud_sync_outlined),
+                      label: Text(
+                        context.tr(
+                          '同步当前 Provider 预置音色',
+                          'Sync Provider Preset Voices',
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
+            if (_feedbackMessage != null) ...[
+              const SizedBox(height: 12),
+              _VoiceFeedbackBanner(
+                message: _feedbackMessage!,
+                isError: _feedbackIsError,
+                onDismiss: () => setState(() => _feedbackMessage = null),
+              ),
+            ],
             if (capabilities.voiceCloning) ...[
               const SizedBox(height: 12),
               Card(
@@ -138,8 +162,8 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                                     strokeWidth: 2,
                                   ),
                                 )
-                              : const Icon(Icons.upload_file_outlined),
-                          label: const Text('选择音频并保存'),
+                              : Icon(Icons.upload_file_outlined),
+                          label: Text('选择音频并保存'),
                         ),
                       ),
                     ],
@@ -193,8 +217,8 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                                     strokeWidth: 2,
                                   ),
                                 )
-                              : const Icon(Icons.auto_awesome),
-                          label: const Text('生成并保存'),
+                              : Icon(Icons.auto_awesome),
+                          label: Text('生成并保存'),
                         ),
                       ),
                     ],
@@ -203,10 +227,13 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
               ),
             ],
             const SizedBox(height: 20),
-            Text('已保存音色', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              context.tr('已保存音色', 'Saved Voices'),
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: 8),
             FutureBuilder<List<drift_db.Voice>>(
-              future: db.getVoicesByProvider(provider.id),
+              future: _voicesFuture,
               builder: (context, snapshot) {
                 final voices = snapshot.data ?? const <drift_db.Voice>[];
                 if (snapshot.connectionState == ConnectionState.waiting) {
@@ -225,20 +252,39 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                     for (final voice in voices)
                       Card(
                         child: ListTile(
-                          leading: Icon(_iconForType(voice.type)),
+                          leading: Icon(
+                            _iconForType(voice.type),
+                            color: voice.id == _activeVoiceId
+                                ? Theme.of(context).colorScheme.primary
+                                : context.appTextSecondary,
+                          ),
                           title: Text(voice.name),
                           subtitle: Text(
-                            '${voice.providerId} · ${voice.type} · ${voice.providerVoiceId}',
+                            voice.id == _activeVoiceId
+                                ? '当前音色 · ${voice.type} · ${voice.providerVoiceId}'
+                                : '${voice.type} · ${voice.providerVoiceId}',
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          trailing: IconButton(
-                            tooltip: '删除本地记录',
-                            icon: const Icon(Icons.delete_outline),
-                            onPressed: () async {
-                              await db.deleteVoice(voice.id);
-                              if (mounted) setState(() {});
-                            },
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (voice.id == _activeVoiceId)
+                                Tooltip(
+                                  message: '当前音色',
+                                  child: Icon(
+                                    Icons.check_circle,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                  ),
+                                ),
+                              IconButton(
+                                tooltip: '删除本地记录',
+                                icon: Icon(Icons.delete_outline),
+                                onPressed: () => _deleteVoice(voice.id),
+                              ),
+                            ],
                           ),
                           onTap: () => _setActiveVoice(voice.id),
                         ),
@@ -255,7 +301,6 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
 
   Future<void> _syncPresetVoices(String providerId) async {
     setState(() => _loadingPreset = true);
-    final messenger = ScaffoldMessenger.of(context);
     try {
       final provider = ref.read(activeTtsProviderProvider);
       final voices = await provider.listPresetVoices();
@@ -264,13 +309,17 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
         await db.upsertVoice(_toDbVoice(voice));
       }
       if (!mounted) return;
-      messenger.showSnackBar(
-        SnackBar(content: Text('已同步 ${voices.length} 个 $providerId 音色')),
+      _showFeedback('已同步 ${voices.length} 个 $providerId 音色');
+      _reloadVoices();
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        'Voice',
+        '同步预置音色失败 provider=$providerId',
+        error: e,
+        stackTrace: stackTrace,
       );
-      setState(() {});
-    } catch (e) {
       if (!mounted) return;
-      messenger.showSnackBar(SnackBar(content: Text('同步失败：$e')));
+      _showFeedback('同步失败：$e', isError: true);
     } finally {
       if (mounted) setState(() => _loadingPreset = false);
     }
@@ -280,14 +329,11 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
     final name = _nameController.text.trim();
     final description = _descriptionController.text.trim();
     if (name.isEmpty || description.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('请填写音色名称和描述')));
+      _showFeedback('请填写音色名称和描述', isError: true);
       return;
     }
 
     setState(() => _creatingVoice = true);
-    final messenger = ScaffoldMessenger.of(context);
     try {
       final provider = ref.read(activeTtsProviderProvider);
       final voice = await provider.createVoiceFromDescription(
@@ -298,14 +344,16 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
       await ref
           .read(appDatabaseProvider)
           .setSetting('active_voice_id', voice.id);
+      _activeVoiceId = voice.id;
       _nameController.clear();
       _descriptionController.clear();
       if (!mounted) return;
-      messenger.showSnackBar(const SnackBar(content: Text('音色已生成并保存')));
-      setState(() {});
-    } catch (e) {
+      _showFeedback('音色已生成并设为当前音色');
+      _reloadVoices();
+    } catch (e, stackTrace) {
+      AppLogger.error('Voice', '描述生成音色失败', error: e, stackTrace: stackTrace);
       if (!mounted) return;
-      messenger.showSnackBar(SnackBar(content: Text('生成失败：$e')));
+      _showFeedback('生成失败：$e', isError: true);
     } finally {
       if (mounted) setState(() => _creatingVoice = false);
     }
@@ -314,9 +362,7 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
   Future<void> _cloneVoice() async {
     final name = _cloneNameController.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('请填写音色名称')));
+      _showFeedback('请填写音色名称', isError: true);
       return;
     }
 
@@ -324,9 +370,7 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
     final transcript = _cloneTextController.text.trim();
     if (provider.id == FishAudioLocalTtsProvider.idValue &&
         transcript.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Fish Audio 克隆音色必须填写参考文本')));
+      _showFeedback('Fish Audio 克隆音色必须填写参考文本', isError: true);
       return;
     }
     final constraints = provider.capabilities.cloneConstraints;
@@ -351,23 +395,18 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
         (filePath == null ? null : await File(filePath).readAsBytes());
     if (bytes == null) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('无法读取音频文件')));
+      _showFeedback('无法读取音频文件', isError: true);
       return;
     }
     if (!mounted) return;
     final maxSize = constraints?.maxSizeBytes;
     if (maxSize != null && bytes.length > maxSize) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('样本文件过大：最大 ${_formatBytes(maxSize)}')),
-      );
+      _showFeedback('样本文件过大：最大 ${_formatBytes(maxSize)}', isError: true);
       return;
     }
 
     setState(() => _cloningVoice = true);
-    final messenger = ScaffoldMessenger.of(context);
     try {
       final extension = (file.extension ?? file.name.split('.').last)
           .toLowerCase();
@@ -385,14 +424,16 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
       await ref
           .read(appDatabaseProvider)
           .setSetting('active_voice_id', voice.id);
+      _activeVoiceId = voice.id;
       _cloneNameController.clear();
       _cloneTextController.clear();
       if (!mounted) return;
-      messenger.showSnackBar(const SnackBar(content: Text('克隆音色已保存并设为当前音色')));
-      setState(() {});
-    } catch (e) {
+      _showFeedback('克隆音色已保存并设为当前音色');
+      _reloadVoices();
+    } catch (e, stackTrace) {
+      AppLogger.error('Voice', '克隆音色失败', error: e, stackTrace: stackTrace);
       if (!mounted) return;
-      messenger.showSnackBar(SnackBar(content: Text('克隆失败：$e')));
+      _showFeedback('克隆失败：$e', isError: true);
     } finally {
       if (mounted) setState(() => _cloningVoice = false);
     }
@@ -401,9 +442,46 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
   Future<void> _setActiveVoice(String voiceId) async {
     await ref.read(appDatabaseProvider).setSetting('active_voice_id', voiceId);
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('已设为当前音色')));
+    setState(() => _activeVoiceId = voiceId);
+    _showFeedback('已设为当前音色');
+  }
+
+  Future<void> _loadActiveVoice() async {
+    final voiceId = await ref
+        .read(appDatabaseProvider)
+        .getSetting('active_voice_id');
+    if (!mounted) return;
+    setState(() => _activeVoiceId = voiceId);
+  }
+
+  Future<void> _deleteVoice(String voiceId) async {
+    final db = ref.read(appDatabaseProvider);
+    await db.deleteVoice(voiceId);
+    if (_activeVoiceId == voiceId) {
+      await db.setSetting('active_voice_id', '');
+      _activeVoiceId = null;
+    }
+    if (!mounted) return;
+    _reloadVoices();
+    _showFeedback('音色记录已删除');
+  }
+
+  void _reloadVoices() {
+    if (!mounted) return;
+    final providerId = ref.read(activeTtsProviderProvider).id;
+    setState(() {
+      _voicesFuture = ref
+          .read(appDatabaseProvider)
+          .getVoicesByProvider(providerId);
+    });
+  }
+
+  void _showFeedback(String message, {bool isError = false}) {
+    if (!mounted) return;
+    setState(() {
+      _feedbackMessage = message;
+      _feedbackIsError = isError;
+    });
   }
 
   drift_db.Voice _toDbVoice(TtsVoice voice) {
@@ -447,5 +525,48 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
       return '${(bytes / 1024).toStringAsFixed(1)} KB';
     }
     return '$bytes B';
+  }
+}
+
+class _VoiceFeedbackBanner extends StatelessWidget {
+  final String message;
+  final bool isError;
+  final VoidCallback onDismiss;
+
+  const _VoiceFeedbackBanner({
+    required this.message,
+    required this.isError,
+    required this.onDismiss,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
+    final color = isError ? Colors.redAccent : accent;
+    return Material(
+      color: color.withValues(alpha: 0.1),
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.only(left: 12, top: 8, bottom: 8),
+        child: Row(
+          children: [
+            Icon(
+              isError ? Icons.error_outline : Icons.check_circle_outline,
+              color: color,
+              size: 18,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(message, style: TextStyle(color: color)),
+            ),
+            IconButton(
+              tooltip: '关闭',
+              onPressed: onDismiss,
+              icon: Icon(Icons.close, size: 18),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

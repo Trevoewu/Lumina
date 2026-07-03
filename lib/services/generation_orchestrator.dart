@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 
 import '../data/database/app_database.dart' as db;
@@ -7,6 +8,7 @@ import '../domain/models/chapter_manifest.dart';
 import '../tts/models/tts_chunk.dart';
 import '../tts/models/tts_voice.dart';
 import '../tts/tts_provider.dart';
+import 'app_log_service.dart';
 import 'manifest_store.dart';
 
 /// 章节生成进度。
@@ -104,105 +106,197 @@ class GenerationOrchestrator {
       segments: segments,
     );
 
+    final pendingIndexes = <int>[];
     for (var i = 0; i < paragraphs.length; i++) {
-      final para = paragraphs[i];
       final current = segments[i];
       if (current.state == ParagraphAudioState.ready &&
           await File(await _absoluteSegmentPath(bookId, current)).exists()) {
         continue;
       }
+      pendingIndexes.add(i);
+    }
 
-      segments[i] = current.copyWith(
-        state: ParagraphAudioState.generating,
-        error: null,
-      );
+    var concurrency = 1;
+    try {
+      if (provider is TtsConcurrencyPolicy) {
+        final policy = provider as TtsConcurrencyPolicy;
+        concurrency = (await policy.generationConcurrency).clamp(1, 8).toInt();
+      }
+    } catch (_) {
+      concurrency = 1;
+    }
+    if (pendingIndexes.isNotEmpty) {
+      concurrency = concurrency.clamp(1, pendingIndexes.length);
+    }
+
+    AppLogger.info(
+      'Generation',
+      '生成任务启动 book=$bookId chapter=$chapterId provider=${provider.id} '
+          'pending=${pendingIndexes.length} concurrency=$concurrency',
+    );
+
+    final active = <int, Future<_SegmentGenerationResult>>{};
+    var nextPending = 0;
+    while (nextPending < pendingIndexes.length || active.isNotEmpty) {
+      final launchedIndexes = <int>[];
+      while (active.length < concurrency &&
+          nextPending < pendingIndexes.length) {
+        final index = pendingIndexes[nextPending++];
+        final paragraph = paragraphs[index];
+        final current = segments[index];
+
+        segments[index] = current.copyWith(
+          state: ParagraphAudioState.generating,
+          error: null,
+        );
+        active[index] = _generateParagraph(
+          index: index,
+          bookId: bookId,
+          chapterId: chapterId,
+          paragraph: paragraph,
+          current: current,
+          provider: provider,
+          voice: voice,
+          speed: speed,
+          maxRetries: maxRetries,
+          fadeInEnabled: fadeInEnabled,
+        );
+        launchedIndexes.add(index);
+      }
+
+      if (launchedIndexes.isNotEmpty) {
+        final first = launchedIndexes.first;
+        await manifestStore.save(manifest());
+        yield _progressFromSegments(
+          chapterId: chapterId,
+          providerId: provider.id,
+          voiceId: voice.id,
+          segments: segments,
+          currentParagraphId: paragraphs[first].id,
+          currentParagraphIndex: first,
+        );
+      }
+
+      if (active.isEmpty) continue;
+      final completed = await Future.any(active.values);
+      active.remove(completed.index);
+      segments[completed.index] = completed.segment;
+
+      if (completed.billedCharacters > 0) {
+        await database.recordCost(
+          db.CostRecordsCompanion.insert(
+            bookId: bookId,
+            chapterId: chapterId,
+            providerId: provider.id,
+            characters: completed.billedCharacters,
+            createdAt: DateTime.now().millisecondsSinceEpoch,
+          ),
+        );
+      }
+
       await manifestStore.save(manifest());
       yield _progressFromSegments(
         chapterId: chapterId,
         providerId: provider.id,
         voiceId: voice.id,
         segments: segments,
-        currentParagraphId: para.id,
-        currentParagraphIndex: i,
+        currentParagraphId: paragraphs[completed.index].id,
+        currentParagraphIndex: completed.index,
+        error: completed.segment.error,
+      );
+    }
+    AppLogger.info(
+      'Generation',
+      '生成任务完成 book=$bookId chapter=$chapterId '
+          'ready=${segments.where((segment) => segment.state == ParagraphAudioState.ready).length} '
+          'failed=${segments.where((segment) => segment.state == ParagraphAudioState.failed).length}',
+    );
+  }
+
+  Future<_SegmentGenerationResult> _generateParagraph({
+    required int index,
+    required String bookId,
+    required String chapterId,
+    required db.Paragraph paragraph,
+    required SegmentEntry current,
+    required TtsProvider provider,
+    required TtsVoice voice,
+    required double speed,
+    required int maxRetries,
+    required bool fadeInEnabled,
+  }) async {
+    try {
+      final chunks = await _synthesizePossiblySplit(
+        provider: provider,
+        voice: voice,
+        text: paragraph.content,
+        speed: speed,
+        maxRetries: maxRetries,
+      );
+      if (chunks.isEmpty) throw StateError('TTS 未返回音频');
+
+      final format = chunks.first.format;
+      final bytes = format == 'wav'
+          ? _prepareWavForCache(
+              chunks.map((chunk) => chunk.audioBytes).toList(),
+              fadeInEnabled: fadeInEnabled,
+            )
+          : chunks.expand((chunk) => chunk.audioBytes).toList(growable: false);
+      final duration = chunks.fold<int>(
+        0,
+        (sum, chunk) => sum + chunk.durationMs,
+      );
+      final timings = <AudioTextTiming>[];
+      var timingOffsetMs = 0;
+      for (final chunk in chunks) {
+        timings.addAll(
+          chunk.timings.map((timing) => timing.shifted(timingOffsetMs)),
+        );
+        timingOffsetMs += chunk.durationMs;
+      }
+      final billed = chunks.fold<int>(
+        0,
+        (sum, chunk) => sum + (chunk.billedCharacters ?? 0),
       );
 
-      try {
-        final chunks = await _synthesizePossiblySplit(
-          provider: provider,
-          voice: voice,
-          text: para.content,
-          speed: speed,
-          maxRetries: maxRetries,
-        );
+      final absPath = await manifestStore.segmentPath(
+        bookId: bookId,
+        chapterId: chapterId,
+        paragraphId: paragraph.id,
+        format: format,
+      );
+      await File(absPath).writeAsBytes(bytes);
 
-        // 段落内若因超长被切成多个请求，需要按格式正确拼接。
-        final format = chunks.isNotEmpty ? chunks.first.format : 'mp3';
-        final bytes = format == 'wav'
-            ? _prepareWavForCache(
-                chunks.map((c) => c.audioBytes).toList(),
-                fadeInEnabled: fadeInEnabled,
-              )
-            : chunks.expand((c) => c.audioBytes).toList(growable: false);
-        final duration = chunks.fold<int>(0, (sum, c) => sum + c.durationMs);
-        final timings = <AudioTextTiming>[];
-        var timingOffsetMs = 0;
-        for (final chunk in chunks) {
-          timings.addAll(
-            chunk.timings.map((timing) => timing.shifted(timingOffsetMs)),
-          );
-          timingOffsetMs += chunk.durationMs;
-        }
-        final billed = chunks.fold<int>(
-          0,
-          (sum, c) => sum + (c.billedCharacters ?? 0),
-        );
-
-        final absPath = await manifestStore.segmentPath(
-          bookId: bookId,
-          chapterId: chapterId,
-          paragraphId: para.id,
-          format: format,
-        );
-        await File(absPath).writeAsBytes(bytes);
-
-        segments[i] = SegmentEntry(
-          paragraphId: para.id,
-          audioFile: '$chapterId/${para.id}.$format',
+      return _SegmentGenerationResult(
+        index: index,
+        billedCharacters: billed,
+        segment: SegmentEntry(
+          paragraphId: paragraph.id,
+          audioFile: '$chapterId/${paragraph.id}.$format',
           durationMs: duration,
           state: ParagraphAudioState.ready,
           format: format,
           billedCharacters: billed == 0 ? null : billed,
           generatedAt: DateTime.now().millisecondsSinceEpoch,
           timings: timings,
-        );
-
-        if (billed > 0) {
-          await database.recordCost(
-            db.CostRecordsCompanion.insert(
-              bookId: bookId,
-              chapterId: chapterId,
-              providerId: provider.id,
-              characters: billed,
-              createdAt: DateTime.now().millisecondsSinceEpoch,
-            ),
-          );
-        }
-      } catch (e) {
-        segments[i] = current.copyWith(
+        ),
+      );
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        'Generation',
+        '段落音频生成失败 '
+            '(book=$bookId, chapter=$chapterId, paragraph=${paragraph.id}, '
+            'provider=${provider.id})',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      return _SegmentGenerationResult(
+        index: index,
+        billedCharacters: 0,
+        segment: current.copyWith(
           state: ParagraphAudioState.failed,
-          error: e.toString(),
-        );
-      }
-
-      await manifestStore.save(manifest());
-      yield _progressFromSegments(
-        chapterId: chapterId,
-        providerId: provider.id,
-        voiceId: voice.id,
-        segments: segments,
-        currentParagraphId: para.id,
-        currentParagraphIndex: i,
-        error: segments[i].error,
+          error: error.toString(),
+        ),
       );
     }
   }
@@ -454,7 +548,8 @@ class GenerationOrchestrator {
         return await fn();
       } catch (e) {
         last = e;
-        await Future<void>.delayed(Duration(milliseconds: 500 * (attempt + 1)));
+        final backoffMs = 500 * (1 << attempt) + Random().nextInt(250);
+        await Future<void>.delayed(Duration(milliseconds: backoffMs));
       }
     }
     throw last ?? StateError('unknown error');
@@ -547,4 +642,16 @@ List<String> _hardSplit(String text, int limit) {
     out.add(text.substring(i, (i + limit).clamp(0, text.length)));
   }
   return out;
+}
+
+class _SegmentGenerationResult {
+  final int index;
+  final SegmentEntry segment;
+  final int billedCharacters;
+
+  const _SegmentGenerationResult({
+    required this.index,
+    required this.segment,
+    required this.billedCharacters,
+  });
 }

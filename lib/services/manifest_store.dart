@@ -1,10 +1,14 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../domain/models/chapter_manifest.dart';
+import 'app_log_service.dart';
+import 'wav_audio_utils.dart';
 
 /// ChapterManifest 的本地持久化服务。
 ///
@@ -48,7 +52,13 @@ class ManifestStore {
     final file = await manifestFile(bookId, chapterId);
     if (!await file.exists()) return null;
     final json = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
-    return ChapterManifest.fromJson(json);
+    final manifest = ChapterManifest.fromJson(json);
+    final repaired = await repairManifestWavDurations(
+      manifest,
+      await _audioRoot(bookId),
+    );
+    if (!identical(repaired, manifest)) await save(repaired);
+    return repaired;
   }
 
   Future<void> save(ChapterManifest manifest) async {
@@ -133,4 +143,71 @@ class ManifestStore {
       );
     }
   }
+}
+
+Future<ChapterManifest> repairManifestWavDurations(
+  ChapterManifest manifest,
+  Directory audioRoot,
+) async {
+  var changed = false;
+  final repairedSegments = <SegmentEntry>[];
+
+  for (final segment in manifest.segments) {
+    final isWav =
+        segment.format.toLowerCase() == 'wav' ||
+        segment.audioFile.toLowerCase().endsWith('.wav');
+    if (!isWav || segment.state != ParagraphAudioState.ready) {
+      repairedSegments.add(segment);
+      continue;
+    }
+
+    final audioFile = File(p.join(audioRoot.path, segment.audioFile));
+    if (!await audioFile.exists()) {
+      repairedSegments.add(segment);
+      continue;
+    }
+
+    final fileLength = await audioFile.length();
+    if (fileLength < 44) {
+      repairedSegments.add(segment);
+      continue;
+    }
+    final handle = await audioFile.open();
+    late final List<int> header;
+    try {
+      header = await handle.read(math.min(fileLength, 64 * 1024));
+    } finally {
+      await handle.close();
+    }
+    final actualDurationMs = wavDurationMs(
+      Uint8List.fromList(header),
+      totalBytes: fileLength,
+    );
+    final toleranceMs = math.max(1000, (actualDurationMs * 0.2).round());
+    if (actualDurationMs <= 0 ||
+        (segment.durationMs - actualDurationMs).abs() <= toleranceMs) {
+      repairedSegments.add(segment);
+      continue;
+    }
+
+    changed = true;
+    repairedSegments.add(segment.copyWith(durationMs: actualDurationMs));
+    AppLogger.warning(
+      'Cache',
+      '修复 WAV 时长 chapter=${manifest.chapterId} '
+          'paragraph=${segment.paragraphId} '
+          '${segment.durationMs}ms -> ${actualDurationMs}ms',
+    );
+  }
+
+  if (!changed) return manifest;
+  return ChapterManifest(
+    chapterId: manifest.chapterId,
+    bookId: manifest.bookId,
+    providerId: manifest.providerId,
+    voiceId: manifest.voiceId,
+    speed: manifest.speed,
+    segments: repairedSegments,
+    updatedAt: manifest.updatedAt,
+  );
 }

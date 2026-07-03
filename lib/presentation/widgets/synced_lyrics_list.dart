@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 import '../../core/app_colors.dart';
 import '../../data/database/app_database.dart' as drift_db;
@@ -63,30 +65,10 @@ List<String> splitLyricsText(String text, {int maxChars = 100}) {
   if (trimmed.isEmpty) return const [];
 
   final sentences = _splitSentences(trimmed);
-  final lines = <String>[];
-  for (final sentence in sentences) {
-    final parts = sentence.length <= maxChars
-        ? [sentence]
-        : _splitLongLyricLine(sentence, maxChars);
-    for (final part in parts) {
-      if (lines.isNotEmpty && lines.last.length + part.length + 1 <= maxChars) {
-        lines[lines.length - 1] = '${lines.last} $part';
-      } else {
-        lines.add(part);
-      }
-    }
-  }
-
-  // Avoid leaving a very short quote or sentence on its own line.
-  if (lines.length > 1 && lines.last.length < maxChars * 0.3) {
-    final merged = '${lines[lines.length - 2]} ${lines.last}';
-    if (merged.length <= maxChars * 1.25) {
-      lines
-        ..removeLast()
-        ..[lines.length - 1] = merged;
-    }
-  }
-  return lines;
+  return [
+    for (final sentence in sentences)
+      ..._splitLongLyricLine(sentence, maxChars),
+  ];
 }
 
 List<String> _splitSentences(String text) {
@@ -189,65 +171,30 @@ bool _isAbbreviationOrDecimal(String text, int start, int periodIndex) {
 }
 
 List<String> _splitLongLyricLine(String text, int maxChars) {
+  final softMaxChars = math.max(maxChars, (maxChars * 1.2).round());
+  if (text.length <= softMaxChars) return [text];
+
   final clauses = text
       .split(RegExp(r'(?<=[，,；;：:—–])\s*'))
       .map((part) => part.trim())
       .where((part) => part.isNotEmpty)
       .toList(growable: false);
-  if (clauses.length > 1) {
-    final lines = <String>[];
-    var buffer = '';
-    for (final clause in clauses) {
-      if (clause.length > maxChars) {
-        if (buffer.isNotEmpty) {
-          lines.add(buffer);
-          buffer = '';
-        }
-        lines.addAll(_splitAtWordBoundary(clause, maxChars));
-        continue;
-      }
-      final candidate = buffer.isEmpty ? clause : '$buffer $clause';
-      if (candidate.length <= maxChars) {
-        buffer = candidate;
-      } else {
-        if (buffer.isNotEmpty) lines.add(buffer);
-        buffer = clause;
-      }
-    }
-    if (buffer.isNotEmpty) lines.add(buffer);
-    return lines;
-  }
+  if (clauses.length < 2) return [text];
 
-  return _splitAtWordBoundary(text, maxChars);
-}
-
-List<String> _splitAtWordBoundary(String text, int maxChars) {
   final lines = <String>[];
-  var start = 0;
-  while (text.length - start > maxChars) {
-    final limit = start + maxChars;
-    var splitAt = -1;
-    for (var index = limit; index > start + maxChars ~/ 2; index--) {
-      if (_isWeakBoundary(text[index - 1])) {
-        splitAt = index;
-        break;
-      }
-    }
-    splitAt = splitAt < 0 ? limit : splitAt;
-    final line = text.substring(start, splitAt).trim();
-    if (line.isNotEmpty) lines.add(line);
-    start = splitAt;
-    while (start < text.length && text[start].trim().isEmpty) {
-      start++;
+  var buffer = '';
+  for (final clause in clauses) {
+    final candidate = buffer.isEmpty ? clause : '$buffer $clause';
+    if (buffer.isEmpty || candidate.length <= softMaxChars) {
+      buffer = candidate;
+    } else {
+      lines.add(buffer);
+      buffer = clause;
     }
   }
-  final tail = text.substring(start).trim();
-  if (tail.isNotEmpty) lines.add(tail);
+  if (buffer.isNotEmpty) lines.add(buffer);
   return lines;
 }
-
-bool _isWeakBoundary(String character) =>
-    RegExp(r'[，,、：:\s]').hasMatch(character);
 
 List<(int, int)> _timingRanges(
   String paragraph,
@@ -286,11 +233,54 @@ List<(int, int)> _timingRanges(
     if (matches.isEmpty) {
       ranges.add(fallback[index]);
     } else {
-      ranges.add((matches.first.timing.startMs, matches.last.timing.endMs));
+      final first = matches.first;
+      final last = matches.last;
+      final startMs = _interpolateTiming(
+        first,
+        normalizedOffset.clamp(first.start, first.end),
+      );
+      final endMs = _interpolateTiming(
+        last,
+        endOffset.clamp(last.start, last.end),
+      );
+      ranges.add((startMs, endMs));
     }
     normalizedOffset = endOffset;
   }
-  return ranges;
+  final effectiveDurationMs = positionedTimings.fold<int>(
+    durationMs,
+    (maximum, item) =>
+        item.timing.endMs > maximum ? item.timing.endMs : maximum,
+  );
+  return _makeRangesMonotonic(ranges, effectiveDurationMs);
+}
+
+int _interpolateTiming(
+  ({AudioTextTiming timing, int start, int end}) positioned,
+  int offset,
+) {
+  final characterCount = positioned.end - positioned.start;
+  final duration = positioned.timing.endMs - positioned.timing.startMs;
+  if (characterCount <= 0 || duration <= 0) {
+    return positioned.timing.startMs;
+  }
+  final progress = (offset - positioned.start) / characterCount;
+  return positioned.timing.startMs + (duration * progress).round();
+}
+
+List<(int, int)> _makeRangesMonotonic(List<(int, int)> ranges, int durationMs) {
+  final result = <(int, int)>[];
+  var previousStart = 0;
+  for (final range in ranges) {
+    final upperLimit = durationMs > 0
+        ? durationMs
+        : (range.$2 > previousStart ? range.$2 : previousStart);
+    final start = range.$1.clamp(previousStart, upperLimit);
+    final end = range.$2.clamp(start, upperLimit);
+    result.add((start, end));
+    previousStart = start;
+  }
+  return result;
 }
 
 List<(int, int)> _estimatedRanges(List<String> parts, int durationMs) {
@@ -336,9 +326,12 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
   final Map<String, GlobalKey> _lineKeys = {};
   StreamSubscription<String?>? _paragraphSub;
   StreamSubscription<Duration>? _positionSub;
+  Timer? _scrollDebounce;
   List<SyncedLyricLine> _lines = const [];
   String? _paragraphId;
   String? _activeLineId;
+  String? _pendingScrollLineId;
+  bool _pendingForceScroll = false;
 
   @override
   void initState() {
@@ -389,41 +382,61 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
     }
     if (!forceScroll && active?.id == _activeLineId) return;
     setState(() => _activeLineId = active?.id);
-    if (active != null) _scrollTo(active.id);
+    if (active != null) _scrollTo(active.id, force: forceScroll);
   }
 
-  void _scrollTo(String lineId) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+  void _scrollTo(String lineId, {bool force = false}) {
+    _pendingScrollLineId = lineId;
+    _pendingForceScroll = _pendingForceScroll || force;
+    _scrollDebounce?.cancel();
+    _scrollDebounce = Timer(const Duration(milliseconds: 70), () {
       if (!mounted) return;
-      final lineContext = _lineKeys[lineId]?.currentContext;
-      if (lineContext != null) {
-        Scrollable.ensureVisible(
-          lineContext,
-          alignment: widget.expanded ? 0.24 : 0.18,
-          duration: const Duration(milliseconds: 320),
-          curve: Curves.easeInOut,
-        );
-        return;
-      }
+      final pendingLineId = _pendingScrollLineId;
+      final pendingForce = _pendingForceScroll;
+      _pendingScrollLineId = null;
+      _pendingForceScroll = false;
+      if (pendingLineId == null) return;
 
-      final index = _lines.indexWhere((line) => line.id == lineId);
-      if (index < 0 || !_scrollController.hasClients) return;
-      final target = (index * (widget.expanded ? 82.0 : 66.0)).clamp(
-        0.0,
-        _scrollController.position.maxScrollExtent,
-      );
-      _scrollController.animateTo(
-        target,
-        duration: const Duration(milliseconds: 240),
-        curve: Curves.easeOut,
-      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _animateToLine(pendingLineId, force: pendingForce);
+      });
+      WidgetsBinding.instance.scheduleFrame();
     });
+  }
+
+  void _animateToLine(String lineId, {required bool force}) {
+    if (!_scrollController.hasClients) return;
+    final lineContext = _lineKeys[lineId]?.currentContext;
+    final renderObject = lineContext?.findRenderObject();
+    if (renderObject == null || !renderObject.attached) return;
+
+    final position = _scrollController.position;
+    final viewport = RenderAbstractViewport.of(renderObject);
+    final target = viewport
+        .getOffsetToReveal(renderObject, widget.expanded ? 0.24 : 0.18)
+        .offset
+        .clamp(position.minScrollExtent, position.maxScrollExtent)
+        .toDouble();
+    final distance = (target - position.pixels).abs();
+    final tolerance = math.max(16.0, position.viewportDimension * 0.04);
+    if (!force && distance <= tolerance) return;
+
+    final viewportExtent = math.max(position.viewportDimension, 1.0);
+    final screenDistance = (distance / viewportExtent).clamp(0.0, 1.75);
+    final durationMs = (420 + screenDistance * 260).round().clamp(420, 875);
+    _scrollController.animateTo(
+      target,
+      duration: Duration(milliseconds: durationMs),
+      curve: Curves.easeInOutCubic,
+    );
   }
 
   @override
   void dispose() {
     _paragraphSub?.cancel();
     _positionSub?.cancel();
+    _scrollDebounce?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
@@ -431,7 +444,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
   @override
   Widget build(BuildContext context) {
     final fontFamily = Theme.of(context).textTheme.bodyMedium?.fontFamily;
-    return ListView.builder(
+    return SingleChildScrollView(
       controller: _scrollController,
       padding: EdgeInsets.fromLTRB(
         widget.expanded ? 24 : 20,
@@ -439,40 +452,44 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
         widget.expanded ? 24 : 20,
         48,
       ),
-      itemCount: _lines.length,
-      itemBuilder: (context, index) {
-        final line = _lines[index];
-        final highlighted = line.id == _activeLineId;
-        return InkWell(
-          key: _lineKeys.putIfAbsent(line.id, GlobalKey.new),
-          onTap: () => widget.handler.playFromParagraphOffset(
-            line.paragraphId,
-            Duration(milliseconds: line.startMs),
-          ),
-          splashColor: Colors.transparent,
-          highlightColor: Colors.transparent,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            child: AnimatedDefaultTextStyle(
-              duration: const Duration(milliseconds: 220),
-              style: TextStyle(
-                fontSize: widget.expanded
-                    ? (highlighted ? 28 : 22)
-                    : (highlighted ? 24 : 18),
-                fontWeight: highlighted ? FontWeight.w800 : FontWeight.w600,
-                color: highlighted
-                    ? AppColors.textPrimary
-                    : Colors.white.withValues(
-                        alpha: widget.expanded ? 0.42 : 0.3,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final line in _lines)
+            Builder(
+              builder: (context) {
+                final highlighted = line.id == _activeLineId;
+                return InkWell(
+                  key: _lineKeys.putIfAbsent(line.id, GlobalKey.new),
+                  onTap: () => widget.handler.playFromParagraphOffset(
+                    line.paragraphId,
+                    Duration(milliseconds: line.startMs),
+                  ),
+                  splashColor: Colors.transparent,
+                  highlightColor: Colors.transparent,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    child: AnimatedDefaultTextStyle(
+                      duration: const Duration(milliseconds: 220),
+                      style: TextStyle(
+                        fontSize: widget.expanded ? 22 : 18,
+                        fontWeight: FontWeight.w700,
+                        color: highlighted
+                            ? AppColors.lyricsTextPrimary
+                            : AppColors.lyricsTextPrimary.withValues(
+                                alpha: widget.expanded ? 0.42 : 0.3,
+                              ),
+                        height: widget.expanded ? 1.35 : 1.4,
+                        fontFamily: fontFamily,
                       ),
-                height: widget.expanded ? 1.35 : 1.4,
-                fontFamily: fontFamily,
-              ),
-              child: Text(line.text),
+                      child: Text(line.text),
+                    ),
+                  ),
+                );
+              },
             ),
-          ),
-        );
-      },
+        ],
+      ),
     );
   }
 }

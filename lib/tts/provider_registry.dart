@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/database_provider.dart';
 import 'api_key_store.dart';
 import '../tts/providers/edge_tts_provider.dart';
 import '../tts/providers/fish_audio_api_tts_provider.dart';
@@ -17,11 +18,18 @@ import '../tts/tts_provider.dart';
 class ProviderRegistry {
   final Map<String, TtsProvider> _providers = {};
 
-  ProviderRegistry() {
+  ProviderRegistry({
+    TtsSettingReader? settingReader,
+    TtsSettingWriter? settingWriter,
+  }) {
     final apiKeyStore = ApiKeyStore();
     final kokoro = KokoroLocalTtsProvider();
     final fish = FishAudioLocalTtsProvider();
-    final fishApi = FishAudioApiTtsProvider(apiKeyStore: apiKeyStore);
+    final fishApi = FishAudioApiTtsProvider(
+      apiKeyStore: apiKeyStore,
+      settingReader: settingReader,
+      settingWriter: settingWriter,
+    );
     final minimax = MinimaxTtsProvider(apiKeyStore: apiKeyStore);
     final edge = EdgeTtsProvider();
 
@@ -46,13 +54,30 @@ class ProviderRegistry {
 
 /// 当前活跃 Provider id。
 class ActiveTtsProviderId extends Notifier<String> {
+  bool _loaded = false;
+
   @override
   String build() => KokoroLocalTtsProvider.idValue;
 
-  void set(String providerId) {
+  Future<void> load() async {
+    if (_loaded) return;
+    _loaded = true;
+    final providerId = await ref
+        .read(appDatabaseProvider)
+        .getSetting('active_provider_id');
+    if (providerId != null &&
+        ref.read(providerRegistryProvider).get(providerId) != null) {
+      state = providerId;
+    }
+  }
+
+  Future<void> set(String providerId) async {
     final registry = ref.read(providerRegistryProvider);
     if (registry.get(providerId) != null) {
       state = providerId;
+      await ref
+          .read(appDatabaseProvider)
+          .setSetting('active_provider_id', providerId);
     }
   }
 }
@@ -69,5 +94,9 @@ final activeTtsProviderProvider = Provider<TtsProvider>((ref) {
 
 /// Provider 注册表单例。
 final providerRegistryProvider = Provider<ProviderRegistry>((ref) {
-  return ProviderRegistry();
+  final database = ref.watch(appDatabaseProvider);
+  return ProviderRegistry(
+    settingReader: database.getSetting,
+    settingWriter: database.setSetting,
+  );
 });

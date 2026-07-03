@@ -5,12 +5,30 @@ import 'app_text_styles.dart';
 
 /// 全局应用主题
 class AppTheme {
-  /// 我们仅使用深色主题 (Spotify 风格)
   static ThemeData darkTheme({
     Color accentColor = AppColors.primary,
     String? fontFamily = AppTextStyles.fontFamily,
+  }) => _buildTheme(
+    AppColors.darkColorScheme,
+    accentColor: accentColor,
+    fontFamily: fontFamily,
+  );
+
+  static ThemeData lightTheme({
+    Color accentColor = AppColors.primary,
+    String? fontFamily = AppTextStyles.fontFamily,
+  }) => _buildTheme(
+    AppColors.lightColorScheme,
+    accentColor: accentColor,
+    fontFamily: fontFamily,
+  );
+
+  static ThemeData _buildTheme(
+    ColorScheme baseScheme, {
+    required Color accentColor,
+    required String? fontFamily,
   }) {
-    final colorScheme = AppColors.darkColorScheme.copyWith(
+    final colorScheme = baseScheme.copyWith(
       primary: accentColor,
       secondary: accentColor,
       onPrimary: Colors.black,
@@ -20,8 +38,13 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: colorScheme,
-      scaffoldBackgroundColor: AppColors.background,
-      textTheme: AppTextStyles.darkTextTheme.apply(fontFamily: fontFamily),
+      brightness: colorScheme.brightness,
+      scaffoldBackgroundColor: colorScheme.surface,
+      textTheme: AppTextStyles.darkTextTheme.apply(
+        fontFamily: fontFamily,
+        bodyColor: colorScheme.onSurface,
+        displayColor: colorScheme.onSurface,
+      ),
       fontFamily: fontFamily,
 
       // 自定义 AppBar
@@ -31,22 +54,25 @@ class AppTheme {
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
-        titleTextStyle: AppTextStyles.heading1.copyWith(fontFamily: fontFamily),
-        iconTheme: const IconThemeData(color: Colors.white),
+        titleTextStyle: AppTextStyles.heading1.copyWith(
+          color: colorScheme.onSurface,
+          fontFamily: fontFamily,
+        ),
+        iconTheme: IconThemeData(color: colorScheme.onSurface),
       ),
 
       // 自定义 BottomNavigationBar
-      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-        backgroundColor: AppColors.background,
-        selectedItemColor: AppColors.textPrimary,
-        unselectedItemColor: AppColors.textSecondary,
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        backgroundColor: colorScheme.surface,
+        selectedItemColor: colorScheme.onSurface,
+        unselectedItemColor: colorScheme.onSurfaceVariant,
         type: BottomNavigationBarType.fixed,
         elevation: 8,
       ),
 
       // 自定义卡片
       cardTheme: CardThemeData(
-        color: AppColors.surface,
+        color: colorScheme.surfaceContainer,
         elevation: 4,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         clipBehavior: Clip.antiAlias,

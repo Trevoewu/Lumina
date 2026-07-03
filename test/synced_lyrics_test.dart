@@ -5,16 +5,19 @@ import 'package:lumina/domain/models/chapter_manifest.dart';
 import 'package:lumina/presentation/widgets/synced_lyrics_list.dart';
 
 void main() {
-  test('long paragraphs split at sentence and weak boundaries', () {
+  test('keeps sentences separate and splits long ones at weak boundaries', () {
     final lines = splitLyricsText(
       'First sentence. Second sentence is deliberately much longer, '
       'so it must be wrapped without filling the screen.',
       maxChars: 30,
     );
 
-    expect(lines.first, 'First sentence.');
-    expect(lines, hasLength(greaterThan(2)));
-    expect(lines.every((line) => line.length <= 30), isTrue);
+    expect(lines, [
+      'First sentence.',
+      'Second sentence is deliberately much longer,',
+      'so it must be wrapped without filling the screen.',
+    ]);
+    expect(lines[1].length, greaterThan(30));
   });
 
   test('keeps closing quotes and dialogue tags with their sentence', () {
@@ -37,7 +40,7 @@ void main() {
       maxChars: 100,
     );
 
-    expect(lines, ['Where is Mrs. Hirsch? Dr. Smith knows.']);
+    expect(lines, ['Where is Mrs. Hirsch?', 'Dr. Smith knows.']);
   });
 
   test('splits long sentences at clause boundaries before spaces', () {
@@ -54,6 +57,28 @@ void main() {
           'called Osterbrogade,',
       'past the small shops and cafes of her neighborhood.',
     ]);
+  });
+
+  test('keeps an oversized clause intact instead of creating an orphan', () {
+    final lines = splitLyricsText(
+      'If you ask my mother whether she ever considered the ramifications '
+      'of having a mixed child under apartheid, she will say no.',
+      maxChars: 70,
+    );
+
+    expect(lines, [
+      'If you ask my mother whether she ever considered the ramifications '
+          'of having a mixed child under apartheid,',
+      'she will say no.',
+    ]);
+    expect(lines.first.length, greaterThan(70));
+  });
+
+  test('does not force-split a long sentence without a pause boundary', () {
+    const words = 'one two extraordinarilylongword three four five six';
+    final lines = splitLyricsText(words, maxChars: 16);
+
+    expect(lines, [words]);
   });
 
   test('Fish timestamps map display lines to exact audio offsets', () {
@@ -91,6 +116,48 @@ void main() {
     expect(lines.map((line) => line.text), ['Hello world.', 'Again.']);
     expect((lines.first.startMs, lines.first.endMs), (100, 900));
     expect((lines.last.startMs, lines.last.endMs), (1100, 1600));
+  });
+
+  test('interpolates lines that share one Fish timing segment', () {
+    const paragraph = Paragraph(
+      id: 'p1',
+      chapterId: 'c1',
+      bookId: 'b1',
+      paragraphIndex: 0,
+      content: 'Alpha beta gamma, delta epsilon zeta.',
+    );
+    final manifest = ChapterManifest(
+      chapterId: 'c1',
+      bookId: 'b1',
+      providerId: 'fish_audio_api',
+      voiceId: 'default',
+      speed: 1,
+      updatedAt: 1,
+      segments: const [
+        SegmentEntry(
+          paragraphId: 'p1',
+          audioFile: 'c1/p1.wav',
+          durationMs: 3000,
+          state: ParagraphAudioState.ready,
+          timings: [
+            AudioTextTiming(
+              text: 'Alpha beta gamma, delta epsilon zeta',
+              startMs: 0,
+              endMs: 3000,
+            ),
+          ],
+        ),
+      ],
+    );
+
+    final lines = buildSyncedLyricLines([paragraph], manifest, maxChars: 18);
+
+    expect(lines, hasLength(greaterThan(1)));
+    expect(lines.last.startMs, greaterThan(lines.first.startMs));
+    expect(
+      lines.map((line) => line.startMs).toList(),
+      orderedEquals([...lines.map((line) => line.startMs)]..sort()),
+    );
   });
 
   test('legacy cached audio gets proportional line offsets', () {

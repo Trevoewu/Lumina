@@ -56,3 +56,8 @@ abstract class TtsProvider {
     double speed,
   });
 }
+
+/// Optional policy implemented by providers that support parallel synthesis.
+abstract interface class TtsConcurrencyPolicy {
+  Future<int> get generationConcurrency;
+}

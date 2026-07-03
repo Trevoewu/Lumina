@@ -2,15 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/app_colors.dart';
+import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart' as drift_db;
 import '../../../services/lumina_audio_handler.dart';
 import '../../widgets/book_cover.dart';
 import '../../widgets/synced_lyrics_list.dart';
 
-Color _accentTint(BuildContext context, double amount) {
+Color _lyricsAccentSurface(BuildContext context, double amount) {
   return Color.lerp(
-    AppColors.background,
+    AppColors.lyricsBackground,
     Theme.of(context).colorScheme.primary,
     amount,
   )!;
@@ -55,22 +56,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   Widget build(BuildContext context) {
     final handlerAsync = ref.watch(luminaAudioHandlerProvider);
-    final topTint = _accentTint(context, 0.22);
+    final topTint = context.appSurface;
 
     return Scaffold(
-      backgroundColor: Colors.transparent, // Let the gradient show through
+      backgroundColor: Colors.transparent,
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [topTint, AppColors.background],
+            colors: [topTint, context.appBackground],
           ),
         ),
         child: SafeArea(
           child: Column(
             children: [
-              // Custom AppBar
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 8.0,
@@ -80,10 +80,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     IconButton(
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.keyboard_arrow_down,
                         size: 32,
-                        color: Colors.white,
+                        color: context.appTextPrimary,
                       ),
                       onPressed: () => Navigator.of(context).pop(),
                     ),
@@ -95,19 +95,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           fontSize: 12,
                           letterSpacing: 1.2,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white70,
+                          color: context.appTextSecondary,
                           fontFamily: _themeFontFamily(context),
                         ),
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.more_vert, color: Colors.white),
+                      icon: Icon(
+                        Icons.more_vert,
+                        color: context.appTextPrimary,
+                      ),
                       onPressed: () {},
                     ),
                   ],
                 ),
               ),
-
               Expanded(
                 child: handlerAsync.when(
                   loading: () =>
@@ -120,7 +122,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       builder: (context, snapshot) {
                         final state = snapshot.data;
                         final currentItem = handler.mediaItem.valueOrNull;
-
                         final playing = state?.playing ?? false;
                         final duration = handler.chapterDuration;
                         final currentChapterId =
@@ -128,7 +129,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
                         return Column(
                           children: [
-                            // 1. Cover Art (Perfect Square)
                             Expanded(
                               flex: 5,
                               child: Center(
@@ -141,7 +141,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                     ),
                                     child: Container(
                                       decoration: BoxDecoration(
-                                        color: AppColors.surfaceHighlight,
+                                        color: context.appSurfaceHighlight,
                                         borderRadius: BorderRadius.circular(12),
                                         boxShadow: [
                                           BoxShadow(
@@ -163,8 +163,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                 ),
                               ),
                             ),
-
-                            // 2. Song Title & Author
                             Padding(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 24,
@@ -181,11 +179,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                         Text(
                                           currentItem?.title ??
                                               widget.initialChapter?.title ??
-                                              'Unknown Chapter',
-                                          style: const TextStyle(
+                                              context.tr(
+                                                '未知章节',
+                                                'Unknown Chapter',
+                                              ),
+                                          style: TextStyle(
                                             fontSize: 22,
                                             fontWeight: FontWeight.bold,
-                                            color: AppColors.textPrimary,
+                                            color: context.appTextPrimary,
                                           ),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
@@ -193,10 +194,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                         const SizedBox(height: 4),
                                         Text(
                                           widget.book.author ??
-                                              'Unknown Author',
-                                          style: const TextStyle(
+                                              context.tr(
+                                                '未知作者',
+                                                'Unknown Author',
+                                              ),
+                                          style: TextStyle(
                                             fontSize: 16,
-                                            color: AppColors.textSecondary,
+                                            color: context.appTextSecondary,
                                           ),
                                         ),
                                       ],
@@ -209,10 +213,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                 ],
                               ),
                             ),
-
                             const SizedBox(height: 16),
-
-                            // 3. Progress Bar & Controls
                             Padding(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 24,
@@ -230,10 +231,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                 },
                               ),
                             ),
-
                             const SizedBox(height: 16),
-
-                            // 4. Lyrics View
                             Expanded(
                               flex: 5,
                               child: _buildLyricsCard(
@@ -241,7 +239,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                 handler,
                               ),
                             ),
-
                             const SizedBox(height: 16),
                           ],
                         );
@@ -258,7 +255,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Widget _buildControls(
-    dynamic handler,
+    LuminaAudioHandler handler,
     bool playing,
     Duration position,
     Duration duration,
@@ -274,9 +271,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       children: [
         SliderTheme(
           data: SliderTheme.of(context).copyWith(
-            activeTrackColor: AppColors.textPrimary,
-            inactiveTrackColor: AppColors.surfaceHighlight,
-            thumbColor: AppColors.textPrimary,
+            activeTrackColor: context.appTextPrimary,
+            inactiveTrackColor: context.appSurfaceHighlight,
+            thumbColor: context.appTextPrimary,
             trackHeight: 4,
             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
             overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
@@ -294,17 +291,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           children: [
             Text(
               _fmt(position),
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.textSecondary,
-              ),
+              style: TextStyle(fontSize: 12, color: context.appTextSecondary),
             ),
             Text(
               _fmt(duration),
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.textSecondary,
-              ),
+              style: TextStyle(fontSize: 12, color: context.appTextSecondary),
             ),
           ],
         ),
@@ -313,21 +304,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             IconButton(
-              tooltip: '播放倍速',
+              tooltip: context.tr('播放倍速', 'Playback speed'),
               icon: Text(
                 '${_speed.toStringAsFixed(1)}x',
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
+                style: TextStyle(
+                  color: context.appTextSecondary,
                   fontSize: 13,
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              color: AppColors.textSecondary,
+              color: context.appTextSecondary,
               onPressed: _showSpeedSheet,
             ),
             IconButton(
               icon: const Icon(Icons.skip_previous, size: 36),
-              color: AppColors.textPrimary,
+              color: context.appTextPrimary,
               onPressed: handler.skipToPrevious,
             ),
             GestureDetector(
@@ -348,12 +339,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             ),
             IconButton(
               icon: const Icon(Icons.skip_next, size: 36),
-              color: AppColors.textPrimary,
+              color: context.appTextPrimary,
               onPressed: handler.skipToNext,
             ),
             IconButton(
               icon: const Icon(Icons.repeat),
-              color: AppColors.textSecondary,
+              color: context.appTextSecondary,
               onPressed: () {},
             ),
           ],
@@ -366,9 +357,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (chapterId == null) return const SizedBox.shrink();
 
     final db = ref.watch(appDatabaseProvider);
-    final cardColor = _accentTint(context, 0.3);
+    final cardColor = _lyricsAccentSurface(context, 0.22);
     final fontFamily = _themeFontFamily(context);
     return Container(
+      key: const ValueKey('lyrics-card'),
       margin: const EdgeInsets.fromLTRB(24, 0, 24, 8),
       decoration: BoxDecoration(
         color: cardColor,
@@ -385,11 +377,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Lyrics',
+                    context.tr('歌词', 'Lyrics'),
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
-                      color: Colors.white,
+                      color: AppColors.lyricsTextPrimary,
                       fontFamily: fontFamily,
                     ),
                   ),
@@ -399,18 +391,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         icon: const Icon(
                           Icons.share_outlined,
                           size: 20,
-                          color: Colors.white70,
+                          color: AppColors.lyricsTextSecondary,
                         ),
-                        tooltip: '分享歌词',
+                        tooltip: context.tr('分享歌词', 'Share lyrics'),
                         onPressed: () {},
                       ),
                       IconButton(
                         icon: const Icon(
                           Icons.open_in_full,
                           size: 20,
-                          color: Colors.white70,
+                          color: AppColors.lyricsTextSecondary,
                         ),
-                        tooltip: '全屏歌词',
+                        tooltip: context.tr('全屏歌词', 'Full-screen lyrics'),
                         onPressed: () => _showFullScreenLyrics(chapterId),
                       ),
                     ],
@@ -425,10 +417,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   final paragraphs =
                       snapshot.data ?? const <drift_db.Paragraph>[];
                   if (paragraphs.isEmpty) {
-                    return const Center(
+                    return Center(
                       child: Text(
-                        '无歌词',
-                        style: TextStyle(color: AppColors.textSecondary),
+                        context.tr('无歌词', 'No lyrics'),
+                        style: const TextStyle(
+                          color: AppColors.lyricsTextSecondary,
+                        ),
                       ),
                     );
                   }
@@ -461,7 +455,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      backgroundColor: AppColors.surface,
+      backgroundColor: context.appSurface,
       builder: (context) {
         final accent = Theme.of(context).colorScheme.primary;
         return StatefulBuilder(
@@ -476,11 +470,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   children: [
                     Row(
                       children: [
-                        const Expanded(
+                        Expanded(
                           child: Text(
-                            '播放倍速',
+                            context.tr('播放倍速', 'Playback speed'),
                             style: TextStyle(
-                              color: AppColors.textPrimary,
+                              color: context.appTextPrimary,
                               fontSize: 20,
                               fontWeight: FontWeight.w800,
                             ),
@@ -500,7 +494,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     SliderTheme(
                       data: SliderTheme.of(context).copyWith(
                         activeTrackColor: accent,
-                        inactiveTrackColor: AppColors.surfaceHighlight,
+                        inactiveTrackColor: context.appSurfaceHighlight,
                         thumbColor: accent,
                       ),
                       child: Slider(
@@ -533,7 +527,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             labelStyle: TextStyle(
                               color: (draft - value).abs() < 0.01
                                   ? Colors.black
-                                  : AppColors.textPrimary,
+                                  : context.appTextPrimary,
                             ),
                             onSelected: (_) {
                               setSheetState(() => draft = value);
@@ -596,18 +590,19 @@ class _FullScreenLyricsSheetState
   Widget build(BuildContext context) {
     final db = ref.watch(appDatabaseProvider);
     final handlerAsync = ref.watch(luminaAudioHandlerProvider);
-    final topTint = _accentTint(context, 0.42);
+    final topTint = _lyricsAccentSurface(context, 0.18);
     final fontFamily = _themeFontFamily(context);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.lyricsBackground,
       body: Container(
+        key: const ValueKey('fullscreen-lyrics-background'),
         height: MediaQuery.sizeOf(context).height,
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [topTint, AppColors.background],
+            colors: [topTint, AppColors.lyricsBackground],
           ),
         ),
         child: SafeArea(
@@ -620,7 +615,7 @@ class _FullScreenLyricsSheetState
                     IconButton(
                       icon: const Icon(
                         Icons.keyboard_arrow_down,
-                        color: Colors.white,
+                        color: AppColors.lyricsTextPrimary,
                         size: 32,
                       ),
                       onPressed: () => Navigator.of(context).pop(),
@@ -632,7 +627,7 @@ class _FullScreenLyricsSheetState
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: Colors.white70,
+                          color: AppColors.lyricsTextSecondary,
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                           letterSpacing: 1.2,
@@ -649,9 +644,9 @@ class _FullScreenLyricsSheetState
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    'Lyrics',
+                    context.tr('歌词', 'Lyrics'),
                     style: TextStyle(
-                      color: Colors.white,
+                      color: AppColors.lyricsTextPrimary,
                       fontSize: 28,
                       fontWeight: FontWeight.w800,
                       fontFamily: fontFamily,
@@ -666,10 +661,12 @@ class _FullScreenLyricsSheetState
                     final paragraphs =
                         snapshot.data ?? const <drift_db.Paragraph>[];
                     if (paragraphs.isEmpty) {
-                      return const Center(
+                      return Center(
                         child: Text(
-                          '无歌词',
-                          style: TextStyle(color: AppColors.textSecondary),
+                          context.tr('无歌词', 'No lyrics'),
+                          style: const TextStyle(
+                            color: AppColors.lyricsTextSecondary,
+                          ),
                         ),
                       );
                     }
@@ -678,9 +675,12 @@ class _FullScreenLyricsSheetState
                           const Center(child: CircularProgressIndicator()),
                       error: (error, _) => Center(
                         child: Text(
-                          '播放器不可用：$error',
+                          context.tr(
+                            '播放器不可用：$error',
+                            'Player unavailable: $error',
+                          ),
                           style: const TextStyle(
-                            color: AppColors.textSecondary,
+                            color: AppColors.lyricsTextSecondary,
                           ),
                         ),
                       ),

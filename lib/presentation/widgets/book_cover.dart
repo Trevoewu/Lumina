@@ -26,34 +26,34 @@ class BookCover extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
       child: Container(
-        color: AppColors.surface,
+        color: context.appSurface,
         child: coverExists
             ? Image.file(
                 File(path),
                 fit: BoxFit.cover,
                 width: double.infinity,
                 height: double.infinity,
-                errorBuilder: (_, _, _) => _placeholder(),
+                errorBuilder: (_, _, _) => _placeholder(context),
               )
-            : _placeholder(),
+            : _placeholder(context),
       ),
     );
   }
 
-  Widget _placeholder() {
+  Widget _placeholder(BuildContext context) {
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [AppColors.surfaceHighlight, AppColors.surface],
+          colors: [context.appSurfaceHighlight, context.appSurface],
         ),
       ),
       child: Center(
         child: Icon(
           placeholderIcon,
           size: iconSize,
-          color: AppColors.textSecondary,
+          color: context.appTextSecondary,
         ),
       ),
     );

@@ -7,6 +7,7 @@ import '../../../core/app_colors.dart';
 import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart' as drift_db;
 import '../../../domain/models/chapter_manifest.dart';
+import '../../../services/app_log_service.dart';
 import '../../../services/generation_orchestrator.dart';
 import '../../../services/manifest_store.dart';
 import '../../../tts/models/tts_voice.dart';
@@ -66,7 +67,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     }
 
     if (_generatingChapterIds.contains(chapter.id)) {
-      _showSnackBar('正在合成这一章，请稍等');
+      AppLogger.info('Generation', '章节已经在生成中 chapter=${chapter.id}');
       return;
     }
 
@@ -91,16 +92,16 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('清除章节音频？'),
+        title: Text('清除章节音频？'),
         content: Text('将删除 ${chapter.title} 已生成的音频。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('取消'),
+            child: Text('取消'),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('清除'),
+            child: Text('清除'),
           ),
         ],
       ),
@@ -120,16 +121,16 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('重新生成音频？'),
+        title: Text('重新生成音频？'),
         content: Text('将删除 ${chapter.title} 的旧音频，并使用当前 TTS 设置重新合成。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('取消'),
+            child: Text('取消'),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('重新生成'),
+            child: Text('重新生成'),
           ),
         ],
       ),
@@ -171,7 +172,14 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
         }
       }
       unawaited(handler.play());
-    } catch (error) {
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        'Playback',
+        '播放章节缓存失败 '
+            '(book=${widget.book.id}, chapter=${chapter.id})',
+        error: error,
+        stackTrace: stackTrace,
+      );
       if (!mounted) return;
       _showSnackBar('播放缓存失败，请清除音频后重新生成');
       return;
@@ -239,7 +247,6 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   }
 
   Future<void> _generateChapterAudio(drift_db.Chapter chapter) async {
-    final messenger = ScaffoldMessenger.of(context);
     _generatingChapterIds.add(chapter.id);
     setState(() {});
 
@@ -257,7 +264,11 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
         return;
       }
 
-      messenger.showSnackBar(SnackBar(content: Text('正在合成：${chapter.title}')));
+      AppLogger.info(
+        'Generation',
+        '开始生成章节 book=${widget.book.id} chapter=${chapter.id} '
+            'provider=${provider.id} voice=${voice.id}',
+      );
 
       final orchestrator = ref.read(generationOrchestratorProvider);
       await for (final progress in orchestrator.generateChapter(
@@ -275,20 +286,22 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
           .load(widget.book.id, chapter.id);
       if (manifest != null && manifest.readyCount > 0) {
         if (!mounted) return;
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(
-              manifest.isReady
-                  ? '已缓存：${chapter.title}'
-                  : '已缓存 ${manifest.readyCount}/${manifest.segments.length} 段',
-            ),
-          ),
+        AppLogger.info(
+          'Generation',
+          '章节生成结束 chapter=${chapter.id} '
+              'ready=${manifest.readyCount}/${manifest.segments.length}',
         );
       } else {
-        _showSnackBar('音频合成未完成，请检查 TTS 设置或重试');
+        AppLogger.warning('Generation', '章节生成结束但没有可用音频 chapter=${chapter.id}');
       }
-    } catch (e) {
-      _showSnackBar('音频合成失败：$e');
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        'Generation',
+        '章节音频合成失败 '
+            '(book=${widget.book.id}, chapter=${chapter.id})',
+        error: error,
+        stackTrace: stackTrace,
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -391,15 +404,16 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
               SliverAppBar(
                 expandedHeight: 300,
                 pinned: true,
-                backgroundColor: AppColors.background,
+                backgroundColor: context.appBackground,
                 flexibleSpace: FlexibleSpaceBar(
-                  titlePadding: const EdgeInsets.only(left: 16, bottom: 16),
+                  centerTitle: true,
+                  titlePadding: const EdgeInsets.symmetric(
+                    horizontal: 64,
+                    vertical: 16,
+                  ),
                   title: Text(
                     widget.book.title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -413,8 +427,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
                             colors: [
-                              AppColors.surfaceHighlight,
-                              AppColors.background,
+                              context.appSurfaceHighlight,
+                              context.appBackground,
                             ],
                           ),
                         ),
@@ -426,7 +440,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                           height: 180,
                           margin: const EdgeInsets.only(bottom: 20),
                           decoration: BoxDecoration(
-                            color: AppColors.surface,
+                            color: context.appSurface,
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.black.withValues(alpha: 0.5),
@@ -458,8 +472,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                     children: [
                       Text(
                         'Album • ${widget.book.author ?? "Unknown"}',
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
+                        style: TextStyle(
+                          color: context.appTextSecondary,
                           fontSize: 14,
                         ),
                       ),
@@ -486,7 +500,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                     final highlighted = chapter.id == widget.initialChapterId;
                     return ListTile(
                       tileColor: highlighted
-                          ? AppColors.surface.withValues(alpha: 0.55)
+                          ? context.appSurface.withValues(alpha: 0.55)
                           : null,
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -497,8 +511,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                         children: [
                           Text(
                             '${index + 1}',
-                            style: const TextStyle(
-                              color: AppColors.textSecondary,
+                            style: TextStyle(
+                              color: context.appTextSecondary,
                               fontSize: 16,
                             ),
                           ),
@@ -506,8 +520,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                       ),
                       title: Text(
                         chapter.title,
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
+                        style: TextStyle(
+                          color: context.appTextPrimary,
                           fontSize: 16,
                         ),
                         maxLines: 1,
@@ -515,8 +529,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                       ),
                       subtitle: Text(
                         widget.book.author ?? "Unknown Artist",
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
+                        style: TextStyle(
+                          color: context.appTextSecondary,
                           fontSize: 14,
                         ),
                       ),
@@ -532,8 +546,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                   }, childCount: chapters.length),
                 ),
 
-              // 底部留白，防止被 MiniPlayer 遮挡
-              const SliverToBoxAdapter(child: SizedBox(height: 100)),
+              const SliverToBoxAdapter(child: SizedBox(height: 16)),
             ],
           );
         },
@@ -655,10 +668,7 @@ class _ChapterActions extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 '${(progress.percent * 100).round()}%',
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 10,
-                ),
+                style: TextStyle(color: context.appTextSecondary, fontSize: 10),
               ),
             ],
           ),
@@ -691,11 +701,11 @@ class _ChapterActions extends StatelessWidget {
             ),
           );
         } else {
-          status = const Tooltip(
+          status = Tooltip(
             message: '音频未缓存',
             child: Icon(
               Icons.download_for_offline_outlined,
-              color: AppColors.textSecondary,
+              color: context.appTextSecondary,
             ),
           );
         }
@@ -730,8 +740,8 @@ class _TrailingRow extends StatelessWidget {
           SizedBox(width: 38, child: Center(child: status)),
           PopupMenuButton<String>(
             tooltip: '章节操作',
-            color: AppColors.surface,
-            icon: const Icon(Icons.more_vert, color: AppColors.textSecondary),
+            color: context.appSurface,
+            icon: Icon(Icons.more_vert, color: context.appTextSecondary),
             onSelected: (value) {
               if (value == 'clear') onClearCache();
               if (value == 'regenerate') onRegenerate();

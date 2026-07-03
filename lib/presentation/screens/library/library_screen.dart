@@ -8,10 +8,16 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../../../core/app_colors.dart';
+import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart' as drift_db;
+import '../../../services/app_log_service.dart';
 import '../../../services/book_parser.dart';
+import '../../../tts/models/tts_voice.dart';
+import '../../../tts/provider_registry.dart';
+import '../../../tts/tts_provider.dart';
 import '../../widgets/book_cover.dart';
+import '../../widgets/collapsing_page_scaffold.dart';
 import '../album/album_screen.dart';
 
 /// 书架首页。
@@ -26,42 +32,31 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   int _reloadToken = 0;
   bool _importing = false;
   final Set<String> _coverBackfillStarted = {};
+  final Map<String, _BookCacheProgress> _bookCacheProgress = {};
 
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(appDatabaseProvider);
     final accent = Theme.of(context).colorScheme.primary;
-    final topTint = Color.lerp(AppColors.background, accent, 0.18)!;
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: topTint,
-        title: const Text(
-          'Your Library',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 24,
-            color: AppColors.textPrimary,
-          ),
+    return CollapsingPageScaffold(
+      title: context.tr('书架', 'Your Library'),
+      actions: [
+        IconButton(
+          tooltip: context.tr('导入书籍', 'Import Book'),
+          onPressed: _importing ? null : () => _importBook(context),
+          icon: _importing
+              ? SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: accent,
+                  ),
+                )
+              : Icon(Icons.add, color: context.appTextPrimary),
         ),
-        actions: [
-          IconButton(
-            tooltip: '导入书籍',
-            onPressed: _importing ? null : () => _importBook(context),
-            icon: _importing
-                ? SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      color: accent,
-                    ),
-                  )
-                : const Icon(Icons.add, color: AppColors.textPrimary),
-          ),
-        ],
-      ),
+      ],
       body: FutureBuilder(
         key: ValueKey(_reloadToken),
         future: db.getAllBooks(),
@@ -87,6 +82,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               final book = books[i];
               return _BookCard(
                 book: book,
+                cacheProgress: _bookCacheProgress[book.id],
                 onTap: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => AlbumScreen(book: book)),
@@ -94,6 +90,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 },
                 onEdit: () => _showEditBookSheet(book),
                 onReparse: () => _confirmReparseBook(book),
+                onCacheBook: () => _cacheWholeBook(book),
                 onClearCache: () => _confirmClearBookCache(book),
                 onDelete: () => _confirmDeleteBook(book),
               );
@@ -129,7 +126,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               .read(appDatabaseProvider)
               .updateBookCoverPath(book.id, coverPath);
           if (mounted) setState(() => _reloadToken++);
-        } catch (_) {
+        } catch (error, stackTrace) {
+          AppLogger.warning(
+            'Library',
+            '提取书籍封面失败 book=${book.id}',
+            error: error,
+            stackTrace: stackTrace,
+          );
           // 封面不是核心数据，提取失败时保留占位图。
         }
       });
@@ -148,22 +151,25 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             Icon(
               Icons.auto_stories_rounded,
               size: 120,
-              color: AppColors.surfaceHighlight,
+              color: context.appSurfaceHighlight,
             ),
             const SizedBox(height: 24),
-            const Text(
-              '你的书架空空如也',
+            Text(
+              context.tr('你的书架空空如也', 'Your library is empty'),
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
+                color: context.appTextPrimary,
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
-              '导入 EPUB 或 TXT 文件，开启你的听书之旅',
+            Text(
+              context.tr(
+                '导入 EPUB 或 TXT 文件，开启你的听书之旅',
+                'Import an EPUB or TXT file to start listening',
+              ),
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+              style: TextStyle(fontSize: 14, color: context.appTextSecondary),
             ),
             const SizedBox(height: 32),
             FilledButton.icon(
@@ -188,10 +194,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                         color: Colors.black,
                       ),
                     )
-                  : const Icon(Icons.upload_file),
+                  : Icon(Icons.upload_file),
               label: Text(
                 _importing ? '导入中...' : '导入书籍',
-                style: const TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(fontWeight: FontWeight.bold),
               ),
             ),
           ],
@@ -298,7 +304,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           ),
         ),
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
+      AppLogger.error('Library', '导入书籍失败', error: e, stackTrace: stackTrace);
       if (context.mounted) {
         messenger.showSnackBar(
           SnackBar(
@@ -316,16 +323,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('删除书籍？'),
+        title: Text('删除书籍？'),
         content: Text('将删除《${book.title}》及其章节、歌词、生成音频和导入文件。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('取消'),
+            child: Text('取消'),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('删除'),
+            child: Text('删除'),
           ),
         ],
       ),
@@ -343,7 +350,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       if (!mounted) return;
       setState(() => _reloadToken++);
       messenger.showSnackBar(SnackBar(content: Text('已删除《${book.title}》')));
-    } catch (e) {
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        'Library',
+        '删除书籍失败 book=${book.id}',
+        error: e,
+        stackTrace: stackTrace,
+      );
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(
@@ -354,20 +367,268 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     }
   }
 
+  Future<void> _cacheWholeBook(drift_db.Book book) async {
+    if (_bookCacheProgress.containsKey(book.id)) return;
+
+    final chapters = await ref.read(appDatabaseProvider).getChapters(book.id);
+    if (!mounted) return;
+    if (chapters.isEmpty) {
+      await _showCacheMessage(
+        title: context.tr('无法缓存', 'Unable to cache'),
+        message: context.tr('这本书没有可缓存的章节。', 'This book has no chapters.'),
+      );
+      return;
+    }
+
+    try {
+      final provider = await _resolveProvider();
+      final voice = await _resolveVoice(book, provider);
+      if (!mounted) return;
+      if (voice == null) {
+        await _showCacheMessage(
+          title: context.tr('没有可用音色', 'No voice available'),
+          message: context.tr(
+            '${provider.displayName} 没有可用于合成的音色。',
+            '${provider.displayName} has no voice available for generation.',
+          ),
+        );
+        return;
+      }
+      final providerValid = await provider.validate();
+      if (!mounted) return;
+      if (!providerValid) {
+        await _showCacheMessage(
+          title: context.tr('语音引擎未配置', 'TTS provider not configured'),
+          message: context.tr(
+            '请先完成 ${provider.displayName} 的模型或 API Key 配置。',
+            'Configure the model or API key for ${provider.displayName} first.',
+          ),
+        );
+        return;
+      }
+
+      if (!mounted) return;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(context.tr('缓存整本书？', 'Cache the entire book?')),
+          content: Text(
+            context.tr(
+              '将使用 ${provider.displayName} · ${voice.name} 依次缓存《${book.title}》的 '
+                  '${chapters.length} 个章节。已完成的段落会自动跳过。',
+              'Cache all ${chapters.length} chapters of “${book.title}” with '
+                  '${provider.displayName} · ${voice.name}. Completed segments will be skipped.',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(context.tr('取消', 'Cancel')),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              icon: const Icon(Icons.download_for_offline_outlined),
+              label: Text(context.tr('开始缓存', 'Start caching')),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+
+      setState(() {
+        _bookCacheProgress[book.id] = _BookCacheProgress(
+          completedChapters: 0,
+          totalChapters: chapters.length,
+          chapterTitle: chapters.first.title,
+        );
+      });
+      AppLogger.info(
+        'Generation',
+        '整书缓存开始 book=${book.id} chapters=${chapters.length} '
+            'provider=${provider.id} voice=${voice.id}',
+      );
+
+      var failedChapters = 0;
+      final orchestrator = ref.read(generationOrchestratorProvider);
+      for (var index = 0; index < chapters.length; index++) {
+        final chapter = chapters[index];
+        var chapterFailed = false;
+        try {
+          await for (final progress in orchestrator.generateChapter(
+            bookId: book.id,
+            chapterId: chapter.id,
+            provider: provider,
+            voice: voice,
+          )) {
+            chapterFailed = progress.failed > 0;
+            if (!mounted) return;
+            setState(() {
+              _bookCacheProgress[book.id] = _BookCacheProgress(
+                completedChapters: index,
+                totalChapters: chapters.length,
+                chapterTitle: chapter.title,
+                chapterProgress: progress.percent,
+              );
+            });
+          }
+        } catch (error, stackTrace) {
+          chapterFailed = true;
+          AppLogger.error(
+            'Generation',
+            '整书缓存章节失败 book=${book.id} chapter=${chapter.id}',
+            error: error,
+            stackTrace: stackTrace,
+          );
+        }
+        if (chapterFailed) failedChapters++;
+        if (!mounted) return;
+        setState(() {
+          _bookCacheProgress[book.id] = _BookCacheProgress(
+            completedChapters: index + 1,
+            totalChapters: chapters.length,
+            chapterTitle: chapter.title,
+            chapterProgress: 0,
+          );
+        });
+      }
+
+      AppLogger.info(
+        'Generation',
+        '整书缓存结束 book=${book.id} failedChapters=$failedChapters',
+      );
+      if (!mounted) return;
+      await _showCacheMessage(
+        title: failedChapters == 0
+            ? context.tr('缓存完成', 'Caching complete')
+            : context.tr('缓存部分完成', 'Caching partially complete'),
+        message: failedChapters == 0
+            ? context.tr(
+                '《${book.title}》的全部章节已缓存。',
+                'All chapters of “${book.title}” are cached.',
+              )
+            : context.tr(
+                '已处理 ${chapters.length} 个章节，其中 $failedChapters 个章节存在失败段落，可再次执行以重试。',
+                'Processed ${chapters.length} chapters. $failedChapters chapters contain failed segments; run caching again to retry.',
+              ),
+      );
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        'Generation',
+        '整书缓存失败 book=${book.id}',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      if (mounted) {
+        await _showCacheMessage(
+          title: context.tr('缓存失败', 'Caching failed'),
+          message: error.toString(),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _bookCacheProgress.remove(book.id));
+      }
+    }
+  }
+
+  Future<TtsProvider> _resolveProvider() async {
+    final registry = ref.read(providerRegistryProvider);
+    final savedProviderId = await ref
+        .read(appDatabaseProvider)
+        .getSetting('active_provider_id');
+    return registry.get(savedProviderId ?? '') ??
+        ref.read(activeTtsProviderProvider);
+  }
+
+  Future<TtsVoice?> _resolveVoice(
+    drift_db.Book book,
+    TtsProvider provider,
+  ) async {
+    final db = ref.read(appDatabaseProvider);
+    final savedVoices = await db.getVoicesByProvider(provider.id);
+    final presetVoices = await provider.listPresetVoices();
+    final voices = <TtsVoice>[
+      for (final voice in savedVoices) _voiceFromDb(voice),
+      for (final voice in presetVoices)
+        if (!savedVoices.any(
+          (saved) =>
+              saved.id == voice.id ||
+              saved.providerVoiceId == voice.providerVoiceId,
+        ))
+          voice,
+    ];
+    if (voices.isEmpty) return null;
+
+    final activeVoiceId = await db.getSetting('active_voice_id');
+    for (final preferredVoiceId in [book.voiceId, activeVoiceId]) {
+      if (preferredVoiceId == null) continue;
+      for (final voice in voices) {
+        if (voice.id == preferredVoiceId ||
+            voice.providerVoiceId == preferredVoiceId) {
+          return voice;
+        }
+      }
+    }
+
+    final cloneVoices =
+        savedVoices
+            .where((voice) => voice.type == VoiceType.clone.name)
+            .toList()
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return cloneVoices.isNotEmpty
+        ? _voiceFromDb(cloneVoices.first)
+        : voices.first;
+  }
+
+  TtsVoice _voiceFromDb(drift_db.Voice voice) {
+    return TtsVoice(
+      id: voice.id,
+      name: voice.name,
+      providerId: voice.providerId,
+      type: VoiceType.values.byName(voice.type),
+      providerVoiceId: voice.providerVoiceId,
+      samplePath: voice.samplePath,
+      description: voice.description,
+      presetDescription: voice.presetDescription,
+      previewUrl: voice.previewUrl,
+      createdAt: voice.createdAt,
+    );
+  }
+
+  Future<void> _showCacheMessage({
+    required String title,
+    required String message,
+  }) {
+    if (!mounted) return Future.value();
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(context.tr('完成', 'Done')),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _confirmClearBookCache(drift_db.Book book) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('清除音频缓存？'),
+        title: Text('清除音频缓存？'),
         content: Text('将删除《${book.title}》已经生成的所有音频，书籍和章节内容会保留。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('取消'),
+            child: Text('取消'),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('清除'),
+            child: Text('清除'),
           ),
         ],
       ),
@@ -382,7 +643,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         context,
       ).showSnackBar(SnackBar(content: Text('已清除《${book.title}》音频缓存')));
       setState(() => _reloadToken++);
-    } catch (e) {
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        'Cache',
+        '清除书籍音频失败 book=${book.id}',
+        error: e,
+        stackTrace: stackTrace,
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -397,16 +664,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('重新解析书籍？'),
+        title: Text('重新解析书籍？'),
         content: Text('将重建《${book.title}》的章节和段落，并清除这本书已生成的音频缓存。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('取消'),
+            child: Text('取消'),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('重新解析'),
+            child: Text('重新解析'),
           ),
         ],
       ),
@@ -482,7 +749,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           ),
         ),
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        'Library',
+        '重新解析书籍失败 book=${book.id}',
+        error: e,
+        stackTrace: stackTrace,
+      );
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(
@@ -502,7 +775,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
-      backgroundColor: AppColors.surface,
+      backgroundColor: context.appSurface,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setSheetState) {
@@ -519,10 +792,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       '编辑书籍',
                       style: TextStyle(
-                        color: AppColors.textPrimary,
+                        color: context.appTextPrimary,
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
                       ),
@@ -566,8 +839,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                       runSpacing: 10,
                       children: [
                         ActionChip(
-                          avatar: const Icon(Icons.image_outlined, size: 18),
-                          label: const Text('更换封面'),
+                          avatar: Icon(Icons.image_outlined, size: 18),
+                          label: Text('更换封面'),
                           onPressed: () async {
                             final picked = await FilePicker.pickFiles(
                               type: FileType.image,
@@ -591,11 +864,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                         ),
                         if (coverPath != null)
                           ActionChip(
-                            avatar: const Icon(
-                              Icons.hide_image_outlined,
-                              size: 18,
-                            ),
-                            label: const Text('移除封面'),
+                            avatar: Icon(Icons.hide_image_outlined, size: 18),
+                            label: Text('移除封面'),
                             onPressed: () =>
                                 setSheetState(() => coverPath = null),
                           ),
@@ -605,8 +875,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton.icon(
-                        icon: const Icon(Icons.check),
-                        label: const Text('保存'),
+                        icon: Icon(Icons.check),
+                        label: Text('保存'),
                         onPressed: () async {
                           final title = titleController.text.trim();
                           if (title.isEmpty) return;
@@ -649,13 +919,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }) {
     return TextField(
       controller: controller,
-      style: const TextStyle(color: AppColors.textPrimary),
+      style: TextStyle(color: context.appTextPrimary),
       decoration: InputDecoration(
         filled: true,
-        fillColor: AppColors.background,
+        fillColor: context.appBackground,
         hintText: hint,
-        hintStyle: const TextStyle(color: AppColors.textSecondary),
-        prefixIcon: Icon(icon, color: AppColors.textSecondary),
+        hintStyle: TextStyle(color: context.appTextSecondary),
+        prefixIcon: Icon(icon, color: context.appTextSecondary),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide.none,
@@ -682,20 +952,43 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 }
 
+class _BookCacheProgress {
+  final int completedChapters;
+  final int totalChapters;
+  final String chapterTitle;
+  final double chapterProgress;
+
+  const _BookCacheProgress({
+    required this.completedChapters,
+    required this.totalChapters,
+    required this.chapterTitle,
+    this.chapterProgress = 0,
+  });
+
+  double get percent {
+    if (totalChapters <= 0) return 0;
+    return ((completedChapters + chapterProgress) / totalChapters).clamp(0, 1);
+  }
+}
+
 /// 书籍卡片：圆角封面占位 + 标题 + 作者 + 章节数。
 class _BookCard extends StatelessWidget {
   final drift_db.Book book;
+  final _BookCacheProgress? cacheProgress;
   final VoidCallback onTap;
   final VoidCallback onEdit;
   final VoidCallback onReparse;
+  final VoidCallback onCacheBook;
   final VoidCallback onClearCache;
   final VoidCallback onDelete;
 
   const _BookCard({
     required this.book,
+    this.cacheProgress,
     required this.onTap,
     required this.onEdit,
     required this.onReparse,
+    required this.onCacheBook,
     required this.onClearCache,
     required this.onDelete,
   });
@@ -728,39 +1021,11 @@ class _BookCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      BookCover(
-                        coverPath: book.coverPath,
-                        placeholderIcon: Icons.menu_book_rounded,
-                        iconSize: 56,
-                        borderRadius: 8,
-                      ),
-                      Positioned(
-                        top: 8,
-                        left: 8,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.58),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            book.format.toUpperCase(),
-                            style: const TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textSecondary,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                  child: BookCover(
+                    coverPath: book.coverPath,
+                    placeholderIcon: Icons.menu_book_rounded,
+                    iconSize: 56,
+                    borderRadius: 8,
                   ),
                 ),
               ),
@@ -776,11 +1041,11 @@ class _BookCard extends StatelessWidget {
                         book.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
                           height: 1.15,
-                          color: AppColors.textPrimary,
+                          color: context.appTextPrimary,
                         ),
                       ),
                     ),
@@ -791,30 +1056,49 @@ class _BookCard extends StatelessWidget {
                         book.author ?? 'Unknown Author',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
                           height: 1.15,
-                          color: AppColors.textSecondary,
+                          color: context.appTextSecondary,
                         ),
                       ),
                     ),
                     const SizedBox(height: 5),
                     Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.headphones_outlined,
                           size: 12,
-                          color: AppColors.textSecondary,
+                          color: context.appTextSecondary,
                         ),
                         const SizedBox(width: 4),
                         Text(
                           '${book.chapterCount} 章',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 11,
                             height: 1.1,
-                            color: AppColors.textSecondary,
+                            color: context.appTextSecondary,
                           ),
                         ),
+                        if (cacheProgress != null) ...[
+                          const SizedBox(width: 8),
+                          SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              value: cacheProgress!.percent,
+                              strokeWidth: 2,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${(cacheProgress!.percent * 100).round()}%',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: context.appTextSecondary,
+                            ),
+                          ),
+                        ],
                         const Spacer(),
                         SizedBox(
                           width: 28,
@@ -822,7 +1106,9 @@ class _BookCard extends StatelessWidget {
                           child: _BookActionsButton(
                             onEdit: onEdit,
                             onReparse: onReparse,
+                            onCacheBook: onCacheBook,
                             onClearCache: onClearCache,
+                            cacheProgress: cacheProgress,
                             onDelete: onDelete,
                           ),
                         ),
@@ -842,32 +1128,37 @@ class _BookCard extends StatelessWidget {
 class _BookActionsButton extends StatelessWidget {
   final VoidCallback onEdit;
   final VoidCallback onReparse;
+  final VoidCallback onCacheBook;
   final VoidCallback onClearCache;
   final VoidCallback onDelete;
+  final _BookCacheProgress? cacheProgress;
 
   const _BookActionsButton({
     required this.onEdit,
     required this.onReparse,
+    required this.onCacheBook,
     required this.onClearCache,
     required this.onDelete,
+    this.cacheProgress,
   });
 
   @override
   Widget build(BuildContext context) {
     return PopupMenuButton<String>(
       tooltip: '书籍操作',
-      color: AppColors.surface,
+      color: context.appSurface,
       padding: EdgeInsets.zero,
       iconSize: 18,
-      icon: const Icon(Icons.more_horiz, color: AppColors.textSecondary),
+      icon: Icon(Icons.more_horiz, color: context.appTextSecondary),
       onSelected: (value) {
         if (value == 'edit') onEdit();
         if (value == 'reparse') onReparse();
+        if (value == 'cache_book') onCacheBook();
         if (value == 'cache') onClearCache();
         if (value == 'delete') onDelete();
       },
-      itemBuilder: (context) => const [
-        PopupMenuItem(
+      itemBuilder: (context) => [
+        const PopupMenuItem(
           value: 'edit',
           child: Row(
             children: [
@@ -877,7 +1168,7 @@ class _BookActionsButton extends StatelessWidget {
             ],
           ),
         ),
-        PopupMenuItem(
+        const PopupMenuItem(
           value: 'reparse',
           child: Row(
             children: [
@@ -888,6 +1179,28 @@ class _BookActionsButton extends StatelessWidget {
           ),
         ),
         PopupMenuItem(
+          value: 'cache_book',
+          enabled: cacheProgress == null,
+          child: Row(
+            children: [
+              const Icon(Icons.download_for_offline_outlined, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  cacheProgress == null
+                      ? context.tr('缓存整本书', 'Cache Entire Book')
+                      : context.tr(
+                          '缓存中 ${(cacheProgress!.percent * 100).round()}%',
+                          'Caching ${(cacheProgress!.percent * 100).round()}%',
+                        ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const PopupMenuItem(
           value: 'cache',
           child: Row(
             children: [
@@ -897,7 +1210,7 @@ class _BookActionsButton extends StatelessWidget {
             ],
           ),
         ),
-        PopupMenuItem(
+        const PopupMenuItem(
           value: 'delete',
           child: Row(
             children: [
