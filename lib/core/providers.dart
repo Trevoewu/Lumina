@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../services/cache_manager.dart';
+import '../data/dictionary/dictionary_repository.dart';
+import '../data/dictionary/openai_compatible_explanation_provider.dart';
 import '../services/fish_audio_model_manager.dart';
 import '../services/generation_orchestrator.dart';
 import '../services/kokoro_model_manager.dart';
@@ -13,6 +15,22 @@ import '../services/sleep_timer_service.dart';
 import 'database_provider.dart';
 
 export 'database_provider.dart';
+
+final openAiCompatibleExplanationProvider =
+    Provider<OpenAiCompatibleExplanationProvider>((ref) {
+      final database = ref.watch(appDatabaseProvider);
+      return OpenAiCompatibleExplanationProvider(
+        settingReader: database.getSetting,
+        settingWriter: database.setSetting,
+      );
+    });
+
+final dictionaryRepositoryProvider = Provider<DictionaryRepository>((ref) {
+  return DictionaryRepository(
+    ref.watch(appDatabaseProvider),
+    explanationProvider: ref.watch(openAiCompatibleExplanationProvider),
+  );
+});
 
 /// Manifest 文件存储。
 final manifestStoreProvider = Provider<ManifestStore>((ref) => ManifestStore());

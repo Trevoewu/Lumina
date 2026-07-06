@@ -194,6 +194,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       context: context,
       isScrollControlled: true,
       useRootNavigator: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (_) => PlayerScreen(book: widget.book, initialChapter: chapter),
     );

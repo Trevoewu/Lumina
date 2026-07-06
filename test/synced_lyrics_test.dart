@@ -5,6 +5,34 @@ import 'package:lumina/domain/models/chapter_manifest.dart';
 import 'package:lumina/presentation/widgets/synced_lyrics_list.dart';
 
 void main() {
+  test('tokenizes words, hyphenated phrases, numbers, and punctuation', () {
+    final tokens = tokenizeSelectableText(
+      'The mind-bender costs 3.07 MB, really.',
+    );
+
+    expect(tokens.map((token) => token.text), [
+      'The',
+      'mind-bender',
+      'costs',
+      '3.07',
+      'MB',
+      ',',
+      'really',
+      '.',
+    ]);
+  });
+
+  test('rebuilds tapped and dragged token selections', () {
+    const source = 'The mind-bender costs 3.07 MB, really.';
+    final tokens = tokenizeSelectableText(source);
+
+    expect(
+      selectedTokenText(source, tokens, {1, 2, 3, 4, 5}),
+      'mind-bender costs 3.07 MB,',
+    );
+    expect(selectedTokenText(source, tokens, {1, 6}), 'mind-bender really');
+  });
+
   test('keeps sentences separate and splits long ones at weak boundaries', () {
     final lines = splitLyricsText(
       'First sentence. Second sentence is deliberately much longer, '

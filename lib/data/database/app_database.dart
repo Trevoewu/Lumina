@@ -131,6 +131,62 @@ class ListeningDays extends Table {
   Set<Column> get primaryKey => {dateKey};
 }
 
+/// Vocabulary.com 查询结果。成功结果永久保留，避免重复网络请求。
+class DictionaryEntries extends Table {
+  TextColumn get id => text()();
+  TextColumn get provider => text()();
+  TextColumn get language => text()();
+  TextColumn get normalizedTerm => text()();
+  TextColumn get displayWord => text()();
+  TextColumn get status => text()();
+  TextColumn get usPhonetic => text().nullable()();
+  TextColumn get ukPhonetic => text().nullable()();
+  TextColumn get definitionsJson => text().nullable()();
+  TextColumn get otherFormsJson => text().nullable()();
+  TextColumn get shortExplanation => text().nullable()();
+  TextColumn get longExplanation => text().nullable()();
+  TextColumn get sourceUrl => text()();
+  IntColumn get fetchedAt => integer()();
+  IntColumn get expiresAt => integer().nullable()();
+  IntColumn get lastAccessedAt => integer()();
+  IntColumn get accessCount => integer().withDefault(const Constant(1))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+    {provider, language, normalizedTerm},
+  ];
+}
+
+/// 用户收藏的词条。上下文为快照，不随原书删除。
+class FavoriteWords extends Table {
+  TextColumn get id => text()();
+  TextColumn get dictionaryEntryId => text()();
+  TextColumn get contextText => text().nullable()();
+  IntColumn get selectionStart => integer().nullable()();
+  IntColumn get selectionEnd => integer().nullable()();
+  TextColumn get sourceBookId => text().nullable()();
+  TextColumn get sourceBookTitle => text().nullable()();
+  TextColumn get sourceChapterId => text().nullable()();
+  TextColumn get sourceChapterTitle => text().nullable()();
+  TextColumn get sourceParagraphId => text().nullable()();
+  TextColumn get sourceLineId => text().nullable()();
+  IntColumn get audioStartMs => integer().nullable()();
+  IntColumn get audioEndMs => integer().nullable()();
+  IntColumn get favoritedAt => integer()();
+  IntColumn get updatedAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+    {dictionaryEntryId},
+  ];
+}
+
 // ─────────────────────────────────────────────
 // 数据库
 // ─────────────────────────────────────────────
@@ -145,6 +201,8 @@ class ListeningDays extends Table {
     AppSettings,
     CostRecords,
     ListeningDays,
+    DictionaryEntries,
+    FavoriteWords,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -155,7 +213,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e) : _repairPathsOnOpen = false;
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -166,6 +224,10 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 3) {
         await m.createTable(listeningDays);
+      }
+      if (from < 4) {
+        await m.createTable(dictionaryEntries);
+        await m.createTable(favoriteWords);
       }
     },
     beforeOpen: (_) async {
@@ -425,6 +487,80 @@ class AppDatabase extends _$AppDatabase {
   Stream<List<ListeningDay>> watchListeningDays() => (select(
     listeningDays,
   )..orderBy([(row) => OrderingTerm.asc(row.dateKey)])).watch();
+
+  // ── 词典 ──
+
+  Future<DictionaryEntry?> getDictionaryEntry(
+    String provider,
+    String language,
+    String normalizedTerm,
+  ) {
+    return (select(dictionaryEntries)..where(
+          (row) =>
+              row.provider.equals(provider) &
+              row.language.equals(language) &
+              row.normalizedTerm.equals(normalizedTerm),
+        ))
+        .getSingleOrNull();
+  }
+
+  Future<void> upsertDictionaryEntry(DictionaryEntry entry) =>
+      into(dictionaryEntries).insertOnConflictUpdate(entry);
+
+  Future<void> touchDictionaryEntry(String id, int accessedAt) async {
+    await customStatement(
+      '''
+      UPDATE dictionary_entries
+      SET last_accessed_at = ?, access_count = access_count + 1
+      WHERE id = ?
+      ''',
+      [accessedAt, id],
+    );
+  }
+
+  Future<List<DictionaryEntry>> getRecentDictionaryEntries({int limit = 12}) {
+    return (select(dictionaryEntries)
+          ..where(
+            (row) =>
+                row.status.equals('success') &
+                row.provider.equals('vocabulary_com'),
+          )
+          ..orderBy([(row) => OrderingTerm.desc(row.lastAccessedAt)])
+          ..limit(limit))
+        .get();
+  }
+
+  // ── 收藏单词 ──
+
+  Future<FavoriteWord?> getFavoriteForEntry(String dictionaryEntryId) =>
+      (select(favoriteWords)
+            ..where((row) => row.dictionaryEntryId.equals(dictionaryEntryId)))
+          .getSingleOrNull();
+
+  Future<void> upsertFavoriteWord(FavoriteWord favorite) =>
+      into(favoriteWords).insertOnConflictUpdate(favorite);
+
+  Future<void> deleteFavoriteForEntry(String dictionaryEntryId) => (delete(
+    favoriteWords,
+  )..where((row) => row.dictionaryEntryId.equals(dictionaryEntryId))).go();
+
+  Future<List<({FavoriteWord favorite, DictionaryEntry entry})>>
+  getFavoriteWordEntries() async {
+    final query = select(favoriteWords).join([
+      innerJoin(
+        dictionaryEntries,
+        dictionaryEntries.id.equalsExp(favoriteWords.dictionaryEntryId),
+      ),
+    ])..orderBy([OrderingTerm.desc(favoriteWords.favoritedAt)]);
+    final rows = await query.get();
+    return [
+      for (final row in rows)
+        (
+          favorite: row.readTable(favoriteWords),
+          entry: row.readTable(dictionaryEntries),
+        ),
+    ];
+  }
 }
 
 Future<String> _existingRebasedPath(

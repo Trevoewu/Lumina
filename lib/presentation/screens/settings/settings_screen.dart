@@ -18,6 +18,8 @@ import '../../../tts/tts_provider.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
 import 'appearance_screen.dart';
 import 'cache_management_screen.dart';
+import 'llm_model_screen.dart';
+import 'llm_provider_screen.dart';
 import 'logs_screen.dart';
 import 'voice_library_screen.dart';
 
@@ -40,6 +42,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _fadeInEnabled = true;
   bool? _miniMaxApiKeyConfigured;
   bool? _fishApiKeyConfigured;
+  int? _llmProviderCount;
+  String? _llmProviderName;
+  String? _llmModel;
   FishAudioGenerationProfile _fishGenerationProfile =
       FishAudioGenerationProfile.fast;
 
@@ -69,14 +74,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final miniMaxProvider = ref
         .read(providerRegistryProvider)
         .get(MinimaxTtsProvider.idValue);
+    final explanationProvider = ref.read(openAiCompatibleExplanationProvider);
     bool? miniMaxConfigured;
     bool? fishConfigured;
+    var llmProviderCount = 0;
+    String? llmProviderName;
+    String? llmModel;
     try {
       if (miniMaxProvider is MinimaxTtsProvider) {
         miniMaxConfigured = (await miniMaxProvider.apiKey)?.isNotEmpty == true;
       }
       if (fishProvider is FishAudioApiTtsProvider) {
         fishConfigured = (await fishProvider.apiKey)?.isNotEmpty == true;
+      }
+      final providers = await explanationProvider.configurations;
+      final activeProvider = await explanationProvider.activeProvider;
+      llmProviderCount = providers.length;
+      llmProviderName = activeProvider?.displayName;
+      if (activeProvider != null) {
+        final configuredModel = await explanationProvider.model;
+        if (configuredModel.isNotEmpty) llmModel = configuredModel;
       }
     } catch (error, stackTrace) {
       AppLogger.warning(
@@ -92,6 +109,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       _fishGenerationProfile = fishProfile;
       _miniMaxApiKeyConfigured = miniMaxConfigured;
       _fishApiKeyConfigured = fishConfigured;
+      _llmProviderCount = llmProviderCount;
+      _llmProviderName = llmProviderName;
+      _llmModel = llmModel;
     });
   }
 
@@ -166,6 +186,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               );
             },
           ),
+          _sectionDivider(),
+          _sectionHeader(context.tr('词典解释', 'DICTIONARY EXPLANATION')),
+          _buildLlmProviderGroup(),
           _sectionDivider(),
           _sectionHeader(context.tr('播放', 'PLAYBACK')),
           _buildSwitchTile(
@@ -584,6 +607,58 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ],
       ),
       onTap: onTap,
+    );
+  }
+
+  Widget _buildLlmProviderGroup() {
+    final count = _llmProviderCount;
+    final providerValue = count == null
+        ? context.tr('读取中', 'Loading')
+        : count == 0
+        ? context.tr('未配置', 'Not configured')
+        : context.tr('$count 个', '$count configured');
+    final modelValue = _llmModel ?? context.tr('未选择', 'Not selected');
+    return Material(
+      color: context.appSurface,
+      borderRadius: BorderRadius.circular(8),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildGeneralRow(
+            key: const ValueKey('llm-provider-settings'),
+            icon: Icons.hub_outlined,
+            title: 'LLM Provider',
+            value: providerValue,
+            subtitle: context.tr(
+              'DeepSeek、Z.AI 或自定义 OpenAI 兼容接口',
+              'DeepSeek, Z.AI, or a custom OpenAI-compatible API',
+            ),
+            showSelector: false,
+            onTap: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const LlmProviderScreen()),
+              );
+              await _loadAudioPreferences();
+            },
+          ),
+          Divider(height: 1, indent: 56, color: context.appSurfaceHighlight),
+          _buildGeneralRow(
+            key: const ValueKey('llm-model-settings'),
+            icon: Icons.psychology_outlined,
+            title: context.tr('模型', 'Model'),
+            value: modelValue,
+            subtitle: _llmProviderName,
+            showSelector: false,
+            onTap: () async {
+              await Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const LlmModelScreen()));
+              await _loadAudioPreferences();
+            },
+          ),
+        ],
+      ),
     );
   }
 
@@ -1161,20 +1236,19 @@ class _ApiKeyDetailsSheetState extends State<_ApiKeyDetailsSheet> {
 
   Future<void> _save() async {
     final key = widget.controller.text.trim();
-    if (key.isEmpty) {
-      _setFeedback(
-        _configured ? '密钥已经保存；输入新密钥可以替换。' : '请输入 API Key。',
-        isError: !_configured,
-      );
+    if (key.isEmpty && !_configured) {
+      _setFeedback('请输入 API Key。', isError: true);
       return;
     }
     setState(() => _saving = true);
     try {
-      await widget.onSave(key);
-      widget.controller.clear();
-      _configured = true;
-      widget.onConfiguredChanged(true);
-      _setFeedback('API Key 已保存。');
+      if (key.isNotEmpty) {
+        await widget.onSave(key);
+        widget.controller.clear();
+        _configured = true;
+        widget.onConfiguredChanged(true);
+      }
+      _setFeedback(key.isEmpty ? '配置已保存。' : 'API Key 和配置已保存。');
     } catch (error, stackTrace) {
       AppLogger.error(
         'Settings',

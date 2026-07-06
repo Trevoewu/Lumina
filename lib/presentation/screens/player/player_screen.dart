@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -431,6 +433,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     paragraphs: paragraphs,
                     manifest: handler.currentManifest,
                     handler: handler,
+                    bookTitle: widget.book.title,
+                    chapterTitle: widget.initialChapter?.title,
                   );
                 },
               ),
@@ -559,10 +563,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   void _showFullScreenLyrics(String chapterId) {
     Navigator.of(context, rootNavigator: true).push(
-      MaterialPageRoute(
-        fullscreenDialog: true,
+      // A fullscreenDialog disables iOS's interactive edge-pop gesture.
+      MaterialPageRoute<void>(
         builder: (_) => _FullScreenLyricsSheet(
           bookTitle: widget.book.title,
+          chapterTitle: widget.initialChapter?.title ?? '',
           chapterId: chapterId,
         ),
       ),
@@ -572,10 +577,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
 class _FullScreenLyricsSheet extends ConsumerStatefulWidget {
   final String bookTitle;
+  final String chapterTitle;
   final String chapterId;
 
   const _FullScreenLyricsSheet({
     required this.bookTitle,
+    required this.chapterTitle,
     required this.chapterId,
   });
 
@@ -586,6 +593,8 @@ class _FullScreenLyricsSheet extends ConsumerStatefulWidget {
 
 class _FullScreenLyricsSheetState
     extends ConsumerState<_FullScreenLyricsSheet> {
+  final _controlsKey = GlobalKey<_FullScreenPlaybackControlsState>();
+
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(appDatabaseProvider);
@@ -606,101 +615,361 @@ class _FullScreenLyricsSheetState
           ),
         ),
         child: SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(
-                        Icons.keyboard_arrow_down,
-                        color: AppColors.lyricsTextPrimary,
-                        size: 32,
+          child: Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerDown: (_) => _controlsKey.currentState?.showTemporarily(),
+            onPointerMove: (_) => _controlsKey.currentState?.showTemporarily(),
+            onPointerSignal: (_) =>
+                _controlsKey.currentState?.showTemporarily(),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(
+                          Icons.keyboard_arrow_down,
+                          color: AppColors.lyricsTextPrimary,
+                          size: 32,
+                        ),
+                        onPressed: () => Navigator.of(context).pop(),
                       ),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                    Expanded(
-                      child: Text(
-                        widget.bookTitle,
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: AppColors.lyricsTextSecondary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.2,
-                          fontFamily: fontFamily,
+                      Expanded(
+                        child: Text(
+                          widget.bookTitle,
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: AppColors.lyricsTextSecondary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.2,
+                            fontFamily: fontFamily,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 48),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    context.tr('歌词', 'Lyrics'),
-                    style: TextStyle(
-                      color: AppColors.lyricsTextPrimary,
-                      fontSize: 28,
-                      fontWeight: FontWeight.w800,
-                      fontFamily: fontFamily,
-                    ),
+                      const SizedBox(width: 48),
+                    ],
                   ),
                 ),
-              ),
-              Expanded(
-                child: FutureBuilder<List<drift_db.Paragraph>>(
-                  future: db.getParagraphs(widget.chapterId),
-                  builder: (context, snapshot) {
-                    final paragraphs =
-                        snapshot.data ?? const <drift_db.Paragraph>[];
-                    if (paragraphs.isEmpty) {
-                      return Center(
-                        child: Text(
-                          context.tr('无歌词', 'No lyrics'),
-                          style: const TextStyle(
-                            color: AppColors.lyricsTextSecondary,
+                Expanded(
+                  child: FutureBuilder<List<drift_db.Paragraph>>(
+                    future: db.getParagraphs(widget.chapterId),
+                    builder: (context, snapshot) {
+                      final paragraphs =
+                          snapshot.data ?? const <drift_db.Paragraph>[];
+                      if (paragraphs.isEmpty) {
+                        return Center(
+                          child: Text(
+                            context.tr('无歌词', 'No lyrics'),
+                            style: const TextStyle(
+                              color: AppColors.lyricsTextSecondary,
+                            ),
                           ),
+                        );
+                      }
+                      return handlerAsync.when(
+                        loading: () =>
+                            const Center(child: CircularProgressIndicator()),
+                        error: (error, _) => Center(
+                          child: Text(
+                            context.tr(
+                              '播放器不可用：$error',
+                              'Player unavailable: $error',
+                            ),
+                            style: const TextStyle(
+                              color: AppColors.lyricsTextSecondary,
+                            ),
+                          ),
+                        ),
+                        data: (handler) => SyncedLyricsList(
+                          key: ValueKey(
+                            '${widget.chapterId}:${handler.currentChapterId}',
+                          ),
+                          paragraphs: paragraphs,
+                          manifest: handler.currentManifest,
+                          handler: handler,
+                          expanded: true,
+                          bookTitle: widget.bookTitle,
+                          chapterTitle: widget.chapterTitle,
                         ),
                       );
-                    }
-                    return handlerAsync.when(
-                      loading: () =>
-                          const Center(child: CircularProgressIndicator()),
-                      error: (error, _) => Center(
-                        child: Text(
-                          context.tr(
-                            '播放器不可用：$error',
-                            'Player unavailable: $error',
-                          ),
-                          style: const TextStyle(
-                            color: AppColors.lyricsTextSecondary,
-                          ),
-                        ),
-                      ),
-                      data: (handler) => SyncedLyricsList(
-                        key: ValueKey(
-                          '${widget.chapterId}:${handler.currentChapterId}',
-                        ),
-                        paragraphs: paragraphs,
-                        manifest: handler.currentManifest,
-                        handler: handler,
-                        expanded: true,
-                      ),
-                    );
-                  },
+                    },
+                  ),
                 ),
-              ),
-            ],
+                handlerAsync.when(
+                  loading: () => const SizedBox(height: 156),
+                  error: (_, _) => const SizedBox.shrink(),
+                  data: (handler) => _FullScreenPlaybackControls(
+                    key: _controlsKey,
+                    handler: handler,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
+}
+
+class _FullScreenPlaybackControls extends StatefulWidget {
+  final LuminaAudioHandler handler;
+
+  const _FullScreenPlaybackControls({super.key, required this.handler});
+
+  @override
+  State<_FullScreenPlaybackControls> createState() =>
+      _FullScreenPlaybackControlsState();
+}
+
+class _FullScreenPlaybackControlsState
+    extends State<_FullScreenPlaybackControls>
+    with SingleTickerProviderStateMixin {
+  static const _autoHideDelay = Duration(seconds: 3);
+
+  double? _dragProgress;
+  Timer? _hideTimer;
+  bool _dragging = false;
+  late final AnimationController _revealController;
+  late final Animation<double> _sizeAnimation;
+  late final Animation<double> _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _revealController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 280),
+      reverseDuration: const Duration(milliseconds: 420),
+      value: 1,
+    );
+    _sizeAnimation = CurvedAnimation(
+      parent: _revealController,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInOutCubic,
+    );
+    _fadeAnimation = CurvedAnimation(
+      parent: _revealController,
+      curve: const Interval(0.15, 1, curve: Curves.easeOutCubic),
+      reverseCurve: const Interval(0.25, 1, curve: Curves.easeInCubic),
+    );
+    _scheduleHide();
+  }
+
+  void showTemporarily() {
+    _revealController.forward();
+    if (!_dragging) _scheduleHide();
+  }
+
+  void _scheduleHide() {
+    _hideTimer?.cancel();
+    _hideTimer = Timer(_autoHideDelay, () {
+      if (!mounted || _dragging) return;
+      _revealController.reverse();
+    });
+  }
+
+  void _startDragging(double value) {
+    _hideTimer?.cancel();
+    setState(() {
+      _dragging = true;
+      _dragProgress = value;
+    });
+  }
+
+  void _finishDragging(double value, int durationMs) {
+    setState(() {
+      _dragging = false;
+      _dragProgress = null;
+    });
+    widget.handler.seek(Duration(milliseconds: (value * durationMs).round()));
+    _scheduleHide();
+  }
+
+  @override
+  void dispose() {
+    _hideTimer?.cancel();
+    _revealController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRect(
+      child: AnimatedBuilder(
+        animation: _revealController,
+        child: FadeTransition(
+          opacity: _fadeAnimation,
+          child: SizeTransition(
+            sizeFactor: _sizeAnimation,
+            alignment: Alignment.bottomCenter,
+            child: _buildVisibleControls(context),
+          ),
+        ),
+        builder: (context, child) => IgnorePointer(
+          ignoring: _revealController.value < 0.9,
+          child: ExcludeSemantics(
+            excluding: _revealController.value < 0.05,
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVisibleControls(BuildContext context) {
+    return StreamBuilder(
+      stream: widget.handler.playbackState,
+      initialData: widget.handler.playbackState.value,
+      builder: (context, playbackSnapshot) {
+        final playing = playbackSnapshot.data?.playing ?? false;
+        return StreamBuilder<Duration>(
+          stream: widget.handler.chapterPositionStream,
+          initialData: widget.handler.chapterPosition,
+          builder: (context, positionSnapshot) {
+            final duration = widget.handler.chapterDuration;
+            final position = positionSnapshot.data ?? Duration.zero;
+            final durationMs = duration.inMilliseconds;
+            final positionMs = position.inMilliseconds.clamp(0, durationMs);
+            final liveProgress = durationMs <= 0
+                ? 0.0
+                : positionMs / durationMs;
+            final progress = (_dragProgress ?? liveProgress).clamp(0.0, 1.0);
+            final displayedPosition = _dragProgress == null
+                ? Duration(milliseconds: positionMs)
+                : Duration(milliseconds: (progress * durationMs).round());
+            final remaining = duration - displayedPosition;
+
+            return Container(
+              key: const ValueKey('fullscreen-lyrics-controls'),
+              padding: const EdgeInsets.fromLTRB(24, 4, 24, 12),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    AppColors.lyricsBackground.withValues(alpha: 0),
+                    AppColors.lyricsBackground.withValues(alpha: 0.96),
+                    AppColors.lyricsBackground,
+                  ],
+                  stops: const [0, 0.2, 1],
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      activeTrackColor: AppColors.lyricsTextPrimary,
+                      inactiveTrackColor: AppColors.lyricsTextSecondary
+                          .withValues(alpha: 0.48),
+                      disabledActiveTrackColor: AppColors.lyricsTextSecondary,
+                      disabledInactiveTrackColor: AppColors.lyricsTextSecondary
+                          .withValues(alpha: 0.28),
+                      thumbColor: AppColors.lyricsTextPrimary,
+                      trackHeight: 4,
+                      thumbShape: const RoundSliderThumbShape(
+                        enabledThumbRadius: 7,
+                      ),
+                      overlayShape: const RoundSliderOverlayShape(
+                        overlayRadius: 18,
+                      ),
+                    ),
+                    child: Slider(
+                      key: const ValueKey('fullscreen-lyrics-progress'),
+                      value: progress,
+                      onChangeStart: durationMs <= 0 ? null : _startDragging,
+                      onChanged: durationMs <= 0
+                          ? null
+                          : (value) => setState(() => _dragProgress = value),
+                      onChangeEnd: durationMs <= 0
+                          ? null
+                          : (value) => _finishDragging(value, durationMs),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          _formatPlaybackTime(displayedPosition),
+                          style: const TextStyle(
+                            color: AppColors.lyricsTextSecondary,
+                            fontSize: 13,
+                            fontFeatures: [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                        Text(
+                          '-${_formatPlaybackTime(remaining.isNegative ? Duration.zero : remaining)}',
+                          style: const TextStyle(
+                            color: AppColors.lyricsTextSecondary,
+                            fontSize: 13,
+                            fontFeatures: [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Semantics(
+                    button: true,
+                    label: playing
+                        ? context.tr('暂停', 'Pause')
+                        : context.tr('播放', 'Play'),
+                    child: Material(
+                      color: AppColors.lyricsTextPrimary,
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        key: const ValueKey('fullscreen-lyrics-play-pause'),
+                        customBorder: const CircleBorder(),
+                        onTap: playing
+                            ? widget.handler.pause
+                            : widget.handler.play,
+                        child: SizedBox.square(
+                          dimension: 72,
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 160),
+                            child: Icon(
+                              playing ? Icons.pause : Icons.play_arrow,
+                              key: ValueKey(playing),
+                              size: 38,
+                              color: AppColors.lyricsBackground,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+String _formatPlaybackTime(Duration duration) {
+  final safeDuration = duration.isNegative ? Duration.zero : duration;
+  final minutes = safeDuration.inMinutes
+      .remainder(60)
+      .toString()
+      .padLeft(2, '0');
+  final seconds = safeDuration.inSeconds
+      .remainder(60)
+      .toString()
+      .padLeft(2, '0');
+  if (safeDuration.inHours > 0) {
+    return '${safeDuration.inHours}:$minutes:$seconds';
+  }
+  return '$minutes:$seconds';
 }

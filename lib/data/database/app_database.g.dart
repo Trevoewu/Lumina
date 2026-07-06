@@ -3636,6 +3636,1954 @@ class ListeningDaysCompanion extends UpdateCompanion<ListeningDay> {
   }
 }
 
+class $DictionaryEntriesTable extends DictionaryEntries
+    with TableInfo<$DictionaryEntriesTable, DictionaryEntry> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DictionaryEntriesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _providerMeta = const VerificationMeta(
+    'provider',
+  );
+  @override
+  late final GeneratedColumn<String> provider = GeneratedColumn<String>(
+    'provider',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _languageMeta = const VerificationMeta(
+    'language',
+  );
+  @override
+  late final GeneratedColumn<String> language = GeneratedColumn<String>(
+    'language',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _normalizedTermMeta = const VerificationMeta(
+    'normalizedTerm',
+  );
+  @override
+  late final GeneratedColumn<String> normalizedTerm = GeneratedColumn<String>(
+    'normalized_term',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _displayWordMeta = const VerificationMeta(
+    'displayWord',
+  );
+  @override
+  late final GeneratedColumn<String> displayWord = GeneratedColumn<String>(
+    'display_word',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _usPhoneticMeta = const VerificationMeta(
+    'usPhonetic',
+  );
+  @override
+  late final GeneratedColumn<String> usPhonetic = GeneratedColumn<String>(
+    'us_phonetic',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _ukPhoneticMeta = const VerificationMeta(
+    'ukPhonetic',
+  );
+  @override
+  late final GeneratedColumn<String> ukPhonetic = GeneratedColumn<String>(
+    'uk_phonetic',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _definitionsJsonMeta = const VerificationMeta(
+    'definitionsJson',
+  );
+  @override
+  late final GeneratedColumn<String> definitionsJson = GeneratedColumn<String>(
+    'definitions_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _otherFormsJsonMeta = const VerificationMeta(
+    'otherFormsJson',
+  );
+  @override
+  late final GeneratedColumn<String> otherFormsJson = GeneratedColumn<String>(
+    'other_forms_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _shortExplanationMeta = const VerificationMeta(
+    'shortExplanation',
+  );
+  @override
+  late final GeneratedColumn<String> shortExplanation = GeneratedColumn<String>(
+    'short_explanation',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _longExplanationMeta = const VerificationMeta(
+    'longExplanation',
+  );
+  @override
+  late final GeneratedColumn<String> longExplanation = GeneratedColumn<String>(
+    'long_explanation',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sourceUrlMeta = const VerificationMeta(
+    'sourceUrl',
+  );
+  @override
+  late final GeneratedColumn<String> sourceUrl = GeneratedColumn<String>(
+    'source_url',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _fetchedAtMeta = const VerificationMeta(
+    'fetchedAt',
+  );
+  @override
+  late final GeneratedColumn<int> fetchedAt = GeneratedColumn<int>(
+    'fetched_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _expiresAtMeta = const VerificationMeta(
+    'expiresAt',
+  );
+  @override
+  late final GeneratedColumn<int> expiresAt = GeneratedColumn<int>(
+    'expires_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastAccessedAtMeta = const VerificationMeta(
+    'lastAccessedAt',
+  );
+  @override
+  late final GeneratedColumn<int> lastAccessedAt = GeneratedColumn<int>(
+    'last_accessed_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _accessCountMeta = const VerificationMeta(
+    'accessCount',
+  );
+  @override
+  late final GeneratedColumn<int> accessCount = GeneratedColumn<int>(
+    'access_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    provider,
+    language,
+    normalizedTerm,
+    displayWord,
+    status,
+    usPhonetic,
+    ukPhonetic,
+    definitionsJson,
+    otherFormsJson,
+    shortExplanation,
+    longExplanation,
+    sourceUrl,
+    fetchedAt,
+    expiresAt,
+    lastAccessedAt,
+    accessCount,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'dictionary_entries';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DictionaryEntry> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('provider')) {
+      context.handle(
+        _providerMeta,
+        provider.isAcceptableOrUnknown(data['provider']!, _providerMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_providerMeta);
+    }
+    if (data.containsKey('language')) {
+      context.handle(
+        _languageMeta,
+        language.isAcceptableOrUnknown(data['language']!, _languageMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_languageMeta);
+    }
+    if (data.containsKey('normalized_term')) {
+      context.handle(
+        _normalizedTermMeta,
+        normalizedTerm.isAcceptableOrUnknown(
+          data['normalized_term']!,
+          _normalizedTermMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_normalizedTermMeta);
+    }
+    if (data.containsKey('display_word')) {
+      context.handle(
+        _displayWordMeta,
+        displayWord.isAcceptableOrUnknown(
+          data['display_word']!,
+          _displayWordMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_displayWordMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_statusMeta);
+    }
+    if (data.containsKey('us_phonetic')) {
+      context.handle(
+        _usPhoneticMeta,
+        usPhonetic.isAcceptableOrUnknown(data['us_phonetic']!, _usPhoneticMeta),
+      );
+    }
+    if (data.containsKey('uk_phonetic')) {
+      context.handle(
+        _ukPhoneticMeta,
+        ukPhonetic.isAcceptableOrUnknown(data['uk_phonetic']!, _ukPhoneticMeta),
+      );
+    }
+    if (data.containsKey('definitions_json')) {
+      context.handle(
+        _definitionsJsonMeta,
+        definitionsJson.isAcceptableOrUnknown(
+          data['definitions_json']!,
+          _definitionsJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('other_forms_json')) {
+      context.handle(
+        _otherFormsJsonMeta,
+        otherFormsJson.isAcceptableOrUnknown(
+          data['other_forms_json']!,
+          _otherFormsJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('short_explanation')) {
+      context.handle(
+        _shortExplanationMeta,
+        shortExplanation.isAcceptableOrUnknown(
+          data['short_explanation']!,
+          _shortExplanationMeta,
+        ),
+      );
+    }
+    if (data.containsKey('long_explanation')) {
+      context.handle(
+        _longExplanationMeta,
+        longExplanation.isAcceptableOrUnknown(
+          data['long_explanation']!,
+          _longExplanationMeta,
+        ),
+      );
+    }
+    if (data.containsKey('source_url')) {
+      context.handle(
+        _sourceUrlMeta,
+        sourceUrl.isAcceptableOrUnknown(data['source_url']!, _sourceUrlMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceUrlMeta);
+    }
+    if (data.containsKey('fetched_at')) {
+      context.handle(
+        _fetchedAtMeta,
+        fetchedAt.isAcceptableOrUnknown(data['fetched_at']!, _fetchedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_fetchedAtMeta);
+    }
+    if (data.containsKey('expires_at')) {
+      context.handle(
+        _expiresAtMeta,
+        expiresAt.isAcceptableOrUnknown(data['expires_at']!, _expiresAtMeta),
+      );
+    }
+    if (data.containsKey('last_accessed_at')) {
+      context.handle(
+        _lastAccessedAtMeta,
+        lastAccessedAt.isAcceptableOrUnknown(
+          data['last_accessed_at']!,
+          _lastAccessedAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_lastAccessedAtMeta);
+    }
+    if (data.containsKey('access_count')) {
+      context.handle(
+        _accessCountMeta,
+        accessCount.isAcceptableOrUnknown(
+          data['access_count']!,
+          _accessCountMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {provider, language, normalizedTerm},
+  ];
+  @override
+  DictionaryEntry map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DictionaryEntry(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      provider: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}provider'],
+      )!,
+      language: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}language'],
+      )!,
+      normalizedTerm: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}normalized_term'],
+      )!,
+      displayWord: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}display_word'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      usPhonetic: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}us_phonetic'],
+      ),
+      ukPhonetic: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}uk_phonetic'],
+      ),
+      definitionsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}definitions_json'],
+      ),
+      otherFormsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}other_forms_json'],
+      ),
+      shortExplanation: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}short_explanation'],
+      ),
+      longExplanation: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}long_explanation'],
+      ),
+      sourceUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_url'],
+      )!,
+      fetchedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}fetched_at'],
+      )!,
+      expiresAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}expires_at'],
+      ),
+      lastAccessedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_accessed_at'],
+      )!,
+      accessCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}access_count'],
+      )!,
+    );
+  }
+
+  @override
+  $DictionaryEntriesTable createAlias(String alias) {
+    return $DictionaryEntriesTable(attachedDatabase, alias);
+  }
+}
+
+class DictionaryEntry extends DataClass implements Insertable<DictionaryEntry> {
+  final String id;
+  final String provider;
+  final String language;
+  final String normalizedTerm;
+  final String displayWord;
+  final String status;
+  final String? usPhonetic;
+  final String? ukPhonetic;
+  final String? definitionsJson;
+  final String? otherFormsJson;
+  final String? shortExplanation;
+  final String? longExplanation;
+  final String sourceUrl;
+  final int fetchedAt;
+  final int? expiresAt;
+  final int lastAccessedAt;
+  final int accessCount;
+  const DictionaryEntry({
+    required this.id,
+    required this.provider,
+    required this.language,
+    required this.normalizedTerm,
+    required this.displayWord,
+    required this.status,
+    this.usPhonetic,
+    this.ukPhonetic,
+    this.definitionsJson,
+    this.otherFormsJson,
+    this.shortExplanation,
+    this.longExplanation,
+    required this.sourceUrl,
+    required this.fetchedAt,
+    this.expiresAt,
+    required this.lastAccessedAt,
+    required this.accessCount,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['provider'] = Variable<String>(provider);
+    map['language'] = Variable<String>(language);
+    map['normalized_term'] = Variable<String>(normalizedTerm);
+    map['display_word'] = Variable<String>(displayWord);
+    map['status'] = Variable<String>(status);
+    if (!nullToAbsent || usPhonetic != null) {
+      map['us_phonetic'] = Variable<String>(usPhonetic);
+    }
+    if (!nullToAbsent || ukPhonetic != null) {
+      map['uk_phonetic'] = Variable<String>(ukPhonetic);
+    }
+    if (!nullToAbsent || definitionsJson != null) {
+      map['definitions_json'] = Variable<String>(definitionsJson);
+    }
+    if (!nullToAbsent || otherFormsJson != null) {
+      map['other_forms_json'] = Variable<String>(otherFormsJson);
+    }
+    if (!nullToAbsent || shortExplanation != null) {
+      map['short_explanation'] = Variable<String>(shortExplanation);
+    }
+    if (!nullToAbsent || longExplanation != null) {
+      map['long_explanation'] = Variable<String>(longExplanation);
+    }
+    map['source_url'] = Variable<String>(sourceUrl);
+    map['fetched_at'] = Variable<int>(fetchedAt);
+    if (!nullToAbsent || expiresAt != null) {
+      map['expires_at'] = Variable<int>(expiresAt);
+    }
+    map['last_accessed_at'] = Variable<int>(lastAccessedAt);
+    map['access_count'] = Variable<int>(accessCount);
+    return map;
+  }
+
+  DictionaryEntriesCompanion toCompanion(bool nullToAbsent) {
+    return DictionaryEntriesCompanion(
+      id: Value(id),
+      provider: Value(provider),
+      language: Value(language),
+      normalizedTerm: Value(normalizedTerm),
+      displayWord: Value(displayWord),
+      status: Value(status),
+      usPhonetic: usPhonetic == null && nullToAbsent
+          ? const Value.absent()
+          : Value(usPhonetic),
+      ukPhonetic: ukPhonetic == null && nullToAbsent
+          ? const Value.absent()
+          : Value(ukPhonetic),
+      definitionsJson: definitionsJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(definitionsJson),
+      otherFormsJson: otherFormsJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(otherFormsJson),
+      shortExplanation: shortExplanation == null && nullToAbsent
+          ? const Value.absent()
+          : Value(shortExplanation),
+      longExplanation: longExplanation == null && nullToAbsent
+          ? const Value.absent()
+          : Value(longExplanation),
+      sourceUrl: Value(sourceUrl),
+      fetchedAt: Value(fetchedAt),
+      expiresAt: expiresAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(expiresAt),
+      lastAccessedAt: Value(lastAccessedAt),
+      accessCount: Value(accessCount),
+    );
+  }
+
+  factory DictionaryEntry.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DictionaryEntry(
+      id: serializer.fromJson<String>(json['id']),
+      provider: serializer.fromJson<String>(json['provider']),
+      language: serializer.fromJson<String>(json['language']),
+      normalizedTerm: serializer.fromJson<String>(json['normalizedTerm']),
+      displayWord: serializer.fromJson<String>(json['displayWord']),
+      status: serializer.fromJson<String>(json['status']),
+      usPhonetic: serializer.fromJson<String?>(json['usPhonetic']),
+      ukPhonetic: serializer.fromJson<String?>(json['ukPhonetic']),
+      definitionsJson: serializer.fromJson<String?>(json['definitionsJson']),
+      otherFormsJson: serializer.fromJson<String?>(json['otherFormsJson']),
+      shortExplanation: serializer.fromJson<String?>(json['shortExplanation']),
+      longExplanation: serializer.fromJson<String?>(json['longExplanation']),
+      sourceUrl: serializer.fromJson<String>(json['sourceUrl']),
+      fetchedAt: serializer.fromJson<int>(json['fetchedAt']),
+      expiresAt: serializer.fromJson<int?>(json['expiresAt']),
+      lastAccessedAt: serializer.fromJson<int>(json['lastAccessedAt']),
+      accessCount: serializer.fromJson<int>(json['accessCount']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'provider': serializer.toJson<String>(provider),
+      'language': serializer.toJson<String>(language),
+      'normalizedTerm': serializer.toJson<String>(normalizedTerm),
+      'displayWord': serializer.toJson<String>(displayWord),
+      'status': serializer.toJson<String>(status),
+      'usPhonetic': serializer.toJson<String?>(usPhonetic),
+      'ukPhonetic': serializer.toJson<String?>(ukPhonetic),
+      'definitionsJson': serializer.toJson<String?>(definitionsJson),
+      'otherFormsJson': serializer.toJson<String?>(otherFormsJson),
+      'shortExplanation': serializer.toJson<String?>(shortExplanation),
+      'longExplanation': serializer.toJson<String?>(longExplanation),
+      'sourceUrl': serializer.toJson<String>(sourceUrl),
+      'fetchedAt': serializer.toJson<int>(fetchedAt),
+      'expiresAt': serializer.toJson<int?>(expiresAt),
+      'lastAccessedAt': serializer.toJson<int>(lastAccessedAt),
+      'accessCount': serializer.toJson<int>(accessCount),
+    };
+  }
+
+  DictionaryEntry copyWith({
+    String? id,
+    String? provider,
+    String? language,
+    String? normalizedTerm,
+    String? displayWord,
+    String? status,
+    Value<String?> usPhonetic = const Value.absent(),
+    Value<String?> ukPhonetic = const Value.absent(),
+    Value<String?> definitionsJson = const Value.absent(),
+    Value<String?> otherFormsJson = const Value.absent(),
+    Value<String?> shortExplanation = const Value.absent(),
+    Value<String?> longExplanation = const Value.absent(),
+    String? sourceUrl,
+    int? fetchedAt,
+    Value<int?> expiresAt = const Value.absent(),
+    int? lastAccessedAt,
+    int? accessCount,
+  }) => DictionaryEntry(
+    id: id ?? this.id,
+    provider: provider ?? this.provider,
+    language: language ?? this.language,
+    normalizedTerm: normalizedTerm ?? this.normalizedTerm,
+    displayWord: displayWord ?? this.displayWord,
+    status: status ?? this.status,
+    usPhonetic: usPhonetic.present ? usPhonetic.value : this.usPhonetic,
+    ukPhonetic: ukPhonetic.present ? ukPhonetic.value : this.ukPhonetic,
+    definitionsJson: definitionsJson.present
+        ? definitionsJson.value
+        : this.definitionsJson,
+    otherFormsJson: otherFormsJson.present
+        ? otherFormsJson.value
+        : this.otherFormsJson,
+    shortExplanation: shortExplanation.present
+        ? shortExplanation.value
+        : this.shortExplanation,
+    longExplanation: longExplanation.present
+        ? longExplanation.value
+        : this.longExplanation,
+    sourceUrl: sourceUrl ?? this.sourceUrl,
+    fetchedAt: fetchedAt ?? this.fetchedAt,
+    expiresAt: expiresAt.present ? expiresAt.value : this.expiresAt,
+    lastAccessedAt: lastAccessedAt ?? this.lastAccessedAt,
+    accessCount: accessCount ?? this.accessCount,
+  );
+  DictionaryEntry copyWithCompanion(DictionaryEntriesCompanion data) {
+    return DictionaryEntry(
+      id: data.id.present ? data.id.value : this.id,
+      provider: data.provider.present ? data.provider.value : this.provider,
+      language: data.language.present ? data.language.value : this.language,
+      normalizedTerm: data.normalizedTerm.present
+          ? data.normalizedTerm.value
+          : this.normalizedTerm,
+      displayWord: data.displayWord.present
+          ? data.displayWord.value
+          : this.displayWord,
+      status: data.status.present ? data.status.value : this.status,
+      usPhonetic: data.usPhonetic.present
+          ? data.usPhonetic.value
+          : this.usPhonetic,
+      ukPhonetic: data.ukPhonetic.present
+          ? data.ukPhonetic.value
+          : this.ukPhonetic,
+      definitionsJson: data.definitionsJson.present
+          ? data.definitionsJson.value
+          : this.definitionsJson,
+      otherFormsJson: data.otherFormsJson.present
+          ? data.otherFormsJson.value
+          : this.otherFormsJson,
+      shortExplanation: data.shortExplanation.present
+          ? data.shortExplanation.value
+          : this.shortExplanation,
+      longExplanation: data.longExplanation.present
+          ? data.longExplanation.value
+          : this.longExplanation,
+      sourceUrl: data.sourceUrl.present ? data.sourceUrl.value : this.sourceUrl,
+      fetchedAt: data.fetchedAt.present ? data.fetchedAt.value : this.fetchedAt,
+      expiresAt: data.expiresAt.present ? data.expiresAt.value : this.expiresAt,
+      lastAccessedAt: data.lastAccessedAt.present
+          ? data.lastAccessedAt.value
+          : this.lastAccessedAt,
+      accessCount: data.accessCount.present
+          ? data.accessCount.value
+          : this.accessCount,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DictionaryEntry(')
+          ..write('id: $id, ')
+          ..write('provider: $provider, ')
+          ..write('language: $language, ')
+          ..write('normalizedTerm: $normalizedTerm, ')
+          ..write('displayWord: $displayWord, ')
+          ..write('status: $status, ')
+          ..write('usPhonetic: $usPhonetic, ')
+          ..write('ukPhonetic: $ukPhonetic, ')
+          ..write('definitionsJson: $definitionsJson, ')
+          ..write('otherFormsJson: $otherFormsJson, ')
+          ..write('shortExplanation: $shortExplanation, ')
+          ..write('longExplanation: $longExplanation, ')
+          ..write('sourceUrl: $sourceUrl, ')
+          ..write('fetchedAt: $fetchedAt, ')
+          ..write('expiresAt: $expiresAt, ')
+          ..write('lastAccessedAt: $lastAccessedAt, ')
+          ..write('accessCount: $accessCount')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    provider,
+    language,
+    normalizedTerm,
+    displayWord,
+    status,
+    usPhonetic,
+    ukPhonetic,
+    definitionsJson,
+    otherFormsJson,
+    shortExplanation,
+    longExplanation,
+    sourceUrl,
+    fetchedAt,
+    expiresAt,
+    lastAccessedAt,
+    accessCount,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DictionaryEntry &&
+          other.id == this.id &&
+          other.provider == this.provider &&
+          other.language == this.language &&
+          other.normalizedTerm == this.normalizedTerm &&
+          other.displayWord == this.displayWord &&
+          other.status == this.status &&
+          other.usPhonetic == this.usPhonetic &&
+          other.ukPhonetic == this.ukPhonetic &&
+          other.definitionsJson == this.definitionsJson &&
+          other.otherFormsJson == this.otherFormsJson &&
+          other.shortExplanation == this.shortExplanation &&
+          other.longExplanation == this.longExplanation &&
+          other.sourceUrl == this.sourceUrl &&
+          other.fetchedAt == this.fetchedAt &&
+          other.expiresAt == this.expiresAt &&
+          other.lastAccessedAt == this.lastAccessedAt &&
+          other.accessCount == this.accessCount);
+}
+
+class DictionaryEntriesCompanion extends UpdateCompanion<DictionaryEntry> {
+  final Value<String> id;
+  final Value<String> provider;
+  final Value<String> language;
+  final Value<String> normalizedTerm;
+  final Value<String> displayWord;
+  final Value<String> status;
+  final Value<String?> usPhonetic;
+  final Value<String?> ukPhonetic;
+  final Value<String?> definitionsJson;
+  final Value<String?> otherFormsJson;
+  final Value<String?> shortExplanation;
+  final Value<String?> longExplanation;
+  final Value<String> sourceUrl;
+  final Value<int> fetchedAt;
+  final Value<int?> expiresAt;
+  final Value<int> lastAccessedAt;
+  final Value<int> accessCount;
+  final Value<int> rowid;
+  const DictionaryEntriesCompanion({
+    this.id = const Value.absent(),
+    this.provider = const Value.absent(),
+    this.language = const Value.absent(),
+    this.normalizedTerm = const Value.absent(),
+    this.displayWord = const Value.absent(),
+    this.status = const Value.absent(),
+    this.usPhonetic = const Value.absent(),
+    this.ukPhonetic = const Value.absent(),
+    this.definitionsJson = const Value.absent(),
+    this.otherFormsJson = const Value.absent(),
+    this.shortExplanation = const Value.absent(),
+    this.longExplanation = const Value.absent(),
+    this.sourceUrl = const Value.absent(),
+    this.fetchedAt = const Value.absent(),
+    this.expiresAt = const Value.absent(),
+    this.lastAccessedAt = const Value.absent(),
+    this.accessCount = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DictionaryEntriesCompanion.insert({
+    required String id,
+    required String provider,
+    required String language,
+    required String normalizedTerm,
+    required String displayWord,
+    required String status,
+    this.usPhonetic = const Value.absent(),
+    this.ukPhonetic = const Value.absent(),
+    this.definitionsJson = const Value.absent(),
+    this.otherFormsJson = const Value.absent(),
+    this.shortExplanation = const Value.absent(),
+    this.longExplanation = const Value.absent(),
+    required String sourceUrl,
+    required int fetchedAt,
+    this.expiresAt = const Value.absent(),
+    required int lastAccessedAt,
+    this.accessCount = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       provider = Value(provider),
+       language = Value(language),
+       normalizedTerm = Value(normalizedTerm),
+       displayWord = Value(displayWord),
+       status = Value(status),
+       sourceUrl = Value(sourceUrl),
+       fetchedAt = Value(fetchedAt),
+       lastAccessedAt = Value(lastAccessedAt);
+  static Insertable<DictionaryEntry> custom({
+    Expression<String>? id,
+    Expression<String>? provider,
+    Expression<String>? language,
+    Expression<String>? normalizedTerm,
+    Expression<String>? displayWord,
+    Expression<String>? status,
+    Expression<String>? usPhonetic,
+    Expression<String>? ukPhonetic,
+    Expression<String>? definitionsJson,
+    Expression<String>? otherFormsJson,
+    Expression<String>? shortExplanation,
+    Expression<String>? longExplanation,
+    Expression<String>? sourceUrl,
+    Expression<int>? fetchedAt,
+    Expression<int>? expiresAt,
+    Expression<int>? lastAccessedAt,
+    Expression<int>? accessCount,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (provider != null) 'provider': provider,
+      if (language != null) 'language': language,
+      if (normalizedTerm != null) 'normalized_term': normalizedTerm,
+      if (displayWord != null) 'display_word': displayWord,
+      if (status != null) 'status': status,
+      if (usPhonetic != null) 'us_phonetic': usPhonetic,
+      if (ukPhonetic != null) 'uk_phonetic': ukPhonetic,
+      if (definitionsJson != null) 'definitions_json': definitionsJson,
+      if (otherFormsJson != null) 'other_forms_json': otherFormsJson,
+      if (shortExplanation != null) 'short_explanation': shortExplanation,
+      if (longExplanation != null) 'long_explanation': longExplanation,
+      if (sourceUrl != null) 'source_url': sourceUrl,
+      if (fetchedAt != null) 'fetched_at': fetchedAt,
+      if (expiresAt != null) 'expires_at': expiresAt,
+      if (lastAccessedAt != null) 'last_accessed_at': lastAccessedAt,
+      if (accessCount != null) 'access_count': accessCount,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DictionaryEntriesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? provider,
+    Value<String>? language,
+    Value<String>? normalizedTerm,
+    Value<String>? displayWord,
+    Value<String>? status,
+    Value<String?>? usPhonetic,
+    Value<String?>? ukPhonetic,
+    Value<String?>? definitionsJson,
+    Value<String?>? otherFormsJson,
+    Value<String?>? shortExplanation,
+    Value<String?>? longExplanation,
+    Value<String>? sourceUrl,
+    Value<int>? fetchedAt,
+    Value<int?>? expiresAt,
+    Value<int>? lastAccessedAt,
+    Value<int>? accessCount,
+    Value<int>? rowid,
+  }) {
+    return DictionaryEntriesCompanion(
+      id: id ?? this.id,
+      provider: provider ?? this.provider,
+      language: language ?? this.language,
+      normalizedTerm: normalizedTerm ?? this.normalizedTerm,
+      displayWord: displayWord ?? this.displayWord,
+      status: status ?? this.status,
+      usPhonetic: usPhonetic ?? this.usPhonetic,
+      ukPhonetic: ukPhonetic ?? this.ukPhonetic,
+      definitionsJson: definitionsJson ?? this.definitionsJson,
+      otherFormsJson: otherFormsJson ?? this.otherFormsJson,
+      shortExplanation: shortExplanation ?? this.shortExplanation,
+      longExplanation: longExplanation ?? this.longExplanation,
+      sourceUrl: sourceUrl ?? this.sourceUrl,
+      fetchedAt: fetchedAt ?? this.fetchedAt,
+      expiresAt: expiresAt ?? this.expiresAt,
+      lastAccessedAt: lastAccessedAt ?? this.lastAccessedAt,
+      accessCount: accessCount ?? this.accessCount,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (provider.present) {
+      map['provider'] = Variable<String>(provider.value);
+    }
+    if (language.present) {
+      map['language'] = Variable<String>(language.value);
+    }
+    if (normalizedTerm.present) {
+      map['normalized_term'] = Variable<String>(normalizedTerm.value);
+    }
+    if (displayWord.present) {
+      map['display_word'] = Variable<String>(displayWord.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (usPhonetic.present) {
+      map['us_phonetic'] = Variable<String>(usPhonetic.value);
+    }
+    if (ukPhonetic.present) {
+      map['uk_phonetic'] = Variable<String>(ukPhonetic.value);
+    }
+    if (definitionsJson.present) {
+      map['definitions_json'] = Variable<String>(definitionsJson.value);
+    }
+    if (otherFormsJson.present) {
+      map['other_forms_json'] = Variable<String>(otherFormsJson.value);
+    }
+    if (shortExplanation.present) {
+      map['short_explanation'] = Variable<String>(shortExplanation.value);
+    }
+    if (longExplanation.present) {
+      map['long_explanation'] = Variable<String>(longExplanation.value);
+    }
+    if (sourceUrl.present) {
+      map['source_url'] = Variable<String>(sourceUrl.value);
+    }
+    if (fetchedAt.present) {
+      map['fetched_at'] = Variable<int>(fetchedAt.value);
+    }
+    if (expiresAt.present) {
+      map['expires_at'] = Variable<int>(expiresAt.value);
+    }
+    if (lastAccessedAt.present) {
+      map['last_accessed_at'] = Variable<int>(lastAccessedAt.value);
+    }
+    if (accessCount.present) {
+      map['access_count'] = Variable<int>(accessCount.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DictionaryEntriesCompanion(')
+          ..write('id: $id, ')
+          ..write('provider: $provider, ')
+          ..write('language: $language, ')
+          ..write('normalizedTerm: $normalizedTerm, ')
+          ..write('displayWord: $displayWord, ')
+          ..write('status: $status, ')
+          ..write('usPhonetic: $usPhonetic, ')
+          ..write('ukPhonetic: $ukPhonetic, ')
+          ..write('definitionsJson: $definitionsJson, ')
+          ..write('otherFormsJson: $otherFormsJson, ')
+          ..write('shortExplanation: $shortExplanation, ')
+          ..write('longExplanation: $longExplanation, ')
+          ..write('sourceUrl: $sourceUrl, ')
+          ..write('fetchedAt: $fetchedAt, ')
+          ..write('expiresAt: $expiresAt, ')
+          ..write('lastAccessedAt: $lastAccessedAt, ')
+          ..write('accessCount: $accessCount, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $FavoriteWordsTable extends FavoriteWords
+    with TableInfo<$FavoriteWordsTable, FavoriteWord> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $FavoriteWordsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _dictionaryEntryIdMeta = const VerificationMeta(
+    'dictionaryEntryId',
+  );
+  @override
+  late final GeneratedColumn<String> dictionaryEntryId =
+      GeneratedColumn<String>(
+        'dictionary_entry_id',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _contextTextMeta = const VerificationMeta(
+    'contextText',
+  );
+  @override
+  late final GeneratedColumn<String> contextText = GeneratedColumn<String>(
+    'context_text',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _selectionStartMeta = const VerificationMeta(
+    'selectionStart',
+  );
+  @override
+  late final GeneratedColumn<int> selectionStart = GeneratedColumn<int>(
+    'selection_start',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _selectionEndMeta = const VerificationMeta(
+    'selectionEnd',
+  );
+  @override
+  late final GeneratedColumn<int> selectionEnd = GeneratedColumn<int>(
+    'selection_end',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sourceBookIdMeta = const VerificationMeta(
+    'sourceBookId',
+  );
+  @override
+  late final GeneratedColumn<String> sourceBookId = GeneratedColumn<String>(
+    'source_book_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sourceBookTitleMeta = const VerificationMeta(
+    'sourceBookTitle',
+  );
+  @override
+  late final GeneratedColumn<String> sourceBookTitle = GeneratedColumn<String>(
+    'source_book_title',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sourceChapterIdMeta = const VerificationMeta(
+    'sourceChapterId',
+  );
+  @override
+  late final GeneratedColumn<String> sourceChapterId = GeneratedColumn<String>(
+    'source_chapter_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sourceChapterTitleMeta =
+      const VerificationMeta('sourceChapterTitle');
+  @override
+  late final GeneratedColumn<String> sourceChapterTitle =
+      GeneratedColumn<String>(
+        'source_chapter_title',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _sourceParagraphIdMeta = const VerificationMeta(
+    'sourceParagraphId',
+  );
+  @override
+  late final GeneratedColumn<String> sourceParagraphId =
+      GeneratedColumn<String>(
+        'source_paragraph_id',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _sourceLineIdMeta = const VerificationMeta(
+    'sourceLineId',
+  );
+  @override
+  late final GeneratedColumn<String> sourceLineId = GeneratedColumn<String>(
+    'source_line_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _audioStartMsMeta = const VerificationMeta(
+    'audioStartMs',
+  );
+  @override
+  late final GeneratedColumn<int> audioStartMs = GeneratedColumn<int>(
+    'audio_start_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _audioEndMsMeta = const VerificationMeta(
+    'audioEndMs',
+  );
+  @override
+  late final GeneratedColumn<int> audioEndMs = GeneratedColumn<int>(
+    'audio_end_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _favoritedAtMeta = const VerificationMeta(
+    'favoritedAt',
+  );
+  @override
+  late final GeneratedColumn<int> favoritedAt = GeneratedColumn<int>(
+    'favorited_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    dictionaryEntryId,
+    contextText,
+    selectionStart,
+    selectionEnd,
+    sourceBookId,
+    sourceBookTitle,
+    sourceChapterId,
+    sourceChapterTitle,
+    sourceParagraphId,
+    sourceLineId,
+    audioStartMs,
+    audioEndMs,
+    favoritedAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'favorite_words';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<FavoriteWord> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('dictionary_entry_id')) {
+      context.handle(
+        _dictionaryEntryIdMeta,
+        dictionaryEntryId.isAcceptableOrUnknown(
+          data['dictionary_entry_id']!,
+          _dictionaryEntryIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_dictionaryEntryIdMeta);
+    }
+    if (data.containsKey('context_text')) {
+      context.handle(
+        _contextTextMeta,
+        contextText.isAcceptableOrUnknown(
+          data['context_text']!,
+          _contextTextMeta,
+        ),
+      );
+    }
+    if (data.containsKey('selection_start')) {
+      context.handle(
+        _selectionStartMeta,
+        selectionStart.isAcceptableOrUnknown(
+          data['selection_start']!,
+          _selectionStartMeta,
+        ),
+      );
+    }
+    if (data.containsKey('selection_end')) {
+      context.handle(
+        _selectionEndMeta,
+        selectionEnd.isAcceptableOrUnknown(
+          data['selection_end']!,
+          _selectionEndMeta,
+        ),
+      );
+    }
+    if (data.containsKey('source_book_id')) {
+      context.handle(
+        _sourceBookIdMeta,
+        sourceBookId.isAcceptableOrUnknown(
+          data['source_book_id']!,
+          _sourceBookIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('source_book_title')) {
+      context.handle(
+        _sourceBookTitleMeta,
+        sourceBookTitle.isAcceptableOrUnknown(
+          data['source_book_title']!,
+          _sourceBookTitleMeta,
+        ),
+      );
+    }
+    if (data.containsKey('source_chapter_id')) {
+      context.handle(
+        _sourceChapterIdMeta,
+        sourceChapterId.isAcceptableOrUnknown(
+          data['source_chapter_id']!,
+          _sourceChapterIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('source_chapter_title')) {
+      context.handle(
+        _sourceChapterTitleMeta,
+        sourceChapterTitle.isAcceptableOrUnknown(
+          data['source_chapter_title']!,
+          _sourceChapterTitleMeta,
+        ),
+      );
+    }
+    if (data.containsKey('source_paragraph_id')) {
+      context.handle(
+        _sourceParagraphIdMeta,
+        sourceParagraphId.isAcceptableOrUnknown(
+          data['source_paragraph_id']!,
+          _sourceParagraphIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('source_line_id')) {
+      context.handle(
+        _sourceLineIdMeta,
+        sourceLineId.isAcceptableOrUnknown(
+          data['source_line_id']!,
+          _sourceLineIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('audio_start_ms')) {
+      context.handle(
+        _audioStartMsMeta,
+        audioStartMs.isAcceptableOrUnknown(
+          data['audio_start_ms']!,
+          _audioStartMsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('audio_end_ms')) {
+      context.handle(
+        _audioEndMsMeta,
+        audioEndMs.isAcceptableOrUnknown(
+          data['audio_end_ms']!,
+          _audioEndMsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('favorited_at')) {
+      context.handle(
+        _favoritedAtMeta,
+        favoritedAt.isAcceptableOrUnknown(
+          data['favorited_at']!,
+          _favoritedAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_favoritedAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {dictionaryEntryId},
+  ];
+  @override
+  FavoriteWord map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return FavoriteWord(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      dictionaryEntryId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}dictionary_entry_id'],
+      )!,
+      contextText: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}context_text'],
+      ),
+      selectionStart: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}selection_start'],
+      ),
+      selectionEnd: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}selection_end'],
+      ),
+      sourceBookId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_book_id'],
+      ),
+      sourceBookTitle: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_book_title'],
+      ),
+      sourceChapterId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_chapter_id'],
+      ),
+      sourceChapterTitle: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_chapter_title'],
+      ),
+      sourceParagraphId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_paragraph_id'],
+      ),
+      sourceLineId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_line_id'],
+      ),
+      audioStartMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}audio_start_ms'],
+      ),
+      audioEndMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}audio_end_ms'],
+      ),
+      favoritedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}favorited_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $FavoriteWordsTable createAlias(String alias) {
+    return $FavoriteWordsTable(attachedDatabase, alias);
+  }
+}
+
+class FavoriteWord extends DataClass implements Insertable<FavoriteWord> {
+  final String id;
+  final String dictionaryEntryId;
+  final String? contextText;
+  final int? selectionStart;
+  final int? selectionEnd;
+  final String? sourceBookId;
+  final String? sourceBookTitle;
+  final String? sourceChapterId;
+  final String? sourceChapterTitle;
+  final String? sourceParagraphId;
+  final String? sourceLineId;
+  final int? audioStartMs;
+  final int? audioEndMs;
+  final int favoritedAt;
+  final int updatedAt;
+  const FavoriteWord({
+    required this.id,
+    required this.dictionaryEntryId,
+    this.contextText,
+    this.selectionStart,
+    this.selectionEnd,
+    this.sourceBookId,
+    this.sourceBookTitle,
+    this.sourceChapterId,
+    this.sourceChapterTitle,
+    this.sourceParagraphId,
+    this.sourceLineId,
+    this.audioStartMs,
+    this.audioEndMs,
+    required this.favoritedAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['dictionary_entry_id'] = Variable<String>(dictionaryEntryId);
+    if (!nullToAbsent || contextText != null) {
+      map['context_text'] = Variable<String>(contextText);
+    }
+    if (!nullToAbsent || selectionStart != null) {
+      map['selection_start'] = Variable<int>(selectionStart);
+    }
+    if (!nullToAbsent || selectionEnd != null) {
+      map['selection_end'] = Variable<int>(selectionEnd);
+    }
+    if (!nullToAbsent || sourceBookId != null) {
+      map['source_book_id'] = Variable<String>(sourceBookId);
+    }
+    if (!nullToAbsent || sourceBookTitle != null) {
+      map['source_book_title'] = Variable<String>(sourceBookTitle);
+    }
+    if (!nullToAbsent || sourceChapterId != null) {
+      map['source_chapter_id'] = Variable<String>(sourceChapterId);
+    }
+    if (!nullToAbsent || sourceChapterTitle != null) {
+      map['source_chapter_title'] = Variable<String>(sourceChapterTitle);
+    }
+    if (!nullToAbsent || sourceParagraphId != null) {
+      map['source_paragraph_id'] = Variable<String>(sourceParagraphId);
+    }
+    if (!nullToAbsent || sourceLineId != null) {
+      map['source_line_id'] = Variable<String>(sourceLineId);
+    }
+    if (!nullToAbsent || audioStartMs != null) {
+      map['audio_start_ms'] = Variable<int>(audioStartMs);
+    }
+    if (!nullToAbsent || audioEndMs != null) {
+      map['audio_end_ms'] = Variable<int>(audioEndMs);
+    }
+    map['favorited_at'] = Variable<int>(favoritedAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  FavoriteWordsCompanion toCompanion(bool nullToAbsent) {
+    return FavoriteWordsCompanion(
+      id: Value(id),
+      dictionaryEntryId: Value(dictionaryEntryId),
+      contextText: contextText == null && nullToAbsent
+          ? const Value.absent()
+          : Value(contextText),
+      selectionStart: selectionStart == null && nullToAbsent
+          ? const Value.absent()
+          : Value(selectionStart),
+      selectionEnd: selectionEnd == null && nullToAbsent
+          ? const Value.absent()
+          : Value(selectionEnd),
+      sourceBookId: sourceBookId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceBookId),
+      sourceBookTitle: sourceBookTitle == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceBookTitle),
+      sourceChapterId: sourceChapterId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceChapterId),
+      sourceChapterTitle: sourceChapterTitle == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceChapterTitle),
+      sourceParagraphId: sourceParagraphId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceParagraphId),
+      sourceLineId: sourceLineId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceLineId),
+      audioStartMs: audioStartMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(audioStartMs),
+      audioEndMs: audioEndMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(audioEndMs),
+      favoritedAt: Value(favoritedAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory FavoriteWord.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return FavoriteWord(
+      id: serializer.fromJson<String>(json['id']),
+      dictionaryEntryId: serializer.fromJson<String>(json['dictionaryEntryId']),
+      contextText: serializer.fromJson<String?>(json['contextText']),
+      selectionStart: serializer.fromJson<int?>(json['selectionStart']),
+      selectionEnd: serializer.fromJson<int?>(json['selectionEnd']),
+      sourceBookId: serializer.fromJson<String?>(json['sourceBookId']),
+      sourceBookTitle: serializer.fromJson<String?>(json['sourceBookTitle']),
+      sourceChapterId: serializer.fromJson<String?>(json['sourceChapterId']),
+      sourceChapterTitle: serializer.fromJson<String?>(
+        json['sourceChapterTitle'],
+      ),
+      sourceParagraphId: serializer.fromJson<String?>(
+        json['sourceParagraphId'],
+      ),
+      sourceLineId: serializer.fromJson<String?>(json['sourceLineId']),
+      audioStartMs: serializer.fromJson<int?>(json['audioStartMs']),
+      audioEndMs: serializer.fromJson<int?>(json['audioEndMs']),
+      favoritedAt: serializer.fromJson<int>(json['favoritedAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'dictionaryEntryId': serializer.toJson<String>(dictionaryEntryId),
+      'contextText': serializer.toJson<String?>(contextText),
+      'selectionStart': serializer.toJson<int?>(selectionStart),
+      'selectionEnd': serializer.toJson<int?>(selectionEnd),
+      'sourceBookId': serializer.toJson<String?>(sourceBookId),
+      'sourceBookTitle': serializer.toJson<String?>(sourceBookTitle),
+      'sourceChapterId': serializer.toJson<String?>(sourceChapterId),
+      'sourceChapterTitle': serializer.toJson<String?>(sourceChapterTitle),
+      'sourceParagraphId': serializer.toJson<String?>(sourceParagraphId),
+      'sourceLineId': serializer.toJson<String?>(sourceLineId),
+      'audioStartMs': serializer.toJson<int?>(audioStartMs),
+      'audioEndMs': serializer.toJson<int?>(audioEndMs),
+      'favoritedAt': serializer.toJson<int>(favoritedAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  FavoriteWord copyWith({
+    String? id,
+    String? dictionaryEntryId,
+    Value<String?> contextText = const Value.absent(),
+    Value<int?> selectionStart = const Value.absent(),
+    Value<int?> selectionEnd = const Value.absent(),
+    Value<String?> sourceBookId = const Value.absent(),
+    Value<String?> sourceBookTitle = const Value.absent(),
+    Value<String?> sourceChapterId = const Value.absent(),
+    Value<String?> sourceChapterTitle = const Value.absent(),
+    Value<String?> sourceParagraphId = const Value.absent(),
+    Value<String?> sourceLineId = const Value.absent(),
+    Value<int?> audioStartMs = const Value.absent(),
+    Value<int?> audioEndMs = const Value.absent(),
+    int? favoritedAt,
+    int? updatedAt,
+  }) => FavoriteWord(
+    id: id ?? this.id,
+    dictionaryEntryId: dictionaryEntryId ?? this.dictionaryEntryId,
+    contextText: contextText.present ? contextText.value : this.contextText,
+    selectionStart: selectionStart.present
+        ? selectionStart.value
+        : this.selectionStart,
+    selectionEnd: selectionEnd.present ? selectionEnd.value : this.selectionEnd,
+    sourceBookId: sourceBookId.present ? sourceBookId.value : this.sourceBookId,
+    sourceBookTitle: sourceBookTitle.present
+        ? sourceBookTitle.value
+        : this.sourceBookTitle,
+    sourceChapterId: sourceChapterId.present
+        ? sourceChapterId.value
+        : this.sourceChapterId,
+    sourceChapterTitle: sourceChapterTitle.present
+        ? sourceChapterTitle.value
+        : this.sourceChapterTitle,
+    sourceParagraphId: sourceParagraphId.present
+        ? sourceParagraphId.value
+        : this.sourceParagraphId,
+    sourceLineId: sourceLineId.present ? sourceLineId.value : this.sourceLineId,
+    audioStartMs: audioStartMs.present ? audioStartMs.value : this.audioStartMs,
+    audioEndMs: audioEndMs.present ? audioEndMs.value : this.audioEndMs,
+    favoritedAt: favoritedAt ?? this.favoritedAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  FavoriteWord copyWithCompanion(FavoriteWordsCompanion data) {
+    return FavoriteWord(
+      id: data.id.present ? data.id.value : this.id,
+      dictionaryEntryId: data.dictionaryEntryId.present
+          ? data.dictionaryEntryId.value
+          : this.dictionaryEntryId,
+      contextText: data.contextText.present
+          ? data.contextText.value
+          : this.contextText,
+      selectionStart: data.selectionStart.present
+          ? data.selectionStart.value
+          : this.selectionStart,
+      selectionEnd: data.selectionEnd.present
+          ? data.selectionEnd.value
+          : this.selectionEnd,
+      sourceBookId: data.sourceBookId.present
+          ? data.sourceBookId.value
+          : this.sourceBookId,
+      sourceBookTitle: data.sourceBookTitle.present
+          ? data.sourceBookTitle.value
+          : this.sourceBookTitle,
+      sourceChapterId: data.sourceChapterId.present
+          ? data.sourceChapterId.value
+          : this.sourceChapterId,
+      sourceChapterTitle: data.sourceChapterTitle.present
+          ? data.sourceChapterTitle.value
+          : this.sourceChapterTitle,
+      sourceParagraphId: data.sourceParagraphId.present
+          ? data.sourceParagraphId.value
+          : this.sourceParagraphId,
+      sourceLineId: data.sourceLineId.present
+          ? data.sourceLineId.value
+          : this.sourceLineId,
+      audioStartMs: data.audioStartMs.present
+          ? data.audioStartMs.value
+          : this.audioStartMs,
+      audioEndMs: data.audioEndMs.present
+          ? data.audioEndMs.value
+          : this.audioEndMs,
+      favoritedAt: data.favoritedAt.present
+          ? data.favoritedAt.value
+          : this.favoritedAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FavoriteWord(')
+          ..write('id: $id, ')
+          ..write('dictionaryEntryId: $dictionaryEntryId, ')
+          ..write('contextText: $contextText, ')
+          ..write('selectionStart: $selectionStart, ')
+          ..write('selectionEnd: $selectionEnd, ')
+          ..write('sourceBookId: $sourceBookId, ')
+          ..write('sourceBookTitle: $sourceBookTitle, ')
+          ..write('sourceChapterId: $sourceChapterId, ')
+          ..write('sourceChapterTitle: $sourceChapterTitle, ')
+          ..write('sourceParagraphId: $sourceParagraphId, ')
+          ..write('sourceLineId: $sourceLineId, ')
+          ..write('audioStartMs: $audioStartMs, ')
+          ..write('audioEndMs: $audioEndMs, ')
+          ..write('favoritedAt: $favoritedAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    dictionaryEntryId,
+    contextText,
+    selectionStart,
+    selectionEnd,
+    sourceBookId,
+    sourceBookTitle,
+    sourceChapterId,
+    sourceChapterTitle,
+    sourceParagraphId,
+    sourceLineId,
+    audioStartMs,
+    audioEndMs,
+    favoritedAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is FavoriteWord &&
+          other.id == this.id &&
+          other.dictionaryEntryId == this.dictionaryEntryId &&
+          other.contextText == this.contextText &&
+          other.selectionStart == this.selectionStart &&
+          other.selectionEnd == this.selectionEnd &&
+          other.sourceBookId == this.sourceBookId &&
+          other.sourceBookTitle == this.sourceBookTitle &&
+          other.sourceChapterId == this.sourceChapterId &&
+          other.sourceChapterTitle == this.sourceChapterTitle &&
+          other.sourceParagraphId == this.sourceParagraphId &&
+          other.sourceLineId == this.sourceLineId &&
+          other.audioStartMs == this.audioStartMs &&
+          other.audioEndMs == this.audioEndMs &&
+          other.favoritedAt == this.favoritedAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class FavoriteWordsCompanion extends UpdateCompanion<FavoriteWord> {
+  final Value<String> id;
+  final Value<String> dictionaryEntryId;
+  final Value<String?> contextText;
+  final Value<int?> selectionStart;
+  final Value<int?> selectionEnd;
+  final Value<String?> sourceBookId;
+  final Value<String?> sourceBookTitle;
+  final Value<String?> sourceChapterId;
+  final Value<String?> sourceChapterTitle;
+  final Value<String?> sourceParagraphId;
+  final Value<String?> sourceLineId;
+  final Value<int?> audioStartMs;
+  final Value<int?> audioEndMs;
+  final Value<int> favoritedAt;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const FavoriteWordsCompanion({
+    this.id = const Value.absent(),
+    this.dictionaryEntryId = const Value.absent(),
+    this.contextText = const Value.absent(),
+    this.selectionStart = const Value.absent(),
+    this.selectionEnd = const Value.absent(),
+    this.sourceBookId = const Value.absent(),
+    this.sourceBookTitle = const Value.absent(),
+    this.sourceChapterId = const Value.absent(),
+    this.sourceChapterTitle = const Value.absent(),
+    this.sourceParagraphId = const Value.absent(),
+    this.sourceLineId = const Value.absent(),
+    this.audioStartMs = const Value.absent(),
+    this.audioEndMs = const Value.absent(),
+    this.favoritedAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  FavoriteWordsCompanion.insert({
+    required String id,
+    required String dictionaryEntryId,
+    this.contextText = const Value.absent(),
+    this.selectionStart = const Value.absent(),
+    this.selectionEnd = const Value.absent(),
+    this.sourceBookId = const Value.absent(),
+    this.sourceBookTitle = const Value.absent(),
+    this.sourceChapterId = const Value.absent(),
+    this.sourceChapterTitle = const Value.absent(),
+    this.sourceParagraphId = const Value.absent(),
+    this.sourceLineId = const Value.absent(),
+    this.audioStartMs = const Value.absent(),
+    this.audioEndMs = const Value.absent(),
+    required int favoritedAt,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       dictionaryEntryId = Value(dictionaryEntryId),
+       favoritedAt = Value(favoritedAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<FavoriteWord> custom({
+    Expression<String>? id,
+    Expression<String>? dictionaryEntryId,
+    Expression<String>? contextText,
+    Expression<int>? selectionStart,
+    Expression<int>? selectionEnd,
+    Expression<String>? sourceBookId,
+    Expression<String>? sourceBookTitle,
+    Expression<String>? sourceChapterId,
+    Expression<String>? sourceChapterTitle,
+    Expression<String>? sourceParagraphId,
+    Expression<String>? sourceLineId,
+    Expression<int>? audioStartMs,
+    Expression<int>? audioEndMs,
+    Expression<int>? favoritedAt,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (dictionaryEntryId != null) 'dictionary_entry_id': dictionaryEntryId,
+      if (contextText != null) 'context_text': contextText,
+      if (selectionStart != null) 'selection_start': selectionStart,
+      if (selectionEnd != null) 'selection_end': selectionEnd,
+      if (sourceBookId != null) 'source_book_id': sourceBookId,
+      if (sourceBookTitle != null) 'source_book_title': sourceBookTitle,
+      if (sourceChapterId != null) 'source_chapter_id': sourceChapterId,
+      if (sourceChapterTitle != null)
+        'source_chapter_title': sourceChapterTitle,
+      if (sourceParagraphId != null) 'source_paragraph_id': sourceParagraphId,
+      if (sourceLineId != null) 'source_line_id': sourceLineId,
+      if (audioStartMs != null) 'audio_start_ms': audioStartMs,
+      if (audioEndMs != null) 'audio_end_ms': audioEndMs,
+      if (favoritedAt != null) 'favorited_at': favoritedAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  FavoriteWordsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? dictionaryEntryId,
+    Value<String?>? contextText,
+    Value<int?>? selectionStart,
+    Value<int?>? selectionEnd,
+    Value<String?>? sourceBookId,
+    Value<String?>? sourceBookTitle,
+    Value<String?>? sourceChapterId,
+    Value<String?>? sourceChapterTitle,
+    Value<String?>? sourceParagraphId,
+    Value<String?>? sourceLineId,
+    Value<int?>? audioStartMs,
+    Value<int?>? audioEndMs,
+    Value<int>? favoritedAt,
+    Value<int>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return FavoriteWordsCompanion(
+      id: id ?? this.id,
+      dictionaryEntryId: dictionaryEntryId ?? this.dictionaryEntryId,
+      contextText: contextText ?? this.contextText,
+      selectionStart: selectionStart ?? this.selectionStart,
+      selectionEnd: selectionEnd ?? this.selectionEnd,
+      sourceBookId: sourceBookId ?? this.sourceBookId,
+      sourceBookTitle: sourceBookTitle ?? this.sourceBookTitle,
+      sourceChapterId: sourceChapterId ?? this.sourceChapterId,
+      sourceChapterTitle: sourceChapterTitle ?? this.sourceChapterTitle,
+      sourceParagraphId: sourceParagraphId ?? this.sourceParagraphId,
+      sourceLineId: sourceLineId ?? this.sourceLineId,
+      audioStartMs: audioStartMs ?? this.audioStartMs,
+      audioEndMs: audioEndMs ?? this.audioEndMs,
+      favoritedAt: favoritedAt ?? this.favoritedAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (dictionaryEntryId.present) {
+      map['dictionary_entry_id'] = Variable<String>(dictionaryEntryId.value);
+    }
+    if (contextText.present) {
+      map['context_text'] = Variable<String>(contextText.value);
+    }
+    if (selectionStart.present) {
+      map['selection_start'] = Variable<int>(selectionStart.value);
+    }
+    if (selectionEnd.present) {
+      map['selection_end'] = Variable<int>(selectionEnd.value);
+    }
+    if (sourceBookId.present) {
+      map['source_book_id'] = Variable<String>(sourceBookId.value);
+    }
+    if (sourceBookTitle.present) {
+      map['source_book_title'] = Variable<String>(sourceBookTitle.value);
+    }
+    if (sourceChapterId.present) {
+      map['source_chapter_id'] = Variable<String>(sourceChapterId.value);
+    }
+    if (sourceChapterTitle.present) {
+      map['source_chapter_title'] = Variable<String>(sourceChapterTitle.value);
+    }
+    if (sourceParagraphId.present) {
+      map['source_paragraph_id'] = Variable<String>(sourceParagraphId.value);
+    }
+    if (sourceLineId.present) {
+      map['source_line_id'] = Variable<String>(sourceLineId.value);
+    }
+    if (audioStartMs.present) {
+      map['audio_start_ms'] = Variable<int>(audioStartMs.value);
+    }
+    if (audioEndMs.present) {
+      map['audio_end_ms'] = Variable<int>(audioEndMs.value);
+    }
+    if (favoritedAt.present) {
+      map['favorited_at'] = Variable<int>(favoritedAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FavoriteWordsCompanion(')
+          ..write('id: $id, ')
+          ..write('dictionaryEntryId: $dictionaryEntryId, ')
+          ..write('contextText: $contextText, ')
+          ..write('selectionStart: $selectionStart, ')
+          ..write('selectionEnd: $selectionEnd, ')
+          ..write('sourceBookId: $sourceBookId, ')
+          ..write('sourceBookTitle: $sourceBookTitle, ')
+          ..write('sourceChapterId: $sourceChapterId, ')
+          ..write('sourceChapterTitle: $sourceChapterTitle, ')
+          ..write('sourceParagraphId: $sourceParagraphId, ')
+          ..write('sourceLineId: $sourceLineId, ')
+          ..write('audioStartMs: $audioStartMs, ')
+          ..write('audioEndMs: $audioEndMs, ')
+          ..write('favoritedAt: $favoritedAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -3647,6 +5595,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $AppSettingsTable appSettings = $AppSettingsTable(this);
   late final $CostRecordsTable costRecords = $CostRecordsTable(this);
   late final $ListeningDaysTable listeningDays = $ListeningDaysTable(this);
+  late final $DictionaryEntriesTable dictionaryEntries =
+      $DictionaryEntriesTable(this);
+  late final $FavoriteWordsTable favoriteWords = $FavoriteWordsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -3660,6 +5611,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     appSettings,
     costRecords,
     listeningDays,
+    dictionaryEntries,
+    favoriteWords,
   ];
 }
 
@@ -5533,6 +7486,879 @@ typedef $$ListeningDaysTableProcessedTableManager =
       ListeningDay,
       PrefetchHooks Function()
     >;
+typedef $$DictionaryEntriesTableCreateCompanionBuilder =
+    DictionaryEntriesCompanion Function({
+      required String id,
+      required String provider,
+      required String language,
+      required String normalizedTerm,
+      required String displayWord,
+      required String status,
+      Value<String?> usPhonetic,
+      Value<String?> ukPhonetic,
+      Value<String?> definitionsJson,
+      Value<String?> otherFormsJson,
+      Value<String?> shortExplanation,
+      Value<String?> longExplanation,
+      required String sourceUrl,
+      required int fetchedAt,
+      Value<int?> expiresAt,
+      required int lastAccessedAt,
+      Value<int> accessCount,
+      Value<int> rowid,
+    });
+typedef $$DictionaryEntriesTableUpdateCompanionBuilder =
+    DictionaryEntriesCompanion Function({
+      Value<String> id,
+      Value<String> provider,
+      Value<String> language,
+      Value<String> normalizedTerm,
+      Value<String> displayWord,
+      Value<String> status,
+      Value<String?> usPhonetic,
+      Value<String?> ukPhonetic,
+      Value<String?> definitionsJson,
+      Value<String?> otherFormsJson,
+      Value<String?> shortExplanation,
+      Value<String?> longExplanation,
+      Value<String> sourceUrl,
+      Value<int> fetchedAt,
+      Value<int?> expiresAt,
+      Value<int> lastAccessedAt,
+      Value<int> accessCount,
+      Value<int> rowid,
+    });
+
+class $$DictionaryEntriesTableFilterComposer
+    extends Composer<_$AppDatabase, $DictionaryEntriesTable> {
+  $$DictionaryEntriesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get provider => $composableBuilder(
+    column: $table.provider,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get language => $composableBuilder(
+    column: $table.language,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get normalizedTerm => $composableBuilder(
+    column: $table.normalizedTerm,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get displayWord => $composableBuilder(
+    column: $table.displayWord,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get usPhonetic => $composableBuilder(
+    column: $table.usPhonetic,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ukPhonetic => $composableBuilder(
+    column: $table.ukPhonetic,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get definitionsJson => $composableBuilder(
+    column: $table.definitionsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get otherFormsJson => $composableBuilder(
+    column: $table.otherFormsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get shortExplanation => $composableBuilder(
+    column: $table.shortExplanation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get longExplanation => $composableBuilder(
+    column: $table.longExplanation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceUrl => $composableBuilder(
+    column: $table.sourceUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get fetchedAt => $composableBuilder(
+    column: $table.fetchedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get expiresAt => $composableBuilder(
+    column: $table.expiresAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastAccessedAt => $composableBuilder(
+    column: $table.lastAccessedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get accessCount => $composableBuilder(
+    column: $table.accessCount,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$DictionaryEntriesTableOrderingComposer
+    extends Composer<_$AppDatabase, $DictionaryEntriesTable> {
+  $$DictionaryEntriesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get provider => $composableBuilder(
+    column: $table.provider,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get language => $composableBuilder(
+    column: $table.language,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get normalizedTerm => $composableBuilder(
+    column: $table.normalizedTerm,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get displayWord => $composableBuilder(
+    column: $table.displayWord,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get usPhonetic => $composableBuilder(
+    column: $table.usPhonetic,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get ukPhonetic => $composableBuilder(
+    column: $table.ukPhonetic,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get definitionsJson => $composableBuilder(
+    column: $table.definitionsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get otherFormsJson => $composableBuilder(
+    column: $table.otherFormsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get shortExplanation => $composableBuilder(
+    column: $table.shortExplanation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get longExplanation => $composableBuilder(
+    column: $table.longExplanation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceUrl => $composableBuilder(
+    column: $table.sourceUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get fetchedAt => $composableBuilder(
+    column: $table.fetchedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get expiresAt => $composableBuilder(
+    column: $table.expiresAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastAccessedAt => $composableBuilder(
+    column: $table.lastAccessedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get accessCount => $composableBuilder(
+    column: $table.accessCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$DictionaryEntriesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DictionaryEntriesTable> {
+  $$DictionaryEntriesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get provider =>
+      $composableBuilder(column: $table.provider, builder: (column) => column);
+
+  GeneratedColumn<String> get language =>
+      $composableBuilder(column: $table.language, builder: (column) => column);
+
+  GeneratedColumn<String> get normalizedTerm => $composableBuilder(
+    column: $table.normalizedTerm,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get displayWord => $composableBuilder(
+    column: $table.displayWord,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get usPhonetic => $composableBuilder(
+    column: $table.usPhonetic,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get ukPhonetic => $composableBuilder(
+    column: $table.ukPhonetic,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get definitionsJson => $composableBuilder(
+    column: $table.definitionsJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get otherFormsJson => $composableBuilder(
+    column: $table.otherFormsJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get shortExplanation => $composableBuilder(
+    column: $table.shortExplanation,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get longExplanation => $composableBuilder(
+    column: $table.longExplanation,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sourceUrl =>
+      $composableBuilder(column: $table.sourceUrl, builder: (column) => column);
+
+  GeneratedColumn<int> get fetchedAt =>
+      $composableBuilder(column: $table.fetchedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get expiresAt =>
+      $composableBuilder(column: $table.expiresAt, builder: (column) => column);
+
+  GeneratedColumn<int> get lastAccessedAt => $composableBuilder(
+    column: $table.lastAccessedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get accessCount => $composableBuilder(
+    column: $table.accessCount,
+    builder: (column) => column,
+  );
+}
+
+class $$DictionaryEntriesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DictionaryEntriesTable,
+          DictionaryEntry,
+          $$DictionaryEntriesTableFilterComposer,
+          $$DictionaryEntriesTableOrderingComposer,
+          $$DictionaryEntriesTableAnnotationComposer,
+          $$DictionaryEntriesTableCreateCompanionBuilder,
+          $$DictionaryEntriesTableUpdateCompanionBuilder,
+          (
+            DictionaryEntry,
+            BaseReferences<
+              _$AppDatabase,
+              $DictionaryEntriesTable,
+              DictionaryEntry
+            >,
+          ),
+          DictionaryEntry,
+          PrefetchHooks Function()
+        > {
+  $$DictionaryEntriesTableTableManager(
+    _$AppDatabase db,
+    $DictionaryEntriesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DictionaryEntriesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DictionaryEntriesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DictionaryEntriesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> provider = const Value.absent(),
+                Value<String> language = const Value.absent(),
+                Value<String> normalizedTerm = const Value.absent(),
+                Value<String> displayWord = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<String?> usPhonetic = const Value.absent(),
+                Value<String?> ukPhonetic = const Value.absent(),
+                Value<String?> definitionsJson = const Value.absent(),
+                Value<String?> otherFormsJson = const Value.absent(),
+                Value<String?> shortExplanation = const Value.absent(),
+                Value<String?> longExplanation = const Value.absent(),
+                Value<String> sourceUrl = const Value.absent(),
+                Value<int> fetchedAt = const Value.absent(),
+                Value<int?> expiresAt = const Value.absent(),
+                Value<int> lastAccessedAt = const Value.absent(),
+                Value<int> accessCount = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DictionaryEntriesCompanion(
+                id: id,
+                provider: provider,
+                language: language,
+                normalizedTerm: normalizedTerm,
+                displayWord: displayWord,
+                status: status,
+                usPhonetic: usPhonetic,
+                ukPhonetic: ukPhonetic,
+                definitionsJson: definitionsJson,
+                otherFormsJson: otherFormsJson,
+                shortExplanation: shortExplanation,
+                longExplanation: longExplanation,
+                sourceUrl: sourceUrl,
+                fetchedAt: fetchedAt,
+                expiresAt: expiresAt,
+                lastAccessedAt: lastAccessedAt,
+                accessCount: accessCount,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String provider,
+                required String language,
+                required String normalizedTerm,
+                required String displayWord,
+                required String status,
+                Value<String?> usPhonetic = const Value.absent(),
+                Value<String?> ukPhonetic = const Value.absent(),
+                Value<String?> definitionsJson = const Value.absent(),
+                Value<String?> otherFormsJson = const Value.absent(),
+                Value<String?> shortExplanation = const Value.absent(),
+                Value<String?> longExplanation = const Value.absent(),
+                required String sourceUrl,
+                required int fetchedAt,
+                Value<int?> expiresAt = const Value.absent(),
+                required int lastAccessedAt,
+                Value<int> accessCount = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DictionaryEntriesCompanion.insert(
+                id: id,
+                provider: provider,
+                language: language,
+                normalizedTerm: normalizedTerm,
+                displayWord: displayWord,
+                status: status,
+                usPhonetic: usPhonetic,
+                ukPhonetic: ukPhonetic,
+                definitionsJson: definitionsJson,
+                otherFormsJson: otherFormsJson,
+                shortExplanation: shortExplanation,
+                longExplanation: longExplanation,
+                sourceUrl: sourceUrl,
+                fetchedAt: fetchedAt,
+                expiresAt: expiresAt,
+                lastAccessedAt: lastAccessedAt,
+                accessCount: accessCount,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$DictionaryEntriesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DictionaryEntriesTable,
+      DictionaryEntry,
+      $$DictionaryEntriesTableFilterComposer,
+      $$DictionaryEntriesTableOrderingComposer,
+      $$DictionaryEntriesTableAnnotationComposer,
+      $$DictionaryEntriesTableCreateCompanionBuilder,
+      $$DictionaryEntriesTableUpdateCompanionBuilder,
+      (
+        DictionaryEntry,
+        BaseReferences<_$AppDatabase, $DictionaryEntriesTable, DictionaryEntry>,
+      ),
+      DictionaryEntry,
+      PrefetchHooks Function()
+    >;
+typedef $$FavoriteWordsTableCreateCompanionBuilder =
+    FavoriteWordsCompanion Function({
+      required String id,
+      required String dictionaryEntryId,
+      Value<String?> contextText,
+      Value<int?> selectionStart,
+      Value<int?> selectionEnd,
+      Value<String?> sourceBookId,
+      Value<String?> sourceBookTitle,
+      Value<String?> sourceChapterId,
+      Value<String?> sourceChapterTitle,
+      Value<String?> sourceParagraphId,
+      Value<String?> sourceLineId,
+      Value<int?> audioStartMs,
+      Value<int?> audioEndMs,
+      required int favoritedAt,
+      required int updatedAt,
+      Value<int> rowid,
+    });
+typedef $$FavoriteWordsTableUpdateCompanionBuilder =
+    FavoriteWordsCompanion Function({
+      Value<String> id,
+      Value<String> dictionaryEntryId,
+      Value<String?> contextText,
+      Value<int?> selectionStart,
+      Value<int?> selectionEnd,
+      Value<String?> sourceBookId,
+      Value<String?> sourceBookTitle,
+      Value<String?> sourceChapterId,
+      Value<String?> sourceChapterTitle,
+      Value<String?> sourceParagraphId,
+      Value<String?> sourceLineId,
+      Value<int?> audioStartMs,
+      Value<int?> audioEndMs,
+      Value<int> favoritedAt,
+      Value<int> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$FavoriteWordsTableFilterComposer
+    extends Composer<_$AppDatabase, $FavoriteWordsTable> {
+  $$FavoriteWordsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get dictionaryEntryId => $composableBuilder(
+    column: $table.dictionaryEntryId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contextText => $composableBuilder(
+    column: $table.contextText,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get selectionStart => $composableBuilder(
+    column: $table.selectionStart,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get selectionEnd => $composableBuilder(
+    column: $table.selectionEnd,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceBookId => $composableBuilder(
+    column: $table.sourceBookId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceBookTitle => $composableBuilder(
+    column: $table.sourceBookTitle,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceChapterId => $composableBuilder(
+    column: $table.sourceChapterId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceChapterTitle => $composableBuilder(
+    column: $table.sourceChapterTitle,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceParagraphId => $composableBuilder(
+    column: $table.sourceParagraphId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceLineId => $composableBuilder(
+    column: $table.sourceLineId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get audioStartMs => $composableBuilder(
+    column: $table.audioStartMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get audioEndMs => $composableBuilder(
+    column: $table.audioEndMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get favoritedAt => $composableBuilder(
+    column: $table.favoritedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$FavoriteWordsTableOrderingComposer
+    extends Composer<_$AppDatabase, $FavoriteWordsTable> {
+  $$FavoriteWordsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get dictionaryEntryId => $composableBuilder(
+    column: $table.dictionaryEntryId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get contextText => $composableBuilder(
+    column: $table.contextText,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get selectionStart => $composableBuilder(
+    column: $table.selectionStart,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get selectionEnd => $composableBuilder(
+    column: $table.selectionEnd,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceBookId => $composableBuilder(
+    column: $table.sourceBookId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceBookTitle => $composableBuilder(
+    column: $table.sourceBookTitle,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceChapterId => $composableBuilder(
+    column: $table.sourceChapterId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceChapterTitle => $composableBuilder(
+    column: $table.sourceChapterTitle,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceParagraphId => $composableBuilder(
+    column: $table.sourceParagraphId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceLineId => $composableBuilder(
+    column: $table.sourceLineId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get audioStartMs => $composableBuilder(
+    column: $table.audioStartMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get audioEndMs => $composableBuilder(
+    column: $table.audioEndMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get favoritedAt => $composableBuilder(
+    column: $table.favoritedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$FavoriteWordsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $FavoriteWordsTable> {
+  $$FavoriteWordsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get dictionaryEntryId => $composableBuilder(
+    column: $table.dictionaryEntryId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get contextText => $composableBuilder(
+    column: $table.contextText,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get selectionStart => $composableBuilder(
+    column: $table.selectionStart,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get selectionEnd => $composableBuilder(
+    column: $table.selectionEnd,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sourceBookId => $composableBuilder(
+    column: $table.sourceBookId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sourceBookTitle => $composableBuilder(
+    column: $table.sourceBookTitle,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sourceChapterId => $composableBuilder(
+    column: $table.sourceChapterId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sourceChapterTitle => $composableBuilder(
+    column: $table.sourceChapterTitle,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sourceParagraphId => $composableBuilder(
+    column: $table.sourceParagraphId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sourceLineId => $composableBuilder(
+    column: $table.sourceLineId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get audioStartMs => $composableBuilder(
+    column: $table.audioStartMs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get audioEndMs => $composableBuilder(
+    column: $table.audioEndMs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get favoritedAt => $composableBuilder(
+    column: $table.favoritedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$FavoriteWordsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $FavoriteWordsTable,
+          FavoriteWord,
+          $$FavoriteWordsTableFilterComposer,
+          $$FavoriteWordsTableOrderingComposer,
+          $$FavoriteWordsTableAnnotationComposer,
+          $$FavoriteWordsTableCreateCompanionBuilder,
+          $$FavoriteWordsTableUpdateCompanionBuilder,
+          (
+            FavoriteWord,
+            BaseReferences<_$AppDatabase, $FavoriteWordsTable, FavoriteWord>,
+          ),
+          FavoriteWord,
+          PrefetchHooks Function()
+        > {
+  $$FavoriteWordsTableTableManager(_$AppDatabase db, $FavoriteWordsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$FavoriteWordsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$FavoriteWordsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$FavoriteWordsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> dictionaryEntryId = const Value.absent(),
+                Value<String?> contextText = const Value.absent(),
+                Value<int?> selectionStart = const Value.absent(),
+                Value<int?> selectionEnd = const Value.absent(),
+                Value<String?> sourceBookId = const Value.absent(),
+                Value<String?> sourceBookTitle = const Value.absent(),
+                Value<String?> sourceChapterId = const Value.absent(),
+                Value<String?> sourceChapterTitle = const Value.absent(),
+                Value<String?> sourceParagraphId = const Value.absent(),
+                Value<String?> sourceLineId = const Value.absent(),
+                Value<int?> audioStartMs = const Value.absent(),
+                Value<int?> audioEndMs = const Value.absent(),
+                Value<int> favoritedAt = const Value.absent(),
+                Value<int> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => FavoriteWordsCompanion(
+                id: id,
+                dictionaryEntryId: dictionaryEntryId,
+                contextText: contextText,
+                selectionStart: selectionStart,
+                selectionEnd: selectionEnd,
+                sourceBookId: sourceBookId,
+                sourceBookTitle: sourceBookTitle,
+                sourceChapterId: sourceChapterId,
+                sourceChapterTitle: sourceChapterTitle,
+                sourceParagraphId: sourceParagraphId,
+                sourceLineId: sourceLineId,
+                audioStartMs: audioStartMs,
+                audioEndMs: audioEndMs,
+                favoritedAt: favoritedAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String dictionaryEntryId,
+                Value<String?> contextText = const Value.absent(),
+                Value<int?> selectionStart = const Value.absent(),
+                Value<int?> selectionEnd = const Value.absent(),
+                Value<String?> sourceBookId = const Value.absent(),
+                Value<String?> sourceBookTitle = const Value.absent(),
+                Value<String?> sourceChapterId = const Value.absent(),
+                Value<String?> sourceChapterTitle = const Value.absent(),
+                Value<String?> sourceParagraphId = const Value.absent(),
+                Value<String?> sourceLineId = const Value.absent(),
+                Value<int?> audioStartMs = const Value.absent(),
+                Value<int?> audioEndMs = const Value.absent(),
+                required int favoritedAt,
+                required int updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => FavoriteWordsCompanion.insert(
+                id: id,
+                dictionaryEntryId: dictionaryEntryId,
+                contextText: contextText,
+                selectionStart: selectionStart,
+                selectionEnd: selectionEnd,
+                sourceBookId: sourceBookId,
+                sourceBookTitle: sourceBookTitle,
+                sourceChapterId: sourceChapterId,
+                sourceChapterTitle: sourceChapterTitle,
+                sourceParagraphId: sourceParagraphId,
+                sourceLineId: sourceLineId,
+                audioStartMs: audioStartMs,
+                audioEndMs: audioEndMs,
+                favoritedAt: favoritedAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$FavoriteWordsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $FavoriteWordsTable,
+      FavoriteWord,
+      $$FavoriteWordsTableFilterComposer,
+      $$FavoriteWordsTableOrderingComposer,
+      $$FavoriteWordsTableAnnotationComposer,
+      $$FavoriteWordsTableCreateCompanionBuilder,
+      $$FavoriteWordsTableUpdateCompanionBuilder,
+      (
+        FavoriteWord,
+        BaseReferences<_$AppDatabase, $FavoriteWordsTable, FavoriteWord>,
+      ),
+      FavoriteWord,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -5553,4 +8379,8 @@ class $AppDatabaseManager {
       $$CostRecordsTableTableManager(_db, _db.costRecords);
   $$ListeningDaysTableTableManager get listeningDays =>
       $$ListeningDaysTableTableManager(_db, _db.listeningDays);
+  $$DictionaryEntriesTableTableManager get dictionaryEntries =>
+      $$DictionaryEntriesTableTableManager(_db, _db.dictionaryEntries);
+  $$FavoriteWordsTableTableManager get favoriteWords =>
+      $$FavoriteWordsTableTableManager(_db, _db.favoriteWords);
 }

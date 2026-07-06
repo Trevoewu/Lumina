@@ -19,6 +19,7 @@ import '../../../tts/tts_provider.dart';
 import '../../widgets/book_cover.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
 import '../album/album_screen.dart';
+import '../search/search_screen.dart';
 
 /// 书架首页。
 class LibraryScreen extends ConsumerStatefulWidget {
@@ -42,6 +43,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     return CollapsingPageScaffold(
       title: context.tr('书架', 'Your Library'),
       actions: [
+        IconButton(
+          tooltip: context.tr('搜索书籍', 'Search Books'),
+          onPressed: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const SearchScreen())),
+          icon: Icon(Icons.search, color: context.appTextPrimary),
+        ),
         IconButton(
           tooltip: context.tr('导入书籍', 'Import Book'),
           onPressed: _importing ? null : () => _importBook(context),

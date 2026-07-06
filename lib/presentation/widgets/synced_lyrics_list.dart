@@ -3,12 +3,16 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/app_colors.dart';
+import '../../core/app_localizations.dart';
 import '../../data/database/app_database.dart' as drift_db;
 import '../../domain/models/audio_text_timing.dart';
 import '../../domain/models/chapter_manifest.dart';
+import '../../domain/models/vocabulary_entry.dart';
 import '../../services/lumina_audio_handler.dart';
+import '../screens/dictionary/dictionary_screen.dart';
 
 class SyncedLyricLine {
   final String id;
@@ -24,6 +28,58 @@ class SyncedLyricLine {
     required this.startMs,
     required this.endMs,
   });
+}
+
+class SelectableTextToken {
+  final String text;
+  final int start;
+  final int end;
+
+  const SelectableTextToken({
+    required this.text,
+    required this.start,
+    required this.end,
+  });
+}
+
+List<SelectableTextToken> tokenizeSelectableText(String text) {
+  final pattern = RegExp(
+    r"[A-Za-z\u00c0-\u02af\u3400-\u9fff]+(?:['’\-][A-Za-z\u00c0-\u02af\u3400-\u9fff]+)*|\d+(?:[.,]\d+)*|[^\s]",
+    unicode: true,
+  );
+  return [
+    for (final match in pattern.allMatches(text))
+      SelectableTextToken(
+        text: match.group(0)!,
+        start: match.start,
+        end: match.end,
+      ),
+  ];
+}
+
+String selectedTokenText(
+  String source,
+  List<SelectableTextToken> tokens,
+  Set<int> selected,
+) {
+  if (selected.isEmpty) return '';
+  final indices = selected.where((index) => index < tokens.length).toList()
+    ..sort();
+  if (indices.isEmpty) return '';
+  final buffer = StringBuffer(tokens[indices.first].text);
+  for (var position = 1; position < indices.length; position++) {
+    final previous = indices[position - 1];
+    final current = indices[position];
+    if (current == previous + 1) {
+      buffer.write(
+        source.substring(tokens[previous].end, tokens[current].start),
+      );
+    } else {
+      buffer.write(' ');
+    }
+    buffer.write(tokens[current].text);
+  }
+  return buffer.toString().trim();
 }
 
 List<SyncedLyricLine> buildSyncedLyricLines(
@@ -308,6 +364,8 @@ class SyncedLyricsList extends StatefulWidget {
   final ChapterManifest? manifest;
   final LuminaAudioHandler handler;
   final bool expanded;
+  final String? bookTitle;
+  final String? chapterTitle;
 
   const SyncedLyricsList({
     super.key,
@@ -315,6 +373,8 @@ class SyncedLyricsList extends StatefulWidget {
     required this.manifest,
     required this.handler,
     this.expanded = false,
+    this.bookTitle,
+    this.chapterTitle,
   });
 
   @override
@@ -323,6 +383,8 @@ class SyncedLyricsList extends StatefulWidget {
 
 class _SyncedLyricsListState extends State<SyncedLyricsList> {
   final ScrollController _scrollController = ScrollController();
+  final GlobalKey<SelectionAreaState> _selectionAreaKey =
+      GlobalKey<SelectionAreaState>();
   final Map<String, GlobalKey> _lineKeys = {};
   StreamSubscription<String?>? _paragraphSub;
   StreamSubscription<Duration>? _positionSub;
@@ -332,6 +394,16 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
   String? _activeLineId;
   String? _pendingScrollLineId;
   bool _pendingForceScroll = false;
+  String _selectedText = '';
+  String? _selectionLineId;
+  String? _wordSelectionLineId;
+  List<SelectableTextToken> _wordSelectionTokens = const [];
+  final Set<int> _selectedTokenIndices = {};
+  final Map<int, GlobalKey> _tokenKeys = {};
+  int? _pointerStartToken;
+  Offset? _pointerStartPosition;
+  bool _pointerDidDrag = false;
+  String? _pressedLineId;
 
   @override
   void initState() {
@@ -352,6 +424,14 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
 
   void _rebuildLines() {
     _lines = buildSyncedLyricLines(widget.paragraphs, widget.manifest);
+    if (_wordSelectionLineId != null &&
+        !_lines.any((line) => line.id == _wordSelectionLineId)) {
+      _wordSelectionLineId = null;
+      _wordSelectionTokens = const [];
+      _selectedTokenIndices.clear();
+      _tokenKeys.clear();
+      _resetSelectionPointer();
+    }
     _sync(widget.handler.position, forceScroll: true);
   }
 
@@ -380,6 +460,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
         break;
       }
     }
+    if (_wordSelectionLineId != null) return;
     if (!forceScroll && active?.id == _activeLineId) return;
     setState(() => _activeLineId = active?.id);
     if (active != null) _scrollTo(active.id, force: forceScroll);
@@ -432,6 +513,193 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
     );
   }
 
+  Widget _buildSelectionMenu(
+    BuildContext context,
+    SelectableRegionState selectableRegionState,
+  ) {
+    final items = [...selectableRegionState.contextMenuButtonItems];
+    if (_selectedText.isNotEmpty) {
+      items.insert(
+        items.isEmpty ? 0 : 1,
+        ContextMenuButtonItem(
+          label: context.tr('查词', 'Look Up'),
+          onPressed: () => _lookUpSelection(selectableRegionState),
+        ),
+      );
+      items.insert(
+        items.length < 2 ? items.length : 2,
+        ContextMenuButtonItem(
+          label: context.tr('询问 AI', 'Ask AI'),
+          onPressed: () => _askAiAboutSelection(selectableRegionState),
+        ),
+      );
+    }
+    return AdaptiveTextSelectionToolbar.buttonItems(
+      anchors: selectableRegionState.contextMenuAnchors,
+      buttonItems: items,
+    );
+  }
+
+  Future<void> _lookUpSelection(SelectableRegionState selectableRegionState) =>
+      _openSelection(selectableRegionState, askAi: false);
+
+  Future<void> _askAiAboutSelection(
+    SelectableRegionState selectableRegionState,
+  ) => _openSelection(selectableRegionState, askAi: true);
+
+  Future<void> _openSelection(
+    SelectableRegionState selectableRegionState, {
+    required bool askAi,
+  }) async {
+    final text = _selectedText.trim();
+    if (text.isEmpty) return;
+    selectableRegionState.hideToolbar();
+    final selectedLine = _lines
+        .where((line) => line.id == _selectionLineId)
+        .firstOrNull;
+    final matchingLines = _lines
+        .where((line) => line.text.contains(text))
+        .toList(growable: false);
+    final contextLine =
+        selectedLine ??
+        matchingLines.where((line) => line.id == _activeLineId).firstOrNull ??
+        matchingLines.firstOrNull;
+    await _openDictionaryText(text, contextLine: contextLine, askAi: askAi);
+  }
+
+  DictionaryLookupContext _contextForLine(SyncedLyricLine line) {
+    return DictionaryLookupContext(
+      bookTitle: widget.bookTitle ?? '',
+      chapterTitle: widget.chapterTitle ?? '',
+      sentence: line.text,
+    );
+  }
+
+  Future<void> _openDictionaryText(
+    String text, {
+    required SyncedLyricLine? contextLine,
+    required bool askAi,
+  }) async {
+    final lookupContext = contextLine == null
+        ? null
+        : _contextForLine(contextLine);
+    await Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute<void>(
+        fullscreenDialog: true,
+        builder: (_) => DictionaryWordScreen(
+          initialQuery: text,
+          lookupContext: lookupContext,
+          showBackButton: true,
+          askAi: askAi,
+        ),
+      ),
+    );
+  }
+
+  void _enterWordSelection(SyncedLyricLine line) {
+    final tokens = tokenizeSelectableText(line.text);
+    if (tokens.isEmpty) return;
+    unawaited(HapticFeedback.mediumImpact());
+    _clearSelection();
+    setState(() {
+      _pressedLineId = null;
+      _wordSelectionLineId = line.id;
+      _wordSelectionTokens = tokens;
+      _selectedTokenIndices.clear();
+      _tokenKeys.clear();
+      _resetSelectionPointer();
+    });
+  }
+
+  void _exitWordSelection() {
+    if (_wordSelectionLineId == null) return;
+    setState(() {
+      _wordSelectionLineId = null;
+      _wordSelectionTokens = const [];
+      _selectedTokenIndices.clear();
+      _tokenKeys.clear();
+      _resetSelectionPointer();
+    });
+    _sync(widget.handler.position);
+  }
+
+  void _onTokenPointerDown(PointerDownEvent event) {
+    final index = _tokenAt(event.position);
+    if (index == null) return;
+    _pointerStartToken = index;
+    _pointerStartPosition = event.position;
+    _pointerDidDrag = false;
+  }
+
+  void _onTokenPointerMove(PointerMoveEvent event) {
+    final start = _pointerStartToken;
+    final origin = _pointerStartPosition;
+    if (start == null || origin == null) return;
+    if (!_pointerDidDrag && (event.position - origin).distance < 8) return;
+    final current = _tokenAt(event.position);
+    if (current == null) return;
+    _pointerDidDrag = true;
+    final first = math.min(start, current);
+    final last = math.max(start, current);
+    setState(() {
+      _selectedTokenIndices
+        ..clear()
+        ..addAll([for (var index = first; index <= last; index++) index]);
+    });
+  }
+
+  void _onTokenPointerUp(PointerUpEvent event) {
+    final index = _pointerStartToken;
+    if (index != null && !_pointerDidDrag) {
+      setState(() {
+        if (!_selectedTokenIndices.add(index)) {
+          _selectedTokenIndices.remove(index);
+        }
+      });
+    }
+    _resetSelectionPointer();
+  }
+
+  void _onTokenPointerCancel(PointerCancelEvent event) =>
+      _resetSelectionPointer();
+
+  void _resetSelectionPointer() {
+    _pointerStartToken = null;
+    _pointerStartPosition = null;
+    _pointerDidDrag = false;
+  }
+
+  int? _tokenAt(Offset globalPosition) {
+    for (final entry in _tokenKeys.entries) {
+      final renderObject = entry.value.currentContext?.findRenderObject();
+      if (renderObject is! RenderBox || !renderObject.attached) continue;
+      final rect = renderObject.localToGlobal(Offset.zero) & renderObject.size;
+      if (rect.inflate(3).contains(globalPosition)) return entry.key;
+    }
+    return null;
+  }
+
+  Future<void> _submitWordSelection({required bool askAi}) async {
+    final line = _lines
+        .where((item) => item.id == _wordSelectionLineId)
+        .firstOrNull;
+    if (line == null) return;
+    final text = selectedTokenText(
+      line.text,
+      _wordSelectionTokens,
+      _selectedTokenIndices,
+    );
+    if (text.isEmpty) return;
+    _exitWordSelection();
+    await _openDictionaryText(text, contextLine: line, askAi: askAi);
+  }
+
+  void _clearSelection() {
+    _selectionAreaKey.currentState?.selectableRegion.clearSelection();
+    _selectedText = '';
+    _selectionLineId = null;
+  }
+
   @override
   void dispose() {
     _paragraphSub?.cancel();
@@ -444,52 +712,288 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
   @override
   Widget build(BuildContext context) {
     final fontFamily = Theme.of(context).textTheme.bodyMedium?.fontFamily;
-    return SingleChildScrollView(
-      controller: _scrollController,
-      padding: EdgeInsets.fromLTRB(
-        widget.expanded ? 24 : 20,
-        8,
-        widget.expanded ? 24 : 20,
-        48,
+    final wordSelectionActive = _wordSelectionLineId != null;
+    final lines = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final line in _lines)
+          _buildLineSlot(
+            line,
+            fontFamily,
+            wordSelectionActive: wordSelectionActive,
+          ),
+      ],
+    );
+    final content = wordSelectionActive
+        ? lines
+        : SelectionArea(
+            key: _selectionAreaKey,
+            onSelectionChanged: (content) {
+              _selectedText = content?.plainText.trim() ?? '';
+              if (content == null) _selectionLineId = null;
+            },
+            contextMenuBuilder: _buildSelectionMenu,
+            child: lines,
+          );
+    return TapRegion(
+      groupId: SelectableRegion,
+      onTapOutside: (_) {
+        if (wordSelectionActive) {
+          _exitWordSelection();
+        } else {
+          _clearSelection();
+        }
+      },
+      child: SingleChildScrollView(
+        controller: _scrollController,
+        padding: EdgeInsets.fromLTRB(
+          widget.expanded ? 24 : 20,
+          8,
+          widget.expanded ? 24 : 20,
+          48,
+        ),
+        child: content,
       ),
+    );
+  }
+
+  Widget _buildLineSlot(
+    SyncedLyricLine line,
+    String? fontFamily, {
+    required bool wordSelectionActive,
+  }) {
+    final selectingThisLine = line.id == _wordSelectionLineId;
+    return KeyedSubtree(
+      key: _lineKeys.putIfAbsent(line.id, GlobalKey.new),
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 240),
+        reverseDuration: const Duration(milliseconds: 180),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        layoutBuilder: (currentChild, previousChildren) => Stack(
+          alignment: Alignment.topLeft,
+          children: [...previousChildren, ?currentChild],
+        ),
+        transitionBuilder: (child, animation) => FadeTransition(
+          opacity: animation,
+          child: SizeTransition(
+            sizeFactor: animation,
+            alignment: Alignment.topLeft,
+            child: child,
+          ),
+        ),
+        child: selectingThisLine
+            ? KeyedSubtree(
+                key: ValueKey('word-selection-${line.id}'),
+                child: _buildWordSelectionLine(line, fontFamily),
+              )
+            : KeyedSubtree(
+                key: ValueKey('lyric-line-${line.id}'),
+                child: _buildLyricLine(
+                  line,
+                  fontFamily,
+                  enabled: !wordSelectionActive,
+                ),
+              ),
+      ),
+    );
+  }
+
+  Widget _buildLyricLine(
+    SyncedLyricLine line,
+    String? fontFamily, {
+    required bool enabled,
+  }) {
+    final highlighted = line.id == _activeLineId;
+    final pressed = line.id == _pressedLineId;
+    return Listener(
+      onPointerDown: enabled ? (_) => _selectionLineId = line.id : null,
+      child: InkWell(
+        onTap: enabled
+            ? () => widget.handler.playFromParagraphOffset(
+                line.paragraphId,
+                Duration(milliseconds: line.startMs),
+              )
+            : null,
+        onLongPress: enabled ? () => _enterWordSelection(line) : null,
+        onHighlightChanged: enabled
+            ? (value) {
+                if (_pressedLineId == (value ? line.id : null)) return;
+                setState(() => _pressedLineId = value ? line.id : null);
+              }
+            : null,
+        splashColor: Colors.transparent,
+        highlightColor: Colors.transparent,
+        child: AnimatedScale(
+          scale: pressed ? 0.985 : 1,
+          alignment: Alignment.centerLeft,
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOutCubic,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              color: pressed
+                  ? context.appSurfaceHighlight.withValues(alpha: 0.22)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 220),
+              style: _lineTextStyle(
+                fontFamily,
+                color: enabled
+                    ? highlighted
+                          ? AppColors.lyricsTextPrimary
+                          : AppColors.lyricsTextPrimary.withValues(
+                              alpha: widget.expanded ? 0.42 : 0.3,
+                            )
+                    : AppColors.lyricsTextPrimary.withValues(alpha: 0.16),
+              ),
+              child: Text(line.text),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWordSelectionLine(SyncedLyricLine line, String? fontFamily) {
+    final accent = Theme.of(context).colorScheme.primary;
+    final tokenStyle = _lineTextStyle(
+      fontFamily,
+      color: context.appTextPrimary,
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (final line in _lines)
-            Builder(
-              builder: (context) {
-                final highlighted = line.id == _activeLineId;
-                return InkWell(
-                  key: _lineKeys.putIfAbsent(line.id, GlobalKey.new),
-                  onTap: () => widget.handler.playFromParagraphOffset(
-                    line.paragraphId,
-                    Duration(milliseconds: line.startMs),
-                  ),
-                  splashColor: Colors.transparent,
-                  highlightColor: Colors.transparent,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    child: AnimatedDefaultTextStyle(
-                      duration: const Duration(milliseconds: 220),
-                      style: TextStyle(
-                        fontSize: widget.expanded ? 22 : 18,
-                        fontWeight: FontWeight.w700,
-                        color: highlighted
-                            ? AppColors.lyricsTextPrimary
-                            : AppColors.lyricsTextPrimary.withValues(
-                                alpha: widget.expanded ? 0.42 : 0.3,
-                              ),
-                        height: widget.expanded ? 1.35 : 1.4,
-                        fontFamily: fontFamily,
+          Listener(
+            behavior: HitTestBehavior.opaque,
+            onPointerDown: _onTokenPointerDown,
+            onPointerMove: _onTokenPointerMove,
+            onPointerUp: _onTokenPointerUp,
+            onPointerCancel: _onTokenPointerCancel,
+            child: Wrap(
+              spacing: 0,
+              runSpacing: 0,
+              children: [
+                for (
+                  var index = 0;
+                  index < _wordSelectionTokens.length;
+                  index++
+                )
+                  AnimatedContainer(
+                    key: _tokenKeys.putIfAbsent(index, GlobalKey.new),
+                    duration: const Duration(milliseconds: 140),
+                    curve: Curves.easeOutCubic,
+                    margin: EdgeInsets.only(
+                      right: _tokenTrailingSpaceWidth(
+                        line.text,
+                        index,
+                        tokenStyle,
                       ),
-                      child: Text(line.text),
+                    ),
+                    decoration: BoxDecoration(
+                      color: _selectedTokenIndices.contains(index)
+                          ? accent
+                          : context.appSurfaceHighlight.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      _wordSelectionTokens[index].text,
+                      style: tokenStyle.copyWith(
+                        color: _selectedTokenIndices.contains(index)
+                            ? Colors.black
+                            : context.appTextPrimary,
+                      ),
                     ),
                   ),
-                );
-              },
+              ],
             ),
+          ),
+          const SizedBox(height: 10),
+          _buildWordSelectionToolbar(),
         ],
       ),
     );
+  }
+
+  Widget _buildWordSelectionToolbar() {
+    final hasSelection = _selectedTokenIndices.isNotEmpty;
+    final selectionLine = _lines
+        .where((line) => line.id == _wordSelectionLineId)
+        .firstOrNull;
+    return Material(
+      color: context.appSurface,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        child: Row(
+          children: [
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              tooltip: context.tr('取消', 'Cancel'),
+              onPressed: _exitWordSelection,
+              icon: const Icon(Icons.close),
+            ),
+            Expanded(
+              child: Text(
+                hasSelection
+                    ? selectedTokenText(
+                        selectionLine?.text ?? '',
+                        _wordSelectionTokens,
+                        _selectedTokenIndices,
+                      )
+                    : context.tr('点击或滑动选择', 'Tap or slide to select'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: context.appTextSecondary, fontSize: 13),
+              ),
+            ),
+            TextButton(
+              onPressed: hasSelection
+                  ? () => _submitWordSelection(askAi: false)
+                  : null,
+              child: Text(context.tr('查词', 'Look Up')),
+            ),
+            const SizedBox(width: 2),
+            FilledButton(
+              onPressed: hasSelection
+                  ? () => _submitWordSelection(askAi: true)
+                  : null,
+              child: const Text('Ask AI'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  TextStyle _lineTextStyle(String? fontFamily, {required Color color}) {
+    return TextStyle(
+      fontSize: widget.expanded ? 22 : 18,
+      fontWeight: FontWeight.w700,
+      color: color,
+      height: widget.expanded ? 1.35 : 1.4,
+      fontFamily: fontFamily,
+    );
+  }
+
+  double _tokenTrailingSpaceWidth(String source, int index, TextStyle style) {
+    if (index >= _wordSelectionTokens.length - 1) return 0;
+    final current = _wordSelectionTokens[index];
+    final next = _wordSelectionTokens[index + 1];
+    if (current.end >= next.start) return 0;
+    final whitespace = source.substring(current.end, next.start);
+    if (whitespace.isEmpty) return 0;
+    final painter = TextPainter(
+      text: TextSpan(text: whitespace, style: style),
+      textDirection: Directionality.of(context),
+      maxLines: 1,
+    )..layout();
+    return painter.width;
   }
 }

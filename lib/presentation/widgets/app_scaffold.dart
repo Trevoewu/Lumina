@@ -4,9 +4,9 @@ import 'package:audio_service/audio_service.dart';
 
 import '../../core/app_localizations.dart';
 import '../../core/providers.dart';
+import '../screens/dictionary/dictionary_screen.dart';
 import '../screens/library/library_screen.dart';
 import '../screens/me/me_screen.dart';
-import '../screens/search/search_screen.dart';
 import 'mini_player.dart';
 
 /// 全局骨架，包含底部导航栏和迷你播放器。
@@ -28,7 +28,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
   Widget _rootPageFor(int index) {
     return switch (index) {
       0 => const LibraryScreen(),
-      1 => const SearchScreen(),
+      1 => const DictionaryScreen(),
       2 => const MeScreen(),
       _ => const LibraryScreen(),
     };
@@ -98,9 +98,9 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
             label: context.tr('主页', 'Home'),
           ),
           BottomNavigationBarItem(
-            icon: const Icon(Icons.search_outlined),
-            activeIcon: const Icon(Icons.search),
-            label: context.tr('搜索', 'Search'),
+            icon: const Icon(Icons.menu_book_outlined),
+            activeIcon: const Icon(Icons.menu_book),
+            label: context.tr('查词', 'Dictionary'),
           ),
           const BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),

@@ -195,23 +195,24 @@ class LuminaAudioHandler extends BaseAudioHandler
   }
 
   Future<void> seekToChapterOffset(Duration offset) async {
-    final manifest = _manifest;
-    if (manifest == null) return;
+    if (_paragraphStartOffsetsMs.isEmpty || _chapterDurationMs <= 0) return;
 
-    int acc = 0;
-    var readyIndex = 0;
-    for (final segment in manifest.segments) {
-      if (segment.state != ParagraphAudioState.ready) continue;
-      final next = acc + segment.durationMs;
-      if (offset.inMilliseconds < next) {
+    final targetMs = offset.inMilliseconds.clamp(0, _chapterDurationMs);
+    for (var index = 0; index < _paragraphStartOffsetsMs.length; index++) {
+      final startMs = _paragraphStartOffsetsMs[index];
+      final endMs = index + 1 < _paragraphStartOffsetsMs.length
+          ? _paragraphStartOffsetsMs[index + 1]
+          : _chapterDurationMs;
+      final isLast = index == _paragraphStartOffsetsMs.length - 1;
+      if (targetMs < endMs || isLast) {
         await _player.seek(
-          Duration(milliseconds: offset.inMilliseconds - acc),
-          index: readyIndex,
+          Duration(
+            milliseconds: (targetMs - startMs).clamp(0, endMs - startMs),
+          ),
+          index: index,
         );
         return;
       }
-      acc = next;
-      readyIndex += 1;
     }
   }
 

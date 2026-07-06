@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 
 import 'app_colors.dart';
@@ -40,6 +41,15 @@ class AppTheme {
       colorScheme: colorScheme,
       brightness: colorScheme.brightness,
       scaffoldBackgroundColor: colorScheme.surface,
+      // Keep page navigation touch-native on phones. MaterialPageRoute only
+      // installs an edge-swipe detector when it uses Cupertino transitions;
+      // Android's default transition therefore cannot be dragged back.
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        },
+      ),
       textTheme: AppTextStyles.darkTextTheme.apply(
         fontFamily: fontFamily,
         bodyColor: colorScheme.onSurface,
