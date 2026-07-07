@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/cache_manager.dart';
 import '../data/dictionary/dictionary_repository.dart';
 import '../data/dictionary/openai_compatible_explanation_provider.dart';
+import '../data/settings/provider_selection_repository.dart';
 import '../services/fish_audio_model_manager.dart';
 import '../services/generation_orchestrator.dart';
 import '../services/kokoro_model_manager.dart';
@@ -19,7 +20,19 @@ export 'database_provider.dart';
 final openAiCompatibleExplanationProvider =
     Provider<OpenAiCompatibleExplanationProvider>((ref) {
       final database = ref.watch(appDatabaseProvider);
+      final selections = ref.watch(providerSelectionRepositoryProvider);
       return OpenAiCompatibleExplanationProvider(
+        settingReader: database.getSetting,
+        settingWriter: database.setSetting,
+        modelReader: selections.selectedLlmModel,
+        modelWriter: selections.setSelectedLlmModel,
+      );
+    });
+
+final providerSelectionRepositoryProvider =
+    Provider<ProviderSelectionRepository>((ref) {
+      final database = ref.watch(appDatabaseProvider);
+      return ProviderSelectionRepository(
         settingReader: database.getSetting,
         settingWriter: database.setSetting,
       );

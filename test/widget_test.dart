@@ -109,34 +109,19 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
-    await tester.tap(find.byKey(const ValueKey('tts-provider-selector')));
+    await tester.tap(find.byKey(const ValueKey('tts-service-settings')));
     await tester.pumpAndSettle();
-    expect(find.byType(PopupMenuItem<String>), findsWidgets);
-    await tester.tap(find.text('Fish Audio API').last);
+    await tester.tap(find.text('Provider'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Fish Audio API'));
     await tester.pumpAndSettle();
 
-    final apiDetails = find.byKey(
-      const ValueKey('provider-details-fish_audio_api'),
-    );
-    await Scrollable.ensureVisible(
-      tester.element(apiDetails),
-      alignment: 0.5,
-      duration: Duration.zero,
-    );
-    await tester.pump(const Duration(milliseconds: 300));
-    expect(apiDetails, findsOneWidget);
-    await tester.tap(apiDetails);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
-
-    expect(find.text('生成模式'), findsOneWidget);
-    expect(find.text('快速'), findsOneWidget);
-    expect(find.text('高质量'), findsOneWidget);
-    await tester.tap(find.text('高质量'));
+    expect(find.text('Fast'), findsOneWidget);
+    expect(find.text('Quality'), findsOneWidget);
+    await tester.tap(find.text('Quality'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text('单请求生成 · 44.1 kHz · 平衡质量'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));
@@ -198,9 +183,9 @@ void main() {
     await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
 
-    expect(find.text('GENERAL'), findsOneWidget);
+    expect(find.text('General'), findsOneWidget);
     expect(find.text('Language'), findsOneWidget);
-    expect(find.text('Appearance'), findsOneWidget);
+    expect(find.text('Reading appearance'), findsOneWidget);
     expect(find.text('Dark'), findsOneWidget);
 
     await tester.tap(find.text('Language'));
@@ -212,9 +197,9 @@ void main() {
 
     expect(find.text('通用'), findsOneWidget);
     expect(find.text('语言'), findsOneWidget);
-    expect(find.text('外观'), findsOneWidget);
+    expect(find.text('阅读外观'), findsOneWidget);
 
-    await tester.tap(find.text('外观'));
+    await tester.tap(find.text('主题'));
     await tester.pumpAndSettle();
     expect(find.byType(BottomSheet), findsNothing);
     await tester.tap(find.text('浅色'));
@@ -311,6 +296,9 @@ void main() {
       scrollable: find.byType(Scrollable).last,
     );
     await tester.tap(providerSettings);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Provider'));
     await tester.pumpAndSettle();
 
     expect(find.byTooltip('Add Provider'), findsOneWidget);

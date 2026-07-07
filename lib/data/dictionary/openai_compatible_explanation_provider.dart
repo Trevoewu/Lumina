@@ -8,6 +8,9 @@ import '../../tts/api_key_store.dart';
 typedef DictionarySettingReader = Future<String?> Function(String key);
 typedef DictionarySettingWriter =
     Future<void> Function(String key, String value);
+typedef DictionaryModelReader = Future<String?> Function(String providerId);
+typedef DictionaryModelWriter =
+    Future<void> Function(String providerId, String? modelId);
 
 class OpenAiCompatibleConfigurationException implements Exception {
   final String message;
@@ -106,12 +109,16 @@ class OpenAiCompatibleExplanationProvider {
   final ApiKeyStore _apiKeyStore;
   final DictionarySettingReader settingReader;
   final DictionarySettingWriter settingWriter;
+  final DictionaryModelReader? modelReader;
+  final DictionaryModelWriter? modelWriter;
 
   OpenAiCompatibleExplanationProvider({
     Dio? dio,
     ApiKeyStore? apiKeyStore,
     required this.settingReader,
     required this.settingWriter,
+    this.modelReader,
+    this.modelWriter,
   }) : _dio =
            dio ??
            Dio(
@@ -147,10 +154,10 @@ class OpenAiCompatibleExplanationProvider {
     final providers = await configurations;
     if (providers.isEmpty) return null;
     final activeId = await settingReader(activeProviderSettingKey);
-    return providers.firstWhere(
-      (provider) => provider.id == activeId,
-      orElse: () => providers.first,
-    );
+    for (final provider in providers) {
+      if (provider.id == activeId) return provider;
+    }
+    return null;
   }
 
   Future<String?> get apiKey async {
@@ -199,7 +206,7 @@ class OpenAiCompatibleExplanationProvider {
     );
     if (existing.isEmpty) {
       await settingWriter(activeProviderSettingKey, provider.id);
-      await settingWriter(modelSettingKey, '');
+      await _writeModel(provider.id, null);
     }
     return provider;
   }
@@ -262,13 +269,17 @@ class OpenAiCompatibleExplanationProvider {
       throw const OpenAiCompatibleConfigurationException('Model is required.');
     }
     await settingWriter(activeProviderSettingKey, providerId);
-    await settingWriter(modelSettingKey, model.trim());
+    await _writeModel(providerId, model.trim());
   }
 
   Future<String> get baseUrl async =>
       (await activeProvider)?.baseUrl ?? defaultBaseUrl;
 
   Future<String> get model async {
+    final provider = await activeProvider;
+    if (provider != null && modelReader != null) {
+      return (await modelReader!(provider.id))?.trim() ?? '';
+    }
     final value = (await settingReader(modelSettingKey))?.trim();
     return value ?? '';
   }
@@ -458,7 +469,11 @@ not apply. Use concise English and no markdown.
         ),
       );
     }
-    await settingWriter(modelSettingKey, model.trim());
+    if (provider == null) {
+      await settingWriter(modelSettingKey, model.trim());
+    } else {
+      await _writeModel(provider.id, model.trim());
+    }
   }
 
   Future<List<LlmProviderConfiguration>> _migrateLegacyConfiguration() async {
@@ -501,6 +516,14 @@ not apply. Use concise English and no markdown.
       providerConfigurationsSettingKey,
       jsonEncode(providers.map((provider) => provider.toJson()).toList()),
     );
+  }
+
+  Future<void> _writeModel(String providerId, String? modelId) async {
+    if (modelWriter != null) {
+      await modelWriter!(providerId, modelId);
+    } else {
+      await settingWriter(modelSettingKey, modelId?.trim() ?? '');
+    }
   }
 
   String _content(Map<String, dynamic>? response) {

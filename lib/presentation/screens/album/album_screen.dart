@@ -305,16 +305,6 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   }
 
   Future<TtsProvider> _resolveProvider() async {
-    final registry = ref.read(providerRegistryProvider);
-    final savedProviderId = await ref
-        .read(appDatabaseProvider)
-        .getSetting('active_provider_id');
-    if (savedProviderId != null) {
-      final savedProvider = registry.get(savedProviderId);
-      if (savedProvider != null) {
-        return savedProvider;
-      }
-    }
     return ref.read(activeTtsProviderProvider);
   }
 
@@ -334,7 +324,9 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     ];
     if (voices.isEmpty) return null;
 
-    final activeVoiceId = await db.getSetting('active_voice_id');
+    final activeVoiceId = await ref
+        .read(providerSelectionRepositoryProvider)
+        .selectedVoice(provider.id);
     for (final preferredVoiceId in [widget.book.voiceId, activeVoiceId]) {
       if (preferredVoiceId == null) continue;
       for (final voice in voices) {

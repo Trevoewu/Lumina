@@ -342,8 +342,8 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
       );
       await ref.read(appDatabaseProvider).upsertVoice(_toDbVoice(voice));
       await ref
-          .read(appDatabaseProvider)
-          .setSetting('active_voice_id', voice.id);
+          .read(providerSelectionRepositoryProvider)
+          .setSelectedVoice(provider.id, voice.id);
       _activeVoiceId = voice.id;
       _nameController.clear();
       _descriptionController.clear();
@@ -422,8 +422,8 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
 
       await ref.read(appDatabaseProvider).upsertVoice(_toDbVoice(voice));
       await ref
-          .read(appDatabaseProvider)
-          .setSetting('active_voice_id', voice.id);
+          .read(providerSelectionRepositoryProvider)
+          .setSelectedVoice(provider.id, voice.id);
       _activeVoiceId = voice.id;
       _cloneNameController.clear();
       _cloneTextController.clear();
@@ -440,16 +440,20 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
   }
 
   Future<void> _setActiveVoice(String voiceId) async {
-    await ref.read(appDatabaseProvider).setSetting('active_voice_id', voiceId);
+    final providerId = ref.read(activeTtsProviderProvider).id;
+    await ref
+        .read(providerSelectionRepositoryProvider)
+        .setSelectedVoice(providerId, voiceId);
     if (!mounted) return;
     setState(() => _activeVoiceId = voiceId);
     _showFeedback('已设为当前音色');
   }
 
   Future<void> _loadActiveVoice() async {
+    final providerId = ref.read(activeTtsProviderProvider).id;
     final voiceId = await ref
-        .read(appDatabaseProvider)
-        .getSetting('active_voice_id');
+        .read(providerSelectionRepositoryProvider)
+        .selectedVoice(providerId);
     if (!mounted) return;
     setState(() => _activeVoiceId = voiceId);
   }
@@ -458,7 +462,10 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
     final db = ref.read(appDatabaseProvider);
     await db.deleteVoice(voiceId);
     if (_activeVoiceId == voiceId) {
-      await db.setSetting('active_voice_id', '');
+      final providerId = ref.read(activeTtsProviderProvider).id;
+      await ref
+          .read(providerSelectionRepositoryProvider)
+          .setSelectedVoice(providerId, null);
       _activeVoiceId = null;
     }
     if (!mounted) return;

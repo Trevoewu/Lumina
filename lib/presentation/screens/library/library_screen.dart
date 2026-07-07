@@ -543,12 +543,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 
   Future<TtsProvider> _resolveProvider() async {
-    final registry = ref.read(providerRegistryProvider);
-    final savedProviderId = await ref
-        .read(appDatabaseProvider)
-        .getSetting('active_provider_id');
-    return registry.get(savedProviderId ?? '') ??
-        ref.read(activeTtsProviderProvider);
+    return ref.read(activeTtsProviderProvider);
   }
 
   Future<TtsVoice?> _resolveVoice(
@@ -570,7 +565,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     ];
     if (voices.isEmpty) return null;
 
-    final activeVoiceId = await db.getSetting('active_voice_id');
+    final activeVoiceId = await ref
+        .read(providerSelectionRepositoryProvider)
+        .selectedVoice(provider.id);
     for (final preferredVoiceId in [book.voiceId, activeVoiceId]) {
       if (preferredVoiceId == null) continue;
       for (final voice in voices) {

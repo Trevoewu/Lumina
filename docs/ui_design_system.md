@@ -370,6 +370,7 @@ git diff --check
 - UI/阅读字体分离
 - Material component themes
 - `AppSurface`、`AppSearchField`、`AppSectionHeader`
+- Settings 的 `SettingsGroup`、`SettingValueRow`、`ServiceStatusCard`、`ReadinessBadge`、反馈与空错态组件
 - Large/compact header
 - Dictionary 全页与半屏内容复用
 - Player ambient color / global primary 分工
@@ -381,11 +382,10 @@ git diff --check
 
 | 区域 | 当前偏离 | 收敛规则 |
 | --- | --- | --- |
-| Home、Me、Settings 的部分私有组件 | 仍存在页面内 `TextStyle`、局部 padding 和 radius | 下次触碰对应组件时迁入 TextTheme、token 或共享组件 |
+| Home、Me 的部分私有组件 | 仍存在页面内 `TextStyle`、局部 padding 和 radius | 下次触碰对应组件时迁入 TextTheme、token 或共享组件 |
 | Player 的部分控制与 Lyrics 私有组件 | 仍有组件内部尺寸和排版字面量 | 区分媒体专用尺寸与通用 token；可复用项进入 immersive 组件层 |
-| Settings 分组 | 部分仍直接使用 `Material` 和私有 section builder | 通用分组迁入 `AppSurface`、`AppSectionHeader` 或未来的 ListRow |
-| 空态与错误态 | 多页面分别实现 | 抽取 EmptyState、ErrorState 后逐页替换 |
-| 视觉回归 | 尚无核心页面 golden tests | 覆盖 dark/light、390/430、100%/130% text scale |
+| 空态与错误态 | Settings 已统一，其他历史页面仍有私有实现 | 新页面复用共享状态组件，旧页面在触碰时迁移 |
+| 视觉回归 | Settings root 已覆盖双主题 golden，其他核心页面仍未覆盖 | 新增核心流程时同步增加稳定、固定状态的 golden |
 | 自动约束 | 尚无 UI magic-number CI lint | 增加针对 spacing、radius、font 和 literal color 的检查 |
 
 偏离清单的维护规则：

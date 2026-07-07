@@ -6,6 +6,11 @@ A new Flutter project.
 
 UI changes must follow [Lumina UI Design System](docs/ui_design_system.md).
 
+## Refactor plans
+
+- [Settings & AI Services Refactor Plan](docs/settings_refactor_plan.md)
+- [Legacy Settings Behavior Matrix](docs/legacy_settings_matrix.md)
+
 ## Getting Started
 
 This project is a starting point for a Flutter application.

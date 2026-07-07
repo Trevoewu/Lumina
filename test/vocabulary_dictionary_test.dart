@@ -276,6 +276,58 @@ void main() {
     },
   );
 
+  test('missing LLM active id does not guess a replacement provider', () async {
+    final settings = <String, String>{};
+    final service = OpenAiCompatibleExplanationProvider(
+      apiKeyStore: _MemoryApiKeyStore(),
+      settingReader: (key) async => settings[key],
+      settingWriter: (key, value) async => settings[key] = value,
+    );
+    final first = await service.addProvider(
+      kind: LlmProviderKind.deepSeek,
+      apiKey: 'deepseek-key',
+    );
+    await service.addProvider(kind: LlmProviderKind.zai, apiKey: 'zai-key');
+    settings[OpenAiCompatibleExplanationProvider.activeProviderSettingKey] =
+        'removed-provider';
+
+    expect(first.id, isNotEmpty);
+    expect(await service.activeProvider, isNull);
+    expect(
+      settings[OpenAiCompatibleExplanationProvider.activeProviderSettingKey],
+      'removed-provider',
+    );
+  });
+
+  test('removing the active LLM provider clears its global model', () async {
+    final settings = <String, String>{};
+    final service = OpenAiCompatibleExplanationProvider(
+      apiKeyStore: _MemoryApiKeyStore(),
+      settingReader: (key) async => settings[key],
+      settingWriter: (key, value) async => settings[key] = value,
+    );
+    final first = await service.addProvider(
+      kind: LlmProviderKind.deepSeek,
+      apiKey: 'deepseek-key',
+    );
+    expect((await service.activeProvider)?.id, first.id);
+    expect(await service.model, isEmpty);
+
+    final second = await service.addProvider(
+      kind: LlmProviderKind.zai,
+      apiKey: 'zai-key',
+    );
+    await service.selectModel(providerId: second.id, model: 'glm-5.1');
+    await service.removeProvider(second.id);
+
+    expect((await service.activeProvider)?.id, first.id);
+    expect(await service.model, isEmpty);
+    expect(
+      settings[OpenAiCompatibleExplanationProvider.activeProviderSettingKey],
+      first.id,
+    );
+  });
+
   test(
     'legacy single LLM configuration migrates without losing its key',
     () async {

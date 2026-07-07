@@ -6,6 +6,7 @@ import 'package:lumina/data/database/app_database.dart';
 import 'package:lumina/tts/provider_registry.dart';
 import 'package:lumina/tts/providers/edge_tts_provider.dart';
 import 'package:lumina/tts/providers/fish_audio_api_tts_provider.dart';
+import 'package:lumina/tts/providers/kokoro_local_tts_provider.dart';
 
 void main() {
   test(
@@ -39,4 +40,32 @@ void main() {
       );
     },
   );
+
+  test('stale TTS provider keeps the default and is not rewritten', () async {
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final container = ProviderContainer(
+      overrides: [appDatabaseProvider.overrideWithValue(database)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(database.close);
+
+    await database.setSetting('active_provider_id', 'removed-provider');
+    await container.read(activeTtsProviderIdProvider.notifier).load();
+
+    expect(
+      container.read(activeTtsProviderIdProvider),
+      KokoroLocalTtsProvider.idValue,
+    );
+    expect(await database.getSetting('active_provider_id'), 'removed-provider');
+
+    await container
+        .read(activeTtsProviderIdProvider.notifier)
+        .set('unknown-provider');
+
+    expect(
+      container.read(activeTtsProviderIdProvider),
+      KokoroLocalTtsProvider.idValue,
+    );
+    expect(await database.getSetting('active_provider_id'), 'removed-provider');
+  });
 }
