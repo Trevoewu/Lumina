@@ -11,6 +11,7 @@ class SettingsGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final design = context.appDesign;
     final scheme = Theme.of(context).colorScheme;
     return AppSurface(
       child: Column(
@@ -20,8 +21,10 @@ class SettingsGroup extends StatelessWidget {
             if (index > 0)
               Divider(
                 height: 1,
-                indent: context.appDesign.toolbarHeight,
-                color: scheme.outlineVariant.withValues(alpha: 0.55),
+                thickness: 0.5,
+                indent: design.toolbarHeight,
+                endIndent: design.spaceLg,
+                color: scheme.outlineVariant.withValues(alpha: 0.22),
               ),
             children[index],
           ],

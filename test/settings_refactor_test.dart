@@ -7,6 +7,7 @@ import 'package:lumina/core/app_preferences.dart';
 import 'package:lumina/core/theme.dart';
 import 'package:lumina/data/database/app_database.dart';
 import 'package:lumina/presentation/screens/settings/settings_screen.dart';
+import 'package:lumina/presentation/widgets/design_system/settings_components.dart';
 
 void main() {
   final cases = <({String name, Size size, double scale, ThemeMode mode})>[
@@ -98,6 +99,16 @@ void main() {
       ),
     );
     await tester.pump(const Duration(milliseconds: 700));
+
+    final firstGroup = find.byType(SettingsGroup).first;
+    final dividerFinder = find.descendant(
+      of: firstGroup,
+      matching: find.byType(Divider),
+    );
+    final divider = tester.widget<Divider>(dividerFinder.first);
+    expect(divider.thickness, 0.5);
+    expect(divider.endIndent, 16);
+    expect(divider.color?.a, closeTo(0.22, 0.01));
 
     final languageRow = find.byKey(const ValueKey('language-selector'));
     await tester.tap(languageRow);
