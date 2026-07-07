@@ -10,6 +10,7 @@ class CollapsingPageScaffold extends StatelessWidget {
   final Widget body;
   final List<Widget> actions;
   final bool showBackButton;
+  final bool compactHeader;
   final double expandedHeight;
 
   const CollapsingPageScaffold({
@@ -18,6 +19,7 @@ class CollapsingPageScaffold extends StatelessWidget {
     required this.body,
     this.actions = const [],
     this.showBackButton = false,
+    this.compactHeader = false,
     this.expandedHeight = 124,
   });
 
@@ -34,6 +36,7 @@ class CollapsingPageScaffold extends StatelessWidget {
               title: title,
               actions: actions,
               showBackButton: showBackButton,
+              compact: compactHeader,
               topPadding: topPadding,
               expandedHeight: expandedHeight,
             ),
@@ -51,6 +54,7 @@ class _CollapsingPageHeaderDelegate extends SliverPersistentHeaderDelegate {
   final String title;
   final List<Widget> actions;
   final bool showBackButton;
+  final bool compact;
   final double topPadding;
   final double expandedHeight;
 
@@ -58,6 +62,7 @@ class _CollapsingPageHeaderDelegate extends SliverPersistentHeaderDelegate {
     required this.title,
     required this.actions,
     required this.showBackButton,
+    required this.compact,
     required this.topPadding,
     required this.expandedHeight,
   });
@@ -66,7 +71,8 @@ class _CollapsingPageHeaderDelegate extends SliverPersistentHeaderDelegate {
   double get minExtent => topPadding + _toolbarHeight;
 
   @override
-  double get maxExtent => topPadding + expandedHeight;
+  double get maxExtent =>
+      topPadding + (compact ? _toolbarHeight : expandedHeight);
 
   @override
   Widget build(
@@ -75,7 +81,9 @@ class _CollapsingPageHeaderDelegate extends SliverPersistentHeaderDelegate {
     bool overlapsContent,
   ) {
     final range = maxExtent - minExtent;
-    final progress = range <= 0 ? 1.0 : (shrinkOffset / range).clamp(0.0, 1.0);
+    final progress = compact || range <= 0
+        ? 1.0
+        : (shrinkOffset / range).clamp(0.0, 1.0);
     final easedProgress = Curves.easeInOutCubic.transform(progress);
     final collapsedSide = math.max(
       showBackButton ? 64.0 : 20.0,
@@ -90,7 +98,7 @@ class _CollapsingPageHeaderDelegate extends SliverPersistentHeaderDelegate {
     final titleStyle = Theme.of(context).textTheme.headlineMedium?.copyWith(
       color: context.appTextPrimary,
       fontSize: lerpDouble(34, 18, easedProgress),
-      fontWeight: FontWeight.w800,
+      fontWeight: FontWeight.w700,
       height: 1.05,
     );
 
@@ -147,6 +155,7 @@ class _CollapsingPageHeaderDelegate extends SliverPersistentHeaderDelegate {
   bool shouldRebuild(_CollapsingPageHeaderDelegate oldDelegate) =>
       title != oldDelegate.title ||
       showBackButton != oldDelegate.showBackButton ||
+      compact != oldDelegate.compact ||
       topPadding != oldDelegate.topPadding ||
       expandedHeight != oldDelegate.expandedHeight ||
       actions != oldDelegate.actions;

@@ -76,9 +76,28 @@ void main() {
     );
     addTearDown(database.close);
 
-    final lookup = await repository.lookup('jingoistic');
-    expect(await repository.toggleFavorite(lookup.cacheId), isTrue);
-    expect(await repository.favorites(), hasLength(1));
+    const context = DictionaryLookupContext(
+      bookTitle: 'Born a Crime',
+      chapterTitle: 'Chapter 1',
+      sentence: 'A jingoistic speech.',
+      bookId: 'book-1',
+      chapterId: 'chapter-1',
+      paragraphId: 'paragraph-1',
+      lineId: 'line-1',
+      selectionStart: 2,
+      selectionEnd: 12,
+      audioStartMs: 12000,
+      audioEndMs: 14000,
+    );
+    final lookup = await repository.lookup('jingoistic', context: context);
+    expect(
+      await repository.toggleFavorite(lookup.cacheId, context: context),
+      isTrue,
+    );
+    final favorites = await repository.favorites();
+    expect(favorites, hasLength(1));
+    expect(favorites.single.lookup.context?.bookId, 'book-1');
+    expect(favorites.single.lookup.context?.audioStartMs, 12000);
 
     expect(await repository.toggleFavorite(lookup.cacheId), isFalse);
     expect(await repository.favorites(), isEmpty);

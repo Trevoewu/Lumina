@@ -28,7 +28,7 @@ class AppearanceScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
         children: [
-          _SectionHeader(context.tr('字体', 'Font')),
+          _SectionHeader(context.tr('阅读字体', 'Reading Font')),
           _SurfaceGroup(
             children: [
               for (final option in appearanceFontOptions)
@@ -133,7 +133,6 @@ class AppearanceScreen extends ConsumerWidget {
   String _fontSubtitle(AppearanceFontOption option) {
     return switch (option.id) {
       'system' => '跟随系统默认字体',
-      'inter' => '现代、紧凑的界面字体',
       'serif' => '更接近传统书籍排版',
       'mono' => '等宽字体，适合检查文本',
       _ => option.fontFamily ?? 'System',

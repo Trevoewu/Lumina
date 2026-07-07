@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/app_colors.dart';
+import '../../../core/app_design_tokens.dart';
 import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart' as drift_db;
@@ -33,6 +34,8 @@ class _MeScreenState extends ConsumerState<MeScreen> {
   @override
   Widget build(BuildContext context) {
     final accent = Theme.of(context).colorScheme.primary;
+    final design = context.appDesign;
+    final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
 
     return CollapsingPageScaffold(
       title: context.tr('我的', 'Me'),
@@ -63,7 +66,7 @@ class _MeScreenState extends ConsumerState<MeScreen> {
             builder: (context, booksSnapshot) {
               final books = booksSnapshot.data ?? const [];
               return ListView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+                padding: EdgeInsets.fromLTRB(inset, design.spaceLg, inset, 40),
                 children: [
                   _TodaySummary(summary: summary, accent: accent),
                   const SizedBox(height: 12),
@@ -72,7 +75,7 @@ class _MeScreenState extends ConsumerState<MeScreen> {
                     bookCount: books.length,
                     accent: accent,
                   ),
-                  const SizedBox(height: 20),
+                  SizedBox(height: design.spaceXl),
                   _SectionTitle(
                     title: context.tr('收听活动', 'Listening activity'),
                     subtitle: context.tr(
@@ -82,7 +85,7 @@ class _MeScreenState extends ConsumerState<MeScreen> {
                   ),
                   const SizedBox(height: 10),
                   _ListeningHeatmap(dailyMs: dailyMs, accent: accent),
-                  const SizedBox(height: 20),
+                  SizedBox(height: design.spaceXl),
                   _ListeningOverview(summary: summary, accent: accent),
                 ],
               );
@@ -106,7 +109,7 @@ class _TodaySummary extends StatelessWidget {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: context.appSurface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(context.appDesign.radiusMedium),
       ),
       child: Row(
         children: [
@@ -244,7 +247,7 @@ class _StatisticTile extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: context.appSurface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(context.appDesign.radiusMedium),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -325,7 +328,7 @@ class _ListeningHeatmap extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
       decoration: BoxDecoration(
         color: context.appSurface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(context.appDesign.radiusMedium),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -470,7 +473,7 @@ class _ListeningOverview extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: context.appSurface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(context.appDesign.radiusMedium),
       ),
       child: Column(
         children: [

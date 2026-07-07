@@ -37,6 +37,13 @@ void main() {
           ?.fontSize,
       34,
     );
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('collapsing-page-title')))
+          .style
+          ?.fontWeight,
+      FontWeight.w700,
+    );
 
     await tester.drag(find.byType(ListView), const Offset(0, -320));
     await tester.pumpAndSettle();
@@ -45,6 +52,7 @@ void main() {
       find.byKey(const ValueKey('collapsing-page-title')),
     );
     expect(collapsedTitle.style?.fontSize, closeTo(18, 0.1));
+    expect(collapsedTitle.style?.fontWeight, FontWeight.w700);
     expect(find.text('Library'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

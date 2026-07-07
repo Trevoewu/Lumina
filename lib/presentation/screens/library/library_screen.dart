@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../../../core/app_colors.dart';
+import '../../../core/app_design_tokens.dart';
 import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart' as drift_db;
@@ -39,6 +40,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   Widget build(BuildContext context) {
     final db = ref.watch(appDatabaseProvider);
     final accent = Theme.of(context).colorScheme.primary;
+    final design = context.appDesign;
+    final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
 
     return CollapsingPageScaffold(
       title: context.tr('书架', 'Your Library'),
@@ -78,12 +81,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           _backfillMissingCovers(books);
 
           return GridView.builder(
-            padding: const EdgeInsets.all(16),
-            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+            padding: EdgeInsets.fromLTRB(inset, design.spaceLg, inset, 120),
+            gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
               maxCrossAxisExtent: 220,
               childAspectRatio: 0.66,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 24,
+              crossAxisSpacing: design.spaceLg,
+              mainAxisSpacing: design.spaceXl,
             ),
             itemCount: books.length,
             itemBuilder: (context, i) {
@@ -1003,6 +1006,7 @@ class _BookCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final design = context.appDesign;
     return LayoutBuilder(
       builder: (context, constraints) {
         const detailsHeight = 74.0;
@@ -1033,7 +1037,7 @@ class _BookCard extends StatelessWidget {
                     coverPath: book.coverPath,
                     placeholderIcon: Icons.menu_book_rounded,
                     iconSize: 56,
-                    borderRadius: 8,
+                    borderRadius: design.radiusSmall,
                   ),
                 ),
               ),
@@ -1049,10 +1053,7 @@ class _BookCard extends StatelessWidget {
                         book.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                          height: 1.15,
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
                           color: context.appTextPrimary,
                         ),
                       ),
@@ -1064,9 +1065,7 @@ class _BookCard extends StatelessWidget {
                         book.author ?? 'Unknown Author',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12,
-                          height: 1.15,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: context.appTextSecondary,
                         ),
                       ),

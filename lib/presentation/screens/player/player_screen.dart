@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/app_colors.dart';
+import '../../../core/app_design_tokens.dart';
 import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart' as drift_db;
@@ -13,7 +14,7 @@ import '../../widgets/book_cover.dart';
 import '../../widgets/synced_lyrics_list.dart';
 
 String? _themeFontFamily(BuildContext context) {
-  return Theme.of(context).textTheme.bodyMedium?.fontFamily;
+  return context.appDesign.readingFontFamily;
 }
 
 class PlayerScreen extends ConsumerStatefulWidget {
@@ -79,6 +80,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         final lyricsSurface = seed == null
             ? AppColors.lyricsBackground
             : CoverPaletteService.lyricsSurfaceForSeed(seed);
+        final topForeground = CoverPaletteService.foregroundFor(topTint);
+        final contentForeground = CoverPaletteService.foregroundFor(pageBottom);
 
         return Scaffold(
           backgroundColor: Colors.transparent,
@@ -105,7 +108,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           icon: Icon(
                             Icons.keyboard_arrow_down,
                             size: 32,
-                            color: context.appTextPrimary,
+                            color: topForeground,
                           ),
                           onPressed: () => Navigator.of(context).pop(),
                         ),
@@ -117,16 +120,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                               fontSize: 12,
                               letterSpacing: 1.2,
                               fontWeight: FontWeight.bold,
-                              color: context.appTextSecondary,
+                              color: topForeground.withValues(alpha: 0.72),
                               fontFamily: _themeFontFamily(context),
                             ),
                           ),
                         ),
                         IconButton(
-                          icon: Icon(
-                            Icons.more_vert,
-                            color: context.appTextPrimary,
-                          ),
+                          icon: Icon(Icons.more_vert, color: topForeground),
                           onPressed: () {},
                         ),
                       ],
@@ -212,7 +212,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                               style: TextStyle(
                                                 fontSize: 22,
                                                 fontWeight: FontWeight.bold,
-                                                color: context.appTextPrimary,
+                                                color: contentForeground,
                                               ),
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
@@ -226,7 +226,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                                   ),
                                               style: TextStyle(
                                                 fontSize: 16,
-                                                color: context.appTextSecondary,
+                                                color: contentForeground
+                                                    .withValues(alpha: 0.72),
                                               ),
                                             ),
                                           ],
@@ -253,6 +254,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                         playing,
                                         positionSnapshot.data ?? Duration.zero,
                                         duration,
+                                        foregroundColor: contentForeground,
                                       );
                                     },
                                   ),
@@ -288,9 +290,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     LuminaAudioHandler handler,
     bool playing,
     Duration position,
-    Duration duration,
-  ) {
-    final controlColor = context.appTextPrimary;
+    Duration duration, {
+    required Color foregroundColor,
+  }) {
+    final controlColor = Theme.of(context).colorScheme.primary;
+    final secondaryColor = foregroundColor.withValues(alpha: 0.72);
     final progress = duration.inMilliseconds <= 0
         ? 0.0
         : (position.inMilliseconds / duration.inMilliseconds)
@@ -301,9 +305,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       children: [
         SliderTheme(
           data: SliderTheme.of(context).copyWith(
-            activeTrackColor: context.appTextPrimary,
+            activeTrackColor: controlColor,
             inactiveTrackColor: context.appSurfaceHighlight,
-            thumbColor: context.appTextPrimary,
+            thumbColor: controlColor,
             trackHeight: 4,
             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
             overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
@@ -321,11 +325,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           children: [
             Text(
               _fmt(position),
-              style: TextStyle(fontSize: 12, color: context.appTextSecondary),
+              style: TextStyle(fontSize: 12, color: secondaryColor),
             ),
             Text(
               _fmt(duration),
-              style: TextStyle(fontSize: 12, color: context.appTextSecondary),
+              style: TextStyle(fontSize: 12, color: secondaryColor),
             ),
           ],
         ),
@@ -338,17 +342,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               icon: Text(
                 '${_speed.toStringAsFixed(1)}x',
                 style: TextStyle(
-                  color: context.appTextSecondary,
+                  color: secondaryColor,
                   fontSize: 13,
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              color: context.appTextSecondary,
+              color: secondaryColor,
               onPressed: _showSpeedSheet,
             ),
             IconButton(
               icon: const Icon(Icons.skip_previous, size: 36),
-              color: context.appTextPrimary,
+              color: foregroundColor,
               onPressed: handler.skipToPrevious,
             ),
             GestureDetector(
@@ -363,18 +367,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 child: Icon(
                   playing ? Icons.pause : Icons.play_arrow,
                   size: 32,
-                  color: context.appBackground,
+                  color: Theme.of(context).colorScheme.onPrimary,
                 ),
               ),
             ),
             IconButton(
               icon: const Icon(Icons.skip_next, size: 36),
-              color: context.appTextPrimary,
+              color: foregroundColor,
               onPressed: handler.skipToNext,
             ),
             IconButton(
               icon: const Icon(Icons.repeat),
-              color: context.appTextSecondary,
+              color: secondaryColor,
               onPressed: () {},
             ),
           ],
@@ -405,7 +409,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              padding: EdgeInsets.fromLTRB(
+                context.appDesign.spaceLg,
+                context.appDesign.spaceLg,
+                context.appDesign.spaceLg,
+                context.appDesign.spaceSm,
+              ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -466,6 +475,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     handler: handler,
                     bookTitle: widget.book.title,
                     chapterTitle: widget.initialChapter?.title,
+                    bookId: widget.book.id,
+                    chapterId: chapterId,
                   );
                 },
               ),
@@ -597,6 +608,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       // A fullscreenDialog disables iOS's interactive edge-pop gesture.
       MaterialPageRoute<void>(
         builder: (_) => _FullScreenLyricsSheet(
+          bookId: widget.book.id,
           bookTitle: widget.book.title,
           chapterTitle: widget.initialChapter?.title ?? '',
           chapterId: chapterId,
@@ -608,12 +620,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 }
 
 class _FullScreenLyricsSheet extends ConsumerStatefulWidget {
+  final String bookId;
   final String bookTitle;
   final String chapterTitle;
   final String chapterId;
   final String? coverPath;
 
   const _FullScreenLyricsSheet({
+    required this.bookId,
     required this.bookTitle,
     required this.chapterTitle,
     required this.chapterId,
@@ -748,6 +762,7 @@ class _FullScreenLyricsSheetState
                               manifest: handler.currentManifest,
                               handler: handler,
                               expanded: true,
+                              bookId: widget.bookId,
                               bookTitle: widget.bookTitle,
                               chapterTitle: widget.chapterTitle,
                             ),

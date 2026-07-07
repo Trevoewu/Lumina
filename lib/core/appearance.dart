@@ -21,7 +21,6 @@ class AppearanceFontOption {
 
 const appearanceFontOptions = [
   AppearanceFontOption(id: 'system', label: 'System', fontFamily: null),
-  AppearanceFontOption(id: 'inter', label: 'Inter', fontFamily: 'Inter'),
   AppearanceFontOption(id: 'serif', label: 'Serif', fontFamily: 'Georgia'),
   AppearanceFontOption(id: 'mono', label: 'Mono', fontFamily: 'Menlo'),
 ];
@@ -42,7 +41,7 @@ class AppearanceSettings {
   final bool loaded;
 
   const AppearanceSettings({
-    this.fontId = 'inter',
+    this.fontId = 'system',
     this.fontScale = 1.0,
     this.accentColor = const Color(0xFF1DB954),
     this.loaded = false,
@@ -78,11 +77,14 @@ class AppearanceController extends Notifier<AppearanceSettings> {
     if (state.loaded) return;
     final db = ref.read(appDatabaseProvider);
     final fontId = await db.getSetting(_fontKey);
+    // Older builds used "inter" as an app-wide UI font. It was never bundled,
+    // so migrate that value to the platform system reading font.
+    final migratedFontId = fontId == 'inter' ? 'system' : fontId;
     final scale = double.tryParse(await db.getSetting(_scaleKey) ?? '');
     final accent = _parseColor(await db.getSetting(_accentKey));
     state = state.copyWith(
-      fontId: appearanceFontOptions.any((option) => option.id == fontId)
-          ? fontId
+      fontId: appearanceFontOptions.any((option) => option.id == migratedFontId)
+          ? migratedFontId
           : state.fontId,
       fontScale: (scale ?? state.fontScale).clamp(0.85, 1.3),
       accentColor: accent ?? state.accentColor,

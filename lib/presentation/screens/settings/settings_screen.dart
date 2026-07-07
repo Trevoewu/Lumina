@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/app_colors.dart';
+import '../../../core/app_design_tokens.dart';
 import '../../../core/app_localizations.dart';
 import '../../../core/app_preferences.dart';
 import '../../../core/providers.dart';
@@ -140,12 +141,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final preferences = ref.watch(appPreferencesProvider);
     final kokoroModelManager = ref.watch(kokoroModelManagerProvider);
     final fishAudioModelManager = ref.watch(fishAudioModelManagerProvider);
+    final design = context.appDesign;
+    final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
 
     return CollapsingPageScaffold(
       title: context.tr('设置', 'Settings'),
       showBackButton: true,
       body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: EdgeInsets.fromLTRB(inset, design.spaceSm, inset, 120),
         children: [
           _sectionHeader(context.tr('通用', 'GENERAL')),
           _buildGeneralGroup(preferences),
@@ -230,7 +233,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           _sectionDivider(),
           _buildVersionFooter(),
-          const SizedBox(height: 24),
+          SizedBox(height: design.spaceXl),
         ],
       ),
     );

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lumina/core/providers.dart';
+import 'package:lumina/core/theme.dart';
 import 'package:lumina/data/database/app_database.dart';
 import 'package:lumina/data/dictionary/dictionary_repository.dart';
 import 'package:lumina/data/dictionary/vocabulary_com_parser.dart';
@@ -11,6 +12,7 @@ import 'package:lumina/data/dictionary/vocabulary_com_provider.dart';
 import 'package:lumina/domain/models/vocabulary_entry.dart';
 import 'package:lumina/main.dart';
 import 'package:lumina/presentation/screens/dictionary/dictionary_screen.dart';
+import 'package:lumina/presentation/widgets/dictionary_lookup_sheet.dart';
 
 const _fixture = '''
 <div class="definitionsContainer">
@@ -204,6 +206,65 @@ void main() {
     expect(find.text('Favorites'), findsOneWidget);
     expect(find.text('word0'), findsOneWidget);
     expect(find.text('word4'), findsOneWidget);
+  });
+
+  testWidgets('context lookup opens in a reusable draggable sheet', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(430, 850);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final repository = DictionaryRepository(
+      database,
+      provider: _FakeProvider(),
+    );
+    addTearDown(database.close);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          dictionaryRepositoryProvider.overrideWithValue(repository),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.darkTheme(),
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: FilledButton(
+                  onPressed: () => showDictionaryLookupSheet(
+                    context,
+                    initialQuery: 'mulberry',
+                    lookupContext: const DictionaryLookupContext(
+                      bookTitle: 'Born a Crime',
+                      chapterTitle: 'Chapter 1',
+                      sentence: 'The mulberry tree grew beside the house.',
+                      paragraphId: 'paragraph-1',
+                      audioStartMs: 12340,
+                    ),
+                  ),
+                  child: const Text('Open lookup'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open lookup'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('dictionary-lookup-sheet')),
+      findsOneWidget,
+    );
+    expect(find.text('From your audiobook'), findsOneWidget);
+    expect(find.text('Play from 00:12'), findsOneWidget);
+    expect(find.byType(DictionaryWordScreen), findsNothing);
   });
 }
 

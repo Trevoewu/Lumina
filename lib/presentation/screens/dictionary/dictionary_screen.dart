@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/app_colors.dart';
+import '../../../core/app_design_tokens.dart';
 import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
 import '../../../data/dictionary/dictionary_repository.dart';
 import '../../../data/dictionary/vocabulary_com_parser.dart';
 import '../../../domain/models/vocabulary_entry.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
+import '../../widgets/design_system/app_search_field.dart';
+import '../../widgets/design_system/app_section_header.dart';
+import '../../widgets/design_system/app_surface.dart';
+import '../../widgets/dictionary_entry_content.dart';
 
 class DictionaryScreen extends ConsumerStatefulWidget {
   const DictionaryScreen({super.key});
@@ -57,7 +61,8 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
     FocusScope.of(context).unfocus();
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => DictionaryWordScreen(initialQuery: term),
+        builder: (_) =>
+            DictionaryWordScreen(initialQuery: term, showBackButton: true),
       ),
     );
     if (mounted) {
@@ -69,7 +74,8 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
   Future<void> _openResult(DictionaryLookupResult result) async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => DictionaryWordScreen(initialResult: result),
+        builder: (_) =>
+            DictionaryWordScreen(initialResult: result, showBackButton: true),
       ),
     );
     if (mounted) {
@@ -89,33 +95,25 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final design = context.appDesign;
+    final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
     return CollapsingPageScaffold(
       title: context.tr('查词', 'Dictionary'),
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-            child: TextField(
-              key: const ValueKey('dictionary-search-field'),
+            padding: EdgeInsets.fromLTRB(
+              inset,
+              design.spaceSm,
+              inset,
+              design.spaceMd,
+            ),
+            child: AppSearchField(
+              fieldKey: const ValueKey('dictionary-search-field'),
               controller: _controller,
-              textInputAction: TextInputAction.search,
               onSubmitted: _openLookup,
-              style: TextStyle(color: context.appTextPrimary),
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: context.appSurface,
-                hintText: context.tr('输入英文单词或短语', 'Enter an English word'),
-                prefixIcon: Icon(Icons.search, color: context.appTextSecondary),
-                suffixIcon: IconButton(
-                  tooltip: context.tr('查询', 'Look up'),
-                  onPressed: _openLookup,
-                  icon: const Icon(Icons.arrow_forward),
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide.none,
-                ),
-              ),
+              onSearch: _openLookup,
+              hintText: context.tr('输入英文单词或短语', 'Enter an English word'),
             ),
           ),
           Expanded(child: _buildCollections()),
@@ -125,13 +123,16 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
   }
 
   Widget _buildCollections() {
+    final design = context.appDesign;
+    final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 120),
+      padding: EdgeInsets.fromLTRB(inset, 0, inset, 120),
       children: [
         if (_favorites.isNotEmpty) ...[
-          _section(
-            context.tr('收藏单词', 'Favorites'),
-            onViewAll: () =>
+          AppSectionHeader(
+            title: context.tr('收藏单词', 'Favorites'),
+            actionLabel: context.tr('查看全部', 'View All'),
+            onAction: () =>
                 _openCollection(_DictionaryCollectionKind.favorites),
           ),
           for (final favorite in _favorites.take(_previewLimit))
@@ -142,9 +143,10 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
             ),
         ],
         if (_recent.isNotEmpty) ...[
-          _section(
-            context.tr('查询历史', 'History'),
-            onViewAll: () => _openCollection(_DictionaryCollectionKind.history),
+          AppSectionHeader(
+            title: context.tr('查询历史', 'History'),
+            actionLabel: context.tr('查看全部', 'View All'),
+            onAction: () => _openCollection(_DictionaryCollectionKind.history),
           ),
           for (final result in _recent)
             _WordTile(result: result, onTap: () => _openResult(result)),
@@ -159,7 +161,7 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
                   size: 72,
                   color: context.appSurfaceHighlight,
                 ),
-                const SizedBox(height: 20),
+                SizedBox(height: design.spaceXl),
                 Text(
                   context.tr('查询你的第一个单词', 'Look up your first word'),
                   style: TextStyle(
@@ -182,27 +184,6 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
       ],
     );
   }
-
-  Widget _section(String label, {required VoidCallback onViewAll}) => Padding(
-    padding: const EdgeInsets.fromLTRB(4, 8, 0, 2),
-    child: Row(
-      children: [
-        Expanded(
-          child: Text(
-            label,
-            style: TextStyle(
-              color: context.appTextSecondary,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-        TextButton(
-          onPressed: onViewAll,
-          child: Text(context.tr('查看全部', 'View All')),
-        ),
-      ],
-    ),
-  );
 }
 
 enum _DictionaryCollectionKind { favorites, history }
@@ -251,7 +232,8 @@ class _DictionaryCollectionScreenState
   Future<void> _openResult(DictionaryLookupResult result) async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => DictionaryWordScreen(initialResult: result),
+        builder: (_) =>
+            DictionaryWordScreen(initialResult: result, showBackButton: true),
       ),
     );
     if (mounted) await _reload();
@@ -261,6 +243,8 @@ class _DictionaryCollectionScreenState
   Widget build(BuildContext context) {
     final favorites = widget.kind == _DictionaryCollectionKind.favorites;
     final itemCount = favorites ? _favorites.length : _history.length;
+    final design = context.appDesign;
+    final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
     return CollapsingPageScaffold(
       title: favorites
           ? context.tr('收藏单词', 'Favorites')
@@ -273,7 +257,7 @@ class _DictionaryCollectionScreenState
           : RefreshIndicator(
               onRefresh: _reload,
               child: ListView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
+                padding: EdgeInsets.fromLTRB(inset, design.spaceSm, inset, 120),
                 itemCount: itemCount,
                 itemBuilder: (context, index) {
                   final result = favorites
@@ -439,39 +423,28 @@ class _DictionaryWordScreenState extends ConsumerState<DictionaryWordScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final design = context.appDesign;
+    final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
     return CollapsingPageScaffold(
       title: context.tr('查词', 'Dictionary'),
       showBackButton: widget.showBackButton,
+      compactHeader: true,
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-            child: TextField(
-              key: const ValueKey('dictionary-detail-search-field'),
+            padding: EdgeInsets.fromLTRB(
+              inset,
+              design.spaceSm,
+              inset,
+              design.spaceMd,
+            ),
+            child: AppSearchField(
+              fieldKey: const ValueKey('dictionary-detail-search-field'),
               controller: _controller,
-              textInputAction: TextInputAction.search,
               onSubmitted: _lookup,
-              style: TextStyle(color: context.appTextPrimary),
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: context.appSurface,
-                prefixIcon: Icon(Icons.search, color: context.appTextSecondary),
-                suffixIcon: IconButton(
-                  tooltip: context.tr('查询', 'Look up'),
-                  onPressed: _loading ? null : _lookup,
-                  icon: _loading
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.arrow_forward),
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide.none,
-                ),
-              ),
+              onSearch: _loading ? null : _lookup,
+              loading: _loading,
+              hintText: context.tr('输入英文单词或短语', 'Enter an English word'),
             ),
           ),
           Expanded(child: _buildContent()),
@@ -483,10 +456,12 @@ class _DictionaryWordScreenState extends ConsumerState<DictionaryWordScreen> {
   Widget _buildContent() {
     final result = _result;
     if (result != null) {
+      final design = context.appDesign;
+      final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
       return ListView(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 120),
+        padding: EdgeInsets.fromLTRB(inset, design.spaceMd, inset, 120),
         children: [
-          _DictionaryCard(
+          DictionaryEntryContent(
             result: result,
             favorite: _favorite,
             onFavorite: _toggleFavorite,
@@ -542,267 +517,6 @@ class _DictionaryWordScreenState extends ConsumerState<DictionaryWordScreen> {
   }
 }
 
-class _DictionaryCard extends StatelessWidget {
-  final DictionaryLookupResult result;
-  final bool favorite;
-  final VoidCallback onFavorite;
-  final VoidCallback onPlayUs;
-  final VoidCallback onPlayUk;
-
-  const _DictionaryCard({
-    required this.result,
-    required this.favorite,
-    required this.onFavorite,
-    required this.onPlayUs,
-    required this.onPlayUk,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final entry = result.entry;
-    final accent = Theme.of(context).colorScheme.primary;
-    return Material(
-      color: context.appSurface,
-      borderRadius: BorderRadius.circular(16),
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.menu_book_rounded, color: accent, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '${entry.providerLabel}${result.fromCache ? ' · ${context.tr('本地', 'Cached')}' : ''}',
-                    style: TextStyle(color: context.appTextSecondary),
-                  ),
-                ),
-                IconButton(
-                  tooltip: favorite
-                      ? context.tr('取消收藏', 'Remove favorite')
-                      : context.tr('收藏', 'Favorite'),
-                  onPressed: onFavorite,
-                  icon: Icon(
-                    favorite ? Icons.bookmark : Icons.bookmark_border,
-                    color: favorite ? accent : context.appTextSecondary,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Text(
-              entry.word,
-              style: TextStyle(
-                color: context.appTextPrimary,
-                fontSize: 38,
-                height: 1.05,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 18),
-            _PronunciationRow(
-              label: 'US',
-              phonetic: entry.usPhonetic,
-              onPlay: onPlayUs,
-            ),
-            _PronunciationRow(
-              label: 'UK',
-              phonetic: entry.ukPhonetic,
-              onPlay: onPlayUk,
-            ),
-            const SizedBox(height: 14),
-            for (final definition in entry.definitions)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Text.rich(
-                  TextSpan(
-                    children: [
-                      if (definition.partOfSpeech.isNotEmpty)
-                        TextSpan(
-                          text: '${definition.partOfSpeech}  ',
-                          style: TextStyle(color: context.appTextSecondary),
-                        ),
-                      TextSpan(text: definition.meaning),
-                    ],
-                  ),
-                  style: TextStyle(
-                    color: context.appTextPrimary,
-                    fontSize: 17,
-                    height: 1.45,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            if (entry.otherForms.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text.rich(
-                TextSpan(
-                  children: [
-                    TextSpan(
-                      text: 'Other forms:  ',
-                      style: TextStyle(color: context.appTextSecondary),
-                    ),
-                    TextSpan(
-                      text: entry.otherForms.join(', '),
-                      style: TextStyle(color: accent),
-                    ),
-                  ],
-                ),
-                style: const TextStyle(fontSize: 17, height: 1.4),
-              ),
-            ],
-            if (result.context case final lookupContext?) ...[
-              const SizedBox(height: 22),
-              _BookContext(context: lookupContext),
-            ],
-            if (entry.shortExplanation != null) ...[
-              const SizedBox(height: 22),
-              _Explanation(
-                title: 'short explanation',
-                text: entry.shortExplanation!,
-              ),
-            ],
-            if (entry.longExplanation != null) ...[
-              const SizedBox(height: 20),
-              _Explanation(
-                title: 'long explanation',
-                text: entry.longExplanation!,
-              ),
-            ],
-            const SizedBox(height: 12),
-            TextButton.icon(
-              onPressed: () => launchUrl(
-                Uri.parse(entry.sourceUrl),
-                mode: LaunchMode.externalApplication,
-              ),
-              icon: const Icon(Icons.open_in_new, size: 17),
-              label: Text(entry.providerLabel),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _BookContext extends StatelessWidget {
-  final DictionaryLookupContext context;
-
-  const _BookContext({required this.context});
-
-  @override
-  Widget build(BuildContext buildContext) {
-    final accent = Theme.of(buildContext).colorScheme.primary;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-      decoration: BoxDecoration(
-        color: buildContext.appSurfaceHighlight,
-        borderRadius: BorderRadius.circular(10),
-        border: Border(left: BorderSide(color: accent, width: 3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            context.chapterTitle.isEmpty
-                ? context.bookTitle
-                : '${context.bookTitle} · ${context.chapterTitle}',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: buildContext.appTextSecondary,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            context.sentence,
-            style: TextStyle(
-              color: buildContext.appTextPrimary,
-              fontSize: 16,
-              height: 1.45,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PronunciationRow extends StatelessWidget {
-  final String label;
-  final String? phonetic;
-  final VoidCallback onPlay;
-
-  const _PronunciationRow({
-    required this.label,
-    required this.phonetic,
-    required this.onPlay,
-  });
-
-  @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      SizedBox(
-        width: 34,
-        child: Text(
-          label,
-          style: TextStyle(color: context.appTextPrimary, fontSize: 17),
-        ),
-      ),
-      IconButton(
-        visualDensity: VisualDensity.compact,
-        onPressed: onPlay,
-        icon: const Icon(Icons.volume_up_outlined),
-      ),
-      if (phonetic != null)
-        Expanded(
-          child: Text(
-            phonetic!,
-            style: TextStyle(color: context.appTextSecondary, fontSize: 15),
-          ),
-        ),
-    ],
-  );
-}
-
-class _Explanation extends StatelessWidget {
-  final String title;
-  final String text;
-
-  const _Explanation({required this.title, required this.text});
-
-  @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        title,
-        style: TextStyle(
-          color: context.appTextSecondary,
-          fontSize: 16,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      const SizedBox(height: 6),
-      Text(
-        text,
-        style: TextStyle(
-          color: context.appTextPrimary,
-          fontSize: 17,
-          height: 1.5,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-    ],
-  );
-}
-
 class _WordTile extends StatelessWidget {
   final DictionaryLookupResult result;
   final bool favorite;
@@ -819,25 +533,23 @@ class _WordTile extends StatelessWidget {
     final entry = result.entry;
     final subtitle =
         entry.definitions.firstOrNull?.meaning ?? entry.shortExplanation ?? '';
+    final design = context.appDesign;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Material(
-        color: context.appSurface,
-        borderRadius: BorderRadius.circular(10),
+      padding: EdgeInsets.only(bottom: design.spaceMd),
+      child: AppSurface(
         child: ListTile(
           onTap: onTap,
           title: Text(
             entry.word,
-            style: TextStyle(
-              color: context.appTextPrimary,
-              fontWeight: FontWeight.w700,
-            ),
+            style: Theme.of(context).textTheme.titleMedium,
           ),
           subtitle: Text(
             subtitle,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: context.appTextSecondary),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: context.appTextSecondary),
           ),
           trailing: Icon(
             favorite ? Icons.bookmark : Icons.chevron_right,

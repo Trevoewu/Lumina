@@ -77,11 +77,27 @@ class DictionaryLookupContext {
   final String bookTitle;
   final String chapterTitle;
   final String sentence;
+  final String? bookId;
+  final String? chapterId;
+  final String? paragraphId;
+  final String? lineId;
+  final int? selectionStart;
+  final int? selectionEnd;
+  final int? audioStartMs;
+  final int? audioEndMs;
 
   const DictionaryLookupContext({
     required this.bookTitle,
     required this.chapterTitle,
     required this.sentence,
+    this.bookId,
+    this.chapterId,
+    this.paragraphId,
+    this.lineId,
+    this.selectionStart,
+    this.selectionEnd,
+    this.audioStartMs,
+    this.audioEndMs,
   });
 
   String get cacheMaterial => '$bookTitle\n$chapterTitle\n$sentence';

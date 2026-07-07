@@ -6,13 +6,14 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/app_colors.dart';
+import '../../core/app_design_tokens.dart';
 import '../../core/app_localizations.dart';
 import '../../data/database/app_database.dart' as drift_db;
 import '../../domain/models/audio_text_timing.dart';
 import '../../domain/models/chapter_manifest.dart';
 import '../../domain/models/vocabulary_entry.dart';
 import '../../services/lumina_audio_handler.dart';
-import '../screens/dictionary/dictionary_screen.dart';
+import 'dictionary_lookup_sheet.dart';
 
 class SyncedLyricLine {
   final String id;
@@ -366,6 +367,8 @@ class SyncedLyricsList extends StatefulWidget {
   final bool expanded;
   final String? bookTitle;
   final String? chapterTitle;
+  final String? bookId;
+  final String? chapterId;
 
   const SyncedLyricsList({
     super.key,
@@ -375,6 +378,8 @@ class SyncedLyricsList extends StatefulWidget {
     this.expanded = false,
     this.bookTitle,
     this.chapterTitle,
+    this.bookId,
+    this.chapterId,
   });
 
   @override
@@ -567,11 +572,27 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
     await _openDictionaryText(text, contextLine: contextLine, askAi: askAi);
   }
 
-  DictionaryLookupContext _contextForLine(SyncedLyricLine line) {
+  DictionaryLookupContext _contextForLine(
+    SyncedLyricLine line,
+    String selectedText,
+  ) {
+    final selectionStart = line.text.toLowerCase().indexOf(
+      selectedText.toLowerCase(),
+    );
     return DictionaryLookupContext(
       bookTitle: widget.bookTitle ?? '',
       chapterTitle: widget.chapterTitle ?? '',
       sentence: line.text,
+      bookId: widget.bookId,
+      chapterId: widget.chapterId,
+      paragraphId: line.paragraphId,
+      lineId: line.id,
+      selectionStart: selectionStart < 0 ? null : selectionStart,
+      selectionEnd: selectionStart < 0
+          ? null
+          : selectionStart + selectedText.length,
+      audioStartMs: line.startMs,
+      audioEndMs: line.endMs,
     );
   }
 
@@ -582,17 +603,12 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
   }) async {
     final lookupContext = contextLine == null
         ? null
-        : _contextForLine(contextLine);
-    await Navigator.of(context, rootNavigator: true).push(
-      MaterialPageRoute<void>(
-        fullscreenDialog: true,
-        builder: (_) => DictionaryWordScreen(
-          initialQuery: text,
-          lookupContext: lookupContext,
-          showBackButton: true,
-          askAi: askAi,
-        ),
-      ),
+        : _contextForLine(contextLine, text);
+    await showDictionaryLookupSheet(
+      context,
+      initialQuery: text,
+      lookupContext: lookupContext,
+      askAi: askAi,
     );
   }
 
@@ -747,10 +763,14 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
       child: SingleChildScrollView(
         controller: _scrollController,
         padding: EdgeInsets.fromLTRB(
-          widget.expanded ? 24 : 20,
-          8,
-          widget.expanded ? 24 : 20,
-          48,
+          widget.expanded
+              ? context.appDesign.pageGutter
+              : context.appDesign.spaceLg,
+          context.appDesign.spaceSm,
+          widget.expanded
+              ? context.appDesign.pageGutter
+              : context.appDesign.spaceLg,
+          context.appDesign.spaceXxl + context.appDesign.spaceLg,
         ),
         child: content,
       ),

@@ -87,6 +87,15 @@ class CoverPaletteService {
     return _contrastRatio(a, b);
   }
 
+  /// Foreground for cover-derived immersive surfaces. Cover colors never
+  /// replace the app primary; they only determine ambient surfaces and their
+  /// readable text/icon color.
+  static Color foregroundFor(Color background) {
+    final whiteContrast = _contrastRatio(background, Colors.white);
+    final blackContrast = _contrastRatio(background, Colors.black);
+    return whiteContrast >= blackContrast ? Colors.white : Colors.black;
+  }
+
   static double _contrastRatio(Color a, Color b) {
     final lighter = math.max(a.computeLuminance(), b.computeLuminance());
     final darker = math.min(a.computeLuminance(), b.computeLuminance());
