@@ -518,16 +518,16 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
-  Future<List<DictionaryEntry>> getRecentDictionaryEntries({int limit = 12}) {
-    return (select(dictionaryEntries)
-          ..where(
-            (row) =>
-                row.status.equals('success') &
-                row.provider.equals('vocabulary_com'),
-          )
-          ..orderBy([(row) => OrderingTerm.desc(row.lastAccessedAt)])
-          ..limit(limit))
-        .get();
+  Future<List<DictionaryEntry>> getRecentDictionaryEntries({int? limit}) {
+    final query = select(dictionaryEntries)
+      ..where(
+        (row) =>
+            row.status.equals('success') &
+            row.provider.equals('vocabulary_com'),
+      )
+      ..orderBy([(row) => OrderingTerm.desc(row.lastAccessedAt)]);
+    if (limit != null) query.limit(limit);
+    return query.get();
   }
 
   // ── 收藏单词 ──

@@ -8,13 +8,13 @@ import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart' as drift_db;
 import '../../../domain/models/chapter_manifest.dart';
 import '../../../services/app_log_service.dart';
+import '../../../services/cover_palette_service.dart';
 import '../../../services/generation_orchestrator.dart';
 import '../../../services/manifest_store.dart';
 import '../../../tts/models/tts_voice.dart';
 import '../../../tts/provider_registry.dart';
 import '../../../tts/tts_provider.dart';
 import '../../widgets/book_cover.dart';
-import '../player/player_screen.dart';
 
 class AlbumScreen extends ConsumerStatefulWidget {
   final drift_db.Book book;
@@ -32,6 +32,21 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   final ScrollController _scrollController = ScrollController();
   bool _didScrollToInitialChapter = false;
   bool _albumPlayPending = false;
+  late Future<Color?> _coverSeed;
+
+  @override
+  void initState() {
+    super.initState();
+    _coverSeed = CoverPaletteService.seedForPath(widget.book.coverPath);
+  }
+
+  @override
+  void didUpdateWidget(covariant AlbumScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.book.coverPath != widget.book.coverPath) {
+      _coverSeed = CoverPaletteService.seedForPath(widget.book.coverPath);
+    }
+  }
 
   @override
   void dispose() {
@@ -45,7 +60,6 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     int? resumeParagraphIndex,
     int resumeOffsetMs = 0,
     bool playAfterGeneration = false,
-    bool openPlayer = true,
   }) async {
     final manifestStore = ref.read(manifestStoreProvider);
 
@@ -56,12 +70,11 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
           '播放已缓存的 ${manifest.readyCount}/${manifest.segments.length} 段',
         );
       }
-      await _loadAndOpenPlayer(
+      await _loadAndPlayChapter(
         manifest,
         chapter,
         resumeParagraphIndex: resumeParagraphIndex,
         resumeOffsetMs: resumeOffsetMs,
-        openPlayer: openPlayer,
       );
       return;
     }
@@ -79,12 +92,11 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       chapter.id,
     );
     if (generatedManifest == null || generatedManifest.readyCount == 0) return;
-    await _loadAndOpenPlayer(
+    await _loadAndPlayChapter(
       generatedManifest,
       chapter,
       resumeParagraphIndex: resumeParagraphIndex,
       resumeOffsetMs: resumeOffsetMs,
-      openPlayer: openPlayer,
     );
   }
 
@@ -144,12 +156,11 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     await _generateChapterAudio(chapter);
   }
 
-  Future<void> _loadAndOpenPlayer(
+  Future<void> _loadAndPlayChapter(
     ChapterManifest manifest,
     drift_db.Chapter chapter, {
     int? resumeParagraphIndex,
     int resumeOffsetMs = 0,
-    bool openPlayer = true,
   }) async {
     try {
       final handler = await ref.read(luminaAudioHandlerProvider.future);
@@ -184,20 +195,6 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       _showSnackBar('播放缓存失败，请清除音频后重新生成');
       return;
     }
-
-    if (!mounted || !openPlayer) return;
-    _openPlayer(chapter);
-  }
-
-  void _openPlayer(drift_db.Chapter chapter) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      useRootNavigator: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => PlayerScreen(book: widget.book, initialChapter: chapter),
-    );
   }
 
   Future<void> _resumeOrStart(List<drift_db.Chapter> chapters) async {
@@ -232,15 +229,9 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
           resumeParagraphIndex: savedBook.currentParagraphIndex,
           resumeOffsetMs: savedBook.playbackOffsetMs,
           playAfterGeneration: true,
-          openPlayer: false,
         );
       } else {
-        await _playChapter(
-          chapters.first,
-          0,
-          playAfterGeneration: true,
-          openPlayer: false,
-        );
+        await _playChapter(chapters.first, 0, playAfterGeneration: true);
       }
     } finally {
       if (mounted) setState(() => _albumPlayPending = false);
@@ -391,167 +382,180 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   Widget build(BuildContext context) {
     final db = ref.watch(appDatabaseProvider);
 
-    return Scaffold(
-      body: FutureBuilder<List<drift_db.Chapter>>(
-        future: db.getChapters(widget.book.id),
-        builder: (context, snapshot) {
-          final chapters = snapshot.data ?? const <drift_db.Chapter>[];
+    return FutureBuilder<Color?>(
+      future: _coverSeed,
+      builder: (context, paletteSnapshot) {
+        final seed = paletteSnapshot.data;
+        final topTint = seed == null
+            ? context.appSurfaceHighlight
+            : CoverPaletteService.pageTopForSeed(
+                seed,
+                Theme.of(context).brightness,
+              );
+        return Scaffold(
+          body: FutureBuilder<List<drift_db.Chapter>>(
+            future: db.getChapters(widget.book.id),
+            builder: (context, snapshot) {
+              final chapters = snapshot.data ?? const <drift_db.Chapter>[];
 
-          _scrollToInitialChapter(chapters);
+              _scrollToInitialChapter(chapters);
 
-          return CustomScrollView(
-            controller: _scrollController,
-            slivers: [
-              SliverAppBar(
-                expandedHeight: 300,
-                pinned: true,
-                backgroundColor: context.appBackground,
-                flexibleSpace: FlexibleSpaceBar(
-                  centerTitle: true,
-                  titlePadding: const EdgeInsets.symmetric(
-                    horizontal: 64,
-                    vertical: 16,
-                  ),
-                  title: Text(
-                    widget.book.title,
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  background: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      // 背景渐变
-                      Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              context.appSurfaceHighlight,
-                              context.appBackground,
-                            ],
-                          ),
-                        ),
-                      ),
-                      // 居中的大封面
-                      Center(
-                        child: Container(
-                          width: 180,
-                          height: 180,
-                          margin: const EdgeInsets.only(bottom: 20),
-                          decoration: BoxDecoration(
-                            color: context.appSurface,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.5),
-                                blurRadius: 20,
-                                offset: const Offset(0, 10),
-                              ),
-                            ],
-                          ),
-                          child: BookCover(
-                            coverPath: widget.book.coverPath,
-                            iconSize: 80,
-                            borderRadius: 0,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              // 播放按钮栏
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  child: Row(
-                    children: [
-                      Text(
-                        'Album • ${widget.book.author ?? "Unknown"}',
-                        style: TextStyle(
-                          color: context.appTextSecondary,
-                          fontSize: 14,
-                        ),
-                      ),
-                      const Spacer(),
-                      // 巨大的随机播放/播放按钮
-                      _buildAlbumPlayButton(chapters),
-                    ],
-                  ),
-                ),
-              ),
-
-              // 章节列表
-              if (chapters.isEmpty)
-                const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.all(32),
-                    child: Center(child: CircularProgressIndicator()),
-                  ),
-                )
-              else
-                SliverList(
-                  delegate: SliverChildBuilderDelegate((context, index) {
-                    final chapter = chapters[index];
-                    final highlighted = chapter.id == widget.initialChapterId;
-                    return ListTile(
-                      tileColor: highlighted
-                          ? context.appSurface.withValues(alpha: 0.55)
-                          : null,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 4,
-                      ),
-                      leading: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            '${index + 1}',
-                            style: TextStyle(
-                              color: context.appTextSecondary,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ],
+              return CustomScrollView(
+                controller: _scrollController,
+                slivers: [
+                  SliverAppBar(
+                    expandedHeight: 300,
+                    pinned: true,
+                    backgroundColor: context.appBackground,
+                    flexibleSpace: FlexibleSpaceBar(
+                      centerTitle: true,
+                      titlePadding: const EdgeInsets.symmetric(
+                        horizontal: 64,
+                        vertical: 16,
                       ),
                       title: Text(
-                        chapter.title,
+                        widget.book.title,
                         style: TextStyle(
-                          color: context.appTextPrimary,
+                          fontWeight: FontWeight.bold,
                           fontSize: 16,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      subtitle: Text(
-                        widget.book.author ?? "Unknown Artist",
-                        style: TextStyle(
-                          color: context.appTextSecondary,
-                          fontSize: 14,
-                        ),
+                      background: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          // 背景渐变
+                          Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [topTint, context.appBackground],
+                              ),
+                            ),
+                          ),
+                          // 居中的大封面
+                          Center(
+                            child: Container(
+                              width: 180,
+                              height: 180,
+                              margin: const EdgeInsets.only(bottom: 20),
+                              decoration: BoxDecoration(
+                                color: context.appSurface,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.5),
+                                    blurRadius: 20,
+                                    offset: const Offset(0, 10),
+                                  ),
+                                ],
+                              ),
+                              child: BookCover(
+                                coverPath: widget.book.coverPath,
+                                iconSize: 80,
+                                borderRadius: 0,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      trailing: _ChapterActions(
-                        bookId: widget.book.id,
-                        chapterId: chapter.id,
-                        progress: _generationProgress[chapter.id],
-                        onClearCache: () => _clearChapterCache(chapter),
-                        onRegenerate: () => _regenerateChapter(chapter),
-                      ),
-                      onTap: () => _playChapter(chapter, index),
-                    );
-                  }, childCount: chapters.length),
-                ),
+                    ),
+                  ),
 
-              const SliverToBoxAdapter(child: SizedBox(height: 16)),
-            ],
-          );
-        },
-      ),
+                  // 播放按钮栏
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: Row(
+                        children: [
+                          Text(
+                            'Album • ${widget.book.author ?? "Unknown"}',
+                            style: TextStyle(
+                              color: context.appTextSecondary,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const Spacer(),
+                          // 巨大的随机播放/播放按钮
+                          _buildAlbumPlayButton(chapters),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // 章节列表
+                  if (chapters.isEmpty)
+                    const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.all(32),
+                        child: Center(child: CircularProgressIndicator()),
+                      ),
+                    )
+                  else
+                    SliverList(
+                      delegate: SliverChildBuilderDelegate((context, index) {
+                        final chapter = chapters[index];
+                        final highlighted =
+                            chapter.id == widget.initialChapterId;
+                        return ListTile(
+                          tileColor: highlighted
+                              ? context.appSurface.withValues(alpha: 0.55)
+                              : null,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 4,
+                          ),
+                          leading: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                '${index + 1}',
+                                style: TextStyle(
+                                  color: context.appTextSecondary,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
+                          ),
+                          title: Text(
+                            chapter.title,
+                            style: TextStyle(
+                              color: context.appTextPrimary,
+                              fontSize: 16,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            widget.book.author ?? "Unknown Artist",
+                            style: TextStyle(
+                              color: context.appTextSecondary,
+                              fontSize: 14,
+                            ),
+                          ),
+                          trailing: _ChapterActions(
+                            bookId: widget.book.id,
+                            chapterId: chapter.id,
+                            progress: _generationProgress[chapter.id],
+                            onClearCache: () => _clearChapterCache(chapter),
+                            onRegenerate: () => _regenerateChapter(chapter),
+                          ),
+                          onTap: () => _playChapter(chapter, index),
+                        );
+                      }, childCount: chapters.length),
+                    ),
+
+                  const SliverToBoxAdapter(child: SizedBox(height: 16)),
+                ],
+              );
+            },
+          ),
+        );
+      },
     );
   }
 

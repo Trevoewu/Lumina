@@ -232,7 +232,7 @@ class DictionaryRepository {
     }
   }
 
-  Future<List<DictionaryLookupResult>> recent({int limit = 12}) async {
+  Future<List<DictionaryLookupResult>> recent({int? limit}) async {
     final rows = await _database.getRecentDictionaryEntries(limit: limit);
     return [
       for (final row in rows)

@@ -11,7 +11,6 @@ import '../../../domain/models/chapter_manifest.dart';
 import '../../../services/app_log_service.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
 import '../album/album_screen.dart';
-import '../player/player_screen.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -278,13 +277,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         ).showSnackBar(const SnackBar(content: Text('播放缓存失败，请清除音频后重新生成')));
         return;
       }
-      if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).push(
-        MaterialPageRoute(
-          fullscreenDialog: true,
-          builder: (_) => PlayerScreen(book: book, initialChapter: chapter),
-        ),
-      );
       return;
     }
 

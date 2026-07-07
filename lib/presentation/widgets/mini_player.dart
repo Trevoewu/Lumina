@@ -1,9 +1,11 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:audio_service/audio_service.dart';
 
-import '../../../core/app_colors.dart';
 import '../../../core/providers.dart';
+import '../../../services/cover_palette_service.dart';
 import '../screens/player/player_screen.dart';
 import 'book_cover.dart';
 
@@ -51,35 +53,25 @@ class MiniPlayer extends ConsumerWidget {
                       );
                     }
                   },
-                  child: Container(
-                    margin: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-                    decoration: BoxDecoration(
-                      color: context.appSurfaceHighlight,
-                      borderRadius: BorderRadius.circular(8),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.3),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Column(
+                  child: _MiniPlayerSurface(
+                    bookId: bookId,
+                    child: (context, coverPath) => Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
+                          padding: const EdgeInsets.fromLTRB(8, 6, 4, 5),
                           child: Row(
                             children: [
                               SizedBox(
-                                width: 40,
-                                height: 40,
-                                child: _MiniPlayerCover(bookId: bookId),
+                                width: 48,
+                                height: 48,
+                                child: BookCover(
+                                  coverPath: coverPath,
+                                  iconSize: 22,
+                                  borderRadius: 5,
+                                ),
                               ),
-                              const SizedBox(width: 12),
+                              const SizedBox(width: 10),
 
                               // 标题信息
                               Expanded(
@@ -94,7 +86,7 @@ class MiniPlayer extends ConsumerWidget {
                                           .textTheme
                                           .bodyMedium
                                           ?.copyWith(
-                                            color: context.appTextPrimary,
+                                            color: Colors.white,
                                             fontWeight: FontWeight.bold,
                                           ),
                                     ),
@@ -103,9 +95,14 @@ class MiniPlayer extends ConsumerWidget {
                                       currentItem.album ?? 'Lumina',
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.bodySmall,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: Colors.white.withValues(
+                                              alpha: 0.74,
+                                            ),
+                                          ),
                                     ),
                                   ],
                                 ),
@@ -113,18 +110,28 @@ class MiniPlayer extends ConsumerWidget {
 
                               // 控制按钮
                               IconButton(
+                                visualDensity: VisualDensity.compact,
+                                constraints: const BoxConstraints.tightFor(
+                                  width: 42,
+                                  height: 42,
+                                ),
                                 icon: Icon(
                                   playing ? Icons.pause : Icons.play_arrow,
-                                  color: context.appTextPrimary,
+                                  color: Colors.white,
                                 ),
                                 onPressed: playing
                                     ? handler.pause
                                     : handler.play,
                               ),
                               IconButton(
+                                visualDensity: VisualDensity.compact,
+                                constraints: const BoxConstraints.tightFor(
+                                  width: 42,
+                                  height: 42,
+                                ),
                                 icon: Icon(
                                   Icons.skip_next,
-                                  color: context.appTextPrimary,
+                                  color: Colors.white,
                                 ),
                                 onPressed: handler.skipToNext,
                               ),
@@ -134,7 +141,7 @@ class MiniPlayer extends ConsumerWidget {
 
                         // 极细的进度条
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
                           child: ClipRRect(
                             borderRadius: const BorderRadius.vertical(
                               bottom: Radius.circular(8),
@@ -157,14 +164,13 @@ class MiniPlayer extends ConsumerWidget {
                                   minHeight: 2,
                                   backgroundColor: Colors.transparent,
                                   valueColor: AlwaysStoppedAnimation<Color>(
-                                    accent,
+                                    Color.lerp(accent, Colors.white, 0.72)!,
                                   ),
                                 );
                               },
                             ),
                           ),
                         ),
-                        const SizedBox(height: 4),
                       ],
                     ),
                   ),
@@ -178,27 +184,91 @@ class MiniPlayer extends ConsumerWidget {
   }
 }
 
-class _MiniPlayerCover extends ConsumerWidget {
+class _MiniPlayerSurface extends ConsumerStatefulWidget {
   final String? bookId;
+  final Widget Function(BuildContext context, String? coverPath) child;
 
-  const _MiniPlayerCover({required this.bookId});
+  const _MiniPlayerSurface({required this.bookId, required this.child});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final id = bookId;
-    if (id == null) {
-      return const BookCover(iconSize: 22, borderRadius: 4);
-    }
+  ConsumerState<_MiniPlayerSurface> createState() => _MiniPlayerSurfaceState();
+}
 
+class _MiniPlayerSurfaceState extends ConsumerState<_MiniPlayerSurface> {
+  late Future<_MiniPlayerAppearance> _appearance;
+
+  @override
+  void initState() {
+    super.initState();
+    _appearance = _loadAppearance();
+  }
+
+  @override
+  void didUpdateWidget(covariant _MiniPlayerSurface oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.bookId != widget.bookId) {
+      _appearance = _loadAppearance();
+    }
+  }
+
+  Future<_MiniPlayerAppearance> _loadAppearance() async {
+    final id = widget.bookId;
+    final book = id == null
+        ? null
+        : await ref.read(appDatabaseProvider).getBook(id);
+    final seed = await CoverPaletteService.seedForPath(book?.coverPath);
+    return _MiniPlayerAppearance(coverPath: book?.coverPath, seed: seed);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return FutureBuilder(
-      future: ref.read(appDatabaseProvider).getBook(id),
+      future: _appearance,
       builder: (context, snapshot) {
-        return BookCover(
-          coverPath: snapshot.data?.coverPath,
-          iconSize: 22,
-          borderRadius: 4,
+        final appearance = snapshot.data;
+        final seed = appearance?.seed;
+        final surface = seed == null
+            ? const Color(0xFF303030)
+            : CoverPaletteService.darkSurfaceForSeed(seed);
+
+        return Container(
+          margin: const EdgeInsets.fromLTRB(6, 0, 6, 2),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.28),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 240),
+                curve: Curves.easeOutCubic,
+                decoration: BoxDecoration(
+                  color: surface.withValues(alpha: 0.88),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.06),
+                  ),
+                ),
+                child: widget.child(context, appearance?.coverPath),
+              ),
+            ),
+          ),
         );
       },
     );
   }
+}
+
+class _MiniPlayerAppearance {
+  final String? coverPath;
+  final Color? seed;
+
+  const _MiniPlayerAppearance({required this.coverPath, required this.seed});
 }

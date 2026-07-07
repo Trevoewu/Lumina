@@ -133,6 +133,78 @@ void main() {
       findsNothing,
     );
   });
+
+  testWidgets('dictionary home previews top three and opens full collections', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(430, 850);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final repository = DictionaryRepository(
+      database,
+      provider: _FakeProvider(),
+    );
+    addTearDown(database.close);
+    for (var index = 0; index < 6; index++) {
+      await database.upsertDictionaryEntry(
+        DictionaryEntry(
+          id: 'entry-$index',
+          provider: 'vocabulary_com',
+          language: 'en',
+          normalizedTerm: 'word$index',
+          displayWord: 'word$index',
+          status: 'success',
+          definitionsJson:
+              '[{"partOfSpeech":"noun","meaning":"definition $index"}]',
+          otherFormsJson: '[]',
+          sourceUrl: 'https://example.com/word$index',
+          fetchedAt: index,
+          lastAccessedAt: index,
+          accessCount: 1,
+        ),
+      );
+      if (index < 5) {
+        await database.upsertFavoriteWord(
+          FavoriteWord(
+            id: 'favorite-$index',
+            dictionaryEntryId: 'entry-$index',
+            favoritedAt: index,
+            updatedAt: index,
+          ),
+        );
+      }
+    }
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          dictionaryRepositoryProvider.overrideWithValue(repository),
+        ],
+        child: MaterialApp(
+          theme: ThemeData.dark(),
+          home: const DictionaryScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('word4'), findsNWidgets(2));
+    expect(find.text('word2'), findsOneWidget);
+    expect(find.text('word5'), findsOneWidget);
+    expect(find.text('word1'), findsNothing);
+    expect(find.text('View All'), findsNWidgets(2));
+
+    await tester.tap(find.text('View All').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Favorites'), findsOneWidget);
+    expect(find.text('word0'), findsOneWidget);
+    expect(find.text('word4'), findsOneWidget);
+  });
 }
 
 class _FakeProvider extends VocabularyComProvider {

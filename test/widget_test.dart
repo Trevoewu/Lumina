@@ -160,7 +160,7 @@ void main() {
     await tester.tap(find.byIcon(Icons.person_outline));
     await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.byTooltip('Settings'));
-    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(
       find.text('Logs'),
@@ -196,7 +196,7 @@ void main() {
     await tester.tap(find.byIcon(Icons.person_outline));
     await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.byTooltip('Settings'));
-    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
 
     expect(find.text('GENERAL'), findsOneWidget);
     expect(find.text('Language'), findsOneWidget);

@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:audio_service/audio_service.dart';
@@ -54,58 +56,64 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
 
   Widget _buildScaffold({required bool hasMiniPlayer}) {
     return Scaffold(
-      body: Stack(
+      body: IndexedStack(
+        key: const ValueKey('app-content-layer'),
+        index: _currentIndex,
+        children: List.generate(
+          _navigatorKeys.length,
+          (index) => _initializedTabs.contains(index)
+              ? Navigator(
+                  key: _navigatorKeys[index],
+                  onGenerateRoute: (_) =>
+                      MaterialPageRoute(builder: (_) => _rootPageFor(index)),
+                )
+              : const SizedBox.shrink(),
+        ),
+      ),
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Positioned.fill(
-            child: IndexedStack(
-              key: const ValueKey('app-content-layer'),
-              index: _currentIndex,
-              children: List.generate(
-                _navigatorKeys.length,
-                (index) => _initializedTabs.contains(index)
-                    ? Navigator(
-                        key: _navigatorKeys[index],
-                        onGenerateRoute: (_) => MaterialPageRoute(
-                          builder: (_) => _rootPageFor(index),
-                        ),
-                      )
-                    : const SizedBox.shrink(),
+          if (hasMiniPlayer) const MiniPlayer(),
+          ClipRect(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+              child: BottomNavigationBar(
+                backgroundColor: Theme.of(
+                  context,
+                ).colorScheme.surface.withValues(alpha: 0.86),
+                elevation: 0,
+                currentIndex: _currentIndex,
+                onTap: (index) {
+                  if (index == _currentIndex) {
+                    _navigatorKeys[index].currentState?.popUntil(
+                      (route) => route.isFirst,
+                    );
+                    return;
+                  }
+                  setState(() {
+                    _initializedTabs.add(index);
+                    _currentIndex = index;
+                  });
+                },
+                items: [
+                  BottomNavigationBarItem(
+                    icon: const Icon(Icons.home_outlined),
+                    activeIcon: const Icon(Icons.home),
+                    label: context.tr('主页', 'Home'),
+                  ),
+                  BottomNavigationBarItem(
+                    icon: const Icon(Icons.menu_book_outlined),
+                    activeIcon: const Icon(Icons.menu_book),
+                    label: context.tr('查词', 'Dictionary'),
+                  ),
+                  const BottomNavigationBarItem(
+                    icon: Icon(Icons.person_outline),
+                    activeIcon: Icon(Icons.person),
+                    label: 'Me',
+                  ),
+                ],
               ),
             ),
-          ),
-          if (hasMiniPlayer)
-            const Positioned(left: 0, right: 0, bottom: 0, child: MiniPlayer()),
-        ],
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          if (index == _currentIndex) {
-            _navigatorKeys[index].currentState?.popUntil(
-              (route) => route.isFirst,
-            );
-            return;
-          }
-          setState(() {
-            _initializedTabs.add(index);
-            _currentIndex = index;
-          });
-        },
-        items: [
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.home_outlined),
-            activeIcon: const Icon(Icons.home),
-            label: context.tr('主页', 'Home'),
-          ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.menu_book_outlined),
-            activeIcon: const Icon(Icons.menu_book),
-            label: context.tr('查词', 'Dictionary'),
-          ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline),
-            activeIcon: Icon(Icons.person),
-            label: 'Me',
           ),
         ],
       ),

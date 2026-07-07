@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lumina/data/database/app_database.dart';
+import 'package:lumina/domain/models/audio_text_timing.dart';
 import 'package:lumina/domain/models/chapter_manifest.dart';
 import 'package:lumina/services/generation_orchestrator.dart';
 import 'package:lumina/services/manifest_store.dart';
@@ -64,12 +66,151 @@ void main() {
       expect(await File(await store.absolutePath(segment)).exists(), isTrue);
     }
   });
+
+  test(
+    'duplicate chapter requests share the chapter generation lock',
+    () async {
+      final temp = await Directory.systemTemp.createTemp(
+        'lumina_parallel_lock_',
+      );
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      final store = _TestManifestStore(temp);
+      final provider = _ConcurrentTestProvider(concurrency: 3);
+      const voice = TtsVoice(
+        id: 'voice',
+        name: 'Test voice',
+        providerId: 'parallel_test',
+        type: VoiceType.preset,
+        providerVoiceId: 'voice',
+        createdAt: 1,
+      );
+      addTearDown(() async {
+        await database.close();
+        if (await temp.exists()) await temp.delete(recursive: true);
+      });
+
+      await database.insertParagraphs([
+        for (var index = 0; index < 5; index++)
+          Paragraph(
+            id: 'p$index',
+            chapterId: 'chapter',
+            bookId: 'book',
+            paragraphIndex: index,
+            content: 'Paragraph $index.',
+          ),
+      ]);
+      final orchestrator = GenerationOrchestrator(
+        database: database,
+        manifestStore: store,
+      );
+
+      final results = await Future.wait([
+        orchestrator
+            .generateChapter(
+              bookId: 'book',
+              chapterId: 'chapter',
+              provider: provider,
+              voice: voice,
+            )
+            .toList(),
+        orchestrator
+            .generateChapter(
+              bookId: 'book',
+              chapterId: 'chapter',
+              provider: provider,
+              voice: voice,
+            )
+            .toList(),
+      ]);
+
+      expect(provider.maxActiveRequests, 3);
+      expect(provider.synthesisRequests, 5);
+      expect(results.first.last.ready, 5);
+      expect(results.last.last.ready, 5);
+    },
+  );
+
+  test(
+    'generation continues after the progress listener is cancelled',
+    () async {
+      final temp = await Directory.systemTemp.createTemp(
+        'lumina_detached_job_',
+      );
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      final store = _TestManifestStore(temp);
+      final provider = _ConcurrentTestProvider(concurrency: 3);
+      const voice = TtsVoice(
+        id: 'voice',
+        name: 'Test voice',
+        providerId: 'parallel_test',
+        type: VoiceType.preset,
+        providerVoiceId: 'voice',
+        createdAt: 1,
+      );
+      addTearDown(() async {
+        await database.close();
+        if (await temp.exists()) await temp.delete(recursive: true);
+      });
+
+      await database.insertParagraphs([
+        for (var index = 0; index < 5; index++)
+          Paragraph(
+            id: 'p$index',
+            chapterId: 'chapter',
+            bookId: 'book',
+            paragraphIndex: index,
+            content: 'Paragraph $index.',
+          ),
+      ]);
+      final orchestrator = GenerationOrchestrator(
+        database: database,
+        manifestStore: store,
+      );
+      final started = Completer<void>();
+      final subscription = orchestrator
+          .generateChapter(
+            bookId: 'book',
+            chapterId: 'chapter',
+            provider: provider,
+            voice: voice,
+          )
+          .listen((progress) {
+            if (progress.generating > 0 && !started.isCompleted) {
+              started.complete();
+            }
+          });
+
+      await started.future;
+      await subscription.cancel();
+      for (
+        var attempt = 0;
+        attempt < 20 && store.saved?.isReady != true;
+        attempt++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+
+      expect(store.saved?.isReady, isTrue);
+      expect(provider.synthesisRequests, 5);
+    },
+  );
+
+  test('sanitizes request-external timestamp offsets', () {
+    final timings = sanitizeAudioTextTimings(const [
+      AudioTextTiming(text: 'Hello', startMs: 12000, endMs: 12400),
+      AudioTextTiming(text: 'world', startMs: 12450, endMs: 12900),
+    ], durationMs: 1000);
+
+    expect(timings.map((timing) => timing.startMs), [0, 450]);
+    expect(timings.map((timing) => timing.endMs), [400, 900]);
+  });
 }
 
 class _ConcurrentTestProvider implements TtsProvider, TtsConcurrencyPolicy {
   final int concurrency;
   int activeRequests = 0;
   int maxActiveRequests = 0;
+  int synthesisRequests = 0;
 
   _ConcurrentTestProvider({required this.concurrency});
 
@@ -106,6 +247,7 @@ class _ConcurrentTestProvider implements TtsProvider, TtsConcurrencyPolicy {
     required TtsVoice voice,
     double speed = 1,
   }) async {
+    synthesisRequests++;
     activeRequests++;
     if (activeRequests > maxActiveRequests) {
       maxActiveRequests = activeRequests;

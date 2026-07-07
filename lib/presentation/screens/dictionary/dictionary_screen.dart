@@ -19,6 +19,8 @@ class DictionaryScreen extends ConsumerStatefulWidget {
 }
 
 class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
+  static const _previewLimit = 3;
+
   final _controller = TextEditingController();
   List<FavoriteVocabularyEntry> _favorites = const [];
   List<DictionaryLookupResult> _recent = const [];
@@ -39,7 +41,7 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
     final repository = ref.read(dictionaryRepositoryProvider);
     final values = await Future.wait([
       repository.favorites(),
-      repository.recent(),
+      repository.recent(limit: _previewLimit),
     ]);
     if (!mounted) return;
     setState(() {
@@ -74,6 +76,15 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
       _controller.clear();
       await _reloadCollections();
     }
+  }
+
+  Future<void> _openCollection(_DictionaryCollectionKind kind) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => _DictionaryCollectionScreen(kind: kind),
+      ),
+    );
+    if (mounted) await _reloadCollections();
   }
 
   @override
@@ -118,8 +129,12 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 120),
       children: [
         if (_favorites.isNotEmpty) ...[
-          _section(context.tr('收藏单词', 'Favorites')),
-          for (final favorite in _favorites)
+          _section(
+            context.tr('收藏单词', 'Favorites'),
+            onViewAll: () =>
+                _openCollection(_DictionaryCollectionKind.favorites),
+          ),
+          for (final favorite in _favorites.take(_previewLimit))
             _WordTile(
               result: favorite.lookup,
               favorite: true,
@@ -127,7 +142,10 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
             ),
         ],
         if (_recent.isNotEmpty) ...[
-          _section(context.tr('最近查询', 'Recent')),
+          _section(
+            context.tr('查询历史', 'History'),
+            onViewAll: () => _openCollection(_DictionaryCollectionKind.history),
+          ),
           for (final result in _recent)
             _WordTile(result: result, onTap: () => _openResult(result)),
         ],
@@ -165,16 +183,142 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
     );
   }
 
-  Widget _section(String label) => Padding(
-    padding: const EdgeInsets.fromLTRB(4, 16, 4, 8),
-    child: Text(
-      label,
-      style: TextStyle(
-        color: context.appTextSecondary,
-        fontWeight: FontWeight.w700,
-      ),
+  Widget _section(String label, {required VoidCallback onViewAll}) => Padding(
+    padding: const EdgeInsets.fromLTRB(4, 8, 0, 2),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: context.appTextSecondary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        TextButton(
+          onPressed: onViewAll,
+          child: Text(context.tr('查看全部', 'View All')),
+        ),
+      ],
     ),
   );
+}
+
+enum _DictionaryCollectionKind { favorites, history }
+
+class _DictionaryCollectionScreen extends ConsumerStatefulWidget {
+  final _DictionaryCollectionKind kind;
+
+  const _DictionaryCollectionScreen({required this.kind});
+
+  @override
+  ConsumerState<_DictionaryCollectionScreen> createState() =>
+      _DictionaryCollectionScreenState();
+}
+
+class _DictionaryCollectionScreenState
+    extends ConsumerState<_DictionaryCollectionScreen> {
+  List<FavoriteVocabularyEntry> _favorites = const [];
+  List<DictionaryLookupResult> _history = const [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _reload();
+  }
+
+  Future<void> _reload() async {
+    final repository = ref.read(dictionaryRepositoryProvider);
+    if (widget.kind == _DictionaryCollectionKind.favorites) {
+      final favorites = await repository.favorites();
+      if (!mounted) return;
+      setState(() {
+        _favorites = favorites;
+        _loading = false;
+      });
+    } else {
+      final history = await repository.recent();
+      if (!mounted) return;
+      setState(() {
+        _history = history;
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _openResult(DictionaryLookupResult result) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => DictionaryWordScreen(initialResult: result),
+      ),
+    );
+    if (mounted) await _reload();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final favorites = widget.kind == _DictionaryCollectionKind.favorites;
+    final itemCount = favorites ? _favorites.length : _history.length;
+    return CollapsingPageScaffold(
+      title: favorites
+          ? context.tr('收藏单词', 'Favorites')
+          : context.tr('查询历史', 'History'),
+      showBackButton: true,
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : itemCount == 0
+          ? _buildEmpty(favorites)
+          : RefreshIndicator(
+              onRefresh: _reload,
+              child: ListView.builder(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
+                itemCount: itemCount,
+                itemBuilder: (context, index) {
+                  final result = favorites
+                      ? _favorites[index].lookup
+                      : _history[index];
+                  return _WordTile(
+                    result: result,
+                    favorite: favorites,
+                    onTap: () => _openResult(result),
+                  );
+                },
+              ),
+            ),
+    );
+  }
+
+  Widget _buildEmpty(bool favorites) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              favorites ? Icons.bookmark_border : Icons.history,
+              size: 56,
+              color: context.appSurfaceHighlight,
+            ),
+            const SizedBox(height: 14),
+            Text(
+              favorites
+                  ? context.tr('还没有收藏单词', 'No favorite words yet')
+                  : context.tr('还没有查询记录', 'No lookup history yet'),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: context.appTextSecondary,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class DictionaryWordScreen extends ConsumerStatefulWidget {

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
@@ -53,6 +54,7 @@ class GenerationProgress {
 class GenerationOrchestrator {
   final db.AppDatabase database;
   final ManifestStore manifestStore;
+  final Map<String, _ChapterGenerationJob> _activeChapterJobs = {};
 
   GenerationOrchestrator({required this.database, required this.manifestStore});
 
@@ -64,6 +66,72 @@ class GenerationOrchestrator {
     required TtsVoice voice,
     double speed = 1.0,
     int maxRetries = 3,
+  }) {
+    final generationKey = '$bookId\u0000$chapterId';
+    final active = _activeChapterJobs[generationKey];
+    if (active != null) {
+      AppLogger.info(
+        'Generation',
+        '复用同章节已有生成任务 book=$bookId chapter=$chapterId',
+      );
+      return active.stream;
+    }
+
+    final job = _ChapterGenerationJob();
+    _activeChapterJobs[generationKey] = job;
+    unawaited(
+      _runChapterGenerationJob(
+        generationKey: generationKey,
+        job: job,
+        bookId: bookId,
+        chapterId: chapterId,
+        provider: provider,
+        voice: voice,
+        speed: speed,
+        maxRetries: maxRetries,
+      ),
+    );
+    return job.stream;
+  }
+
+  Future<void> _runChapterGenerationJob({
+    required String generationKey,
+    required _ChapterGenerationJob job,
+    required String bookId,
+    required String chapterId,
+    required TtsProvider provider,
+    required TtsVoice voice,
+    required double speed,
+    required int maxRetries,
+  }) async {
+    try {
+      await for (final progress in _generateChapterUnlocked(
+        bookId: bookId,
+        chapterId: chapterId,
+        provider: provider,
+        voice: voice,
+        speed: speed,
+        maxRetries: maxRetries,
+      )) {
+        job.add(progress);
+      }
+    } catch (error, stackTrace) {
+      job.addError(error, stackTrace);
+    } finally {
+      await job.close();
+      if (identical(_activeChapterJobs[generationKey], job)) {
+        _activeChapterJobs.remove(generationKey);
+      }
+    }
+  }
+
+  Stream<GenerationProgress> _generateChapterUnlocked({
+    required String bookId,
+    required String chapterId,
+    required TtsProvider provider,
+    required TtsVoice voice,
+    required double speed,
+    required int maxRetries,
   }) async* {
     final paragraphs = await database.getParagraphs(chapterId);
     final existing = await manifestStore.load(bookId, chapterId);
@@ -265,7 +333,12 @@ class GenerationOrchestrator {
         paragraphId: paragraph.id,
         format: format,
       );
-      await File(absPath).writeAsBytes(bytes);
+      await _writeFileAtomically(File(absPath), bytes);
+
+      final safeTimings = sanitizeAudioTextTimings(
+        timings,
+        durationMs: duration,
+      );
 
       return _SegmentGenerationResult(
         index: index,
@@ -278,7 +351,7 @@ class GenerationOrchestrator {
           format: format,
           billedCharacters: billed == 0 ? null : billed,
           generatedAt: DateTime.now().millisecondsSinceEpoch,
-          timings: timings,
+          timings: safeTimings,
         ),
       );
     } catch (error, stackTrace) {
@@ -563,6 +636,91 @@ class GenerationOrchestrator {
       format: entry.format,
     );
   }
+}
+
+class _ChapterGenerationJob {
+  final StreamController<GenerationProgress> _controller =
+      StreamController<GenerationProgress>.broadcast();
+  GenerationProgress? _latest;
+
+  Stream<GenerationProgress> get stream =>
+      Stream<GenerationProgress>.multi((listener) {
+        final latest = _latest;
+        if (latest != null) listener.add(latest);
+        final subscription = _controller.stream.listen(
+          listener.add,
+          onError: listener.addError,
+          onDone: listener.close,
+        );
+        listener.onCancel = subscription.cancel;
+      });
+
+  void add(GenerationProgress progress) {
+    _latest = progress;
+    if (!_controller.isClosed) _controller.add(progress);
+  }
+
+  void addError(Object error, StackTrace stackTrace) {
+    if (!_controller.isClosed) _controller.addError(error, stackTrace);
+  }
+
+  Future<void> close() => _controller.close();
+}
+
+Future<void> _writeFileAtomically(File destination, List<int> bytes) async {
+  final temporary = File('${destination.path}.part');
+  await temporary.writeAsBytes(bytes, flush: true);
+  try {
+    await temporary.rename(destination.path);
+  } on FileSystemException {
+    if (await destination.exists()) await destination.delete();
+    await temporary.rename(destination.path);
+  }
+}
+
+/// Keeps provider timestamps local to one audio segment and bounded by the
+/// actual decoded WAV duration. Some concurrent Fish responses have returned
+/// a request-external offset; rebasing those markers avoids a permanently
+/// stale lyric highlight. Unusable markers are discarded so the UI falls back
+/// to its duration-based estimate.
+List<AudioTextTiming> sanitizeAudioTextTimings(
+  List<AudioTextTiming> timings, {
+  required int durationMs,
+}) {
+  if (timings.isEmpty || durationMs <= 0) return const [];
+
+  final ordered = [...timings]
+    ..sort((a, b) {
+      final byStart = a.startMs.compareTo(b.startMs);
+      return byStart != 0 ? byStart : a.endMs.compareTo(b.endMs);
+    });
+  final firstStart = ordered.first.startMs;
+  final lastEnd = ordered.fold<int>(
+    0,
+    (value, timing) => max(value, timing.endMs),
+  );
+  final toleranceMs = max(500, (durationMs * 0.1).round());
+  final hasExternalOffset =
+      firstStart > toleranceMs && lastEnd > durationMs + toleranceMs;
+  final offsetMs = hasExternalOffset ? firstStart : 0;
+
+  final sanitized = <AudioTextTiming>[];
+  var previousEnd = 0;
+  for (final timing in ordered) {
+    if (timing.text.trim().isEmpty || timing.endMs <= timing.startMs) continue;
+    final start = (timing.startMs - offsetMs).clamp(0, durationMs).toInt();
+    final end = (timing.endMs - offsetMs).clamp(start, durationMs).toInt();
+    if (end <= start || start + toleranceMs < previousEnd) return const [];
+    sanitized.add(
+      AudioTextTiming(text: timing.text, startMs: start, endMs: end),
+    );
+    previousEnd = max(previousEnd, end);
+  }
+  if (sanitized.isEmpty) return const [];
+
+  final coveredMs = sanitized.last.endMs - sanitized.first.startMs;
+  if (coveredMs <= 0 || sanitized.last.startMs >= durationMs) return const [];
+  return sanitized;
 }
 
 /// 按 TTS 单次字符上限切分文本。

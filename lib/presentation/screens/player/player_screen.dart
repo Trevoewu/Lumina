@@ -7,17 +7,10 @@ import '../../../core/app_colors.dart';
 import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart' as drift_db;
+import '../../../services/cover_palette_service.dart';
 import '../../../services/lumina_audio_handler.dart';
 import '../../widgets/book_cover.dart';
 import '../../widgets/synced_lyrics_list.dart';
-
-Color _lyricsAccentSurface(BuildContext context, double amount) {
-  return Color.lerp(
-    AppColors.lyricsBackground,
-    Theme.of(context).colorScheme.primary,
-    amount,
-  )!;
-}
 
 String? _themeFontFamily(BuildContext context) {
   return Theme.of(context).textTheme.bodyMedium?.fontFamily;
@@ -35,13 +28,23 @@ class PlayerScreen extends ConsumerStatefulWidget {
 
 class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   double _speed = 1.0;
+  late Future<Color?> _coverSeed;
 
   @override
   void initState() {
     super.initState();
+    _coverSeed = CoverPaletteService.seedForPath(widget.book.coverPath);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadPlaybackSpeed();
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant PlayerScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.book.coverPath != widget.book.coverPath) {
+      _coverSeed = CoverPaletteService.seedForPath(widget.book.coverPath);
+    }
   }
 
   Future<void> _loadPlaybackSpeed() async {
@@ -58,201 +61,226 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   Widget build(BuildContext context) {
     final handlerAsync = ref.watch(luminaAudioHandlerProvider);
-    final topTint = context.appSurface;
+    return FutureBuilder<Color?>(
+      future: _coverSeed,
+      builder: (context, paletteSnapshot) {
+        final seed = paletteSnapshot.data;
+        final topTint = seed == null
+            ? context.appSurface
+            : CoverPaletteService.pageTopForSeed(
+                seed,
+                Theme.of(context).brightness,
+              );
+        final pageBottom = seed == null
+            ? context.appBackground
+            : Theme.of(context).brightness == Brightness.dark
+            ? CoverPaletteService.darkPageBottomForSeed(seed)
+            : context.appBackground;
+        final lyricsSurface = seed == null
+            ? AppColors.lyricsBackground
+            : CoverPaletteService.lyricsSurfaceForSeed(seed);
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [topTint, context.appBackground],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8.0,
-                  vertical: 8.0,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    IconButton(
-                      icon: Icon(
-                        Icons.keyboard_arrow_down,
-                        size: 32,
-                        color: context.appTextPrimary,
-                      ),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                    Expanded(
-                      child: Text(
-                        widget.book.title,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 12,
-                          letterSpacing: 1.2,
-                          fontWeight: FontWeight.bold,
-                          color: context.appTextSecondary,
-                          fontFamily: _themeFontFamily(context),
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      icon: Icon(
-                        Icons.more_vert,
-                        color: context.appTextPrimary,
-                      ),
-                      onPressed: () {},
-                    ),
-                  ],
-                ),
+        return Scaffold(
+          backgroundColor: Colors.transparent,
+          body: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [topTint, pageBottom],
               ),
-              Expanded(
-                child: handlerAsync.when(
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
-                  error: (e, _) => Center(child: Text('Error: $e')),
-                  data: (handler) {
-                    return StreamBuilder(
-                      stream: handler.playbackState,
-                      initialData: handler.playbackState.value,
-                      builder: (context, snapshot) {
-                        final state = snapshot.data;
-                        final currentItem = handler.mediaItem.valueOrNull;
-                        final playing = state?.playing ?? false;
-                        final duration = handler.chapterDuration;
-                        final currentChapterId =
-                            currentItem?.extras?['chapterId'] as String?;
+            ),
+            child: SafeArea(
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8.0,
+                      vertical: 8.0,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        IconButton(
+                          icon: Icon(
+                            Icons.keyboard_arrow_down,
+                            size: 32,
+                            color: context.appTextPrimary,
+                          ),
+                          onPressed: () => Navigator.of(context).pop(),
+                        ),
+                        Expanded(
+                          child: Text(
+                            widget.book.title,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 12,
+                              letterSpacing: 1.2,
+                              fontWeight: FontWeight.bold,
+                              color: context.appTextSecondary,
+                              fontFamily: _themeFontFamily(context),
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            Icons.more_vert,
+                            color: context.appTextPrimary,
+                          ),
+                          onPressed: () {},
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: handlerAsync.when(
+                      loading: () =>
+                          const Center(child: CircularProgressIndicator()),
+                      error: (e, _) => Center(child: Text('Error: $e')),
+                      data: (handler) {
+                        return StreamBuilder(
+                          stream: handler.playbackState,
+                          initialData: handler.playbackState.value,
+                          builder: (context, snapshot) {
+                            final state = snapshot.data;
+                            final currentItem = handler.mediaItem.valueOrNull;
+                            final playing = state?.playing ?? false;
+                            final duration = handler.chapterDuration;
+                            final currentChapterId =
+                                currentItem?.extras?['chapterId'] as String?;
 
-                        return Column(
-                          children: [
-                            Expanded(
-                              flex: 5,
-                              child: Center(
-                                child: AspectRatio(
-                                  aspectRatio: 1.0,
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 32,
-                                      vertical: 16,
-                                    ),
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: context.appSurfaceHighlight,
-                                        borderRadius: BorderRadius.circular(12),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black.withValues(
-                                              alpha: 0.4,
+                            return Column(
+                              children: [
+                                Expanded(
+                                  flex: 5,
+                                  child: Center(
+                                    child: AspectRatio(
+                                      aspectRatio: 1.0,
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 32,
+                                          vertical: 16,
+                                        ),
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            color: context.appSurfaceHighlight,
+                                            borderRadius: BorderRadius.circular(
+                                              12,
                                             ),
-                                            blurRadius: 30,
-                                            offset: const Offset(0, 15),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black.withValues(
+                                                  alpha: 0.4,
+                                                ),
+                                                blurRadius: 30,
+                                                offset: const Offset(0, 15),
+                                              ),
+                                            ],
                                           ),
-                                        ],
-                                      ),
-                                      child: BookCover(
-                                        coverPath: widget.book.coverPath,
-                                        iconSize: 120,
-                                        borderRadius: 12,
+                                          child: BookCover(
+                                            coverPath: widget.book.coverPath,
+                                            iconSize: 120,
+                                            borderRadius: 12,
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                              ),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          currentItem?.title ??
-                                              widget.initialChapter?.title ??
-                                              context.tr(
-                                                '未知章节',
-                                                'Unknown Chapter',
-                                              ),
-                                          style: TextStyle(
-                                            fontSize: 22,
-                                            fontWeight: FontWeight.bold,
-                                            color: context.appTextPrimary,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          widget.book.author ??
-                                              context.tr(
-                                                '未知作者',
-                                                'Unknown Author',
-                                              ),
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            color: context.appTextSecondary,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
                                   ),
-                                  IconButton(
-                                    icon: const Icon(Icons.favorite_border),
-                                    onPressed: () {},
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              currentItem?.title ??
+                                                  widget
+                                                      .initialChapter
+                                                      ?.title ??
+                                                  context.tr(
+                                                    '未知章节',
+                                                    'Unknown Chapter',
+                                                  ),
+                                              style: TextStyle(
+                                                fontSize: 22,
+                                                fontWeight: FontWeight.bold,
+                                                color: context.appTextPrimary,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              widget.book.author ??
+                                                  context.tr(
+                                                    '未知作者',
+                                                    'Unknown Author',
+                                                  ),
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                color: context.appTextSecondary,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.favorite_border),
+                                        onPressed: () {},
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                              ),
-                              child: StreamBuilder<Duration>(
-                                stream: handler.chapterPositionStream,
-                                initialData: handler.chapterPosition,
-                                builder: (context, positionSnapshot) {
-                                  return _buildControls(
+                                ),
+                                const SizedBox(height: 16),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                  ),
+                                  child: StreamBuilder<Duration>(
+                                    stream: handler.chapterPositionStream,
+                                    initialData: handler.chapterPosition,
+                                    builder: (context, positionSnapshot) {
+                                      return _buildControls(
+                                        handler,
+                                        playing,
+                                        positionSnapshot.data ?? Duration.zero,
+                                        duration,
+                                      );
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                Expanded(
+                                  flex: 5,
+                                  child: _buildLyricsCard(
+                                    currentChapterId ??
+                                        widget.initialChapter?.id,
                                     handler,
-                                    playing,
-                                    positionSnapshot.data ?? Duration.zero,
-                                    duration,
-                                  );
-                                },
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            Expanded(
-                              flex: 5,
-                              child: _buildLyricsCard(
-                                currentChapterId ?? widget.initialChapter?.id,
-                                handler,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                          ],
+                                    lyricsSurface,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                              ],
+                            );
+                          },
                         );
                       },
-                    );
-                  },
-                ),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -262,7 +290,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     Duration position,
     Duration duration,
   ) {
-    final accent = Theme.of(context).colorScheme.primary;
+    final controlColor = context.appTextPrimary;
     final progress = duration.inMilliseconds <= 0
         ? 0.0
         : (position.inMilliseconds / duration.inMilliseconds)
@@ -329,13 +357,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 width: 64,
                 height: 64,
                 decoration: BoxDecoration(
-                  color: accent,
+                  color: controlColor,
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   playing ? Icons.pause : Icons.play_arrow,
                   size: 32,
-                  color: Colors.black,
+                  color: context.appBackground,
                 ),
               ),
             ),
@@ -355,11 +383,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
-  Widget _buildLyricsCard(String? chapterId, LuminaAudioHandler handler) {
+  Widget _buildLyricsCard(
+    String? chapterId,
+    LuminaAudioHandler handler,
+    Color cardColor,
+  ) {
     if (chapterId == null) return const SizedBox.shrink();
 
     final db = ref.watch(appDatabaseProvider);
-    final cardColor = _lyricsAccentSurface(context, 0.22);
     final fontFamily = _themeFontFamily(context);
     return Container(
       key: const ValueKey('lyrics-card'),
@@ -569,6 +600,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           bookTitle: widget.book.title,
           chapterTitle: widget.initialChapter?.title ?? '',
           chapterId: chapterId,
+          coverPath: widget.book.coverPath,
         ),
       ),
     );
@@ -579,11 +611,13 @@ class _FullScreenLyricsSheet extends ConsumerStatefulWidget {
   final String bookTitle;
   final String chapterTitle;
   final String chapterId;
+  final String? coverPath;
 
   const _FullScreenLyricsSheet({
     required this.bookTitle,
     required this.chapterTitle,
     required this.chapterId,
+    required this.coverPath,
   });
 
   @override
@@ -594,135 +628,162 @@ class _FullScreenLyricsSheet extends ConsumerStatefulWidget {
 class _FullScreenLyricsSheetState
     extends ConsumerState<_FullScreenLyricsSheet> {
   final _controlsKey = GlobalKey<_FullScreenPlaybackControlsState>();
+  late Future<Color?> _coverSeed;
+
+  @override
+  void initState() {
+    super.initState();
+    _coverSeed = CoverPaletteService.seedForPath(widget.coverPath);
+  }
 
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(appDatabaseProvider);
     final handlerAsync = ref.watch(luminaAudioHandlerProvider);
-    final topTint = _lyricsAccentSurface(context, 0.18);
     final fontFamily = _themeFontFamily(context);
 
-    return Scaffold(
-      backgroundColor: AppColors.lyricsBackground,
-      body: Container(
-        key: const ValueKey('fullscreen-lyrics-background'),
-        height: MediaQuery.sizeOf(context).height,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [topTint, AppColors.lyricsBackground],
-          ),
-        ),
-        child: SafeArea(
-          child: Listener(
-            behavior: HitTestBehavior.translucent,
-            onPointerDown: (_) => _controlsKey.currentState?.showTemporarily(),
-            onPointerMove: (_) => _controlsKey.currentState?.showTemporarily(),
-            onPointerSignal: (_) =>
-                _controlsKey.currentState?.showTemporarily(),
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 8,
-                  ),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(
-                          Icons.keyboard_arrow_down,
-                          color: AppColors.lyricsTextPrimary,
-                          size: 32,
-                        ),
-                        onPressed: () => Navigator.of(context).pop(),
+    return FutureBuilder<Color?>(
+      future: _coverSeed,
+      builder: (context, paletteSnapshot) {
+        final seed = paletteSnapshot.data;
+        final topTint = seed == null
+            ? AppColors.lyricsBackground
+            : CoverPaletteService.pageTopForSeed(seed, Brightness.dark);
+        final bottomTint = seed == null
+            ? AppColors.lyricsBackground
+            : CoverPaletteService.darkPageBottomForSeed(seed);
+        return Scaffold(
+          backgroundColor: bottomTint,
+          body: Container(
+            key: const ValueKey('fullscreen-lyrics-background'),
+            height: MediaQuery.sizeOf(context).height,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [topTint, bottomTint],
+              ),
+            ),
+            child: SafeArea(
+              child: Listener(
+                behavior: HitTestBehavior.translucent,
+                onPointerDown: (_) =>
+                    _controlsKey.currentState?.showTemporarily(),
+                onPointerMove: (_) =>
+                    _controlsKey.currentState?.showTemporarily(),
+                onPointerSignal: (_) =>
+                    _controlsKey.currentState?.showTemporarily(),
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 8,
                       ),
-                      Expanded(
-                        child: Text(
-                          widget.bookTitle,
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: AppColors.lyricsTextSecondary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.2,
-                            fontFamily: fontFamily,
+                      child: Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(
+                              Icons.keyboard_arrow_down,
+                              color: AppColors.lyricsTextPrimary,
+                              size: 32,
+                            ),
+                            onPressed: () => Navigator.of(context).pop(),
                           ),
-                        ),
+                          Expanded(
+                            child: Text(
+                              widget.bookTitle,
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: AppColors.lyricsTextSecondary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.2,
+                                fontFamily: fontFamily,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 48),
+                        ],
                       ),
-                      const SizedBox(width: 48),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: FutureBuilder<List<drift_db.Paragraph>>(
-                    future: db.getParagraphs(widget.chapterId),
-                    builder: (context, snapshot) {
-                      final paragraphs =
-                          snapshot.data ?? const <drift_db.Paragraph>[];
-                      if (paragraphs.isEmpty) {
-                        return Center(
-                          child: Text(
-                            context.tr('无歌词', 'No lyrics'),
-                            style: const TextStyle(
-                              color: AppColors.lyricsTextSecondary,
+                    ),
+                    Expanded(
+                      child: FutureBuilder<List<drift_db.Paragraph>>(
+                        future: db.getParagraphs(widget.chapterId),
+                        builder: (context, snapshot) {
+                          final paragraphs =
+                              snapshot.data ?? const <drift_db.Paragraph>[];
+                          if (paragraphs.isEmpty) {
+                            return Center(
+                              child: Text(
+                                context.tr('无歌词', 'No lyrics'),
+                                style: const TextStyle(
+                                  color: AppColors.lyricsTextSecondary,
+                                ),
+                              ),
+                            );
+                          }
+                          return handlerAsync.when(
+                            loading: () => const Center(
+                              child: CircularProgressIndicator(),
                             ),
-                          ),
-                        );
-                      }
-                      return handlerAsync.when(
-                        loading: () =>
-                            const Center(child: CircularProgressIndicator()),
-                        error: (error, _) => Center(
-                          child: Text(
-                            context.tr(
-                              '播放器不可用：$error',
-                              'Player unavailable: $error',
+                            error: (error, _) => Center(
+                              child: Text(
+                                context.tr(
+                                  '播放器不可用：$error',
+                                  'Player unavailable: $error',
+                                ),
+                                style: const TextStyle(
+                                  color: AppColors.lyricsTextSecondary,
+                                ),
+                              ),
                             ),
-                            style: const TextStyle(
-                              color: AppColors.lyricsTextSecondary,
+                            data: (handler) => SyncedLyricsList(
+                              key: ValueKey(
+                                '${widget.chapterId}:${handler.currentChapterId}',
+                              ),
+                              paragraphs: paragraphs,
+                              manifest: handler.currentManifest,
+                              handler: handler,
+                              expanded: true,
+                              bookTitle: widget.bookTitle,
+                              chapterTitle: widget.chapterTitle,
                             ),
-                          ),
-                        ),
-                        data: (handler) => SyncedLyricsList(
-                          key: ValueKey(
-                            '${widget.chapterId}:${handler.currentChapterId}',
-                          ),
-                          paragraphs: paragraphs,
-                          manifest: handler.currentManifest,
-                          handler: handler,
-                          expanded: true,
-                          bookTitle: widget.bookTitle,
-                          chapterTitle: widget.chapterTitle,
-                        ),
-                      );
-                    },
-                  ),
+                          );
+                        },
+                      ),
+                    ),
+                    handlerAsync.when(
+                      loading: () => const SizedBox(height: 156),
+                      error: (_, _) => const SizedBox.shrink(),
+                      data: (handler) => _FullScreenPlaybackControls(
+                        key: _controlsKey,
+                        handler: handler,
+                        backgroundColor: bottomTint,
+                      ),
+                    ),
+                  ],
                 ),
-                handlerAsync.when(
-                  loading: () => const SizedBox(height: 156),
-                  error: (_, _) => const SizedBox.shrink(),
-                  data: (handler) => _FullScreenPlaybackControls(
-                    key: _controlsKey,
-                    handler: handler,
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
 
 class _FullScreenPlaybackControls extends StatefulWidget {
   final LuminaAudioHandler handler;
+  final Color backgroundColor;
 
-  const _FullScreenPlaybackControls({super.key, required this.handler});
+  const _FullScreenPlaybackControls({
+    super.key,
+    required this.handler,
+    required this.backgroundColor,
+  });
 
   @override
   State<_FullScreenPlaybackControls> createState() =>
@@ -855,9 +916,9 @@ class _FullScreenPlaybackControlsState
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    AppColors.lyricsBackground.withValues(alpha: 0),
-                    AppColors.lyricsBackground.withValues(alpha: 0.96),
-                    AppColors.lyricsBackground,
+                    widget.backgroundColor.withValues(alpha: 0),
+                    widget.backgroundColor.withValues(alpha: 0.96),
+                    widget.backgroundColor,
                   ],
                   stops: const [0, 0.2, 1],
                 ),
@@ -941,7 +1002,7 @@ class _FullScreenPlaybackControlsState
                               playing ? Icons.pause : Icons.play_arrow,
                               key: ValueKey(playing),
                               size: 38,
-                              color: AppColors.lyricsBackground,
+                              color: widget.backgroundColor,
                             ),
                           ),
                         ),

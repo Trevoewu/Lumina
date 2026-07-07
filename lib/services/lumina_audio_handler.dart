@@ -218,6 +218,10 @@ class LuminaAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> play() async {
+    if (_player.processingState == ProcessingState.completed &&
+        _paragraphIds.isNotEmpty) {
+      await _player.seek(Duration.zero, index: 0);
+    }
     if (!_player.playing) {
       AppLogger.info(
         'Playback',
@@ -308,11 +312,16 @@ class LuminaAudioHandler extends BaseAudioHandler
   }
 
   void _broadcastState(PlaybackEvent event) {
+    // just_audio keeps `playing` true when playback reaches the end. Expose the
+    // completed state as paused so every UI surface and system notification
+    // switches back to a play action.
+    final isPlaying =
+        _player.playing && _player.processingState != ProcessingState.completed;
     playbackState.add(
       playbackState.value.copyWith(
         controls: [
           MediaControl.skipToPrevious,
-          if (_player.playing) MediaControl.pause else MediaControl.play,
+          if (isPlaying) MediaControl.pause else MediaControl.play,
           MediaControl.skipToNext,
         ],
         systemActions: const {
@@ -323,7 +332,7 @@ class LuminaAudioHandler extends BaseAudioHandler
         },
         androidCompactActionIndices: const [0, 1, 2],
         processingState: _mapProcessingState(_player.processingState),
-        playing: _player.playing,
+        playing: isPlaying,
         updatePosition: _player.position,
         bufferedPosition: _player.bufferedPosition,
         speed: _player.speed,

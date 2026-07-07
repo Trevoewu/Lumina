@@ -16,8 +16,14 @@ import 'wav_audio_utils.dart';
 /// app_data/audio/{bookId}/{chapterId}.manifest.json
 /// app_data/audio/{bookId}/{chapterId}/{paragraphId}.mp3
 class ManifestStore {
+  final Future<Directory> Function() _documentsDirectory;
+
+  ManifestStore({Future<Directory> Function()? documentsDirectory})
+    : _documentsDirectory =
+          documentsDirectory ?? getApplicationDocumentsDirectory;
+
   Future<Directory> _audioRoot(String bookId) async {
-    final dir = await getApplicationDocumentsDirectory();
+    final dir = await _documentsDirectory();
     final root = Directory(p.join(dir.path, 'audio', bookId));
     await root.create(recursive: true);
     return root;
@@ -50,9 +56,45 @@ class ManifestStore {
 
   Future<ChapterManifest?> load(String bookId, String chapterId) async {
     final file = await manifestFile(bookId, chapterId);
-    if (!await file.exists()) return null;
-    final json = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
-    final manifest = ChapterManifest.fromJson(json);
+    final backup = File('${file.path}.bak');
+    ChapterManifest? manifest;
+    Object? primaryError;
+    if (await file.exists()) {
+      try {
+        manifest = await _readManifest(file);
+      } catch (error, stackTrace) {
+        primaryError = error;
+        AppLogger.error(
+          'Cache',
+          '章节清单损坏，尝试恢复上一检查点 path=${file.path}',
+          error: error,
+          stackTrace: stackTrace,
+        );
+      }
+    }
+    if (manifest == null && await backup.exists()) {
+      try {
+        manifest = await _readManifest(backup);
+        await _replaceFileAtomically(
+          file,
+          utf8.encode(
+            const JsonEncoder.withIndent('  ').convert(manifest.toJson()),
+          ),
+          preserveBackup: false,
+        );
+        AppLogger.info('Cache', '已从上一检查点恢复章节清单 path=${file.path}');
+      } catch (backupError, stackTrace) {
+        AppLogger.error(
+          'Cache',
+          '章节清单检查点恢复失败 path=${backup.path}',
+          error: backupError,
+          stackTrace: stackTrace,
+        );
+        if (primaryError != null) throw primaryError;
+        rethrow;
+      }
+    }
+    if (manifest == null) return null;
     final repaired = await repairManifestWavDurations(
       manifest,
       await _audioRoot(bookId),
@@ -63,14 +105,26 @@ class ManifestStore {
 
   Future<void> save(ChapterManifest manifest) async {
     final file = await manifestFile(manifest.bookId, manifest.chapterId);
-    await file.writeAsString(
-      const JsonEncoder.withIndent('  ').convert(manifest.toJson()),
+    await _replaceFileAtomically(
+      file,
+      utf8.encode(
+        const JsonEncoder.withIndent('  ').convert(manifest.toJson()),
+      ),
     );
+  }
+
+  Future<ChapterManifest> _readManifest(File file) async {
+    final json = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+    return ChapterManifest.fromJson(json);
   }
 
   Future<void> deleteChapter(String bookId, String chapterId) async {
     final file = await manifestFile(bookId, chapterId);
     if (await file.exists()) await file.delete();
+    final backup = File('${file.path}.bak');
+    if (await backup.exists()) await backup.delete();
+    final temporary = File('${file.path}.tmp');
+    if (await temporary.exists()) await temporary.delete();
     final dir = await chapterAudioDir(bookId, chapterId);
     await _deleteDirectoryIfExists(dir);
   }
@@ -142,6 +196,29 @@ class ManifestStore {
         failures.take(3).join('\n'),
       );
     }
+  }
+}
+
+Future<void> _replaceFileAtomically(
+  File destination,
+  List<int> bytes, {
+  bool preserveBackup = true,
+}) async {
+  final temporary = File('${destination.path}.tmp');
+  final backup = File('${destination.path}.bak');
+  await temporary.writeAsBytes(bytes, flush: true);
+
+  if (preserveBackup && await destination.exists()) {
+    await destination.copy(backup.path);
+  }
+
+  try {
+    await temporary.rename(destination.path);
+  } on FileSystemException {
+    // Windows does not replace an existing file on rename. The backup keeps
+    // the last valid checkpoint available during this short fallback window.
+    if (await destination.exists()) await destination.delete();
+    await temporary.rename(destination.path);
   }
 }
 
