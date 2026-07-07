@@ -25,6 +25,8 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  final _languageMenuKey = GlobalKey<PopupMenuButtonState<AppLanguage>>();
+  final _themeMenuKey = GlobalKey<PopupMenuButtonState<AppThemePreference>>();
   bool _fadeInEnabled = true;
 
   @override
@@ -184,34 +186,101 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  Widget _languageRow(AppLanguage selected) => PopupMenuButton<AppLanguage>(
-    key: const ValueKey('language-selector'),
-    onSelected: ref.read(appPreferencesProvider.notifier).setLanguage,
-    itemBuilder: (_) => [
-      for (final language in AppLanguage.values)
-        PopupMenuItem(value: language, child: Text(_languageLabel(language))),
-    ],
-    child: SettingValueRow(
-      icon: Icons.language,
-      title: context.tr('语言', 'Language'),
-      value: _languageLabel(selected),
+  Widget _languageRow(AppLanguage selected) => SettingValueRow(
+    rowKey: const ValueKey('language-selector'),
+    icon: Icons.language,
+    title: context.tr('语言', 'Language'),
+    onTap: () => _languageMenuKey.currentState?.showButtonMenu(),
+    trailing: PopupMenuButton<AppLanguage>(
+      key: _languageMenuKey,
+      tooltip: context.tr('选择语言', 'Choose language'),
+      position: PopupMenuPosition.under,
+      color: Theme.of(context).colorScheme.surfaceContainer,
+      surfaceTintColor: Colors.transparent,
+      constraints: const BoxConstraints(minWidth: 240, maxWidth: 320),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(context.appDesign.radiusSmall),
+      ),
+      onSelected: ref.read(appPreferencesProvider.notifier).setLanguage,
+      itemBuilder: (_) => [
+        for (final language in AppLanguage.values)
+          PopupMenuItem(
+            value: language,
+            child: _popupChoice(
+              label: _languageLabel(language),
+              selected: language == selected,
+            ),
+          ),
+      ],
+      child: _menuValue(_languageLabel(selected)),
     ),
   );
 
-  Widget _themeRow(AppThemePreference selected) =>
-      PopupMenuButton<AppThemePreference>(
-        key: const ValueKey('theme-selector'),
-        onSelected: ref.read(appPreferencesProvider.notifier).setTheme,
-        itemBuilder: (_) => [
-          for (final theme in AppThemePreference.values)
-            PopupMenuItem(value: theme, child: Text(_themeLabel(theme))),
+  Widget _themeRow(AppThemePreference selected) => SettingValueRow(
+    rowKey: const ValueKey('theme-selector'),
+    icon: Icons.brightness_6_outlined,
+    title: context.tr('主题', 'Theme'),
+    onTap: () => _themeMenuKey.currentState?.showButtonMenu(),
+    trailing: PopupMenuButton<AppThemePreference>(
+      key: _themeMenuKey,
+      tooltip: context.tr('选择主题', 'Choose theme'),
+      position: PopupMenuPosition.under,
+      color: Theme.of(context).colorScheme.surfaceContainer,
+      surfaceTintColor: Colors.transparent,
+      constraints: const BoxConstraints(minWidth: 240, maxWidth: 320),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(context.appDesign.radiusSmall),
+      ),
+      onSelected: ref.read(appPreferencesProvider.notifier).setTheme,
+      itemBuilder: (_) => [
+        for (final theme in AppThemePreference.values)
+          PopupMenuItem(
+            value: theme,
+            child: _popupChoice(
+              label: _themeLabel(theme),
+              selected: theme == selected,
+            ),
+          ),
+      ],
+      child: _menuValue(_themeLabel(selected)),
+    ),
+  );
+
+  Widget _menuValue(String value) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: context.appDesign.spaceSm),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            value,
+            style: Theme.of(
+              context,
+            ).textTheme.bodyLarge?.copyWith(color: scheme.onSurfaceVariant),
+          ),
+          SizedBox(width: context.appDesign.spaceXs),
+          Icon(Icons.unfold_more, color: scheme.onSurfaceVariant, size: 20),
         ],
-        child: SettingValueRow(
-          icon: Icons.brightness_6_outlined,
-          title: context.tr('主题', 'Theme'),
-          value: _themeLabel(selected),
+      ),
+    );
+  }
+
+  Widget _popupChoice({required String label, required bool selected}) {
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        SizedBox(
+          width: context.appDesign.spaceXl,
+          child: selected
+              ? Icon(Icons.check, color: scheme.primary)
+              : const SizedBox.shrink(),
         ),
-      );
+        SizedBox(width: context.appDesign.spaceSm),
+        Expanded(child: Text(label)),
+      ],
+    );
+  }
 
   String _languageLabel(AppLanguage value) => switch (value) {
     AppLanguage.system => context.tr('跟随系统', 'System'),
