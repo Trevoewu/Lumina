@@ -2,6 +2,10 @@
 
 A new Flutter project.
 
+## Design system
+
+UI changes must follow [Lumina UI Design System](docs/ui_design_system.md).
+
 ## Getting Started
 
 This project is a starting point for a Flutter application.

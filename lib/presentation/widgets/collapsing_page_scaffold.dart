@@ -1,9 +1,10 @@
-import 'dart:ui' show lerpDouble;
 import 'dart:math' as math;
+import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
 
 import '../../core/app_colors.dart';
+import '../../core/app_design_tokens.dart';
 
 class CollapsingPageScaffold extends StatelessWidget {
   final String title;
@@ -26,6 +27,8 @@ class CollapsingPageScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.paddingOf(context).top;
+    final design = context.appDesign;
+    final pageInset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
     return Scaffold(
       backgroundColor: context.appBackground,
       body: NestedScrollView(
@@ -39,6 +42,12 @@ class CollapsingPageScaffold extends StatelessWidget {
               compact: compactHeader,
               topPadding: topPadding,
               expandedHeight: expandedHeight,
+              pageInset: pageInset,
+              toolbarHeight: design.toolbarHeight,
+              spaceXs: design.spaceXs,
+              spaceSm: design.spaceSm,
+              spaceMd: design.spaceMd,
+              controlHeight: design.controlHeight,
             ),
           ),
         ],
@@ -49,14 +58,18 @@ class CollapsingPageScaffold extends StatelessWidget {
 }
 
 class _CollapsingPageHeaderDelegate extends SliverPersistentHeaderDelegate {
-  static const double _toolbarHeight = 56;
-
   final String title;
   final List<Widget> actions;
   final bool showBackButton;
   final bool compact;
   final double topPadding;
   final double expandedHeight;
+  final double pageInset;
+  final double toolbarHeight;
+  final double spaceXs;
+  final double spaceSm;
+  final double spaceMd;
+  final double controlHeight;
 
   const _CollapsingPageHeaderDelegate({
     required this.title,
@@ -65,14 +78,20 @@ class _CollapsingPageHeaderDelegate extends SliverPersistentHeaderDelegate {
     required this.compact,
     required this.topPadding,
     required this.expandedHeight,
+    required this.pageInset,
+    required this.toolbarHeight,
+    required this.spaceXs,
+    required this.spaceSm,
+    required this.spaceMd,
+    required this.controlHeight,
   });
 
   @override
-  double get minExtent => topPadding + _toolbarHeight;
+  double get minExtent => topPadding + toolbarHeight;
 
   @override
   double get maxExtent =>
-      topPadding + (compact ? _toolbarHeight : expandedHeight);
+      topPadding + (compact ? toolbarHeight : expandedHeight);
 
   @override
   Widget build(
@@ -86,21 +105,21 @@ class _CollapsingPageHeaderDelegate extends SliverPersistentHeaderDelegate {
         : (shrinkOffset / range).clamp(0.0, 1.0);
     final easedProgress = Curves.easeInOutCubic.transform(progress);
     final collapsedSide = math.max(
-      showBackButton ? 64.0 : 20.0,
-      actions.isEmpty ? 20.0 : 56.0 * actions.length + 12,
+      showBackButton ? toolbarHeight + spaceSm : pageInset,
+      actions.isEmpty ? pageInset : toolbarHeight * actions.length + spaceMd,
     );
     final currentExtent = maxExtent - shrinkOffset;
     final titleTop = lerpDouble(
-      currentExtent - 64,
-      topPadding + 4,
+      currentExtent - (toolbarHeight + spaceSm),
+      topPadding + spaceXs,
       easedProgress,
     )!;
-    final titleStyle = Theme.of(context).textTheme.headlineMedium?.copyWith(
-      color: context.appTextPrimary,
-      fontSize: lerpDouble(34, 18, easedProgress),
-      fontWeight: FontWeight.w700,
-      height: 1.05,
-    );
+    final textTheme = Theme.of(context).textTheme;
+    final titleStyle = TextStyle.lerp(
+      textTheme.headlineLarge,
+      textTheme.headlineSmall,
+      easedProgress,
+    )?.copyWith(color: context.appTextPrimary);
 
     return Material(
       key: const ValueKey('collapsing-page-header'),
@@ -110,9 +129,9 @@ class _CollapsingPageHeaderDelegate extends SliverPersistentHeaderDelegate {
         children: [
           Positioned(
             top: titleTop,
-            left: lerpDouble(20, collapsedSide, easedProgress),
-            right: lerpDouble(20, collapsedSide, easedProgress),
-            height: _toolbarHeight,
+            left: lerpDouble(pageInset, collapsedSide, easedProgress),
+            right: lerpDouble(pageInset, collapsedSide, easedProgress),
+            height: toolbarHeight,
             child: IgnorePointer(
               child: Align(
                 alignment: Alignment.lerp(
@@ -134,16 +153,16 @@ class _CollapsingPageHeaderDelegate extends SliverPersistentHeaderDelegate {
           if (showBackButton)
             Positioned(
               top: topPadding,
-              left: 4,
-              width: 52,
-              height: _toolbarHeight,
+              left: spaceXs,
+              width: controlHeight,
+              height: toolbarHeight,
               child: BackButton(onPressed: () => Navigator.maybePop(context)),
             ),
           if (actions.isNotEmpty)
             Positioned(
               top: topPadding,
-              right: 4,
-              height: _toolbarHeight,
+              right: spaceXs,
+              height: toolbarHeight,
               child: Row(mainAxisSize: MainAxisSize.min, children: actions),
             ),
         ],
@@ -158,5 +177,11 @@ class _CollapsingPageHeaderDelegate extends SliverPersistentHeaderDelegate {
       compact != oldDelegate.compact ||
       topPadding != oldDelegate.topPadding ||
       expandedHeight != oldDelegate.expandedHeight ||
+      pageInset != oldDelegate.pageInset ||
+      toolbarHeight != oldDelegate.toolbarHeight ||
+      spaceXs != oldDelegate.spaceXs ||
+      spaceSm != oldDelegate.spaceSm ||
+      spaceMd != oldDelegate.spaceMd ||
+      controlHeight != oldDelegate.controlHeight ||
       actions != oldDelegate.actions;
 }

@@ -558,6 +558,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
   }) async {
     final text = _selectedText.trim();
     if (text.isEmpty) return;
+    await widget.handler.pause();
     selectableRegionState.hideToolbar();
     final selectedLine = _lines
         .where((line) => line.id == _selectionLineId)
@@ -615,6 +616,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
   void _enterWordSelection(SyncedLyricLine line) {
     final tokens = tokenizeSelectableText(line.text);
     if (tokens.isEmpty) return;
+    unawaited(widget.handler.pause());
     unawaited(HapticFeedback.mediumImpact());
     _clearSelection();
     setState(() {

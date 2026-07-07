@@ -55,6 +55,7 @@ class _DictionaryLookupSheetState
   Object? _error;
   bool _loading = false;
   bool _favorite = false;
+  bool _searchExpanded = false;
 
   @override
   void initState() {
@@ -87,6 +88,7 @@ class _DictionaryLookupSheetState
       setState(() {
         _result = result;
         _favorite = favorite;
+        _searchExpanded = false;
       });
     } catch (error) {
       if (!mounted) return;
@@ -163,35 +165,63 @@ class _DictionaryLookupSheetState
               ),
               sliver: SliverList.list(
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          widget.askAi
-                              ? context.tr('AI 解释', 'AI Explanation')
-                              : context.tr('查词', 'Dictionary'),
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: MaterialLocalizations.of(
-                          context,
-                        ).closeButtonTooltip,
-                        onPressed: () => Navigator.of(context).pop(),
-                        icon: const Icon(Icons.close),
-                      ),
-                    ],
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 180),
+                    child: _searchExpanded
+                        ? Row(
+                            key: const ValueKey('dictionary-sheet-search-mode'),
+                            children: [
+                              Expanded(
+                                child: AppSearchField(
+                                  fieldKey: const ValueKey(
+                                    'dictionary-sheet-search-field',
+                                  ),
+                                  controller: _controller,
+                                  hintText: context.tr(
+                                    '输入英文单词或短语',
+                                    'Enter an English word',
+                                  ),
+                                  onSubmitted: _lookup,
+                                  onSearch: _lookup,
+                                  loading: _loading,
+                                  autofocus: true,
+                                ),
+                              ),
+                              SizedBox(width: design.spaceSm),
+                              IconButton(
+                                tooltip: context.tr('收起搜索', 'Hide search'),
+                                onPressed: () {
+                                  FocusScope.of(context).unfocus();
+                                  setState(() => _searchExpanded = false);
+                                },
+                                icon: const Icon(Icons.close),
+                              ),
+                            ],
+                          )
+                        : Row(
+                            key: const ValueKey('dictionary-sheet-actions'),
+                            children: [
+                              IconButton(
+                                tooltip: context.tr(
+                                  '搜索其他单词',
+                                  'Search another word',
+                                ),
+                                onPressed: () =>
+                                    setState(() => _searchExpanded = true),
+                                icon: const Icon(Icons.search),
+                              ),
+                              const Spacer(),
+                              IconButton(
+                                tooltip: MaterialLocalizations.of(
+                                  context,
+                                ).closeButtonTooltip,
+                                onPressed: () => Navigator.of(context).pop(),
+                                icon: const Icon(Icons.close),
+                              ),
+                            ],
+                          ),
                   ),
-                  SizedBox(height: design.spaceMd),
-                  AppSearchField(
-                    fieldKey: const ValueKey('dictionary-sheet-search-field'),
-                    controller: _controller,
-                    hintText: context.tr('输入英文单词或短语', 'Enter an English word'),
-                    onSubmitted: _lookup,
-                    onSearch: _lookup,
-                    loading: _loading,
-                  ),
-                  SizedBox(height: design.spaceXl),
+                  SizedBox(height: design.spaceSm),
                   if (_result case final result?)
                     DictionaryEntryContent(
                       result: result,
@@ -204,7 +234,6 @@ class _DictionaryLookupSheetState
                               result.context?.audioStartMs != null
                           ? _playContext
                           : null,
-                      compact: true,
                     )
                   else if (_error != null)
                     _SheetError(error: _error!, retry: _lookup)

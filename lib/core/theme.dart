@@ -149,13 +149,33 @@ class AppTheme {
         ),
       ),
 
+      chipTheme: ChipThemeData(
+        backgroundColor: colorScheme.surfaceContainer,
+        selectedColor: accentColor.withValues(alpha: 0.16),
+        disabledColor: colorScheme.surfaceContainer.withValues(alpha: 0.48),
+        side: BorderSide.none,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(tokens.radiusSmall),
+        ),
+        labelStyle: AppTextStyles.textTheme.labelLarge?.copyWith(
+          color: colorScheme.onSurface,
+        ),
+        secondaryLabelStyle: AppTextStyles.textTheme.labelLarge?.copyWith(
+          color: colorScheme.onSurface,
+        ),
+        padding: EdgeInsets.symmetric(horizontal: tokens.spaceSm),
+      ),
+
       // 自定义按钮
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           backgroundColor: accentColor,
           foregroundColor: Colors.black,
           textStyle: const TextStyle(fontWeight: FontWeight.bold),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          padding: EdgeInsets.symmetric(
+            horizontal: tokens.spaceXl,
+            vertical: tokens.spaceMd,
+          ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(tokens.radiusPill),
           ),

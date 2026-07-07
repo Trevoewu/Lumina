@@ -7,14 +7,13 @@ import '../../core/app_localizations.dart';
 import '../../data/dictionary/dictionary_repository.dart';
 import 'design_system/app_surface.dart';
 
-class DictionaryEntryContent extends StatefulWidget {
+class DictionaryEntryContent extends StatelessWidget {
   final DictionaryLookupResult result;
   final bool favorite;
   final VoidCallback onFavorite;
   final VoidCallback onPlayUs;
   final VoidCallback onPlayUk;
   final VoidCallback? onPlayContext;
-  final bool compact;
 
   const DictionaryEntryContent({
     super.key,
@@ -24,20 +23,12 @@ class DictionaryEntryContent extends StatefulWidget {
     required this.onPlayUs,
     required this.onPlayUk,
     this.onPlayContext,
-    this.compact = false,
   });
-
-  @override
-  State<DictionaryEntryContent> createState() => _DictionaryEntryContentState();
-}
-
-class _DictionaryEntryContentState extends State<DictionaryEntryContent> {
-  bool _longExplanationExpanded = false;
 
   @override
   Widget build(BuildContext context) {
     final design = context.appDesign;
-    final entry = widget.result.entry;
+    final entry = result.entry;
     final accent = Theme.of(context).colorScheme.primary;
     final readingTitle = context.readingStyle(
       Theme.of(
@@ -53,38 +44,19 @@ class _DictionaryEntryContentState extends State<DictionaryEntryContent> {
           children: [
             Expanded(child: Text(entry.word, style: readingTitle)),
             IconButton(
-              tooltip: widget.favorite
+              tooltip: favorite
                   ? context.tr('取消收藏', 'Remove favorite')
                   : context.tr('收藏', 'Save word'),
-              onPressed: widget.onFavorite,
+              onPressed: onFavorite,
               icon: Icon(
-                widget.favorite ? Icons.bookmark : Icons.bookmark_border,
-                color: widget.favorite ? accent : context.appTextSecondary,
+                favorite ? Icons.bookmark : Icons.bookmark_border,
+                color: favorite ? accent : context.appTextSecondary,
               ),
             ),
           ],
         ),
-        SizedBox(height: design.spaceSm),
-        Wrap(
-          spacing: design.spaceMd,
-          runSpacing: design.spaceSm,
-          children: [
-            _PronunciationAction(
-              label: 'US',
-              phonetic: entry.usPhonetic,
-              onPlay: widget.onPlayUs,
-            ),
-            _PronunciationAction(
-              label: 'UK',
-              phonetic: entry.ukPhonetic,
-              onPlay: widget.onPlayUk,
-            ),
-          ],
-        ),
-        SizedBox(height: design.spaceXl),
-        for (final definition in entry.definitions.take(
-          widget.compact ? 2 : 99,
-        ))
+        SizedBox(height: design.spaceMd),
+        for (final definition in entry.definitions)
           Padding(
             padding: EdgeInsets.only(bottom: design.spaceMd),
             child: Text.rich(
@@ -93,9 +65,8 @@ class _DictionaryEntryContentState extends State<DictionaryEntryContent> {
                   if (definition.partOfSpeech.isNotEmpty)
                     TextSpan(
                       text: '${definition.partOfSpeech}  ',
-                      style: TextStyle(
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
                         color: context.appTextSecondary,
-                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   TextSpan(text: definition.meaning),
@@ -106,23 +77,49 @@ class _DictionaryEntryContentState extends State<DictionaryEntryContent> {
               ).textTheme.bodyLarge?.copyWith(color: context.appTextPrimary),
             ),
           ),
+        if (entry.shortExplanation != null) ...[
+          SizedBox(height: design.spaceMd),
+          _ExplanationSection(
+            title: context.tr('简短解释', 'Short explanation'),
+            text: entry.shortExplanation!,
+          ),
+        ],
+        if (entry.longExplanation != null) ...[
+          SizedBox(height: design.spaceLg),
+          _ExplanationSection(
+            title: context.tr('详细解释', 'Long explanation'),
+            text: entry.longExplanation!,
+          ),
+        ],
         if (entry.otherForms.isNotEmpty) ...[
-          SizedBox(height: design.spaceXs),
+          SizedBox(height: design.spaceXl),
           Wrap(
             spacing: design.spaceSm,
             runSpacing: design.spaceSm,
             children: [
               for (final form in entry.otherForms)
-                Chip(
-                  visualDensity: VisualDensity.compact,
-                  label: Text(form),
-                  side: BorderSide.none,
-                  backgroundColor: context.appSurfaceHighlight,
-                ),
+                Chip(visualDensity: VisualDensity.compact, label: Text(form)),
             ],
           ),
         ],
-        if (widget.result.context case final lookupContext?) ...[
+        SizedBox(height: design.spaceLg),
+        Wrap(
+          spacing: design.spaceMd,
+          runSpacing: design.spaceSm,
+          children: [
+            _PronunciationAction(
+              label: 'US',
+              phonetic: entry.usPhonetic,
+              onPlay: onPlayUs,
+            ),
+            _PronunciationAction(
+              label: 'UK',
+              phonetic: entry.ukPhonetic,
+              onPlay: onPlayUk,
+            ),
+          ],
+        ),
+        if (result.context case final lookupContext?) ...[
           SizedBox(height: design.spaceXl),
           Text(
             context.tr('来自你的有声书', 'From your audiobook'),
@@ -156,7 +153,7 @@ class _DictionaryEntryContentState extends State<DictionaryEntryContent> {
                 ),
                 if (lookupContext.audioStartMs != null) ...[
                   SizedBox(height: design.spaceSm),
-                  if (widget.onPlayContext == null)
+                  if (onPlayContext == null)
                     Text(
                       _formatTimestamp(lookupContext.audioStartMs!),
                       style: Theme.of(
@@ -165,7 +162,7 @@ class _DictionaryEntryContentState extends State<DictionaryEntryContent> {
                     )
                   else
                     TextButton.icon(
-                      onPressed: widget.onPlayContext,
+                      onPressed: onPlayContext,
                       icon: const Icon(Icons.play_arrow_rounded, size: 20),
                       label: Text(
                         context.tr(
@@ -179,45 +176,6 @@ class _DictionaryEntryContentState extends State<DictionaryEntryContent> {
             ),
           ),
         ],
-        if (!widget.compact && entry.shortExplanation != null) ...[
-          SizedBox(height: design.spaceXl),
-          _ExplanationSection(
-            title: context.tr('简短解释', 'Short explanation'),
-            text: entry.shortExplanation!,
-          ),
-        ],
-        if (!widget.compact && entry.longExplanation != null) ...[
-          SizedBox(height: design.spaceLg),
-          AppSurface(
-            child: ExpansionTile(
-              initiallyExpanded: _longExplanationExpanded,
-              onExpansionChanged: (value) =>
-                  setState(() => _longExplanationExpanded = value),
-              backgroundColor: Colors.transparent,
-              collapsedBackgroundColor: Colors.transparent,
-              shape: const RoundedRectangleBorder(side: BorderSide.none),
-              collapsedShape: const RoundedRectangleBorder(
-                side: BorderSide.none,
-              ),
-              title: Text(context.tr('详细解释', 'Long explanation')),
-              childrenPadding: EdgeInsets.fromLTRB(
-                design.spaceLg,
-                0,
-                design.spaceLg,
-                design.spaceLg,
-              ),
-              children: [
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    entry.longExplanation!,
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
         SizedBox(height: design.spaceLg),
         Row(
           children: [
@@ -225,21 +183,20 @@ class _DictionaryEntryContentState extends State<DictionaryEntryContent> {
             SizedBox(width: design.spaceSm),
             Expanded(
               child: Text(
-                '${entry.providerLabel}${widget.result.fromCache ? ' · ${context.tr('本地', 'Cached')}' : ''}',
+                '${entry.providerLabel}${result.fromCache ? ' · ${context.tr('本地', 'Cached')}' : ''}',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: context.appTextSecondary,
                 ),
               ),
             ),
-            if (!widget.compact)
-              IconButton(
-                tooltip: context.tr('打开来源', 'Open source'),
-                onPressed: () => launchUrl(
-                  Uri.parse(entry.sourceUrl),
-                  mode: LaunchMode.externalApplication,
-                ),
-                icon: const Icon(Icons.open_in_new, size: 18),
+            IconButton(
+              tooltip: context.tr('打开来源', 'Open source'),
+              onPressed: () => launchUrl(
+                Uri.parse(entry.sourceUrl),
+                mode: LaunchMode.externalApplication,
               ),
+              icon: const Icon(Icons.open_in_new, size: 18),
+            ),
           ],
         ),
       ],
@@ -273,8 +230,6 @@ class _PronunciationAction extends StatelessWidget {
       avatar: const Icon(Icons.volume_up_outlined, size: 18),
       onPressed: onPlay,
       label: Text('$label${phonetic == null ? '' : '  $phonetic'}'),
-      side: BorderSide.none,
-      backgroundColor: context.appSurface,
     );
   }
 }

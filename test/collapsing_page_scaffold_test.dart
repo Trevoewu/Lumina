@@ -44,6 +44,10 @@ void main() {
           ?.fontWeight,
       FontWeight.w700,
     );
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey('collapsing-page-title'))).dx,
+      closeTo(24, 0.1),
+    );
 
     await tester.drag(find.byType(ListView), const Offset(0, -320));
     await tester.pumpAndSettle();

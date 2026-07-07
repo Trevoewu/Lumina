@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// 应用程序全局颜色定义 (Spotify Style)
+/// Lumina Editorial Listening 视觉系统的全局语义颜色。
 class AppColors {
   /// 主色调 - 绿色
   static const Color primary = Color(0xFF1DB954);

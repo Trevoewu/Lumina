@@ -262,9 +262,39 @@ void main() {
       find.byKey(const ValueKey('dictionary-lookup-sheet')),
       findsOneWidget,
     );
+    expect(
+      find.byKey(const ValueKey('dictionary-sheet-search-field')),
+      findsNothing,
+    );
     expect(find.text('From your audiobook'), findsOneWidget);
     expect(find.text('Play from 00:12'), findsOneWidget);
+    expect(find.text('Short explanation'), findsOneWidget);
+    expect(find.text('A concise explanation.'), findsOneWidget);
+    expect(find.text('Long explanation'), findsOneWidget);
+    expect(find.text('A complete long explanation.'), findsOneWidget);
+    expect(
+      find.textContaining('a second definition', findRichText: true),
+      findsOneWidget,
+    );
+    expect(find.byType(ExpansionTile), findsNothing);
     expect(find.byType(DictionaryWordScreen), findsNothing);
+    expect(
+      tester.getTopLeft(find.text('Short explanation')).dy,
+      lessThan(tester.getTopLeft(find.text('From your audiobook')).dy),
+    );
+
+    await tester.tap(find.byTooltip('Search another word'));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('dictionary-sheet-search-field')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byTooltip('Hide search'));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('dictionary-sheet-search-field')),
+      findsNothing,
+    );
   });
 }
 
@@ -273,6 +303,28 @@ class _FakeProvider extends VocabularyComProvider {
 
   @override
   Future<VocabularyEntry> lookup(String term) async {
-    return const VocabularyComParser().parse(_fixture, requestedTerm: term);
+    final parsed = const VocabularyComParser().parse(
+      _fixture,
+      requestedTerm: term,
+    );
+    return VocabularyEntry(
+      provider: parsed.provider,
+      providerLabel: parsed.providerLabel,
+      word: parsed.word,
+      normalizedTerm: parsed.normalizedTerm,
+      usPhonetic: parsed.usPhonetic,
+      ukPhonetic: parsed.ukPhonetic,
+      definitions: [
+        ...parsed.definitions,
+        const VocabularyDefinition(
+          partOfSpeech: 'adjective',
+          meaning: 'a second definition',
+        ),
+      ],
+      otherForms: parsed.otherForms,
+      shortExplanation: 'A concise explanation.',
+      longExplanation: 'A complete long explanation.',
+      sourceUrl: parsed.sourceUrl,
+    );
   }
 }

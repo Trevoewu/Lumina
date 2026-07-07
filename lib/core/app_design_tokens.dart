@@ -20,6 +20,7 @@ class AppDesignTokens extends ThemeExtension<AppDesignTokens> {
   final double radiusPill;
   final double minimumTouchTarget;
   final double controlHeight;
+  final double toolbarHeight;
   final String? readingFontFamily;
 
   const AppDesignTokens({
@@ -37,6 +38,7 @@ class AppDesignTokens extends ThemeExtension<AppDesignTokens> {
     this.radiusPill = 999,
     this.minimumTouchTarget = 44,
     this.controlHeight = 52,
+    this.toolbarHeight = 56,
     this.readingFontFamily,
   });
 
@@ -59,6 +61,7 @@ class AppDesignTokens extends ThemeExtension<AppDesignTokens> {
     double? radiusPill,
     double? minimumTouchTarget,
     double? controlHeight,
+    double? toolbarHeight,
     String? readingFontFamily,
     bool clearReadingFontFamily = false,
   }) {
@@ -77,6 +80,7 @@ class AppDesignTokens extends ThemeExtension<AppDesignTokens> {
       radiusPill: radiusPill ?? this.radiusPill,
       minimumTouchTarget: minimumTouchTarget ?? this.minimumTouchTarget,
       controlHeight: controlHeight ?? this.controlHeight,
+      toolbarHeight: toolbarHeight ?? this.toolbarHeight,
       readingFontFamily: clearReadingFontFamily
           ? null
           : readingFontFamily ?? this.readingFontFamily,
@@ -108,6 +112,7 @@ class AppDesignTokens extends ThemeExtension<AppDesignTokens> {
         t,
       ),
       controlHeight: _lerp(controlHeight, other.controlHeight, t),
+      toolbarHeight: _lerp(toolbarHeight, other.toolbarHeight, t),
       readingFontFamily: t < 0.5 ? readingFontFamily : other.readingFontFamily,
     );
   }
