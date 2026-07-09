@@ -4,13 +4,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/app_colors.dart';
+import '../../../core/app_design_tokens.dart';
 import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
+import '../../../data/book_sources/gutendex_repository.dart';
 import '../../../data/database/app_database.dart' as drift_db;
 import '../../../domain/models/chapter_manifest.dart';
+import '../../../domain/models/book_rights.dart';
 import '../../../services/app_log_service.dart';
+import '../../widgets/book_card_metadata.dart';
+import '../../widgets/book_list_card.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
 import '../album/album_screen.dart';
+import '../library/gutendex_book_detail_screen.dart';
+
+enum _SearchScope { online, library }
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -23,6 +31,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   final _controller = TextEditingController();
   Timer? _debounce;
   Future<_SearchData>? _future;
+  Future<_OnlineSearchData>? _onlineFuture;
+  _SearchScope _scope = _SearchScope.online;
+  int _onlinePage = 1;
 
   @override
   void initState() {
@@ -39,9 +50,35 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   void _onQueryChanged(String value) {
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 220), () {
-      if (mounted) setState(() => _future = _load(value.trim()));
+    _debounce = Timer(const Duration(milliseconds: 280), () {
+      if (!mounted) return;
+      setState(() {
+        if (_scope == _SearchScope.online) {
+          _onlinePage = 1;
+          _onlineFuture = _loadOnline();
+        } else {
+          _future = _load(value.trim());
+        }
+      });
     });
+  }
+
+  Future<_OnlineSearchData> _loadOnline() async {
+    final db = ref.read(appDatabaseProvider);
+    final books = await db.getAllBooks();
+    final importedByGutendexId = <int, drift_db.Book>{};
+    for (final book in books) {
+      if (book.externalSource != gutendexSourceId) continue;
+      final externalId = int.tryParse(book.externalId ?? '');
+      if (externalId != null) importedByGutendexId[externalId] = book;
+    }
+    final result = await ref
+        .read(gutendexRepositoryProvider)
+        .search(query: _controller.text.trim(), page: _onlinePage);
+    return _OnlineSearchData(
+      result: result,
+      importedByGutendexId: importedByGutendexId,
+    );
   }
 
   Future<_SearchData> _load(String query) async {
@@ -90,24 +127,32 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    _onlineFuture ??= _loadOnline();
+    final design = context.appDesign;
+    final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
+
     return CollapsingPageScaffold(
       title: context.tr('搜索', 'Search'),
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            padding: EdgeInsets.fromLTRB(inset, 8, inset, 10),
             child: TextField(
               controller: _controller,
               onChanged: _onQueryChanged,
-              autofocus: true,
+              autofocus: false,
               style: TextStyle(color: context.appTextPrimary),
+              textInputAction: TextInputAction.search,
+              onSubmitted: (_) => _runSearch(),
               decoration: InputDecoration(
                 filled: true,
                 fillColor: context.appSurface,
-                hintText: context.tr(
-                  '搜索书籍、章节或正文',
-                  'Search books, chapters, or text',
-                ),
+                hintText: _scope == _SearchScope.online
+                    ? context.tr('搜索 Gutenberg 公版书', 'Search Gutenberg books')
+                    : context.tr(
+                        '搜索书籍、章节或正文',
+                        'Search books, chapters, or text',
+                      ),
                 hintStyle: TextStyle(color: context.appTextSecondary),
                 prefixIcon: Icon(Icons.search, color: context.appTextSecondary),
                 suffixIcon: _controller.text.isEmpty
@@ -117,7 +162,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         icon: Icon(Icons.close),
                         onPressed: () {
                           _controller.clear();
-                          setState(() => _future = _load(''));
+                          _runSearch();
                         },
                       ),
                 border: OutlineInputBorder(
@@ -127,22 +172,157 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               ),
             ),
           ),
-          Expanded(
-            child: FutureBuilder<_SearchData>(
-              future: _future,
-              builder: (context, snapshot) {
-                final data = snapshot.data;
-                if (snapshot.connectionState == ConnectionState.waiting &&
-                    data == null) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (data == null) return const SizedBox.shrink();
-                return _buildResults(data);
-              },
+          Padding(
+            padding: EdgeInsets.fromLTRB(inset, 0, inset, 12),
+            child: SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<_SearchScope>(
+                segments: [
+                  ButtonSegment(
+                    value: _SearchScope.online,
+                    label: Text(context.tr('在线书库', 'Online Library')),
+                  ),
+                  ButtonSegment(
+                    value: _SearchScope.library,
+                    label: Text(context.tr('书架', 'Library')),
+                  ),
+                ],
+                selected: {_scope},
+                onSelectionChanged: (selection) {
+                  final selected = selection.first;
+                  if (selected == _scope) return;
+                  setState(() {
+                    _scope = selected;
+                    if (_scope == _SearchScope.online) {
+                      _onlinePage = 1;
+                      _onlineFuture = _loadOnline();
+                    } else {
+                      _future = _load(_controller.text.trim());
+                    }
+                  });
+                },
+              ),
             ),
+          ),
+          Expanded(
+            child: _scope == _SearchScope.online
+                ? _buildOnlineFuture(inset)
+                : _buildLocalFuture(),
           ),
         ],
       ),
+    );
+  }
+
+  void _runSearch() {
+    setState(() {
+      if (_scope == _SearchScope.online) {
+        _onlinePage = 1;
+        _onlineFuture = _loadOnline();
+      } else {
+        _future = _load(_controller.text.trim());
+      }
+    });
+  }
+
+  Widget _buildLocalFuture() {
+    return FutureBuilder<_SearchData>(
+      future: _future,
+      builder: (context, snapshot) {
+        final data = snapshot.data;
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            data == null) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (data == null) return const SizedBox.shrink();
+        return _buildResults(data);
+      },
+    );
+  }
+
+  Widget _buildOnlineFuture(double inset) {
+    return FutureBuilder<_OnlineSearchData>(
+      future: _onlineFuture,
+      builder: (context, snapshot) {
+        final data = snapshot.data;
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            data == null) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return _OnlineErrorState(
+            message: snapshot.error.toString(),
+            onRetry: _runSearch,
+          );
+        }
+        if (data == null) return const SizedBox.shrink();
+        return _buildOnlineResults(data, inset);
+      },
+    );
+  }
+
+  Widget _buildOnlineResults(_OnlineSearchData data, double inset) {
+    final books = data.result.books;
+    if (books.isEmpty) {
+      return Center(
+        child: Text(
+          context.tr('没有找到可导入的公版书', 'No importable public-domain books found'),
+          style: TextStyle(color: context.appTextSecondary),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: EdgeInsets.fromLTRB(inset, 4, inset, 120),
+      itemBuilder: (context, index) {
+        if (index == books.length) {
+          return Center(
+            child: OutlinedButton.icon(
+              icon: const Icon(Icons.expand_more),
+              label: Text(context.tr('加载更多', 'Load More')),
+              onPressed: data.result.next == null
+                  ? null
+                  : () => setState(() {
+                      _onlinePage++;
+                      _onlineFuture = _loadOnline();
+                    }),
+            ),
+          );
+        }
+        final book = books[index];
+        final imported = data.importedByGutendexId[book.id];
+        return BookListCard(
+          title: book.title,
+          subtitle: book.authorLabel,
+          remoteCoverUrl: book.coverUrl,
+          metadata: [
+            BookListCardMeta(icon: Icons.language, label: book.languageLabel),
+            BookListCardMeta(
+              icon: Icons.download_outlined,
+              label: _formatDownloads(book.downloadCount),
+            ),
+            if (imported != null)
+              BookListCardMeta(
+                icon: Icons.check_circle_outline,
+                label: context.tr('已导入', 'Imported'),
+              ),
+          ],
+          onTap: () async {
+            await Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => GutendexBookDetailScreen(
+                  book: book,
+                  importedBook: imported,
+                ),
+              ),
+            );
+            if (!mounted) return;
+            setState(() => _onlineFuture = _loadOnline());
+          },
+        );
+      },
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
+      itemCount: books.length + (data.result.next == null ? 0 : 1),
     );
   }
 
@@ -302,11 +482,61 @@ class _SearchData {
   });
 }
 
+class _OnlineSearchData {
+  final GutendexSearchResult result;
+  final Map<int, drift_db.Book> importedByGutendexId;
+
+  const _OnlineSearchData({
+    required this.result,
+    required this.importedByGutendexId,
+  });
+}
+
 class _ChapterHit {
   final drift_db.Chapter chapter;
   final drift_db.Book? book;
 
   const _ChapterHit(this.chapter, this.book);
+}
+
+class _OnlineErrorState extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const _OnlineErrorState({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.cloud_off_outlined, color: context.appTextSecondary),
+            const SizedBox(height: 12),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: context.appTextSecondary),
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: Text(context.tr('重试', 'Retry')),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _formatDownloads(int count) {
+  if (count >= 1000000) return '${(count / 1000000).toStringAsFixed(1)}M';
+  if (count >= 1000) return '${(count / 1000).toStringAsFixed(1)}K';
+  return count.toString();
 }
 
 class _ParagraphHit {
@@ -325,10 +555,20 @@ class _BookResultTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _ResultTile(
-      icon: Icons.menu_book_rounded,
+    return BookListCard(
       title: book.title,
-      subtitle: '${book.author ?? 'Unknown Author'} · ${book.chapterCount} 章',
+      subtitle: book.author ?? 'Unknown Author',
+      localCoverPath: book.coverPath,
+      metadata: [
+        BookListCardMeta(
+          icon: Icons.language,
+          label: bookLanguageLabel(context, book),
+        ),
+        BookListCardMeta(
+          icon: Icons.trending_up_outlined,
+          label: bookReadingProgressLabel(context, book),
+        ),
+      ],
       onTap: onTap,
     );
   }

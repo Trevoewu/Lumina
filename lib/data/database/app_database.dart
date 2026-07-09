@@ -29,6 +29,12 @@ class Books extends Table {
   IntColumn get importedAt => integer()();
   IntColumn get lastReadAt => integer().withDefault(const Constant(0))();
   TextColumn get kind => text().withDefault(const Constant('book'))();
+  TextColumn get externalSource => text().nullable()();
+  TextColumn get externalId => text().nullable()();
+  TextColumn get rightsStatus =>
+      text().withDefault(const Constant('user_uploaded'))();
+  TextColumn get externalMetadataJson => text().nullable()();
+  TextColumn get language => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -213,7 +219,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e) : _repairPathsOnOpen = false;
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -228,6 +234,15 @@ class AppDatabase extends _$AppDatabase {
       if (from < 4) {
         await m.createTable(dictionaryEntries);
         await m.createTable(favoriteWords);
+      }
+      if (from < 5) {
+        await m.addColumn(books, books.externalSource);
+        await m.addColumn(books, books.externalId);
+        await m.addColumn(books, books.rightsStatus);
+        await m.addColumn(books, books.externalMetadataJson);
+      }
+      if (from < 6) {
+        await m.addColumn(books, books.language);
       }
     },
     beforeOpen: (_) async {
@@ -246,6 +261,14 @@ class AppDatabase extends _$AppDatabase {
 
   Future<Book?> getBook(String id) =>
       (select(books)..where((b) => b.id.equals(id))).getSingleOrNull();
+
+  Future<Book?> getBookByExternalSource(String source, String externalId) =>
+      (select(books)..where(
+            (b) =>
+                b.externalSource.equals(source) &
+                b.externalId.equals(externalId),
+          ))
+          .getSingleOrNull();
 
   Future<void> upsertBook(Book entry) =>
       into(books).insertOnConflictUpdate(entry);
@@ -290,8 +313,10 @@ class AppDatabase extends _$AppDatabase {
     String? author,
     String? coverPath,
     String? voiceId,
+    String? language,
     bool clearAuthor = false,
     bool clearCover = false,
+    bool clearLanguage = false,
   }) async {
     await (update(books)..where((b) => b.id.equals(bookId))).write(
       BooksCompanion(
@@ -307,6 +332,11 @@ class AppDatabase extends _$AppDatabase {
             ? const Value.absent()
             : Value(coverPath),
         voiceId: voiceId == null ? const Value.absent() : Value(voiceId),
+        language: clearLanguage
+            ? const Value(null)
+            : language == null
+            ? const Value.absent()
+            : Value(language),
       ),
     );
   }

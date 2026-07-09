@@ -58,6 +58,7 @@ void main() {
         importedAt: 1,
         lastReadAt: 0,
         kind: 'book',
+        rightsStatus: 'user_uploaded',
       ),
     );
 

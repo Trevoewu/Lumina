@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../services/cache_manager.dart';
+import '../data/book_sources/gutendex_repository.dart';
 import '../data/dictionary/dictionary_repository.dart';
 import '../data/dictionary/openai_compatible_explanation_provider.dart';
 import '../data/settings/provider_selection_repository.dart';
@@ -16,6 +17,10 @@ import '../services/sleep_timer_service.dart';
 import 'database_provider.dart';
 
 export 'database_provider.dart';
+
+final gutendexRepositoryProvider = Provider<GutendexRepository>((ref) {
+  return GutendexRepository();
+});
 
 final openAiCompatibleExplanationProvider =
     Provider<OpenAiCompatibleExplanationProvider>((ref) {

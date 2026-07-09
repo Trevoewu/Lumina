@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -12,12 +11,16 @@ import '../../../core/app_design_tokens.dart';
 import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart' as drift_db;
+import '../../../domain/models/book_language.dart';
+import '../../../domain/models/book_rights.dart';
 import '../../../services/app_log_service.dart';
 import '../../../services/book_parser.dart';
 import '../../../tts/models/tts_voice.dart';
 import '../../../tts/provider_registry.dart';
 import '../../../tts/tts_provider.dart';
 import '../../widgets/book_cover.dart';
+import '../../widgets/book_card_metadata.dart';
+import '../../widgets/book_list_card.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
 import '../album/album_screen.dart';
 import '../search/search_screen.dart';
@@ -48,9 +51,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       actions: [
         IconButton(
           tooltip: context.tr('搜索书籍', 'Search Books'),
-          onPressed: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const SearchScreen())),
+          onPressed: () async {
+            await Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const SearchScreen()));
+            if (mounted) setState(() => _reloadToken++);
+          },
           icon: Icon(Icons.search, color: context.appTextPrimary),
         ),
         IconButton(
@@ -68,7 +74,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               : Icon(Icons.add, color: context.appTextPrimary),
         ),
       ],
-      body: FutureBuilder(
+      body: FutureBuilder<List<drift_db.Book>>(
         key: ValueKey(_reloadToken),
         future: db.getAllBooks(),
         builder: (context, snapshot) {
@@ -80,15 +86,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
           _backfillMissingCovers(books);
 
-          return GridView.builder(
+          return ListView.separated(
             padding: EdgeInsets.fromLTRB(inset, design.spaceLg, inset, 120),
-            gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 220,
-              childAspectRatio: 0.66,
-              crossAxisSpacing: design.spaceLg,
-              mainAxisSpacing: design.spaceXl,
-            ),
             itemCount: books.length,
+            separatorBuilder: (_, _) => SizedBox(height: design.spaceMd),
             itemBuilder: (context, i) {
               final book = books[i];
               return _BookCard(
@@ -263,6 +264,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           id: parsed.book.id,
           title: parsed.book.title,
           author: parsed.book.author,
+          language: inferLanguageFromTitle(parsed.book.title),
           format: parsed.book.format.name,
           sourcePath: parsed.book.sourcePath,
           coverPath: parsed.book.coverPath,
@@ -275,6 +277,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           importedAt: parsed.book.importedAt,
           lastReadAt: parsed.book.lastReadAt,
           kind: 'book',
+          rightsStatus: userUploadedRightsStatus,
         ),
       );
 
@@ -711,6 +714,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               id: parsed.book.id,
               title: parsed.book.title,
               author: parsed.book.author,
+              language:
+                  book.language ?? inferLanguageFromTitle(parsed.book.title),
               format: parsed.book.format.name,
               sourcePath: parsed.book.sourcePath,
               coverPath: parsed.book.coverPath,
@@ -723,6 +728,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               importedAt: book.importedAt,
               lastReadAt: DateTime.now().millisecondsSinceEpoch,
               kind: book.kind,
+              externalSource: book.externalSource,
+              externalId: book.externalId,
+              rightsStatus: book.rightsStatus,
+              externalMetadataJson: book.externalMetadataJson,
             ),
             chapterEntries: parsed.chapters
                 .map(
@@ -777,6 +786,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   Future<void> _showEditBookSheet(drift_db.Book book) async {
     final titleController = TextEditingController(text: book.title);
     final authorController = TextEditingController(text: book.author ?? '');
+    final languageController = TextEditingController(
+      text: book.language ?? inferLanguageFromTitle(book.title) ?? '',
+    );
     String? coverPath = book.coverPath;
 
     await showModalBottomSheet<void>(
@@ -836,6 +848,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                                 hint: '作者',
                                 icon: Icons.person_outline,
                               ),
+                              const SizedBox(height: 10),
+                              _darkTextField(
+                                controller: languageController,
+                                hint: '语言代码（如 zh / en）',
+                                icon: Icons.language,
+                              ),
                             ],
                           ),
                         ),
@@ -888,6 +906,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                         onPressed: () async {
                           final title = titleController.text.trim();
                           if (title.isEmpty) return;
+                          final language = normalizeBookLanguage(
+                            languageController.text,
+                          );
                           await ref
                               .read(appDatabaseProvider)
                               .updateBookMetadata(
@@ -899,6 +920,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                                     .isEmpty,
                                 coverPath: coverPath,
                                 clearCover: coverPath == null,
+                                language: language,
+                                clearLanguage: language == null,
                               );
                           if (!mounted) return;
                           if (!context.mounted) return;
@@ -918,6 +941,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
     titleController.dispose();
     authorController.dispose();
+    languageController.dispose();
   }
 
   Widget _darkTextField({
@@ -1003,128 +1027,34 @@ class _BookCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final design = context.appDesign;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        const detailsHeight = 74.0;
-        final coverSize = math.min(
-          constraints.maxWidth,
-          math.max(0.0, constraints.maxHeight - detailsHeight),
-        );
-
-        return GestureDetector(
-          onTap: onTap,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: coverSize,
-                height: coverSize,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.35),
-                        blurRadius: 10,
-                        offset: const Offset(0, 5),
-                      ),
-                    ],
-                  ),
-                  child: BookCover(
-                    coverPath: book.coverPath,
-                    placeholderIcon: Icons.menu_book_rounded,
-                    iconSize: 56,
-                    borderRadius: design.radiusSmall,
-                  ),
-                ),
-              ),
-              SizedBox(
-                height: detailsHeight,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      height: 18,
-                      child: Text(
-                        book.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: context.appTextPrimary,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    SizedBox(
-                      height: 16,
-                      child: Text(
-                        book.author ?? 'Unknown Author',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: context.appTextSecondary,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.headphones_outlined,
-                          size: 12,
-                          color: context.appTextSecondary,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${book.chapterCount} 章',
-                          style: TextStyle(
-                            fontSize: 11,
-                            height: 1.1,
-                            color: context.appTextSecondary,
-                          ),
-                        ),
-                        if (cacheProgress != null) ...[
-                          const SizedBox(width: 8),
-                          SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(
-                              value: cacheProgress!.percent,
-                              strokeWidth: 2,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${(cacheProgress!.percent * 100).round()}%',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: context.appTextSecondary,
-                            ),
-                          ),
-                        ],
-                        const Spacer(),
-                        SizedBox(
-                          width: 28,
-                          height: 18,
-                          child: _BookActionsButton(
-                            onEdit: onEdit,
-                            onReparse: onReparse,
-                            onCacheBook: onCacheBook,
-                            onClearCache: onClearCache,
-                            cacheProgress: cacheProgress,
-                            onDelete: onDelete,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
+    return BookListCard(
+      title: book.title,
+      subtitle: book.author ?? 'Unknown Author',
+      localCoverPath: book.coverPath,
+      metadata: [
+        BookListCardMeta(
+          icon: Icons.language,
+          label: bookLanguageLabel(context, book),
+        ),
+        BookListCardMeta(
+          icon: Icons.trending_up_outlined,
+          label: bookReadingProgressLabel(context, book),
+        ),
+        if (cacheProgress != null)
+          BookListCardMeta(
+            icon: Icons.downloading_outlined,
+            label: '${(cacheProgress!.percent * 100).round()}%',
           ),
-        );
-      },
+      ],
+      trailing: _BookActionsButton(
+        onEdit: onEdit,
+        onReparse: onReparse,
+        onCacheBook: onCacheBook,
+        onClearCache: onClearCache,
+        cacheProgress: cacheProgress,
+        onDelete: onDelete,
+      ),
+      onTap: onTap,
     );
   }
 }
@@ -1148,83 +1078,87 @@ class _BookActionsButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PopupMenuButton<String>(
-      tooltip: '书籍操作',
-      color: context.appSurface,
-      padding: EdgeInsets.zero,
-      iconSize: 18,
-      icon: Icon(Icons.more_horiz, color: context.appTextSecondary),
-      onSelected: (value) {
-        if (value == 'edit') onEdit();
-        if (value == 'reparse') onReparse();
-        if (value == 'cache_book') onCacheBook();
-        if (value == 'cache') onClearCache();
-        if (value == 'delete') onDelete();
-      },
-      itemBuilder: (context) => [
-        const PopupMenuItem(
-          value: 'edit',
-          child: Row(
-            children: [
-              Icon(Icons.edit_outlined, size: 18),
-              SizedBox(width: 8),
-              Text('编辑'),
-            ],
+    return SizedBox(
+      width: 40,
+      height: 40,
+      child: PopupMenuButton<String>(
+        tooltip: '书籍操作',
+        color: context.appSurface,
+        padding: EdgeInsets.zero,
+        iconSize: 22,
+        icon: Icon(Icons.more_horiz, color: context.appTextSecondary),
+        onSelected: (value) {
+          if (value == 'edit') onEdit();
+          if (value == 'reparse') onReparse();
+          if (value == 'cache_book') onCacheBook();
+          if (value == 'cache') onClearCache();
+          if (value == 'delete') onDelete();
+        },
+        itemBuilder: (context) => [
+          const PopupMenuItem(
+            value: 'edit',
+            child: Row(
+              children: [
+                Icon(Icons.edit_outlined, size: 18),
+                SizedBox(width: 8),
+                Text('编辑'),
+              ],
+            ),
           ),
-        ),
-        const PopupMenuItem(
-          value: 'reparse',
-          child: Row(
-            children: [
-              Icon(Icons.auto_fix_high_outlined, size: 18),
-              SizedBox(width: 8),
-              Text('重新解析'),
-            ],
+          const PopupMenuItem(
+            value: 'reparse',
+            child: Row(
+              children: [
+                Icon(Icons.auto_fix_high_outlined, size: 18),
+                SizedBox(width: 8),
+                Text('重新解析'),
+              ],
+            ),
           ),
-        ),
-        PopupMenuItem(
-          value: 'cache_book',
-          enabled: cacheProgress == null,
-          child: Row(
-            children: [
-              const Icon(Icons.download_for_offline_outlined, size: 18),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  cacheProgress == null
-                      ? context.tr('缓存整本书', 'Cache Entire Book')
-                      : context.tr(
-                          '缓存中 ${(cacheProgress!.percent * 100).round()}%',
-                          'Caching ${(cacheProgress!.percent * 100).round()}%',
-                        ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+          PopupMenuItem(
+            value: 'cache_book',
+            enabled: cacheProgress == null,
+            child: Row(
+              children: [
+                const Icon(Icons.download_for_offline_outlined, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    cacheProgress == null
+                        ? context.tr('缓存整本书', 'Cache Entire Book')
+                        : context.tr(
+                            '缓存中 ${(cacheProgress!.percent * 100).round()}%',
+                            'Caching ${(cacheProgress!.percent * 100).round()}%',
+                          ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-        const PopupMenuItem(
-          value: 'cache',
-          child: Row(
-            children: [
-              Icon(Icons.cleaning_services_outlined, size: 18),
-              SizedBox(width: 8),
-              Text('清除音频'),
-            ],
+          const PopupMenuItem(
+            value: 'cache',
+            child: Row(
+              children: [
+                Icon(Icons.cleaning_services_outlined, size: 18),
+                SizedBox(width: 8),
+                Text('清除音频'),
+              ],
+            ),
           ),
-        ),
-        const PopupMenuItem(
-          value: 'delete',
-          child: Row(
-            children: [
-              Icon(Icons.delete_outline, size: 18),
-              SizedBox(width: 8),
-              Text('删除'),
-            ],
+          const PopupMenuItem(
+            value: 'delete',
+            child: Row(
+              children: [
+                Icon(Icons.delete_outline, size: 18),
+                SizedBox(width: 8),
+                Text('删除'),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

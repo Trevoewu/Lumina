@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import '../data/database/app_database.dart' as db;
 import '../domain/models/audio_text_timing.dart';
+import '../domain/models/book_rights.dart';
 import '../domain/models/chapter_manifest.dart';
 import '../tts/models/tts_chunk.dart';
 import '../tts/models/tts_voice.dart';
@@ -133,6 +134,14 @@ class GenerationOrchestrator {
     required double speed,
     required int maxRetries,
   }) async* {
+    final book = await database.getBook(bookId);
+    if (book == null) {
+      throw StateError('找不到书籍：$bookId');
+    }
+    if (!canGenerateAudioForRights(book.rightsStatus)) {
+      throw StateError('版权状态不允许生成音频：${book.rightsStatus}');
+    }
+
     final paragraphs = await database.getParagraphs(chapterId);
     final existing = await manifestStore.load(bookId, chapterId);
     final fadeInEnabled =

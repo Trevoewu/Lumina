@@ -7,6 +7,7 @@ class AppSearchField extends StatelessWidget {
   final TextEditingController controller;
   final String hintText;
   final ValueChanged<String>? onSubmitted;
+  final ValueChanged<String>? onChanged;
   final VoidCallback? onSearch;
   final bool loading;
   final bool autofocus;
@@ -17,6 +18,7 @@ class AppSearchField extends StatelessWidget {
     required this.controller,
     required this.hintText,
     this.onSubmitted,
+    this.onChanged,
     this.onSearch,
     this.loading = false,
     this.autofocus = false,
@@ -32,6 +34,7 @@ class AppSearchField extends StatelessWidget {
         controller: controller,
         autofocus: autofocus,
         textInputAction: TextInputAction.search,
+        onChanged: onChanged,
         onSubmitted: loading ? null : onSubmitted,
         style: Theme.of(context).textTheme.bodyLarge,
         decoration: InputDecoration(

@@ -33,16 +33,7 @@ void main() {
       if (await temp.exists()) await temp.delete(recursive: true);
     });
 
-    await database.insertParagraphs([
-      for (var index = 0; index < 5; index++)
-        Paragraph(
-          id: 'p$index',
-          chapterId: 'chapter',
-          bookId: 'book',
-          paragraphIndex: index,
-          content: 'Paragraph $index.',
-        ),
-    ]);
+    await _insertBookFixture(database);
     final orchestrator = GenerationOrchestrator(
       database: database,
       manifestStore: store,
@@ -89,16 +80,7 @@ void main() {
         if (await temp.exists()) await temp.delete(recursive: true);
       });
 
-      await database.insertParagraphs([
-        for (var index = 0; index < 5; index++)
-          Paragraph(
-            id: 'p$index',
-            chapterId: 'chapter',
-            bookId: 'book',
-            paragraphIndex: index,
-            content: 'Paragraph $index.',
-          ),
-      ]);
+      await _insertBookFixture(database);
       final orchestrator = GenerationOrchestrator(
         database: database,
         manifestStore: store,
@@ -152,16 +134,7 @@ void main() {
         if (await temp.exists()) await temp.delete(recursive: true);
       });
 
-      await database.insertParagraphs([
-        for (var index = 0; index < 5; index++)
-          Paragraph(
-            id: 'p$index',
-            chapterId: 'chapter',
-            bookId: 'book',
-            paragraphIndex: index,
-            content: 'Paragraph $index.',
-          ),
-      ]);
+      await _insertBookFixture(database);
       final orchestrator = GenerationOrchestrator(
         database: database,
         manifestStore: store,
@@ -204,6 +177,76 @@ void main() {
     expect(timings.map((timing) => timing.startMs), [0, 450]);
     expect(timings.map((timing) => timing.endMs), [400, 900]);
   });
+
+  test('generation rejects books without generation rights', () async {
+    final temp = await Directory.systemTemp.createTemp('lumina_rights_');
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final store = _TestManifestStore(temp);
+    final provider = _ConcurrentTestProvider(concurrency: 1);
+    const voice = TtsVoice(
+      id: 'voice',
+      name: 'Test voice',
+      providerId: 'parallel_test',
+      type: VoiceType.preset,
+      providerVoiceId: 'voice',
+      createdAt: 1,
+    );
+    addTearDown(() async {
+      await database.close();
+      if (await temp.exists()) await temp.delete(recursive: true);
+    });
+
+    await _insertBookFixture(database, rightsStatus: 'metadata_only');
+    final orchestrator = GenerationOrchestrator(
+      database: database,
+      manifestStore: store,
+    );
+
+    await expectLater(
+      orchestrator
+          .generateChapter(
+            bookId: 'book',
+            chapterId: 'chapter',
+            provider: provider,
+            voice: voice,
+          )
+          .drain<void>(),
+      throwsA(isA<StateError>()),
+    );
+    expect(provider.synthesisRequests, 0);
+  });
+}
+
+Future<void> _insertBookFixture(
+  AppDatabase database, {
+  String rightsStatus = 'user_uploaded',
+}) async {
+  await database.upsertBook(
+    Book(
+      id: 'book',
+      title: 'Generation Test',
+      format: 'txt',
+      sourcePath: '/tmp/generation-test.txt',
+      chapterCount: 1,
+      paragraphCount: 5,
+      currentParagraphIndex: 0,
+      playbackOffsetMs: 0,
+      importedAt: 1,
+      lastReadAt: 1,
+      kind: 'book',
+      rightsStatus: rightsStatus,
+    ),
+  );
+  await database.insertParagraphs([
+    for (var index = 0; index < 5; index++)
+      Paragraph(
+        id: 'p$index',
+        chapterId: 'chapter',
+        bookId: 'book',
+        paragraphIndex: index,
+        content: 'Paragraph $index.',
+      ),
+  ]);
 }
 
 class _ConcurrentTestProvider implements TtsProvider, TtsConcurrencyPolicy {

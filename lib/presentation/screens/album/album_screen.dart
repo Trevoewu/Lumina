@@ -294,6 +294,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
         error: error,
         stackTrace: stackTrace,
       );
+      if (mounted) _showSnackBar('音频合成失败：$error');
     } finally {
       if (mounted) {
         setState(() {

@@ -168,6 +168,62 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
     requiredDuringInsert: false,
     defaultValue: const Constant('book'),
   );
+  static const VerificationMeta _externalSourceMeta = const VerificationMeta(
+    'externalSource',
+  );
+  @override
+  late final GeneratedColumn<String> externalSource = GeneratedColumn<String>(
+    'external_source',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _externalIdMeta = const VerificationMeta(
+    'externalId',
+  );
+  @override
+  late final GeneratedColumn<String> externalId = GeneratedColumn<String>(
+    'external_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _rightsStatusMeta = const VerificationMeta(
+    'rightsStatus',
+  );
+  @override
+  late final GeneratedColumn<String> rightsStatus = GeneratedColumn<String>(
+    'rights_status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('user_uploaded'),
+  );
+  static const VerificationMeta _externalMetadataJsonMeta =
+      const VerificationMeta('externalMetadataJson');
+  @override
+  late final GeneratedColumn<String> externalMetadataJson =
+      GeneratedColumn<String>(
+        'external_metadata_json',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _languageMeta = const VerificationMeta(
+    'language',
+  );
+  @override
+  late final GeneratedColumn<String> language = GeneratedColumn<String>(
+    'language',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -185,6 +241,11 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
     importedAt,
     lastReadAt,
     kind,
+    externalSource,
+    externalId,
+    rightsStatus,
+    externalMetadataJson,
+    language,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -313,6 +374,45 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
         kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
       );
     }
+    if (data.containsKey('external_source')) {
+      context.handle(
+        _externalSourceMeta,
+        externalSource.isAcceptableOrUnknown(
+          data['external_source']!,
+          _externalSourceMeta,
+        ),
+      );
+    }
+    if (data.containsKey('external_id')) {
+      context.handle(
+        _externalIdMeta,
+        externalId.isAcceptableOrUnknown(data['external_id']!, _externalIdMeta),
+      );
+    }
+    if (data.containsKey('rights_status')) {
+      context.handle(
+        _rightsStatusMeta,
+        rightsStatus.isAcceptableOrUnknown(
+          data['rights_status']!,
+          _rightsStatusMeta,
+        ),
+      );
+    }
+    if (data.containsKey('external_metadata_json')) {
+      context.handle(
+        _externalMetadataJsonMeta,
+        externalMetadataJson.isAcceptableOrUnknown(
+          data['external_metadata_json']!,
+          _externalMetadataJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('language')) {
+      context.handle(
+        _languageMeta,
+        language.isAcceptableOrUnknown(data['language']!, _languageMeta),
+      );
+    }
     return context;
   }
 
@@ -382,6 +482,26 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
         DriftSqlType.string,
         data['${effectivePrefix}kind'],
       )!,
+      externalSource: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}external_source'],
+      ),
+      externalId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}external_id'],
+      ),
+      rightsStatus: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}rights_status'],
+      )!,
+      externalMetadataJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}external_metadata_json'],
+      ),
+      language: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}language'],
+      ),
     );
   }
 
@@ -407,6 +527,11 @@ class Book extends DataClass implements Insertable<Book> {
   final int importedAt;
   final int lastReadAt;
   final String kind;
+  final String? externalSource;
+  final String? externalId;
+  final String rightsStatus;
+  final String? externalMetadataJson;
+  final String? language;
   const Book({
     required this.id,
     required this.title,
@@ -423,6 +548,11 @@ class Book extends DataClass implements Insertable<Book> {
     required this.importedAt,
     required this.lastReadAt,
     required this.kind,
+    this.externalSource,
+    this.externalId,
+    required this.rightsStatus,
+    this.externalMetadataJson,
+    this.language,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -450,6 +580,19 @@ class Book extends DataClass implements Insertable<Book> {
     map['imported_at'] = Variable<int>(importedAt);
     map['last_read_at'] = Variable<int>(lastReadAt);
     map['kind'] = Variable<String>(kind);
+    if (!nullToAbsent || externalSource != null) {
+      map['external_source'] = Variable<String>(externalSource);
+    }
+    if (!nullToAbsent || externalId != null) {
+      map['external_id'] = Variable<String>(externalId);
+    }
+    map['rights_status'] = Variable<String>(rightsStatus);
+    if (!nullToAbsent || externalMetadataJson != null) {
+      map['external_metadata_json'] = Variable<String>(externalMetadataJson);
+    }
+    if (!nullToAbsent || language != null) {
+      map['language'] = Variable<String>(language);
+    }
     return map;
   }
 
@@ -478,6 +621,19 @@ class Book extends DataClass implements Insertable<Book> {
       importedAt: Value(importedAt),
       lastReadAt: Value(lastReadAt),
       kind: Value(kind),
+      externalSource: externalSource == null && nullToAbsent
+          ? const Value.absent()
+          : Value(externalSource),
+      externalId: externalId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(externalId),
+      rightsStatus: Value(rightsStatus),
+      externalMetadataJson: externalMetadataJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(externalMetadataJson),
+      language: language == null && nullToAbsent
+          ? const Value.absent()
+          : Value(language),
     );
   }
 
@@ -504,6 +660,13 @@ class Book extends DataClass implements Insertable<Book> {
       importedAt: serializer.fromJson<int>(json['importedAt']),
       lastReadAt: serializer.fromJson<int>(json['lastReadAt']),
       kind: serializer.fromJson<String>(json['kind']),
+      externalSource: serializer.fromJson<String?>(json['externalSource']),
+      externalId: serializer.fromJson<String?>(json['externalId']),
+      rightsStatus: serializer.fromJson<String>(json['rightsStatus']),
+      externalMetadataJson: serializer.fromJson<String?>(
+        json['externalMetadataJson'],
+      ),
+      language: serializer.fromJson<String?>(json['language']),
     );
   }
   @override
@@ -525,6 +688,11 @@ class Book extends DataClass implements Insertable<Book> {
       'importedAt': serializer.toJson<int>(importedAt),
       'lastReadAt': serializer.toJson<int>(lastReadAt),
       'kind': serializer.toJson<String>(kind),
+      'externalSource': serializer.toJson<String?>(externalSource),
+      'externalId': serializer.toJson<String?>(externalId),
+      'rightsStatus': serializer.toJson<String>(rightsStatus),
+      'externalMetadataJson': serializer.toJson<String?>(externalMetadataJson),
+      'language': serializer.toJson<String?>(language),
     };
   }
 
@@ -544,6 +712,11 @@ class Book extends DataClass implements Insertable<Book> {
     int? importedAt,
     int? lastReadAt,
     String? kind,
+    Value<String?> externalSource = const Value.absent(),
+    Value<String?> externalId = const Value.absent(),
+    String? rightsStatus,
+    Value<String?> externalMetadataJson = const Value.absent(),
+    Value<String?> language = const Value.absent(),
   }) => Book(
     id: id ?? this.id,
     title: title ?? this.title,
@@ -562,6 +735,15 @@ class Book extends DataClass implements Insertable<Book> {
     importedAt: importedAt ?? this.importedAt,
     lastReadAt: lastReadAt ?? this.lastReadAt,
     kind: kind ?? this.kind,
+    externalSource: externalSource.present
+        ? externalSource.value
+        : this.externalSource,
+    externalId: externalId.present ? externalId.value : this.externalId,
+    rightsStatus: rightsStatus ?? this.rightsStatus,
+    externalMetadataJson: externalMetadataJson.present
+        ? externalMetadataJson.value
+        : this.externalMetadataJson,
+    language: language.present ? language.value : this.language,
   );
   Book copyWithCompanion(BooksCompanion data) {
     return Book(
@@ -596,6 +778,19 @@ class Book extends DataClass implements Insertable<Book> {
           ? data.lastReadAt.value
           : this.lastReadAt,
       kind: data.kind.present ? data.kind.value : this.kind,
+      externalSource: data.externalSource.present
+          ? data.externalSource.value
+          : this.externalSource,
+      externalId: data.externalId.present
+          ? data.externalId.value
+          : this.externalId,
+      rightsStatus: data.rightsStatus.present
+          ? data.rightsStatus.value
+          : this.rightsStatus,
+      externalMetadataJson: data.externalMetadataJson.present
+          ? data.externalMetadataJson.value
+          : this.externalMetadataJson,
+      language: data.language.present ? data.language.value : this.language,
     );
   }
 
@@ -616,7 +811,12 @@ class Book extends DataClass implements Insertable<Book> {
           ..write('voiceId: $voiceId, ')
           ..write('importedAt: $importedAt, ')
           ..write('lastReadAt: $lastReadAt, ')
-          ..write('kind: $kind')
+          ..write('kind: $kind, ')
+          ..write('externalSource: $externalSource, ')
+          ..write('externalId: $externalId, ')
+          ..write('rightsStatus: $rightsStatus, ')
+          ..write('externalMetadataJson: $externalMetadataJson, ')
+          ..write('language: $language')
           ..write(')'))
         .toString();
   }
@@ -638,6 +838,11 @@ class Book extends DataClass implements Insertable<Book> {
     importedAt,
     lastReadAt,
     kind,
+    externalSource,
+    externalId,
+    rightsStatus,
+    externalMetadataJson,
+    language,
   );
   @override
   bool operator ==(Object other) =>
@@ -657,7 +862,12 @@ class Book extends DataClass implements Insertable<Book> {
           other.voiceId == this.voiceId &&
           other.importedAt == this.importedAt &&
           other.lastReadAt == this.lastReadAt &&
-          other.kind == this.kind);
+          other.kind == this.kind &&
+          other.externalSource == this.externalSource &&
+          other.externalId == this.externalId &&
+          other.rightsStatus == this.rightsStatus &&
+          other.externalMetadataJson == this.externalMetadataJson &&
+          other.language == this.language);
 }
 
 class BooksCompanion extends UpdateCompanion<Book> {
@@ -676,6 +886,11 @@ class BooksCompanion extends UpdateCompanion<Book> {
   final Value<int> importedAt;
   final Value<int> lastReadAt;
   final Value<String> kind;
+  final Value<String?> externalSource;
+  final Value<String?> externalId;
+  final Value<String> rightsStatus;
+  final Value<String?> externalMetadataJson;
+  final Value<String?> language;
   final Value<int> rowid;
   const BooksCompanion({
     this.id = const Value.absent(),
@@ -693,6 +908,11 @@ class BooksCompanion extends UpdateCompanion<Book> {
     this.importedAt = const Value.absent(),
     this.lastReadAt = const Value.absent(),
     this.kind = const Value.absent(),
+    this.externalSource = const Value.absent(),
+    this.externalId = const Value.absent(),
+    this.rightsStatus = const Value.absent(),
+    this.externalMetadataJson = const Value.absent(),
+    this.language = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   BooksCompanion.insert({
@@ -711,6 +931,11 @@ class BooksCompanion extends UpdateCompanion<Book> {
     required int importedAt,
     this.lastReadAt = const Value.absent(),
     this.kind = const Value.absent(),
+    this.externalSource = const Value.absent(),
+    this.externalId = const Value.absent(),
+    this.rightsStatus = const Value.absent(),
+    this.externalMetadataJson = const Value.absent(),
+    this.language = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        title = Value(title),
@@ -733,6 +958,11 @@ class BooksCompanion extends UpdateCompanion<Book> {
     Expression<int>? importedAt,
     Expression<int>? lastReadAt,
     Expression<String>? kind,
+    Expression<String>? externalSource,
+    Expression<String>? externalId,
+    Expression<String>? rightsStatus,
+    Expression<String>? externalMetadataJson,
+    Expression<String>? language,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -752,6 +982,12 @@ class BooksCompanion extends UpdateCompanion<Book> {
       if (importedAt != null) 'imported_at': importedAt,
       if (lastReadAt != null) 'last_read_at': lastReadAt,
       if (kind != null) 'kind': kind,
+      if (externalSource != null) 'external_source': externalSource,
+      if (externalId != null) 'external_id': externalId,
+      if (rightsStatus != null) 'rights_status': rightsStatus,
+      if (externalMetadataJson != null)
+        'external_metadata_json': externalMetadataJson,
+      if (language != null) 'language': language,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -772,6 +1008,11 @@ class BooksCompanion extends UpdateCompanion<Book> {
     Value<int>? importedAt,
     Value<int>? lastReadAt,
     Value<String>? kind,
+    Value<String?>? externalSource,
+    Value<String?>? externalId,
+    Value<String>? rightsStatus,
+    Value<String?>? externalMetadataJson,
+    Value<String?>? language,
     Value<int>? rowid,
   }) {
     return BooksCompanion(
@@ -791,6 +1032,11 @@ class BooksCompanion extends UpdateCompanion<Book> {
       importedAt: importedAt ?? this.importedAt,
       lastReadAt: lastReadAt ?? this.lastReadAt,
       kind: kind ?? this.kind,
+      externalSource: externalSource ?? this.externalSource,
+      externalId: externalId ?? this.externalId,
+      rightsStatus: rightsStatus ?? this.rightsStatus,
+      externalMetadataJson: externalMetadataJson ?? this.externalMetadataJson,
+      language: language ?? this.language,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -845,6 +1091,23 @@ class BooksCompanion extends UpdateCompanion<Book> {
     if (kind.present) {
       map['kind'] = Variable<String>(kind.value);
     }
+    if (externalSource.present) {
+      map['external_source'] = Variable<String>(externalSource.value);
+    }
+    if (externalId.present) {
+      map['external_id'] = Variable<String>(externalId.value);
+    }
+    if (rightsStatus.present) {
+      map['rights_status'] = Variable<String>(rightsStatus.value);
+    }
+    if (externalMetadataJson.present) {
+      map['external_metadata_json'] = Variable<String>(
+        externalMetadataJson.value,
+      );
+    }
+    if (language.present) {
+      map['language'] = Variable<String>(language.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -869,6 +1132,11 @@ class BooksCompanion extends UpdateCompanion<Book> {
           ..write('importedAt: $importedAt, ')
           ..write('lastReadAt: $lastReadAt, ')
           ..write('kind: $kind, ')
+          ..write('externalSource: $externalSource, ')
+          ..write('externalId: $externalId, ')
+          ..write('rightsStatus: $rightsStatus, ')
+          ..write('externalMetadataJson: $externalMetadataJson, ')
+          ..write('language: $language, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -5633,6 +5901,11 @@ typedef $$BooksTableCreateCompanionBuilder =
       required int importedAt,
       Value<int> lastReadAt,
       Value<String> kind,
+      Value<String?> externalSource,
+      Value<String?> externalId,
+      Value<String> rightsStatus,
+      Value<String?> externalMetadataJson,
+      Value<String?> language,
       Value<int> rowid,
     });
 typedef $$BooksTableUpdateCompanionBuilder =
@@ -5652,6 +5925,11 @@ typedef $$BooksTableUpdateCompanionBuilder =
       Value<int> importedAt,
       Value<int> lastReadAt,
       Value<String> kind,
+      Value<String?> externalSource,
+      Value<String?> externalId,
+      Value<String> rightsStatus,
+      Value<String?> externalMetadataJson,
+      Value<String?> language,
       Value<int> rowid,
     });
 
@@ -5735,6 +6013,31 @@ class $$BooksTableFilterComposer extends Composer<_$AppDatabase, $BooksTable> {
 
   ColumnFilters<String> get kind => $composableBuilder(
     column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get externalSource => $composableBuilder(
+    column: $table.externalSource,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get externalId => $composableBuilder(
+    column: $table.externalId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get rightsStatus => $composableBuilder(
+    column: $table.rightsStatus,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get externalMetadataJson => $composableBuilder(
+    column: $table.externalMetadataJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get language => $composableBuilder(
+    column: $table.language,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -5822,6 +6125,31 @@ class $$BooksTableOrderingComposer
     column: $table.kind,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get externalSource => $composableBuilder(
+    column: $table.externalSource,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get externalId => $composableBuilder(
+    column: $table.externalId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get rightsStatus => $composableBuilder(
+    column: $table.rightsStatus,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get externalMetadataJson => $composableBuilder(
+    column: $table.externalMetadataJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get language => $composableBuilder(
+    column: $table.language,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$BooksTableAnnotationComposer
@@ -5893,6 +6221,29 @@ class $$BooksTableAnnotationComposer
 
   GeneratedColumn<String> get kind =>
       $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get externalSource => $composableBuilder(
+    column: $table.externalSource,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get externalId => $composableBuilder(
+    column: $table.externalId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get rightsStatus => $composableBuilder(
+    column: $table.rightsStatus,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get externalMetadataJson => $composableBuilder(
+    column: $table.externalMetadataJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get language =>
+      $composableBuilder(column: $table.language, builder: (column) => column);
 }
 
 class $$BooksTableTableManager
@@ -5938,6 +6289,11 @@ class $$BooksTableTableManager
                 Value<int> importedAt = const Value.absent(),
                 Value<int> lastReadAt = const Value.absent(),
                 Value<String> kind = const Value.absent(),
+                Value<String?> externalSource = const Value.absent(),
+                Value<String?> externalId = const Value.absent(),
+                Value<String> rightsStatus = const Value.absent(),
+                Value<String?> externalMetadataJson = const Value.absent(),
+                Value<String?> language = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => BooksCompanion(
                 id: id,
@@ -5955,6 +6311,11 @@ class $$BooksTableTableManager
                 importedAt: importedAt,
                 lastReadAt: lastReadAt,
                 kind: kind,
+                externalSource: externalSource,
+                externalId: externalId,
+                rightsStatus: rightsStatus,
+                externalMetadataJson: externalMetadataJson,
+                language: language,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -5974,6 +6335,11 @@ class $$BooksTableTableManager
                 required int importedAt,
                 Value<int> lastReadAt = const Value.absent(),
                 Value<String> kind = const Value.absent(),
+                Value<String?> externalSource = const Value.absent(),
+                Value<String?> externalId = const Value.absent(),
+                Value<String> rightsStatus = const Value.absent(),
+                Value<String?> externalMetadataJson = const Value.absent(),
+                Value<String?> language = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => BooksCompanion.insert(
                 id: id,
@@ -5991,6 +6357,11 @@ class $$BooksTableTableManager
                 importedAt: importedAt,
                 lastReadAt: lastReadAt,
                 kind: kind,
+                externalSource: externalSource,
+                externalId: externalId,
+                rightsStatus: rightsStatus,
+                externalMetadataJson: externalMetadataJson,
+                language: language,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
