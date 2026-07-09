@@ -61,6 +61,21 @@ class CoverPaletteService {
         .toColor();
   }
 
+  /// A subtle card tint for repeated book rows. This keeps the list scannable
+  /// while letting local book cards inherit an ambient cover color.
+  static Color cardSurfaceForSeed(Color seed, Brightness brightness) {
+    final hsl = HSLColor.fromColor(seed);
+    final isDark = brightness == Brightness.dark;
+    return hsl
+        .withSaturation(hsl.saturation.clamp(0.20, 0.46))
+        .withLightness(
+          isDark
+              ? hsl.lightness.clamp(0.13, 0.18)
+              : hsl.lightness.clamp(0.90, 0.96),
+        )
+        .toColor();
+  }
+
   /// A near-black version that keeps the artwork hue for immersive screens.
   static Color darkPageBottomForSeed(Color seed) {
     final hsl = HSLColor.fromColor(seed);

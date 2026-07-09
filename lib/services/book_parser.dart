@@ -31,6 +31,20 @@ class BookParser {
   }
 
   @visibleForTesting
+  static List<String> epubHtmlChapterTitlesForTest(String html) {
+    return _splitEpubHtmlIntoChapterSections(
+      html,
+    ).map((section) => section.title).toList(growable: false);
+  }
+
+  @visibleForTesting
+  static List<List<String>> epubHtmlChapterParagraphsForTest(String html) {
+    return _splitEpubHtmlIntoChapterSections(
+      html,
+    ).map((section) => section.paragraphs).toList(growable: false);
+  }
+
+  @visibleForTesting
   static bool shouldSkipEpubChapterForTest(
     String title,
     List<String> paragraphs, {
@@ -124,11 +138,45 @@ class BookParser {
     int spineIdx = 0;
     int textOffset = 0;
     for (final item in flat) {
+      final html = item.htmlContent ?? '';
+      final splitSections = _splitEpubHtmlIntoChapterSections(html);
+      if (splitSections.isNotEmpty) {
+        for (final section in splitSections) {
+          final chId = '${bookId}_ch_$chIdx';
+          final paras = _paragraphsFromPlainTexts(
+            section.paragraphs,
+            chId,
+            bookId,
+          );
+          if (paras.isEmpty) continue;
+          if (_shouldSkipEpubChapter(
+            title: section.title,
+            contentFileName: item.contentFileName,
+            paragraphTexts: section.paragraphs,
+          )) {
+            continue;
+          }
+          chapters.add(
+            Chapter(
+              id: chId,
+              bookId: bookId,
+              index: chIdx,
+              title: section.title,
+              textOffset: textOffset,
+            ),
+          );
+          paragraphs.addAll(paras);
+          textOffset += paras.length;
+          chIdx++;
+        }
+        spineIdx++;
+        continue;
+      }
+
       final chId = '${bookId}_ch_$chIdx';
       final chTitle =
           item.title ?? item.contentFileName ?? '第 ${spineIdx + 1} 章';
-      final html = item.htmlContent ?? '';
-      final paras = _htmlToParagraphs(html, chId, bookId, chIdx);
+      final paras = _htmlToParagraphs(html, chId, bookId);
       if (paras.isEmpty) {
         spineIdx++;
         continue;
@@ -209,11 +257,18 @@ class BookParser {
     String html,
     String chapterId,
     String bookId,
-    int chapterIndex,
   ) {
     final body = _stripNonContentHtml(html);
     final lines = _extractHtmlBlocks(body);
 
+    return _paragraphsFromPlainTexts(lines, chapterId, bookId);
+  }
+
+  static List<Paragraph> _paragraphsFromPlainTexts(
+    List<String> lines,
+    String chapterId,
+    String bookId,
+  ) {
     return lines.asMap().entries.map((e) {
       return Paragraph(
         id: '${chapterId}_p_${e.key}',
@@ -223,6 +278,78 @@ class BookParser {
         text: e.value,
       );
     }).toList();
+  }
+
+  static List<_EpubChapterSection> _splitEpubHtmlIntoChapterSections(
+    String html,
+  ) {
+    final blocks = _extractHtmlBlockEntries(_stripNonContentHtml(html));
+    if (blocks.isEmpty) return const [];
+
+    final sections = <_EpubChapterSection>[];
+    String? currentTitle;
+    var currentParagraphs = <String>[];
+
+    void flushCurrent() {
+      final title = currentTitle;
+      if (title == null || currentParagraphs.isEmpty) return;
+      sections.add(
+        _EpubChapterSection(
+          title: title,
+          paragraphs: _mergeContinuationParagraphs(currentParagraphs),
+        ),
+      );
+      currentParagraphs = <String>[];
+    }
+
+    for (final block in blocks) {
+      if (block.isHeading && _looksLikeEpubChapterHeading(block.text)) {
+        flushCurrent();
+        currentTitle = block.text;
+        continue;
+      }
+
+      if (currentTitle == null) continue;
+      currentParagraphs.add(block.text);
+    }
+
+    flushCurrent();
+    return sections;
+  }
+
+  static List<_HtmlBlockEntry> _extractHtmlBlockEntries(String html) {
+    final blocks = <_HtmlBlockEntry>[];
+    final blockPattern = RegExp(
+      r'<(p|blockquote|li|h[1-6])\b[^>]*>(.*?)</\1>',
+      caseSensitive: false,
+      dotAll: true,
+    );
+    final nestedBlockPattern = RegExp(
+      r'<(p|blockquote|li|h[1-6])\b',
+      caseSensitive: false,
+    );
+
+    for (final match in blockPattern.allMatches(html)) {
+      final tag = (match.group(1) ?? '').toLowerCase();
+      final fragment = match.group(2) ?? '';
+      if (tag == 'blockquote' && nestedBlockPattern.hasMatch(fragment)) {
+        continue;
+      }
+      final text = _htmlFragmentToText(fragment);
+      if (!_isContentParagraph(text)) continue;
+      blocks.add(_HtmlBlockEntry(text: text, isHeading: tag.startsWith('h')));
+    }
+    return blocks;
+  }
+
+  static bool _looksLikeEpubChapterHeading(String text) {
+    final normalized = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (normalized.length > 120) return false;
+
+    return RegExp(
+      r'^(chapter|chapitre|cap[ií]tulo|capitulo)\s+([ivxlcdm]+|\d+)\b\.?\s*.*$',
+      caseSensitive: false,
+    ).hasMatch(normalized);
   }
 
   static List<String> _extractHtmlBlocks(String html) {
@@ -597,6 +724,20 @@ class BookParser {
     // fallback
     return utf8.decode(bytes, allowMalformed: true);
   }
+}
+
+class _EpubChapterSection {
+  final String title;
+  final List<String> paragraphs;
+
+  const _EpubChapterSection({required this.title, required this.paragraphs});
+}
+
+class _HtmlBlockEntry {
+  final String text;
+  final bool isHeading;
+
+  const _HtmlBlockEntry({required this.text, required this.isHeading});
 }
 
 /// GB18030/GBK 编码（简化版，依赖 dart:convert 的 systemEncoding 或外部包）。

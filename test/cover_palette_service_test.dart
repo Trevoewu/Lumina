@@ -28,8 +28,10 @@ void main() {
     final top = CoverPaletteService.pageTopForSeed(seed, Brightness.dark);
     final bottom = CoverPaletteService.darkPageBottomForSeed(seed);
     final lyrics = CoverPaletteService.lyricsSurfaceForSeed(seed);
+    final card = CoverPaletteService.cardSurfaceForSeed(seed, Brightness.dark);
 
     expect(top.computeLuminance(), greaterThan(bottom.computeLuminance()));
+    expect(card.computeLuminance(), greaterThan(bottom.computeLuminance()));
     expect(
       CoverPaletteService.contrastRatio(lyrics, Colors.white),
       greaterThanOrEqualTo(4.5),
@@ -42,6 +44,22 @@ void main() {
       HSLColor.fromColor(bottom).hue,
       closeTo(HSLColor.fromColor(seed).hue, 1),
     );
+  });
+
+  test('book card surface keeps cover tint subtle across themes', () {
+    const seed = Color(0xFFE85C2A);
+
+    final darkCard = CoverPaletteService.cardSurfaceForSeed(
+      seed,
+      Brightness.dark,
+    );
+    final lightCard = CoverPaletteService.cardSurfaceForSeed(
+      seed,
+      Brightness.light,
+    );
+
+    expect(darkCard.computeLuminance(), lessThan(0.08));
+    expect(lightCard.computeLuminance(), greaterThan(0.72));
   });
 
   test('missing covers have no extracted seed', () async {

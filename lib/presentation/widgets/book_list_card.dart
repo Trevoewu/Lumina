@@ -4,8 +4,9 @@ import 'package:flutter/material.dart';
 
 import '../../core/app_colors.dart';
 import '../../core/app_design_tokens.dart';
+import '../../services/cover_palette_service.dart';
 
-class BookListCard extends StatelessWidget {
+class BookListCard extends StatefulWidget {
   final String title;
   final String subtitle;
   final String? localCoverPath;
@@ -26,73 +27,170 @@ class BookListCard extends StatelessWidget {
   });
 
   @override
+  State<BookListCard> createState() => _BookListCardState();
+}
+
+class _BookListCardState extends State<BookListCard> {
+  late Future<Color?> _coverSeed;
+
+  @override
+  void initState() {
+    super.initState();
+    _coverSeed = CoverPaletteService.seedForPath(widget.localCoverPath);
+  }
+
+  @override
+  void didUpdateWidget(covariant BookListCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.localCoverPath != widget.localCoverPath) {
+      _coverSeed = CoverPaletteService.seedForPath(widget.localCoverPath);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Color?>(
+      future: _coverSeed,
+      builder: (context, snapshot) {
+        return _BookListCardBody(
+          title: widget.title,
+          subtitle: widget.subtitle,
+          localCoverPath: widget.localCoverPath,
+          remoteCoverUrl: widget.remoteCoverUrl,
+          metadata: widget.metadata,
+          onTap: widget.onTap,
+          trailing: widget.trailing,
+          seed: snapshot.data,
+        );
+      },
+    );
+  }
+}
+
+class _BookListCardBody extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final String? localCoverPath;
+  final String? remoteCoverUrl;
+  final List<BookListCardMeta> metadata;
+  final VoidCallback onTap;
+  final Widget? trailing;
+  final Color? seed;
+
+  const _BookListCardBody({
+    required this.title,
+    required this.subtitle,
+    required this.localCoverPath,
+    required this.remoteCoverUrl,
+    required this.metadata,
+    required this.onTap,
+    required this.trailing,
+    required this.seed,
+  });
+
+  @override
   Widget build(BuildContext context) {
     final design = context.appDesign;
-    return Material(
-      color: context.appSurface,
-      borderRadius: BorderRadius.circular(design.radiusMedium),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: 72,
-                height: 108,
-                child: _BookListCover(
-                  localPath: localCoverPath,
-                  remoteUrl: remoteCoverUrl,
+    final cardColor = _cardColor(context, seed);
+    final chipColor = _chipColor(context, seed);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(design.radiusMedium),
+        boxShadow: [
+          if (seed != null)
+            BoxShadow(
+              color: seed!.withValues(alpha: 0.12),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+        ],
+      ),
+      child: Material(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(design.radiusMedium),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 72,
+                  height: 108,
+                  child: _BookListCover(
+                    localPath: localCoverPath,
+                    remoteUrl: remoteCoverUrl,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: context.appTextPrimary,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: context.appTextPrimary,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: context.appTextSecondary,
-                        fontSize: 13,
+                      const SizedBox(height: 6),
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: context.appTextSecondary,
+                          fontSize: 13,
+                        ),
                       ),
-                    ),
-                    if (metadata.isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 6,
-                        children: [
-                          for (final item in metadata) _BookListMetaChip(item),
-                        ],
-                      ),
+                      if (metadata.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          children: [
+                            for (final item in metadata)
+                              _BookListMetaChip(item, surfaceColor: chipColor),
+                          ],
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              trailing ??
-                  Icon(Icons.chevron_right, color: context.appTextSecondary),
-            ],
+                const SizedBox(width: 8),
+                trailing ??
+                    Icon(Icons.chevron_right, color: context.appTextSecondary),
+              ],
+            ),
           ),
         ),
       ),
     );
+  }
+
+  Color _cardColor(BuildContext context, Color? seed) {
+    if (seed == null) return context.appSurface;
+    final tint = CoverPaletteService.cardSurfaceForSeed(
+      seed,
+      Theme.of(context).brightness,
+    );
+    return Color.lerp(context.appSurface, tint, 0.82)!;
+  }
+
+  Color _chipColor(BuildContext context, Color? seed) {
+    if (seed == null) return context.appSurfaceHighlight;
+    final tint = CoverPaletteService.cardSurfaceForSeed(
+      seed,
+      Theme.of(context).brightness,
+    );
+    return Color.lerp(context.appSurfaceHighlight, tint, 0.45)!;
   }
 }
 
@@ -154,8 +252,9 @@ class _BookListCover extends StatelessWidget {
 
 class _BookListMetaChip extends StatelessWidget {
   final BookListCardMeta meta;
+  final Color? surfaceColor;
 
-  const _BookListMetaChip(this.meta);
+  const _BookListMetaChip(this.meta, {this.surfaceColor});
 
   @override
   Widget build(BuildContext context) {
@@ -163,7 +262,7 @@ class _BookListMetaChip extends StatelessWidget {
       constraints: const BoxConstraints(maxWidth: 180),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: context.appSurfaceHighlight,
+        color: surfaceColor ?? context.appSurfaceHighlight,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(

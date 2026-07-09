@@ -156,7 +156,10 @@ void main() {
     await tester.tap(find.text('Logs'));
     await tester.pumpAndSettle();
 
-    expect(find.byTooltip('Copy Logs'), findsOneWidget);
+    expect(find.text('Debug'), findsOneWidget);
+    expect(find.text('Warning'), findsOneWidget);
+    expect(find.text('Error'), findsOneWidget);
+    expect(find.byTooltip('Copy Logs'), findsNothing);
     expect(find.byTooltip('Clear Logs'), findsOneWidget);
     expect(find.byType(BottomSheet), findsNothing);
     expect(tester.takeException(), isNull);

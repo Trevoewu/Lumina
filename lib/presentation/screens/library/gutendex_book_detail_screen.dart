@@ -68,7 +68,6 @@ class _GutendexBookDetailScreenState
           ),
         ),
       );
-      _openBook(imported);
     } catch (error) {
       if (!mounted) return;
       messenger.showSnackBar(

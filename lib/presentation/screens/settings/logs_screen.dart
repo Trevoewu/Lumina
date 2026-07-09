@@ -6,8 +6,15 @@ import '../../../core/app_localizations.dart';
 import '../../../services/app_log_service.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
 
-class LogsScreen extends StatelessWidget {
+class LogsScreen extends StatefulWidget {
   const LogsScreen({super.key});
+
+  @override
+  State<LogsScreen> createState() => _LogsScreenState();
+}
+
+class _LogsScreenState extends State<LogsScreen> {
+  final Set<AppLogLevel> _visibleLevels = {...AppLogLevel.values};
 
   @override
   Widget build(BuildContext context) {
@@ -18,13 +25,6 @@ class LogsScreen extends StatelessWidget {
       showBackButton: true,
       actions: [
         Tooltip(
-          message: context.tr('复制日志', 'Copy Logs'),
-          child: IconButton(
-            icon: Icon(Icons.copy_all_outlined),
-            onPressed: () => _copyLogs(context, logger),
-          ),
-        ),
-        Tooltip(
           message: context.tr('清空日志', 'Clear Logs'),
           child: IconButton(
             icon: Icon(Icons.delete_outline),
@@ -32,57 +32,69 @@ class LogsScreen extends StatelessWidget {
           ),
         ),
       ],
-      body: ValueListenableBuilder<List<AppLogEntry>>(
-        valueListenable: logger.entries,
-        builder: (context, entries, _) {
-          if (entries.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
-                  Icon(
-                    Icons.receipt_long_outlined,
-                    size: 36,
-                    color: context.appTextSecondary,
-                  ),
-                  SizedBox(height: 12),
-                  Text(
-                    '暂无日志',
-                    style: TextStyle(color: context.appTextSecondary),
-                  ),
+                  for (final level in AppLogLevel.values)
+                    FilterChip(
+                      label: Text(_levelLabel(context, level)),
+                      selected: _visibleLevels.contains(level),
+                      avatar: Icon(_levelIcon(level), size: 16),
+                      onSelected: (selected) {
+                        setState(() {
+                          if (selected) {
+                            _visibleLevels.add(level);
+                          } else {
+                            _visibleLevels.remove(level);
+                          }
+                        });
+                      },
+                    ),
                 ],
               ),
-            );
-          }
+            ),
+          ),
+          Expanded(
+            child: ValueListenableBuilder<List<AppLogEntry>>(
+              valueListenable: logger.entries,
+              builder: (context, entries, _) {
+                if (entries.isEmpty) {
+                  return _EmptyLogsMessage(
+                    message: context.tr('暂无日志', 'No logs yet'),
+                  );
+                }
 
-          final newestFirst = entries.reversed.toList(growable: false);
-          return ListView.separated(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-            itemCount: newestFirst.length,
-            separatorBuilder: (_, _) =>
-                Divider(height: 24, color: context.appSurfaceHighlight),
-            itemBuilder: (context, index) {
-              return _LogEntryView(entry: newestFirst[index]);
-            },
-          );
-        },
+                final newestFirst = entries.reversed
+                    .where((entry) => _visibleLevels.contains(entry.level))
+                    .toList(growable: false);
+                if (newestFirst.isEmpty) {
+                  return _EmptyLogsMessage(
+                    message: context.tr('当前级别没有日志', 'No logs at this level'),
+                  );
+                }
+
+                return ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                  itemCount: newestFirst.length,
+                  separatorBuilder: (_, _) =>
+                      Divider(height: 24, color: context.appSurfaceHighlight),
+                  itemBuilder: (context, index) {
+                    return _LogEntryView(entry: newestFirst[index]);
+                  },
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
-  }
-
-  Future<void> _copyLogs(BuildContext context, AppLogService logger) async {
-    final text = logger.exportText();
-    if (text.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('暂无日志可复制')));
-      return;
-    }
-    await Clipboard.setData(ClipboardData(text: text));
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('日志已复制')));
   }
 
   Future<void> _confirmClear(BuildContext context, AppLogService logger) async {
@@ -105,6 +117,46 @@ class LogsScreen extends StatelessWidget {
     );
     if (confirmed == true) await logger.clear();
   }
+
+  String _levelLabel(BuildContext context, AppLogLevel level) {
+    return switch (level) {
+      AppLogLevel.debug => context.tr('Debug', 'Debug'),
+      AppLogLevel.warning => context.tr('Warning', 'Warning'),
+      AppLogLevel.error => context.tr('Error', 'Error'),
+    };
+  }
+
+  IconData _levelIcon(AppLogLevel level) {
+    return switch (level) {
+      AppLogLevel.debug => Icons.bug_report_outlined,
+      AppLogLevel.warning => Icons.warning_amber_outlined,
+      AppLogLevel.error => Icons.error_outline,
+    };
+  }
+}
+
+class _EmptyLogsMessage extends StatelessWidget {
+  final String message;
+
+  const _EmptyLogsMessage({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.receipt_long_outlined,
+            size: 36,
+            color: context.appTextSecondary,
+          ),
+          SizedBox(height: 12),
+          Text(message, style: TextStyle(color: context.appTextSecondary)),
+        ],
+      ),
+    );
+  }
 }
 
 class _LogEntryView extends StatelessWidget {
@@ -115,7 +167,7 @@ class _LogEntryView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final levelColor = switch (entry.level) {
-      AppLogLevel.info => context.appTextSecondary,
+      AppLogLevel.debug => context.appTextSecondary,
       AppLogLevel.warning => Colors.amberAccent,
       AppLogLevel.error => Colors.redAccent,
     };
@@ -138,17 +190,28 @@ class _LogEntryView extends StatelessWidget {
                   ? Icons.error_outline
                   : entry.level == AppLogLevel.warning
                   ? Icons.warning_amber_outlined
-                  : Icons.info_outline,
+                  : Icons.bug_report_outlined,
               size: 16,
               color: levelColor,
             ),
             const SizedBox(width: 8),
-            Text(
-              '$time · ${entry.source}',
-              style: TextStyle(
-                color: context.appTextSecondary,
-                fontSize: 12,
-                fontFamily: 'monospace',
+            Expanded(
+              child: Text(
+                '$time · ${entry.source}',
+                style: TextStyle(
+                  color: context.appTextSecondary,
+                  fontSize: 12,
+                  fontFamily: 'monospace',
+                ),
+              ),
+            ),
+            Tooltip(
+              message: context.tr('复制单条日志', 'Copy Log'),
+              child: IconButton(
+                visualDensity: VisualDensity.compact,
+                iconSize: 18,
+                icon: const Icon(Icons.copy_outlined),
+                onPressed: () => _copyEntry(context),
               ),
             ),
           ],
@@ -168,5 +231,13 @@ class _LogEntryView extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  Future<void> _copyEntry(BuildContext context) async {
+    await Clipboard.setData(ClipboardData(text: entry.formatted));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(context.tr('日志已复制', 'Log copied'))));
   }
 }

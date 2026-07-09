@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
-enum AppLogLevel { info, warning, error }
+enum AppLogLevel { debug, warning, error }
 
 class AppLogEntry {
   final DateTime timestamp;
@@ -30,10 +30,7 @@ class AppLogEntry {
       timestamp:
           DateTime.tryParse(json['timestamp'] as String? ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
-      level: AppLogLevel.values.firstWhere(
-        (level) => level.name == json['level'],
-        orElse: () => AppLogLevel.info,
-      ),
+      level: _parseLevel(json['level'] as String?),
       source: json['source'] as String? ?? 'App',
       message: json['message'] as String? ?? '',
       error: json['error'] as String?,
@@ -60,6 +57,14 @@ class AppLogEntry {
       buffer.write('\n$stackTrace');
     }
     return buffer.toString();
+  }
+
+  static AppLogLevel _parseLevel(String? value) {
+    if (value == 'info') return AppLogLevel.debug;
+    return AppLogLevel.values.firstWhere(
+      (level) => level.name == value,
+      orElse: () => AppLogLevel.debug,
+    );
   }
 }
 
@@ -113,7 +118,7 @@ class AppLogService {
         persist: false,
       );
     }
-    _record(AppLogLevel.info, 'App', 'Lumina 启动');
+    _record(AppLogLevel.debug, 'App', 'Lumina 启动');
   }
 
   String exportText() =>
@@ -185,7 +190,7 @@ class AppLogService {
 
 abstract final class AppLogger {
   static void info(String source, String message) {
-    AppLogService.instance._record(AppLogLevel.info, source, message);
+    AppLogService.instance._record(AppLogLevel.debug, source, message);
   }
 
   static void warning(

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/app_colors.dart';
 import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart' as drift_db;
+import '../../../data/settings/provider_selection_repository.dart';
 import '../../../domain/models/chapter_manifest.dart';
 import '../../../services/app_log_service.dart';
 import '../../../services/cover_palette_service.dart';
@@ -64,6 +65,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     final manifestStore = ref.read(manifestStoreProvider);
 
     final manifest = await manifestStore.load(widget.book.id, chapter.id);
+    if (!mounted) return;
     if (manifest != null && manifest.readyCount > 0) {
       if (!manifest.isReady) {
         _showSnackBar(
@@ -119,11 +121,12 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       ),
     );
     if (confirmed != true) return;
-    final handler = await ref.read(luminaAudioHandlerProvider.future);
+    if (!mounted) return;
+    final handlerFuture = ref.read(luminaAudioHandlerProvider.future);
+    final cacheManager = ref.read(cacheManagerProvider);
+    final handler = await handlerFuture;
     await handler.unloadIfChapter(widget.book.id, chapter.id);
-    await ref
-        .read(cacheManagerProvider)
-        .clearChapter(widget.book.id, chapter.id);
+    await cacheManager.clearChapter(widget.book.id, chapter.id);
     if (!mounted) return;
     setState(() {});
     _showSnackBar('已清除：${chapter.title}');
@@ -148,11 +151,13 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       ),
     );
     if (confirmed != true) return;
-    final handler = await ref.read(luminaAudioHandlerProvider.future);
+    if (!mounted) return;
+    final handlerFuture = ref.read(luminaAudioHandlerProvider.future);
+    final cacheManager = ref.read(cacheManagerProvider);
+    final handler = await handlerFuture;
     await handler.unloadIfChapter(widget.book.id, chapter.id);
-    await ref
-        .read(cacheManagerProvider)
-        .clearChapter(widget.book.id, chapter.id);
+    await cacheManager.clearChapter(widget.book.id, chapter.id);
+    if (!mounted) return;
     await _generateChapterAudio(chapter);
   }
 
@@ -163,10 +168,10 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     int resumeOffsetMs = 0,
   }) async {
     try {
-      final handler = await ref.read(luminaAudioHandlerProvider.future);
-      final audioRoot = await ref
-          .read(manifestStoreProvider)
-          .audioRoot(widget.book.id);
+      final handlerFuture = ref.read(luminaAudioHandlerProvider.future);
+      final manifestStore = ref.read(manifestStoreProvider);
+      final handler = await handlerFuture;
+      final audioRoot = await manifestStore.audioRoot(widget.book.id);
       await handler.loadChapter(
         manifest: manifest,
         audioRoot: audioRoot.path,
@@ -202,7 +207,10 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     setState(() => _albumPlayPending = true);
 
     try {
-      final handler = await ref.read(luminaAudioHandlerProvider.future);
+      final handlerFuture = ref.read(luminaAudioHandlerProvider.future);
+      final database = ref.read(appDatabaseProvider);
+      final handler = await handlerFuture;
+      if (!mounted) return;
       if (handler.currentBookId == widget.book.id) {
         final liveIndex = chapters.indexWhere(
           (chapter) => chapter.id == handler.currentChapterId,
@@ -213,9 +221,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
         }
       }
 
-      final savedBook =
-          await ref.read(appDatabaseProvider).getBook(widget.book.id) ??
-          widget.book;
+      final savedBook = await database.getBook(widget.book.id) ?? widget.book;
+      if (!mounted) return;
       final savedIndex = savedBook.currentChapterId == null
           ? -1
           : chapters.indexWhere(
@@ -239,20 +246,25 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   }
 
   Future<void> _generateChapterAudio(drift_db.Chapter chapter) async {
+    final provider = ref.read(activeTtsProviderProvider);
+    final database = ref.read(appDatabaseProvider);
+    final selections = ref.read(providerSelectionRepositoryProvider);
+    final orchestrator = ref.read(generationOrchestratorProvider);
+    final manifestStore = ref.read(manifestStoreProvider);
+
     _generatingChapterIds.add(chapter.id);
     setState(() {});
 
     try {
-      final provider = await _resolveProvider();
-      final voice = await _resolveVoice(provider);
+      final voice = await _resolveVoice(provider, database, selections);
       if (voice == null) {
-        _showSnackBar('${provider.displayName} 没有可用音色');
+        if (mounted) _showSnackBar('${provider.displayName} 没有可用音色');
         return;
       }
 
       final valid = await provider.validate();
       if (!valid) {
-        _showSnackBar('${provider.displayName} 未配置完成，无法合成音频');
+        if (mounted) _showSnackBar('${provider.displayName} 未配置完成，无法合成音频');
         return;
       }
 
@@ -262,22 +274,19 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
             'provider=${provider.id} voice=${voice.id}',
       );
 
-      final orchestrator = ref.read(generationOrchestratorProvider);
       await for (final progress in orchestrator.generateChapter(
         bookId: widget.book.id,
         chapterId: chapter.id,
         provider: provider,
         voice: voice,
       )) {
-        if (!mounted) return;
-        setState(() => _generationProgress[chapter.id] = progress);
+        if (mounted) {
+          setState(() => _generationProgress[chapter.id] = progress);
+        }
       }
 
-      final manifest = await ref
-          .read(manifestStoreProvider)
-          .load(widget.book.id, chapter.id);
+      final manifest = await manifestStore.load(widget.book.id, chapter.id);
       if (manifest != null && manifest.readyCount > 0) {
-        if (!mounted) return;
         AppLogger.info(
           'Generation',
           '章节生成结束 chapter=${chapter.id} '
@@ -305,13 +314,12 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     }
   }
 
-  Future<TtsProvider> _resolveProvider() async {
-    return ref.read(activeTtsProviderProvider);
-  }
-
-  Future<TtsVoice?> _resolveVoice(TtsProvider provider) async {
-    final db = ref.read(appDatabaseProvider);
-    final savedVoices = await db.getVoicesByProvider(provider.id);
+  Future<TtsVoice?> _resolveVoice(
+    TtsProvider provider,
+    drift_db.AppDatabase database,
+    ProviderSelectionRepository selections,
+  ) async {
+    final savedVoices = await database.getVoicesByProvider(provider.id);
     final presetVoices = await provider.listPresetVoices();
     final voices = <TtsVoice>[
       for (final voice in savedVoices) _voiceFromDb(voice),
@@ -325,9 +333,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     ];
     if (voices.isEmpty) return null;
 
-    final activeVoiceId = await ref
-        .read(providerSelectionRepositoryProvider)
-        .selectedVoice(provider.id);
+    final activeVoiceId = await selections.selectedVoice(provider.id);
     for (final preferredVoiceId in [widget.book.voiceId, activeVoiceId]) {
       if (preferredVoiceId == null) continue;
       for (final voice in voices) {

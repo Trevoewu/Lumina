@@ -65,6 +65,34 @@ void main() {
     ]);
   });
 
+  test(
+    'EPUB parser splits Gutenberg chapter headings inside one html file',
+    () {
+      final html = '''
+      <body>
+        <h1>MOBY-DICK; or, THE WHALE.</h1>
+        <p>CONTENTS</p>
+        <p>CHAPTER 1. Loomings.</p>
+        <p>CHAPTER 2. The Carpet-Bag.</p>
+        <h2>CHAPTER 1. Loomings.</h2>
+        <p>Call me Ishmael.</p>
+        <p>Some years ago-never mind how long precisely.</p>
+        <h2>CHAPTER 2. The Carpet-Bag.</h2>
+        <p>I stuffed a shirt or two into my old carpet-bag.</p>
+      </body>
+    ''';
+
+      expect(BookParser.epubHtmlChapterTitlesForTest(html), [
+        'CHAPTER 1. Loomings.',
+        'CHAPTER 2. The Carpet-Bag.',
+      ]);
+      expect(BookParser.epubHtmlChapterParagraphsForTest(html), [
+        ['Call me Ishmael.', 'Some years ago-never mind how long precisely.'],
+        ['I stuffed a shirt or two into my old carpet-bag.'],
+      ]);
+    },
+  );
+
   test('EPUB parser skips obvious non-story front matter sections', () {
     expect(
       BookParser.shouldSkipEpubChapterForTest('Table of Contents', [

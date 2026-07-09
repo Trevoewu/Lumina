@@ -16,11 +16,22 @@ void main() {
 
     expect(service.entries.value, hasLength(2));
     expect(service.entries.value.first.source, 'Playback');
-    expect(service.entries.value.first.level, AppLogLevel.info);
+    expect(service.entries.value.first.level, AppLogLevel.debug);
     expect(service.entries.value.last.source, 'Generation');
     expect(service.entries.value.last.level, AppLogLevel.error);
     expect(service.entries.value.last.error, contains('network'));
     expect(service.entries.value.last.stackTrace, isNotEmpty);
     expect(service.exportText(), contains('[Generation] paragraph failed'));
+  });
+
+  test('AppLogEntry reads legacy info level as debug', () {
+    final entry = AppLogEntry.fromJson({
+      'timestamp': DateTime.now().toIso8601String(),
+      'level': 'info',
+      'source': 'App',
+      'message': 'legacy line',
+    });
+
+    expect(entry.level, AppLogLevel.debug);
   });
 }
