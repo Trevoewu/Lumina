@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lumina/data/database/app_database.dart';
 import 'package:lumina/domain/models/book_language.dart';
@@ -47,5 +48,42 @@ void main() {
     );
 
     expect(estimatedBookReadingProgress(book), 0);
+  });
+
+  testWidgets('reading level label marks estimated CEFR values', (
+    tester,
+  ) async {
+    const book = Book(
+      id: 'book-1',
+      title: 'Level Test',
+      format: 'txt',
+      sourcePath: '/tmp/level.txt',
+      chapterCount: 1,
+      paragraphCount: 1,
+      currentParagraphIndex: 0,
+      playbackOffsetMs: 0,
+      importedAt: 1,
+      lastReadAt: 1,
+      kind: 'book',
+      rightsStatus: 'user_uploaded',
+      readingLevelSystem: 'cefr_j',
+      readingLevelCode: 'B1',
+      readingLevelSource: 'estimated',
+    );
+
+    expect(normalizeCefrReadingLevel('b2'), 'B2');
+    expect(normalizeCefrReadingLevel('C1'), isNull);
+    String? label;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) {
+            label = bookReadingLevelLabel(context, book);
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+    expect(label, contains('B1'));
   });
 }

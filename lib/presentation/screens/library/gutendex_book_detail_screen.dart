@@ -29,6 +29,7 @@ class GutendexBookDetailScreen extends ConsumerStatefulWidget {
 class _GutendexBookDetailScreenState
     extends ConsumerState<GutendexBookDetailScreen> {
   bool _importing = false;
+  double? _importProgress;
   drift_db.Book? _importedBook;
 
   @override
@@ -44,7 +45,10 @@ class _GutendexBookDetailScreenState
       return;
     }
     if (_importing) return;
-    setState(() => _importing = true);
+    setState(() {
+      _importing = true;
+      _importProgress = 0;
+    });
 
     final messenger = ScaffoldMessenger.of(context);
     try {
@@ -55,9 +59,18 @@ class _GutendexBookDetailScreenState
             book: widget.book,
             database: ref.read(appDatabaseProvider),
             appDir: appDir.path,
+            onDownloadProgress: (received, total) {
+              if (!mounted || total <= 0) return;
+              setState(() {
+                _importProgress = (received / total).clamp(0, 1);
+              });
+            },
           );
       if (!mounted) return;
-      setState(() => _importedBook = imported);
+      setState(() {
+        _importedBook = imported;
+        _importProgress = 1;
+      });
       messenger.showSnackBar(
         SnackBar(
           content: Text(
@@ -77,7 +90,12 @@ class _GutendexBookDetailScreenState
         ),
       );
     } finally {
-      if (mounted) setState(() => _importing = false);
+      if (mounted) {
+        setState(() {
+          _importing = false;
+          _importProgress = null;
+        });
+      }
     }
   }
 
@@ -157,21 +175,11 @@ class _GutendexBookDetailScreenState
           SizedBox(height: design.spaceXl),
           SizedBox(
             width: double.infinity,
-            child: FilledButton.icon(
+            child: _ImportProgressButton(
               onPressed: book.canImport && !_importing ? _importOrOpen : null,
-              icon: _importing
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Icon(imported ? Icons.menu_book_outlined : Icons.add),
-              label: Text(
-                _importing
-                    ? context.tr('导入中', 'Importing')
-                    : imported
-                    ? context.tr('打开书籍', 'Open Book')
-                    : context.tr('导入书籍', 'Import Book'),
-              ),
+              importing: _importing,
+              imported: imported,
+              progress: _importProgress,
             ),
           ),
           if (summary != null) ...[
@@ -234,6 +242,100 @@ class _RemoteCover extends StatelessWidget {
         color: context.appTextSecondary,
         size: 42,
       ),
+    );
+  }
+}
+
+class _ImportProgressButton extends StatelessWidget {
+  final VoidCallback? onPressed;
+  final bool importing;
+  final bool imported;
+  final double? progress;
+
+  const _ImportProgressButton({
+    required this.onPressed,
+    required this.importing,
+    required this.imported,
+    required this.progress,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (importing) return _buildImportingButton(context);
+
+    final label = importing
+        ? _progressLabel(context)
+        : imported
+        ? context.tr('打开书籍', 'Open Book')
+        : context.tr('导入书籍', 'Import Book');
+    final icon = Icon(imported ? Icons.menu_book_outlined : Icons.add);
+
+    return SizedBox(
+      height: 54,
+      child: FilledButton.icon(
+        onPressed: onPressed,
+        icon: icon,
+        label: Text(label),
+      ),
+    );
+  }
+
+  Widget _buildImportingButton(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    return SizedBox(
+      height: 54,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: ColoredBox(
+              color: context.appSurfaceHighlight,
+              child: FractionallySizedBox(
+                alignment: Alignment.centerLeft,
+                widthFactor: (progress ?? 0).clamp(0.0, 1.0),
+                child: ColoredBox(color: primary),
+              ),
+            ),
+          ),
+          Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.4,
+                    value: progress,
+                    color: Colors.white,
+                    backgroundColor: Colors.white.withValues(alpha: 0.22),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  _progressLabel(context),
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.86),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _progressLabel(BuildContext context) {
+    final value = progress;
+    if (value == null || value <= 0 || value >= 1) {
+      return context.tr('导入中', 'Importing');
+    }
+    return context.tr(
+      '导入中 ${(value * 100).round()}%',
+      'Importing ${(value * 100).round()}%',
     );
   }
 }

@@ -93,6 +93,41 @@ void main() {
     },
   );
 
+  test('EPUB parser extracts chapter heading after illustration caption', () {
+    final html = '''
+      <body>
+        <h2>
+          <span class="caption">I hope Mr. Bingley will like it.</span>
+          <br />
+          <br />
+          CHAPTER II.
+        </h2>
+        <p>Mr. Bennet was among the earliest of those who waited on Mr. Bingley.</p>
+      </body>
+    ''';
+
+    expect(BookParser.epubHtmlChapterTitlesForTest(html), ['CHAPTER II.']);
+    expect(BookParser.epubHtmlChapterParagraphsForTest(html), [
+      ['Mr. Bennet was among the earliest of those who waited on Mr. Bingley.'],
+    ]);
+  });
+
+  test('EPUB parser treats semantic paragraph chapter labels as headings', () {
+    final html = '''
+      <body>
+        <p class="chapter">CHAPTER III.</p>
+        <p>Not all that Mrs. Bennet, however, with the assistance of her five daughters, could ask on the subject.</p>
+      </body>
+    ''';
+
+    expect(BookParser.epubHtmlChapterTitlesForTest(html), ['CHAPTER III.']);
+    expect(BookParser.epubHtmlChapterParagraphsForTest(html), [
+      [
+        'Not all that Mrs. Bennet, however, with the assistance of her five daughters, could ask on the subject.',
+      ],
+    ]);
+  });
+
   test('EPUB parser skips obvious non-story front matter sections', () {
     expect(
       BookParser.shouldSkipEpubChapterForTest('Table of Contents', [

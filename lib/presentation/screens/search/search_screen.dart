@@ -291,6 +291,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         }
         final book = books[index];
         final imported = data.importedByGutendexId[book.id];
+        final importedReadingLevel = imported == null
+            ? null
+            : bookReadingLevelLabel(context, imported);
         return BookListCard(
           title: book.title,
           subtitle: book.authorLabel,
@@ -305,6 +308,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               BookListCardMeta(
                 icon: Icons.check_circle_outline,
                 label: context.tr('已导入', 'Imported'),
+              ),
+            if (importedReadingLevel != null)
+              BookListCardMeta(
+                icon: Icons.school_outlined,
+                label: importedReadingLevel,
               ),
           ],
           onTap: () async {
@@ -568,6 +576,8 @@ class _BookResultTile extends StatelessWidget {
           icon: Icons.trending_up_outlined,
           label: bookReadingProgressLabel(context, book),
         ),
+        if (bookReadingLevelLabel(context, book) case final level?)
+          BookListCardMeta(icon: Icons.school_outlined, label: level),
       ],
       onTap: onTap,
     );

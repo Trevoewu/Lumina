@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 
 import '../../domain/models/book_rights.dart';
 import '../../services/book_parser.dart';
+import '../../services/reading_level_estimator.dart';
 import '../database/app_database.dart' as drift_db;
 
 class GutendexSearchResult {
@@ -225,6 +226,11 @@ class GutendexRepository {
       appDir: appDir,
     );
     await tempSource.delete().catchError((_) => tempSource);
+    final language = book.languages.isEmpty ? null : book.languages.join(',');
+    final readingLevel = await _estimateReadingLevel(
+      language: language,
+      paragraphTexts: parsed.paragraphs.map((paragraph) => paragraph.text),
+    );
 
     final coverPath =
         parsed.book.coverPath ??
@@ -245,7 +251,7 @@ class GutendexRepository {
       id: parsed.book.id,
       title: book.title,
       author: book.authors.isEmpty ? parsed.book.author : book.authorLabel,
-      language: book.languages.isEmpty ? null : book.languages.join(','),
+      language: language,
       format: parsed.book.format.name,
       sourcePath: parsed.book.sourcePath,
       coverPath: coverPath,
@@ -262,6 +268,9 @@ class GutendexRepository {
       externalId: book.id.toString(),
       rightsStatus: publicDomainRightsStatus,
       externalMetadataJson: metadataJson,
+      readingLevelSystem: readingLevel?.system,
+      readingLevelCode: readingLevel?.code,
+      readingLevelSource: readingLevel?.source,
     );
 
     await database.replaceBookData(
@@ -308,5 +317,20 @@ class GutendexRepository {
     } catch (_) {
       return null;
     }
+  }
+
+  Future<ReadingLevelEstimate?> _estimateReadingLevel({
+    required String? language,
+    required Iterable<String> paragraphTexts,
+  }) async {
+    final normalizedLanguages = language
+        ?.split(',')
+        .map((value) => value.trim().toLowerCase())
+        .where((value) => value.isNotEmpty)
+        .toSet();
+    if (normalizedLanguages == null || !normalizedLanguages.contains('en')) {
+      return null;
+    }
+    return ReadingLevelEstimator.instance.estimateEnglish(paragraphTexts);
   }
 }

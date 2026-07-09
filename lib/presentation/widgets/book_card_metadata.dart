@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import '../../core/app_localizations.dart';
 import '../../data/database/app_database.dart' as drift_db;
 import '../../domain/models/book_language.dart';
+import '../../services/reading_level_estimator.dart';
 
 String bookLanguageLabel(BuildContext context, drift_db.Book book) {
   final saved = normalizeBookLanguage(book.language);
@@ -36,6 +37,26 @@ String bookLanguageLabel(BuildContext context, drift_db.Book book) {
 String bookReadingProgressLabel(BuildContext context, drift_db.Book book) {
   final percent = estimatedBookReadingProgress(book);
   return context.tr('进度 $percent%', '$percent% read');
+}
+
+String? bookReadingLevelLabel(BuildContext context, drift_db.Book book) {
+  final code = normalizeCefrReadingLevel(book.readingLevelCode);
+  if (code == null) return null;
+
+  final source = book.readingLevelSource;
+  if (source == estimatedReadingLevelSource) {
+    return context.tr('难度估算 $code', 'CEFR est. $code');
+  }
+  return context.tr('难度 $code', 'CEFR $code');
+}
+
+String? normalizeCefrReadingLevel(String? value) {
+  final normalized = value?.trim().toUpperCase();
+  if (normalized == null || normalized.isEmpty) return null;
+  return switch (normalized) {
+    'A1' || 'A2' || 'B1' || 'B2' => normalized,
+    _ => null,
+  };
 }
 
 int estimatedBookReadingProgress(drift_db.Book book) {

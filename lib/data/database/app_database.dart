@@ -35,6 +35,9 @@ class Books extends Table {
       text().withDefault(const Constant('user_uploaded'))();
   TextColumn get externalMetadataJson => text().nullable()();
   TextColumn get language => text().nullable()();
+  TextColumn get readingLevelSystem => text().nullable()();
+  TextColumn get readingLevelCode => text().nullable()();
+  TextColumn get readingLevelSource => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -219,7 +222,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e) : _repairPathsOnOpen = false;
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -243,6 +246,11 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 6) {
         await m.addColumn(books, books.language);
+      }
+      if (from < 7) {
+        await m.addColumn(books, books.readingLevelSystem);
+        await m.addColumn(books, books.readingLevelCode);
+        await m.addColumn(books, books.readingLevelSource);
       }
     },
     beforeOpen: (_) async {
@@ -314,9 +322,13 @@ class AppDatabase extends _$AppDatabase {
     String? coverPath,
     String? voiceId,
     String? language,
+    String? readingLevelSystem,
+    String? readingLevelCode,
+    String? readingLevelSource,
     bool clearAuthor = false,
     bool clearCover = false,
     bool clearLanguage = false,
+    bool clearReadingLevel = false,
   }) async {
     await (update(books)..where((b) => b.id.equals(bookId))).write(
       BooksCompanion(
@@ -337,6 +349,21 @@ class AppDatabase extends _$AppDatabase {
             : language == null
             ? const Value.absent()
             : Value(language),
+        readingLevelSystem: clearReadingLevel
+            ? const Value(null)
+            : readingLevelSystem == null
+            ? const Value.absent()
+            : Value(readingLevelSystem),
+        readingLevelCode: clearReadingLevel
+            ? const Value(null)
+            : readingLevelCode == null
+            ? const Value.absent()
+            : Value(readingLevelCode),
+        readingLevelSource: clearReadingLevel
+            ? const Value(null)
+            : readingLevelSource == null
+            ? const Value.absent()
+            : Value(readingLevelSource),
       ),
     );
   }

@@ -224,6 +224,39 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _readingLevelSystemMeta =
+      const VerificationMeta('readingLevelSystem');
+  @override
+  late final GeneratedColumn<String> readingLevelSystem =
+      GeneratedColumn<String>(
+        'reading_level_system',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _readingLevelCodeMeta = const VerificationMeta(
+    'readingLevelCode',
+  );
+  @override
+  late final GeneratedColumn<String> readingLevelCode = GeneratedColumn<String>(
+    'reading_level_code',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _readingLevelSourceMeta =
+      const VerificationMeta('readingLevelSource');
+  @override
+  late final GeneratedColumn<String> readingLevelSource =
+      GeneratedColumn<String>(
+        'reading_level_source',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -246,6 +279,9 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
     rightsStatus,
     externalMetadataJson,
     language,
+    readingLevelSystem,
+    readingLevelCode,
+    readingLevelSource,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -413,6 +449,33 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
         language.isAcceptableOrUnknown(data['language']!, _languageMeta),
       );
     }
+    if (data.containsKey('reading_level_system')) {
+      context.handle(
+        _readingLevelSystemMeta,
+        readingLevelSystem.isAcceptableOrUnknown(
+          data['reading_level_system']!,
+          _readingLevelSystemMeta,
+        ),
+      );
+    }
+    if (data.containsKey('reading_level_code')) {
+      context.handle(
+        _readingLevelCodeMeta,
+        readingLevelCode.isAcceptableOrUnknown(
+          data['reading_level_code']!,
+          _readingLevelCodeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('reading_level_source')) {
+      context.handle(
+        _readingLevelSourceMeta,
+        readingLevelSource.isAcceptableOrUnknown(
+          data['reading_level_source']!,
+          _readingLevelSourceMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -502,6 +565,18 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
         DriftSqlType.string,
         data['${effectivePrefix}language'],
       ),
+      readingLevelSystem: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reading_level_system'],
+      ),
+      readingLevelCode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reading_level_code'],
+      ),
+      readingLevelSource: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reading_level_source'],
+      ),
     );
   }
 
@@ -532,6 +607,9 @@ class Book extends DataClass implements Insertable<Book> {
   final String rightsStatus;
   final String? externalMetadataJson;
   final String? language;
+  final String? readingLevelSystem;
+  final String? readingLevelCode;
+  final String? readingLevelSource;
   const Book({
     required this.id,
     required this.title,
@@ -553,6 +631,9 @@ class Book extends DataClass implements Insertable<Book> {
     required this.rightsStatus,
     this.externalMetadataJson,
     this.language,
+    this.readingLevelSystem,
+    this.readingLevelCode,
+    this.readingLevelSource,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -592,6 +673,15 @@ class Book extends DataClass implements Insertable<Book> {
     }
     if (!nullToAbsent || language != null) {
       map['language'] = Variable<String>(language);
+    }
+    if (!nullToAbsent || readingLevelSystem != null) {
+      map['reading_level_system'] = Variable<String>(readingLevelSystem);
+    }
+    if (!nullToAbsent || readingLevelCode != null) {
+      map['reading_level_code'] = Variable<String>(readingLevelCode);
+    }
+    if (!nullToAbsent || readingLevelSource != null) {
+      map['reading_level_source'] = Variable<String>(readingLevelSource);
     }
     return map;
   }
@@ -634,6 +724,15 @@ class Book extends DataClass implements Insertable<Book> {
       language: language == null && nullToAbsent
           ? const Value.absent()
           : Value(language),
+      readingLevelSystem: readingLevelSystem == null && nullToAbsent
+          ? const Value.absent()
+          : Value(readingLevelSystem),
+      readingLevelCode: readingLevelCode == null && nullToAbsent
+          ? const Value.absent()
+          : Value(readingLevelCode),
+      readingLevelSource: readingLevelSource == null && nullToAbsent
+          ? const Value.absent()
+          : Value(readingLevelSource),
     );
   }
 
@@ -667,6 +766,13 @@ class Book extends DataClass implements Insertable<Book> {
         json['externalMetadataJson'],
       ),
       language: serializer.fromJson<String?>(json['language']),
+      readingLevelSystem: serializer.fromJson<String?>(
+        json['readingLevelSystem'],
+      ),
+      readingLevelCode: serializer.fromJson<String?>(json['readingLevelCode']),
+      readingLevelSource: serializer.fromJson<String?>(
+        json['readingLevelSource'],
+      ),
     );
   }
   @override
@@ -693,6 +799,9 @@ class Book extends DataClass implements Insertable<Book> {
       'rightsStatus': serializer.toJson<String>(rightsStatus),
       'externalMetadataJson': serializer.toJson<String?>(externalMetadataJson),
       'language': serializer.toJson<String?>(language),
+      'readingLevelSystem': serializer.toJson<String?>(readingLevelSystem),
+      'readingLevelCode': serializer.toJson<String?>(readingLevelCode),
+      'readingLevelSource': serializer.toJson<String?>(readingLevelSource),
     };
   }
 
@@ -717,6 +826,9 @@ class Book extends DataClass implements Insertable<Book> {
     String? rightsStatus,
     Value<String?> externalMetadataJson = const Value.absent(),
     Value<String?> language = const Value.absent(),
+    Value<String?> readingLevelSystem = const Value.absent(),
+    Value<String?> readingLevelCode = const Value.absent(),
+    Value<String?> readingLevelSource = const Value.absent(),
   }) => Book(
     id: id ?? this.id,
     title: title ?? this.title,
@@ -744,6 +856,15 @@ class Book extends DataClass implements Insertable<Book> {
         ? externalMetadataJson.value
         : this.externalMetadataJson,
     language: language.present ? language.value : this.language,
+    readingLevelSystem: readingLevelSystem.present
+        ? readingLevelSystem.value
+        : this.readingLevelSystem,
+    readingLevelCode: readingLevelCode.present
+        ? readingLevelCode.value
+        : this.readingLevelCode,
+    readingLevelSource: readingLevelSource.present
+        ? readingLevelSource.value
+        : this.readingLevelSource,
   );
   Book copyWithCompanion(BooksCompanion data) {
     return Book(
@@ -791,6 +912,15 @@ class Book extends DataClass implements Insertable<Book> {
           ? data.externalMetadataJson.value
           : this.externalMetadataJson,
       language: data.language.present ? data.language.value : this.language,
+      readingLevelSystem: data.readingLevelSystem.present
+          ? data.readingLevelSystem.value
+          : this.readingLevelSystem,
+      readingLevelCode: data.readingLevelCode.present
+          ? data.readingLevelCode.value
+          : this.readingLevelCode,
+      readingLevelSource: data.readingLevelSource.present
+          ? data.readingLevelSource.value
+          : this.readingLevelSource,
     );
   }
 
@@ -816,13 +946,16 @@ class Book extends DataClass implements Insertable<Book> {
           ..write('externalId: $externalId, ')
           ..write('rightsStatus: $rightsStatus, ')
           ..write('externalMetadataJson: $externalMetadataJson, ')
-          ..write('language: $language')
+          ..write('language: $language, ')
+          ..write('readingLevelSystem: $readingLevelSystem, ')
+          ..write('readingLevelCode: $readingLevelCode, ')
+          ..write('readingLevelSource: $readingLevelSource')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     title,
     author,
@@ -843,7 +976,10 @@ class Book extends DataClass implements Insertable<Book> {
     rightsStatus,
     externalMetadataJson,
     language,
-  );
+    readingLevelSystem,
+    readingLevelCode,
+    readingLevelSource,
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -867,7 +1003,10 @@ class Book extends DataClass implements Insertable<Book> {
           other.externalId == this.externalId &&
           other.rightsStatus == this.rightsStatus &&
           other.externalMetadataJson == this.externalMetadataJson &&
-          other.language == this.language);
+          other.language == this.language &&
+          other.readingLevelSystem == this.readingLevelSystem &&
+          other.readingLevelCode == this.readingLevelCode &&
+          other.readingLevelSource == this.readingLevelSource);
 }
 
 class BooksCompanion extends UpdateCompanion<Book> {
@@ -891,6 +1030,9 @@ class BooksCompanion extends UpdateCompanion<Book> {
   final Value<String> rightsStatus;
   final Value<String?> externalMetadataJson;
   final Value<String?> language;
+  final Value<String?> readingLevelSystem;
+  final Value<String?> readingLevelCode;
+  final Value<String?> readingLevelSource;
   final Value<int> rowid;
   const BooksCompanion({
     this.id = const Value.absent(),
@@ -913,6 +1055,9 @@ class BooksCompanion extends UpdateCompanion<Book> {
     this.rightsStatus = const Value.absent(),
     this.externalMetadataJson = const Value.absent(),
     this.language = const Value.absent(),
+    this.readingLevelSystem = const Value.absent(),
+    this.readingLevelCode = const Value.absent(),
+    this.readingLevelSource = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   BooksCompanion.insert({
@@ -936,6 +1081,9 @@ class BooksCompanion extends UpdateCompanion<Book> {
     this.rightsStatus = const Value.absent(),
     this.externalMetadataJson = const Value.absent(),
     this.language = const Value.absent(),
+    this.readingLevelSystem = const Value.absent(),
+    this.readingLevelCode = const Value.absent(),
+    this.readingLevelSource = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        title = Value(title),
@@ -963,6 +1111,9 @@ class BooksCompanion extends UpdateCompanion<Book> {
     Expression<String>? rightsStatus,
     Expression<String>? externalMetadataJson,
     Expression<String>? language,
+    Expression<String>? readingLevelSystem,
+    Expression<String>? readingLevelCode,
+    Expression<String>? readingLevelSource,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -988,6 +1139,11 @@ class BooksCompanion extends UpdateCompanion<Book> {
       if (externalMetadataJson != null)
         'external_metadata_json': externalMetadataJson,
       if (language != null) 'language': language,
+      if (readingLevelSystem != null)
+        'reading_level_system': readingLevelSystem,
+      if (readingLevelCode != null) 'reading_level_code': readingLevelCode,
+      if (readingLevelSource != null)
+        'reading_level_source': readingLevelSource,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1013,6 +1169,9 @@ class BooksCompanion extends UpdateCompanion<Book> {
     Value<String>? rightsStatus,
     Value<String?>? externalMetadataJson,
     Value<String?>? language,
+    Value<String?>? readingLevelSystem,
+    Value<String?>? readingLevelCode,
+    Value<String?>? readingLevelSource,
     Value<int>? rowid,
   }) {
     return BooksCompanion(
@@ -1037,6 +1196,9 @@ class BooksCompanion extends UpdateCompanion<Book> {
       rightsStatus: rightsStatus ?? this.rightsStatus,
       externalMetadataJson: externalMetadataJson ?? this.externalMetadataJson,
       language: language ?? this.language,
+      readingLevelSystem: readingLevelSystem ?? this.readingLevelSystem,
+      readingLevelCode: readingLevelCode ?? this.readingLevelCode,
+      readingLevelSource: readingLevelSource ?? this.readingLevelSource,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1108,6 +1270,15 @@ class BooksCompanion extends UpdateCompanion<Book> {
     if (language.present) {
       map['language'] = Variable<String>(language.value);
     }
+    if (readingLevelSystem.present) {
+      map['reading_level_system'] = Variable<String>(readingLevelSystem.value);
+    }
+    if (readingLevelCode.present) {
+      map['reading_level_code'] = Variable<String>(readingLevelCode.value);
+    }
+    if (readingLevelSource.present) {
+      map['reading_level_source'] = Variable<String>(readingLevelSource.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1137,6 +1308,9 @@ class BooksCompanion extends UpdateCompanion<Book> {
           ..write('rightsStatus: $rightsStatus, ')
           ..write('externalMetadataJson: $externalMetadataJson, ')
           ..write('language: $language, ')
+          ..write('readingLevelSystem: $readingLevelSystem, ')
+          ..write('readingLevelCode: $readingLevelCode, ')
+          ..write('readingLevelSource: $readingLevelSource, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -5906,6 +6080,9 @@ typedef $$BooksTableCreateCompanionBuilder =
       Value<String> rightsStatus,
       Value<String?> externalMetadataJson,
       Value<String?> language,
+      Value<String?> readingLevelSystem,
+      Value<String?> readingLevelCode,
+      Value<String?> readingLevelSource,
       Value<int> rowid,
     });
 typedef $$BooksTableUpdateCompanionBuilder =
@@ -5930,6 +6107,9 @@ typedef $$BooksTableUpdateCompanionBuilder =
       Value<String> rightsStatus,
       Value<String?> externalMetadataJson,
       Value<String?> language,
+      Value<String?> readingLevelSystem,
+      Value<String?> readingLevelCode,
+      Value<String?> readingLevelSource,
       Value<int> rowid,
     });
 
@@ -6038,6 +6218,21 @@ class $$BooksTableFilterComposer extends Composer<_$AppDatabase, $BooksTable> {
 
   ColumnFilters<String> get language => $composableBuilder(
     column: $table.language,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get readingLevelSystem => $composableBuilder(
+    column: $table.readingLevelSystem,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get readingLevelCode => $composableBuilder(
+    column: $table.readingLevelCode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get readingLevelSource => $composableBuilder(
+    column: $table.readingLevelSource,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -6150,6 +6345,21 @@ class $$BooksTableOrderingComposer
     column: $table.language,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get readingLevelSystem => $composableBuilder(
+    column: $table.readingLevelSystem,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get readingLevelCode => $composableBuilder(
+    column: $table.readingLevelCode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get readingLevelSource => $composableBuilder(
+    column: $table.readingLevelSource,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$BooksTableAnnotationComposer
@@ -6244,6 +6454,21 @@ class $$BooksTableAnnotationComposer
 
   GeneratedColumn<String> get language =>
       $composableBuilder(column: $table.language, builder: (column) => column);
+
+  GeneratedColumn<String> get readingLevelSystem => $composableBuilder(
+    column: $table.readingLevelSystem,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get readingLevelCode => $composableBuilder(
+    column: $table.readingLevelCode,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get readingLevelSource => $composableBuilder(
+    column: $table.readingLevelSource,
+    builder: (column) => column,
+  );
 }
 
 class $$BooksTableTableManager
@@ -6294,6 +6519,9 @@ class $$BooksTableTableManager
                 Value<String> rightsStatus = const Value.absent(),
                 Value<String?> externalMetadataJson = const Value.absent(),
                 Value<String?> language = const Value.absent(),
+                Value<String?> readingLevelSystem = const Value.absent(),
+                Value<String?> readingLevelCode = const Value.absent(),
+                Value<String?> readingLevelSource = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => BooksCompanion(
                 id: id,
@@ -6316,6 +6544,9 @@ class $$BooksTableTableManager
                 rightsStatus: rightsStatus,
                 externalMetadataJson: externalMetadataJson,
                 language: language,
+                readingLevelSystem: readingLevelSystem,
+                readingLevelCode: readingLevelCode,
+                readingLevelSource: readingLevelSource,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -6340,6 +6571,9 @@ class $$BooksTableTableManager
                 Value<String> rightsStatus = const Value.absent(),
                 Value<String?> externalMetadataJson = const Value.absent(),
                 Value<String?> language = const Value.absent(),
+                Value<String?> readingLevelSystem = const Value.absent(),
+                Value<String?> readingLevelCode = const Value.absent(),
+                Value<String?> readingLevelSource = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => BooksCompanion.insert(
                 id: id,
@@ -6362,6 +6596,9 @@ class $$BooksTableTableManager
                 rightsStatus: rightsStatus,
                 externalMetadataJson: externalMetadataJson,
                 language: language,
+                readingLevelSystem: readingLevelSystem,
+                readingLevelCode: readingLevelCode,
+                readingLevelSource: readingLevelSource,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

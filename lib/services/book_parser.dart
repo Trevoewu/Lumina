@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:epub_pro/epub_pro.dart';
 import 'package:flutter/foundation.dart';
+import 'package:html/dom.dart' as html_dom;
+import 'package:html/parser.dart' as html_parser;
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 
@@ -303,7 +305,7 @@ class BookParser {
     }
 
     for (final block in blocks) {
-      if (block.isHeading && _looksLikeEpubChapterHeading(block.text)) {
+      if (_isEpubChapterHeadingBlock(block)) {
         flushCurrent();
         currentTitle = block.text;
         continue;
@@ -319,27 +321,55 @@ class BookParser {
 
   static List<_HtmlBlockEntry> _extractHtmlBlockEntries(String html) {
     final blocks = <_HtmlBlockEntry>[];
-    final blockPattern = RegExp(
-      r'<(p|blockquote|li|h[1-6])\b[^>]*>(.*?)</\1>',
-      caseSensitive: false,
-      dotAll: true,
-    );
-    final nestedBlockPattern = RegExp(
-      r'<(p|blockquote|li|h[1-6])\b',
-      caseSensitive: false,
-    );
+    final document = html_parser.parse(html);
+    final root = document.body ?? document.documentElement;
+    if (root == null) return blocks;
 
-    for (final match in blockPattern.allMatches(html)) {
-      final tag = (match.group(1) ?? '').toLowerCase();
-      final fragment = match.group(2) ?? '';
-      if (tag == 'blockquote' && nestedBlockPattern.hasMatch(fragment)) {
+    for (final element in root.querySelectorAll(
+      'p, blockquote, li, h1, h2, h3, h4, h5, h6',
+    )) {
+      final tag = (element.localName ?? '').toLowerCase();
+      if (tag == 'blockquote' && _hasDescendantBlock(element)) {
         continue;
       }
-      final text = _htmlFragmentToText(fragment);
+      final lines = _elementTextLines(element);
+      final text =
+          _chapterHeadingTextFromLines(lines) ??
+          _decodeHtmlText(lines.join(' '));
       if (!_isContentParagraph(text)) continue;
-      blocks.add(_HtmlBlockEntry(text: text, isHeading: tag.startsWith('h')));
+      blocks.add(
+        _HtmlBlockEntry(
+          text: text,
+          isHeading: tag.startsWith('h'),
+          tagName: tag,
+          className: element.className,
+          id: element.id,
+        ),
+      );
     }
     return blocks;
+  }
+
+  static bool _hasDescendantBlock(html_dom.Element element) {
+    return element
+        .querySelectorAll('p, blockquote, li, h1, h2, h3, h4, h5, h6')
+        .any((candidate) => candidate != element);
+  }
+
+  static bool _isEpubChapterHeadingBlock(_HtmlBlockEntry block) {
+    if (!_looksLikeEpubChapterHeading(block.text)) return false;
+    if (block.isHeading) return true;
+
+    final marker = '${block.tagName} ${block.className} ${block.id}'
+        .toLowerCase();
+    if (RegExp(r'\b(chapter|chap|heading|title|section)\b').hasMatch(marker)) {
+      return true;
+    }
+
+    return RegExp(
+      r'^(chapter|chapitre|cap[ií]tulo|capitulo)\s+([ivxlcdm]+|\d+)\b\.?$',
+      caseSensitive: false,
+    ).hasMatch(block.text.trim());
   }
 
   static bool _looksLikeEpubChapterHeading(String text) {
@@ -397,26 +427,89 @@ class BookParser {
     required bool skipNestedBlockContent,
   }) {
     final blocks = <String>[];
-    final blockPattern = RegExp(
-      '<($tags)\\b[^>]*>(.*?)</\\1>',
-      caseSensitive: false,
-      dotAll: true,
-    );
-    final nestedBlockPattern = RegExp(
-      r'<(p|div|section|article|blockquote|li|h[1-6])\b',
-      caseSensitive: false,
-    );
+    final document = html_parser.parse(html);
+    final root = document.body ?? document.documentElement;
+    if (root == null) return blocks;
 
-    for (final match in blockPattern.allMatches(html)) {
-      final fragment = match.group(2) ?? '';
-      if (skipNestedBlockContent && nestedBlockPattern.hasMatch(fragment)) {
+    final selector = tags
+        .split('|')
+        .map((tag) => tag.startsWith('h[') ? 'h1, h2, h3, h4, h5, h6' : tag)
+        .join(', ');
+    for (final element in root.querySelectorAll(selector)) {
+      if (skipNestedBlockContent && _hasNestedContentBlock(element)) {
         continue;
       }
-      final text = _htmlFragmentToText(fragment);
+      final lines = _elementTextLines(element);
+      final text =
+          _chapterHeadingTextFromLines(lines) ??
+          _decodeHtmlText(lines.join(' '));
       if (_isContentParagraph(text)) blocks.add(text);
     }
     return blocks;
   }
+
+  static bool _hasNestedContentBlock(html_dom.Element element) {
+    return element
+        .querySelectorAll(
+          'p, div, section, article, blockquote, li, h1, h2, h3, h4, h5, h6',
+        )
+        .any((candidate) => candidate != element);
+  }
+
+  static List<String> _elementTextLines(html_dom.Element element) {
+    final buffer = StringBuffer();
+
+    void walk(html_dom.Node node) {
+      if (node is html_dom.Text) {
+        buffer.write(node.text.replaceAll(RegExp(r'\s+'), ' '));
+        return;
+      }
+      if (node is! html_dom.Element) return;
+
+      final tag = (node.localName ?? '').toLowerCase();
+      if (tag == 'br') {
+        buffer.write('\n');
+        return;
+      }
+
+      final isNestedBlock = node != element && _contentBlockTags.contains(tag);
+      if (isNestedBlock) buffer.write('\n');
+      for (final child in node.nodes) {
+        walk(child);
+      }
+      if (isNestedBlock) buffer.write('\n');
+    }
+
+    walk(element);
+    return buffer
+        .toString()
+        .split(RegExp(r'\n+'))
+        .map(_decodeHtmlText)
+        .where((line) => line.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  static String? _chapterHeadingTextFromLines(List<String> lines) {
+    for (final line in lines.reversed) {
+      if (_looksLikeEpubChapterHeading(line)) return line;
+    }
+    return null;
+  }
+
+  static const _contentBlockTags = {
+    'p',
+    'div',
+    'section',
+    'article',
+    'blockquote',
+    'li',
+    'h1',
+    'h2',
+    'h3',
+    'h4',
+    'h5',
+    'h6',
+  };
 
   static List<String> _mergeContinuationParagraphs(List<String> paragraphs) {
     final merged = <String>[];
@@ -443,21 +536,6 @@ class BookParser {
           RegExp(r'[-—–][A-Za-z]*$').hasMatch(prev);
     }
     return false;
-  }
-
-  static String _htmlFragmentToText(String fragment) {
-    return _decodeHtmlText(
-      fragment
-          .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), ' ')
-          .replaceAll(
-            RegExp(
-              r'</?(span|em|strong|i|b|a|small)\b[^>]*>',
-              caseSensitive: false,
-            ),
-            ' ',
-          )
-          .replaceAll(RegExp(r'<[^>]+>'), ' '),
-    );
   }
 
   static String _decodeHtmlText(String text) {
@@ -736,8 +814,17 @@ class _EpubChapterSection {
 class _HtmlBlockEntry {
   final String text;
   final bool isHeading;
+  final String tagName;
+  final String className;
+  final String id;
 
-  const _HtmlBlockEntry({required this.text, required this.isHeading});
+  const _HtmlBlockEntry({
+    required this.text,
+    required this.isHeading,
+    required this.tagName,
+    required this.className,
+    required this.id,
+  });
 }
 
 /// GB18030/GBK 编码（简化版，依赖 dart:convert 的 systemEncoding 或外部包）。

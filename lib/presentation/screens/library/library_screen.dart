@@ -15,6 +15,7 @@ import '../../../domain/models/book_language.dart';
 import '../../../domain/models/book_rights.dart';
 import '../../../services/app_log_service.dart';
 import '../../../services/book_parser.dart';
+import '../../../services/reading_level_estimator.dart';
 import '../../../tts/models/tts_voice.dart';
 import '../../../tts/provider_registry.dart';
 import '../../../tts/tts_provider.dart';
@@ -258,13 +259,18 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         sourcePath: picked.path!,
         appDir: appDir.path,
       );
+      final language = inferLanguageFromTitle(parsed.book.title);
+      final readingLevel = await _estimateReadingLevel(
+        language: language,
+        paragraphTexts: parsed.paragraphs.map((paragraph) => paragraph.text),
+      );
 
       await db.upsertBook(
         drift_db.Book(
           id: parsed.book.id,
           title: parsed.book.title,
           author: parsed.book.author,
-          language: inferLanguageFromTitle(parsed.book.title),
+          language: language,
           format: parsed.book.format.name,
           sourcePath: parsed.book.sourcePath,
           coverPath: parsed.book.coverPath,
@@ -278,6 +284,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           lastReadAt: parsed.book.lastReadAt,
           kind: 'book',
           rightsStatus: userUploadedRightsStatus,
+          readingLevelSystem: readingLevel?.system,
+          readingLevelCode: readingLevel?.code,
+          readingLevelSource: readingLevel?.source,
         ),
       );
 
@@ -707,6 +716,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         bookId: book.id,
         appDir: appDir.path,
       );
+      final language =
+          book.language ?? inferLanguageFromTitle(parsed.book.title);
+      final estimatedReadingLevel =
+          book.readingLevelSource == userReadingLevelSource
+          ? null
+          : await _estimateReadingLevel(
+              language: language,
+              paragraphTexts: parsed.paragraphs.map(
+                (paragraph) => paragraph.text,
+              ),
+            );
       await ref
           .read(appDatabaseProvider)
           .replaceBookData(
@@ -714,8 +734,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               id: parsed.book.id,
               title: parsed.book.title,
               author: parsed.book.author,
-              language:
-                  book.language ?? inferLanguageFromTitle(parsed.book.title),
+              language: language,
               format: parsed.book.format.name,
               sourcePath: parsed.book.sourcePath,
               coverPath: parsed.book.coverPath,
@@ -732,6 +751,18 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               externalId: book.externalId,
               rightsStatus: book.rightsStatus,
               externalMetadataJson: book.externalMetadataJson,
+              readingLevelSystem:
+                  book.readingLevelSource == userReadingLevelSource
+                  ? book.readingLevelSystem
+                  : estimatedReadingLevel?.system,
+              readingLevelCode:
+                  book.readingLevelSource == userReadingLevelSource
+                  ? book.readingLevelCode
+                  : estimatedReadingLevel?.code,
+              readingLevelSource:
+                  book.readingLevelSource == userReadingLevelSource
+                  ? book.readingLevelSource
+                  : estimatedReadingLevel?.source,
             ),
             chapterEntries: parsed.chapters
                 .map(
@@ -783,11 +814,34 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     }
   }
 
+  Future<ReadingLevelEstimate?> _estimateReadingLevel({
+    required String? language,
+    required Iterable<String> paragraphTexts,
+  }) async {
+    if (normalizeBookLanguage(language) != 'en') return null;
+    try {
+      return await ReadingLevelEstimator.instance.estimateEnglish(
+        paragraphTexts,
+      );
+    } catch (error, stackTrace) {
+      AppLogger.warning(
+        'Library',
+        '阅读难度估算失败',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      return null;
+    }
+  }
+
   Future<void> _showEditBookSheet(drift_db.Book book) async {
     final titleController = TextEditingController(text: book.title);
     final authorController = TextEditingController(text: book.author ?? '');
     final languageController = TextEditingController(
       text: book.language ?? inferLanguageFromTitle(book.title) ?? '',
+    );
+    final readingLevelController = TextEditingController(
+      text: book.readingLevelCode ?? '',
     );
     String? coverPath = book.coverPath;
 
@@ -854,6 +908,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                                 hint: '语言代码（如 zh / en）',
                                 icon: Icons.language,
                               ),
+                              const SizedBox(height: 10),
+                              _darkTextField(
+                                controller: readingLevelController,
+                                hint: '阅读难度（如 A2 / B1）',
+                                icon: Icons.school_outlined,
+                              ),
                             ],
                           ),
                         ),
@@ -909,6 +969,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                           final language = normalizeBookLanguage(
                             languageController.text,
                           );
+                          final readingLevel = normalizeCefrReadingLevel(
+                            readingLevelController.text,
+                          );
                           await ref
                               .read(appDatabaseProvider)
                               .updateBookMetadata(
@@ -922,6 +985,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                                 clearCover: coverPath == null,
                                 language: language,
                                 clearLanguage: language == null,
+                                readingLevelSystem: readingLevel == null
+                                    ? null
+                                    : cefrJReadingLevelSystem,
+                                readingLevelCode: readingLevel,
+                                readingLevelSource: readingLevel == null
+                                    ? null
+                                    : userReadingLevelSource,
+                                clearReadingLevel: readingLevel == null,
                               );
                           if (!mounted) return;
                           if (!context.mounted) return;
@@ -942,6 +1013,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     titleController.dispose();
     authorController.dispose();
     languageController.dispose();
+    readingLevelController.dispose();
   }
 
   Widget _darkTextField({
@@ -1040,6 +1112,8 @@ class _BookCard extends StatelessWidget {
           icon: Icons.trending_up_outlined,
           label: bookReadingProgressLabel(context, book),
         ),
+        if (bookReadingLevelLabel(context, book) case final level?)
+          BookListCardMeta(icon: Icons.school_outlined, label: level),
         if (cacheProgress != null)
           BookListCardMeta(
             icon: Icons.downloading_outlined,
