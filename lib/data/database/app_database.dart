@@ -51,6 +51,12 @@ class Chapters extends Table {
   TextColumn get title => text()();
   IntColumn get textOffset => integer().withDefault(const Constant(0))();
 
+  /// Optional narrator override for this chapter.
+  TextColumn get voiceId => text().nullable()();
+
+  /// Hidden chapters remain in the database and can be restored later.
+  BoolColumn get isHidden => boolean().withDefault(const Constant(false))();
+
   @override
   Set<Column> get primaryKey => {id};
 
@@ -225,7 +231,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e) : _repairPathsOnOpen = false;
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -268,6 +274,24 @@ class AppDatabase extends _$AppDatabase {
           dictionaryEntries,
           dictionaryEntries.readingLevelSource,
         );
+      }
+      if (from < 9) {
+        final chapterTableExists =
+            await m.database
+                .customSelect(
+                  "SELECT 1 FROM sqlite_master WHERE type = 'table' "
+                  "AND name = 'chapters'",
+                )
+                .getSingleOrNull() !=
+            null;
+        if (chapterTableExists) {
+          await m.addColumn(chapters, chapters.voiceId);
+          await m.addColumn(chapters, chapters.isHidden);
+        } else {
+          // Defensive support for very early databases that did not yet have
+          // chapter rows (including the original import-only schema).
+          await m.createTable(chapters);
+        }
       }
     },
     beforeOpen: (_) async {
@@ -421,9 +445,18 @@ class AppDatabase extends _$AppDatabase {
 
   // ── 章节 ──
 
-  Future<List<Chapter>> getChapters(String bookId) =>
+  Future<List<Chapter>> getChapters(
+    String bookId, {
+    bool includeHidden = false,
+  }) =>
       (select(chapters)
-            ..where((c) => c.bookId.equals(bookId))
+            ..where(
+              (c) =>
+                  c.bookId.equals(bookId) &
+                  (includeHidden
+                      ? const Constant(true)
+                      : c.isHidden.equals(false)),
+            )
             ..orderBy([(c) => OrderingTerm.asc(c.chapterIndex)]))
           .get();
 
@@ -439,6 +472,18 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> insertChapters(List<Chapter> entries) async {
     await batch((b) => b.insertAll(chapters, entries));
+  }
+
+  Future<void> updateChapterNarrator(String chapterId, String? voiceId) async {
+    await (update(chapters)..where((c) => c.id.equals(chapterId))).write(
+      ChaptersCompanion(voiceId: Value(voiceId)),
+    );
+  }
+
+  Future<void> updateChapterHidden(String chapterId, bool isHidden) async {
+    await (update(chapters)..where((c) => c.id.equals(chapterId))).write(
+      ChaptersCompanion(isHidden: Value(isHidden)),
+    );
   }
 
   Future<void> replaceBookData({

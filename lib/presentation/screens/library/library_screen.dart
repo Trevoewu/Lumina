@@ -300,6 +300,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 chapterIndex: c.index,
                 title: c.title,
                 textOffset: c.textOffset,
+                isHidden: false,
               ),
             )
             .toList(),
@@ -773,6 +774,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     chapterIndex: c.index,
                     title: c.title,
                     textOffset: c.textOffset,
+                    isHidden: false,
                   ),
                 )
                 .toList(),

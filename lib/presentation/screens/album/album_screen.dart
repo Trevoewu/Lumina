@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/app_colors.dart';
+import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart' as drift_db;
 import '../../../data/settings/provider_selection_repository.dart';
@@ -215,7 +216,12 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     setState(() {});
 
     try {
-      final voice = await _resolveVoice(provider, database, selections);
+      final voice = await _resolveVoice(
+        provider,
+        database,
+        selections,
+        chapterVoiceId: chapter.voiceId,
+      );
       if (voice == null) {
         if (mounted) _showSnackBar('${provider.displayName} 没有可用音色');
         return;
@@ -306,8 +312,9 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   Future<TtsVoice?> _resolveVoice(
     TtsProvider provider,
     drift_db.AppDatabase database,
-    ProviderSelectionRepository selections,
-  ) async {
+    ProviderSelectionRepository selections, {
+    String? chapterVoiceId,
+  }) async {
     final savedVoices = await database.getVoicesByProvider(provider.id);
     final presetVoices = await provider.listPresetVoices();
     final voices = <TtsVoice>[
@@ -323,7 +330,11 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     if (voices.isEmpty) return null;
 
     final activeVoiceId = await selections.selectedVoice(provider.id);
-    for (final preferredVoiceId in [widget.book.voiceId, activeVoiceId]) {
+    for (final preferredVoiceId in [
+      chapterVoiceId,
+      widget.book.voiceId,
+      activeVoiceId,
+    ]) {
       if (preferredVoiceId == null) continue;
       for (final voice in voices) {
         if (voice.id == preferredVoiceId ||
@@ -342,6 +353,171 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     }
 
     return voices.first;
+  }
+
+  Future<void> _changeChapterNarrator(drift_db.Chapter chapter) async {
+    final provider = ref.read(activeTtsProviderProvider);
+    final database = ref.read(appDatabaseProvider);
+    final savedVoices = await database.getVoicesByProvider(provider.id);
+    final presetVoices = await provider.listPresetVoices();
+    final voices = <TtsVoice>[
+      for (final voice in savedVoices) _voiceFromDb(voice),
+      for (final voice in presetVoices)
+        if (!savedVoices.any(
+          (saved) =>
+              saved.id == voice.id ||
+              saved.providerVoiceId == voice.providerVoiceId,
+        ))
+          voice,
+    ];
+    if (!mounted) return;
+    if (voices.isEmpty) {
+      _showSnackBar(context.tr('没有可用音色', 'No narrator is available'));
+      return;
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        top: false,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.72,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
+                child: Text(
+                  context.tr('修改旁白', 'Change narrator'),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    ListTile(
+                      leading: Icon(
+                        chapter.voiceId == null
+                            ? Icons.radio_button_checked
+                            : Icons.radio_button_off,
+                      ),
+                      title: Text(context.tr('使用书籍默认旁白', 'Use book default')),
+                      onTap: () =>
+                          _saveChapterNarrator(sheetContext, chapter, null),
+                    ),
+                    for (final voice in voices)
+                      ListTile(
+                        leading: Icon(
+                          chapter.voiceId == voice.id
+                              ? Icons.radio_button_checked
+                              : Icons.radio_button_off,
+                        ),
+                        title: Text(voice.name),
+                        subtitle: Text(provider.displayName),
+                        onTap: () => _saveChapterNarrator(
+                          sheetContext,
+                          chapter,
+                          voice.id,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _saveChapterNarrator(
+    BuildContext sheetContext,
+    drift_db.Chapter chapter,
+    String? voiceId,
+  ) async {
+    Navigator.of(sheetContext).pop();
+    await ref
+        .read(appDatabaseProvider)
+        .updateChapterNarrator(chapter.id, voiceId);
+    if (!mounted) return;
+    setState(() {});
+    _showSnackBar(
+      context.tr(
+        '已更新旁白；重新生成后将应用到音频。',
+        'Narrator updated. Regenerate audio to apply it.',
+      ),
+    );
+  }
+
+  Future<void> _hideChapter(drift_db.Chapter chapter) async {
+    await ref.read(appDatabaseProvider).updateChapterHidden(chapter.id, true);
+    if (!mounted) return;
+    setState(() {});
+    _showSnackBar(
+      context.tr(
+        '已在本书中隐藏“${chapter.title}”。',
+        '“${chapter.title}” is hidden in this book.',
+      ),
+    );
+  }
+
+  Future<void> _showHiddenChapters() async {
+    final chapters = await ref
+        .read(appDatabaseProvider)
+        .getChapters(widget.book.id, includeHidden: true);
+    final hiddenChapters = chapters
+        .where((chapter) => chapter.isHidden)
+        .toList();
+    if (!mounted) return;
+    if (hiddenChapters.isEmpty) {
+      _showSnackBar(context.tr('没有隐藏章节', 'No hidden chapters'));
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        top: false,
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
+              child: Text(
+                context.tr('隐藏章节', 'Hidden chapters'),
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            for (final chapter in hiddenChapters)
+              ListTile(
+                title: Text(chapter.title),
+                trailing: TextButton(
+                  onPressed: () async {
+                    await ref
+                        .read(appDatabaseProvider)
+                        .updateChapterHidden(chapter.id, false);
+                    if (!sheetContext.mounted) return;
+                    Navigator.of(sheetContext).pop();
+                    if (!mounted) return;
+                    setState(() {});
+                  },
+                  child: Text(context.tr('恢复显示', 'Restore')),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   TtsVoice _voiceFromDb(drift_db.Voice voice) {
@@ -395,6 +571,13 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                     expandedHeight: 300,
                     pinned: true,
                     backgroundColor: context.appBackground,
+                    actions: [
+                      IconButton(
+                        tooltip: context.tr('管理隐藏章节', 'Manage hidden chapters'),
+                        onPressed: _showHiddenChapters,
+                        icon: const Icon(Icons.visibility_off_outlined),
+                      ),
+                    ],
                     flexibleSpace: FlexibleSpaceBar(
                       centerTitle: true,
                       titlePadding: const EdgeInsets.symmetric(
@@ -472,6 +655,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                           title: chapter.title,
                           author: widget.book.author ?? 'Unknown Artist',
                           bookVoiceId: widget.book.voiceId,
+                          chapterVoiceId: chapter.voiceId,
                           highlighted: highlighted,
                           progress: _generationProgress[chapter.id],
                           bookId: widget.book.id,
@@ -481,6 +665,9 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                           paused: _pausedChapterIds.contains(chapter.id),
                           onClearCache: () => _clearChapterCache(chapter),
                           onRegenerate: () => _regenerateChapter(chapter),
+                          onChangeNarrator: () =>
+                              _changeChapterNarrator(chapter),
+                          onHideInBook: () => _hideChapter(chapter),
                         );
                         if (index == chapters.length - 1) return card;
                         return Column(
@@ -531,6 +718,7 @@ class _ChapterCard extends StatelessWidget {
   final String title;
   final String author;
   final String? bookVoiceId;
+  final String? chapterVoiceId;
   final bool highlighted;
   final GenerationProgress? progress;
   final String bookId;
@@ -540,12 +728,15 @@ class _ChapterCard extends StatelessWidget {
   final bool paused;
   final VoidCallback onClearCache;
   final VoidCallback onRegenerate;
+  final VoidCallback onChangeNarrator;
+  final VoidCallback onHideInBook;
 
   const _ChapterCard({
     required this.index,
     required this.title,
     required this.author,
     required this.bookVoiceId,
+    required this.chapterVoiceId,
     required this.highlighted,
     required this.bookId,
     required this.chapterId,
@@ -554,6 +745,8 @@ class _ChapterCard extends StatelessWidget {
     required this.paused,
     required this.onClearCache,
     required this.onRegenerate,
+    required this.onChangeNarrator,
+    required this.onHideInBook,
     this.progress,
   });
 
@@ -626,7 +819,10 @@ class _ChapterCard extends StatelessWidget {
                           ),
                           const SizedBox(height: 2),
                           NarratorLabel(
-                            voiceId: manifest?.voiceId ?? bookVoiceId,
+                            voiceId:
+                                manifest?.voiceId ??
+                                chapterVoiceId ??
+                                bookVoiceId,
                             compact: true,
                           ),
                           const SizedBox(height: 2),
@@ -649,6 +845,8 @@ class _ChapterCard extends StatelessWidget {
                       paused: paused,
                       onClearCache: onClearCache,
                       onRegenerate: onRegenerate,
+                      onChangeNarrator: onChangeNarrator,
+                      onHideInBook: onHideInBook,
                     ),
                   ],
                 );
@@ -669,6 +867,8 @@ class _ChapterActions extends StatelessWidget {
   final bool paused;
   final VoidCallback onClearCache;
   final VoidCallback onRegenerate;
+  final VoidCallback onChangeNarrator;
+  final VoidCallback onHideInBook;
 
   const _ChapterActions({
     required this.chapterTitle,
@@ -677,6 +877,8 @@ class _ChapterActions extends StatelessWidget {
     required this.paused,
     required this.onClearCache,
     required this.onRegenerate,
+    required this.onChangeNarrator,
+    required this.onHideInBook,
     this.progress,
   });
 
@@ -710,6 +912,16 @@ class _ChapterActions extends StatelessWidget {
                   label: '重新生成',
                   icon: Icons.refresh_rounded,
                   onPressed: onRegenerate,
+                ),
+                HalfScreenActionSheetItem(
+                  label: context.tr('修改旁白', 'Change narrator'),
+                  icon: Icons.record_voice_over_outlined,
+                  onPressed: onChangeNarrator,
+                ),
+                HalfScreenActionSheetItem(
+                  label: context.tr('在本书中隐藏', 'Hide in this book'),
+                  icon: Icons.visibility_off_outlined,
+                  onPressed: onHideInBook,
                 ),
               ],
             );

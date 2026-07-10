@@ -1372,6 +1372,32 @@ class $ChaptersTable extends Chapters with TableInfo<$ChaptersTable, Chapter> {
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _voiceIdMeta = const VerificationMeta(
+    'voiceId',
+  );
+  @override
+  late final GeneratedColumn<String> voiceId = GeneratedColumn<String>(
+    'voice_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _isHiddenMeta = const VerificationMeta(
+    'isHidden',
+  );
+  @override
+  late final GeneratedColumn<bool> isHidden = GeneratedColumn<bool>(
+    'is_hidden',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_hidden" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1379,6 +1405,8 @@ class $ChaptersTable extends Chapters with TableInfo<$ChaptersTable, Chapter> {
     chapterIndex,
     title,
     textOffset,
+    voiceId,
+    isHidden,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1430,6 +1458,18 @@ class $ChaptersTable extends Chapters with TableInfo<$ChaptersTable, Chapter> {
         textOffset.isAcceptableOrUnknown(data['text_offset']!, _textOffsetMeta),
       );
     }
+    if (data.containsKey('voice_id')) {
+      context.handle(
+        _voiceIdMeta,
+        voiceId.isAcceptableOrUnknown(data['voice_id']!, _voiceIdMeta),
+      );
+    }
+    if (data.containsKey('is_hidden')) {
+      context.handle(
+        _isHiddenMeta,
+        isHidden.isAcceptableOrUnknown(data['is_hidden']!, _isHiddenMeta),
+      );
+    }
     return context;
   }
 
@@ -1463,6 +1503,14 @@ class $ChaptersTable extends Chapters with TableInfo<$ChaptersTable, Chapter> {
         DriftSqlType.int,
         data['${effectivePrefix}text_offset'],
       )!,
+      voiceId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}voice_id'],
+      ),
+      isHidden: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_hidden'],
+      )!,
     );
   }
 
@@ -1478,12 +1526,20 @@ class Chapter extends DataClass implements Insertable<Chapter> {
   final int chapterIndex;
   final String title;
   final int textOffset;
+
+  /// Optional narrator override for this chapter.
+  final String? voiceId;
+
+  /// Hidden chapters remain in the database and can be restored later.
+  final bool isHidden;
   const Chapter({
     required this.id,
     required this.bookId,
     required this.chapterIndex,
     required this.title,
     required this.textOffset,
+    this.voiceId,
+    required this.isHidden,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1493,6 +1549,10 @@ class Chapter extends DataClass implements Insertable<Chapter> {
     map['chapter_index'] = Variable<int>(chapterIndex);
     map['title'] = Variable<String>(title);
     map['text_offset'] = Variable<int>(textOffset);
+    if (!nullToAbsent || voiceId != null) {
+      map['voice_id'] = Variable<String>(voiceId);
+    }
+    map['is_hidden'] = Variable<bool>(isHidden);
     return map;
   }
 
@@ -1503,6 +1563,10 @@ class Chapter extends DataClass implements Insertable<Chapter> {
       chapterIndex: Value(chapterIndex),
       title: Value(title),
       textOffset: Value(textOffset),
+      voiceId: voiceId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(voiceId),
+      isHidden: Value(isHidden),
     );
   }
 
@@ -1517,6 +1581,8 @@ class Chapter extends DataClass implements Insertable<Chapter> {
       chapterIndex: serializer.fromJson<int>(json['chapterIndex']),
       title: serializer.fromJson<String>(json['title']),
       textOffset: serializer.fromJson<int>(json['textOffset']),
+      voiceId: serializer.fromJson<String?>(json['voiceId']),
+      isHidden: serializer.fromJson<bool>(json['isHidden']),
     );
   }
   @override
@@ -1528,6 +1594,8 @@ class Chapter extends DataClass implements Insertable<Chapter> {
       'chapterIndex': serializer.toJson<int>(chapterIndex),
       'title': serializer.toJson<String>(title),
       'textOffset': serializer.toJson<int>(textOffset),
+      'voiceId': serializer.toJson<String?>(voiceId),
+      'isHidden': serializer.toJson<bool>(isHidden),
     };
   }
 
@@ -1537,12 +1605,16 @@ class Chapter extends DataClass implements Insertable<Chapter> {
     int? chapterIndex,
     String? title,
     int? textOffset,
+    Value<String?> voiceId = const Value.absent(),
+    bool? isHidden,
   }) => Chapter(
     id: id ?? this.id,
     bookId: bookId ?? this.bookId,
     chapterIndex: chapterIndex ?? this.chapterIndex,
     title: title ?? this.title,
     textOffset: textOffset ?? this.textOffset,
+    voiceId: voiceId.present ? voiceId.value : this.voiceId,
+    isHidden: isHidden ?? this.isHidden,
   );
   Chapter copyWithCompanion(ChaptersCompanion data) {
     return Chapter(
@@ -1555,6 +1627,8 @@ class Chapter extends DataClass implements Insertable<Chapter> {
       textOffset: data.textOffset.present
           ? data.textOffset.value
           : this.textOffset,
+      voiceId: data.voiceId.present ? data.voiceId.value : this.voiceId,
+      isHidden: data.isHidden.present ? data.isHidden.value : this.isHidden,
     );
   }
 
@@ -1565,13 +1639,23 @@ class Chapter extends DataClass implements Insertable<Chapter> {
           ..write('bookId: $bookId, ')
           ..write('chapterIndex: $chapterIndex, ')
           ..write('title: $title, ')
-          ..write('textOffset: $textOffset')
+          ..write('textOffset: $textOffset, ')
+          ..write('voiceId: $voiceId, ')
+          ..write('isHidden: $isHidden')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, bookId, chapterIndex, title, textOffset);
+  int get hashCode => Object.hash(
+    id,
+    bookId,
+    chapterIndex,
+    title,
+    textOffset,
+    voiceId,
+    isHidden,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1580,7 +1664,9 @@ class Chapter extends DataClass implements Insertable<Chapter> {
           other.bookId == this.bookId &&
           other.chapterIndex == this.chapterIndex &&
           other.title == this.title &&
-          other.textOffset == this.textOffset);
+          other.textOffset == this.textOffset &&
+          other.voiceId == this.voiceId &&
+          other.isHidden == this.isHidden);
 }
 
 class ChaptersCompanion extends UpdateCompanion<Chapter> {
@@ -1589,6 +1675,8 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
   final Value<int> chapterIndex;
   final Value<String> title;
   final Value<int> textOffset;
+  final Value<String?> voiceId;
+  final Value<bool> isHidden;
   final Value<int> rowid;
   const ChaptersCompanion({
     this.id = const Value.absent(),
@@ -1596,6 +1684,8 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
     this.chapterIndex = const Value.absent(),
     this.title = const Value.absent(),
     this.textOffset = const Value.absent(),
+    this.voiceId = const Value.absent(),
+    this.isHidden = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ChaptersCompanion.insert({
@@ -1604,6 +1694,8 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
     required int chapterIndex,
     required String title,
     this.textOffset = const Value.absent(),
+    this.voiceId = const Value.absent(),
+    this.isHidden = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        bookId = Value(bookId),
@@ -1615,6 +1707,8 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
     Expression<int>? chapterIndex,
     Expression<String>? title,
     Expression<int>? textOffset,
+    Expression<String>? voiceId,
+    Expression<bool>? isHidden,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1623,6 +1717,8 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
       if (chapterIndex != null) 'chapter_index': chapterIndex,
       if (title != null) 'title': title,
       if (textOffset != null) 'text_offset': textOffset,
+      if (voiceId != null) 'voice_id': voiceId,
+      if (isHidden != null) 'is_hidden': isHidden,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1633,6 +1729,8 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
     Value<int>? chapterIndex,
     Value<String>? title,
     Value<int>? textOffset,
+    Value<String?>? voiceId,
+    Value<bool>? isHidden,
     Value<int>? rowid,
   }) {
     return ChaptersCompanion(
@@ -1641,6 +1739,8 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
       chapterIndex: chapterIndex ?? this.chapterIndex,
       title: title ?? this.title,
       textOffset: textOffset ?? this.textOffset,
+      voiceId: voiceId ?? this.voiceId,
+      isHidden: isHidden ?? this.isHidden,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1663,6 +1763,12 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
     if (textOffset.present) {
       map['text_offset'] = Variable<int>(textOffset.value);
     }
+    if (voiceId.present) {
+      map['voice_id'] = Variable<String>(voiceId.value);
+    }
+    if (isHidden.present) {
+      map['is_hidden'] = Variable<bool>(isHidden.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1677,6 +1783,8 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
           ..write('chapterIndex: $chapterIndex, ')
           ..write('title: $title, ')
           ..write('textOffset: $textOffset, ')
+          ..write('voiceId: $voiceId, ')
+          ..write('isHidden: $isHidden, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -6804,6 +6912,8 @@ typedef $$ChaptersTableCreateCompanionBuilder =
       required int chapterIndex,
       required String title,
       Value<int> textOffset,
+      Value<String?> voiceId,
+      Value<bool> isHidden,
       Value<int> rowid,
     });
 typedef $$ChaptersTableUpdateCompanionBuilder =
@@ -6813,6 +6923,8 @@ typedef $$ChaptersTableUpdateCompanionBuilder =
       Value<int> chapterIndex,
       Value<String> title,
       Value<int> textOffset,
+      Value<String?> voiceId,
+      Value<bool> isHidden,
       Value<int> rowid,
     });
 
@@ -6847,6 +6959,16 @@ class $$ChaptersTableFilterComposer
 
   ColumnFilters<int> get textOffset => $composableBuilder(
     column: $table.textOffset,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get voiceId => $composableBuilder(
+    column: $table.voiceId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isHidden => $composableBuilder(
+    column: $table.isHidden,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -6884,6 +7006,16 @@ class $$ChaptersTableOrderingComposer
     column: $table.textOffset,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get voiceId => $composableBuilder(
+    column: $table.voiceId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isHidden => $composableBuilder(
+    column: $table.isHidden,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ChaptersTableAnnotationComposer
@@ -6913,6 +7045,12 @@ class $$ChaptersTableAnnotationComposer
     column: $table.textOffset,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get voiceId =>
+      $composableBuilder(column: $table.voiceId, builder: (column) => column);
+
+  GeneratedColumn<bool> get isHidden =>
+      $composableBuilder(column: $table.isHidden, builder: (column) => column);
 }
 
 class $$ChaptersTableTableManager
@@ -6948,6 +7086,8 @@ class $$ChaptersTableTableManager
                 Value<int> chapterIndex = const Value.absent(),
                 Value<String> title = const Value.absent(),
                 Value<int> textOffset = const Value.absent(),
+                Value<String?> voiceId = const Value.absent(),
+                Value<bool> isHidden = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ChaptersCompanion(
                 id: id,
@@ -6955,6 +7095,8 @@ class $$ChaptersTableTableManager
                 chapterIndex: chapterIndex,
                 title: title,
                 textOffset: textOffset,
+                voiceId: voiceId,
+                isHidden: isHidden,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -6964,6 +7106,8 @@ class $$ChaptersTableTableManager
                 required int chapterIndex,
                 required String title,
                 Value<int> textOffset = const Value.absent(),
+                Value<String?> voiceId = const Value.absent(),
+                Value<bool> isHidden = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ChaptersCompanion.insert(
                 id: id,
@@ -6971,6 +7115,8 @@ class $$ChaptersTableTableManager
                 chapterIndex: chapterIndex,
                 title: title,
                 textOffset: textOffset,
+                voiceId: voiceId,
+                isHidden: isHidden,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

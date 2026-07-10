@@ -43,7 +43,22 @@ class _HalfScreenActionSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final design = context.appDesign;
-    final sheetHeight = MediaQuery.sizeOf(context).height * 0.56;
+    final mediaQuery = MediaQuery.of(context);
+    // Keep the sheet compact for short menus, while allowing long menus to
+    // scroll instead of extending beneath the status bar.
+    const handleAreaHeight = 28.0;
+    const headerHeight = 60.0;
+    const actionHeight = 61.0;
+    final verticalPadding = design.spaceXs + design.spaceLg;
+    final contentHeight =
+        handleAreaHeight +
+        headerHeight +
+        verticalPadding +
+        actions.length * actionHeight +
+        (actions.length - 1).clamp(0, double.maxFinite) * design.spaceXs +
+        mediaQuery.padding.bottom;
+    final maxHeight = mediaQuery.size.height * 0.78;
+    final sheetHeight = contentHeight.clamp(0.0, maxHeight).toDouble();
 
     return SizedBox(
       height: sheetHeight,
@@ -57,8 +72,22 @@ class _HalfScreenActionSheet extends StatelessWidget {
           top: false,
           child: Column(
             children: [
+              // The handle belongs inside the sheet, below its rounded edge.
               SizedBox(
-                height: 68,
+                height: handleAreaHeight,
+                child: Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: context.appTextSecondary.withValues(alpha: 0.45),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(
+                height: headerHeight,
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
@@ -98,7 +127,7 @@ class _HalfScreenActionSheet extends StatelessWidget {
                 child: ListView.separated(
                   padding: EdgeInsets.fromLTRB(
                     design.spaceLg,
-                    design.spaceXs,
+                    0,
                     design.spaceLg,
                     design.spaceLg,
                   ),

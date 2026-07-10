@@ -283,6 +283,7 @@ class GutendexRepository {
               chapterIndex: chapter.index,
               title: chapter.title,
               textOffset: chapter.textOffset,
+              isHidden: false,
             ),
           )
           .toList(),

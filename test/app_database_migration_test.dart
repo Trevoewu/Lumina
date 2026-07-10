@@ -61,7 +61,7 @@ void main() {
     expect(repaired?.coverPath, cover.path);
   });
 
-  test('schema 1 books migrate to schema 8 without data loss', () async {
+  test('schema 1 books migrate to schema 9 without data loss', () async {
     final tempDir = Directory.systemTemp.createTempSync('lumina_migration_');
     final databaseFile = File('${tempDir.path}/lumina.db');
 
@@ -105,7 +105,7 @@ void main() {
         .customSelect('PRAGMA user_version;')
         .getSingle();
 
-    expect(version.read<int>('user_version'), 8);
+    expect(version.read<int>('user_version'), 9);
     expect(books, hasLength(1));
     expect(books.single.title, 'Migration Test');
     expect(books.single.kind, 'book');
@@ -123,6 +123,26 @@ void main() {
     expect(updated?.currentChapterId, 'chapter-3');
     expect(updated?.currentParagraphIndex, 17);
     expect(updated?.playbackOffsetMs, 2450);
+
+    await database.insertChapters([
+      const Chapter(
+        id: 'chapter-1',
+        bookId: 'book-1',
+        chapterIndex: 0,
+        title: 'Chapter 1',
+        textOffset: 0,
+        isHidden: false,
+      ),
+    ]);
+    await database.updateChapterNarrator('chapter-1', 'narrator-1');
+    await database.updateChapterHidden('chapter-1', true);
+    expect(await database.getChapters('book-1'), isEmpty);
+    final hiddenChapters = await database.getChapters(
+      'book-1',
+      includeHidden: true,
+    );
+    expect(hiddenChapters.single.voiceId, 'narrator-1');
+    expect(hiddenChapters.single.isHidden, isTrue);
 
     await database.addListeningTime('2026-06-30', 120000, newSession: true);
     final listeningDays = await database.watchListeningDays().first;
