@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
+import 'package:lumina/core/app_colors.dart';
 import 'package:lumina/services/cover_palette_service.dart';
 
 void main() {
@@ -23,19 +24,25 @@ void main() {
     }
   });
 
-  test('creates coordinated page and lyrics tones from the same seed', () {
+  test('creates one shared lyrics background from the cover seed', () {
     const seed = Color(0xFF19BEE8);
     final top = CoverPaletteService.pageTopForSeed(seed, Brightness.dark);
     final bottom = CoverPaletteService.darkPageBottomForSeed(seed);
-    final lyrics = CoverPaletteService.lyricsSurfaceForSeed(seed);
+    final lyricsBackground =
+        CoverPaletteService.lyricsBackgroundGradientForSeed(seed);
+    final defaultLyricsBackground =
+        CoverPaletteService.lyricsBackgroundGradientForSeed(null);
     final card = CoverPaletteService.cardSurfaceForSeed(seed, Brightness.dark);
 
+    expect(lyricsBackground.begin, Alignment.topCenter);
+    expect(lyricsBackground.end, Alignment.bottomCenter);
+    expect(lyricsBackground.colors, [top, bottom]);
+    expect(defaultLyricsBackground.colors, [
+      AppColors.lyricsBackground,
+      AppColors.lyricsBackground,
+    ]);
     expect(top.computeLuminance(), greaterThan(bottom.computeLuminance()));
     expect(card.computeLuminance(), greaterThan(bottom.computeLuminance()));
-    expect(
-      CoverPaletteService.contrastRatio(lyrics, Colors.white),
-      greaterThanOrEqualTo(4.5),
-    );
     expect(
       HSLColor.fromColor(top).hue,
       closeTo(HSLColor.fromColor(seed).hue, 1),

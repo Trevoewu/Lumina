@@ -77,9 +77,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             : Theme.of(context).brightness == Brightness.dark
             ? CoverPaletteService.darkPageBottomForSeed(seed)
             : context.appBackground;
-        final lyricsSurface = seed == null
-            ? AppColors.lyricsBackground
-            : CoverPaletteService.lyricsSurfaceForSeed(seed);
+        final lyricsBackground =
+            CoverPaletteService.lyricsBackgroundGradientForSeed(seed);
         final topForeground = CoverPaletteService.foregroundFor(topTint);
         final contentForeground = CoverPaletteService.foregroundFor(pageBottom);
 
@@ -266,7 +265,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                     currentChapterId ??
                                         widget.initialChapter?.id,
                                     handler,
-                                    lyricsSurface,
+                                    lyricsBackground,
                                   ),
                                 ),
                                 const SizedBox(height: 16),
@@ -390,7 +389,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Widget _buildLyricsCard(
     String? chapterId,
     LuminaAudioHandler handler,
-    Color cardColor,
+    Gradient background,
   ) {
     if (chapterId == null) return const SizedBox.shrink();
 
@@ -400,7 +399,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       key: const ValueKey('lyrics-card'),
       margin: const EdgeInsets.fromLTRB(24, 0, 24, 8),
       decoration: BoxDecoration(
-        color: cardColor,
+        gradient: background,
         borderRadius: BorderRadius.circular(16),
       ),
       child: ClipRRect(
@@ -660,24 +659,15 @@ class _FullScreenLyricsSheetState
       future: _coverSeed,
       builder: (context, paletteSnapshot) {
         final seed = paletteSnapshot.data;
-        final topTint = seed == null
-            ? AppColors.lyricsBackground
-            : CoverPaletteService.pageTopForSeed(seed, Brightness.dark);
-        final bottomTint = seed == null
-            ? AppColors.lyricsBackground
-            : CoverPaletteService.darkPageBottomForSeed(seed);
+        final lyricsBackground =
+            CoverPaletteService.lyricsBackgroundGradientForSeed(seed);
+        final bottomTint = lyricsBackground.colors.last;
         return Scaffold(
           backgroundColor: bottomTint,
           body: Container(
             key: const ValueKey('fullscreen-lyrics-background'),
             height: MediaQuery.sizeOf(context).height,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [topTint, bottomTint],
-              ),
-            ),
+            decoration: BoxDecoration(gradient: lyricsBackground),
             child: SafeArea(
               child: Listener(
                 behavior: HitTestBehavior.translucent,

@@ -5,6 +5,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 
+import '../core/app_colors.dart';
+
 /// Extracts a representative cover color and turns it into a restrained,
 /// high-contrast mini-player surface.
 class CoverPaletteService {
@@ -85,17 +87,19 @@ class CoverPaletteService {
         .toColor();
   }
 
-  /// A dark mid-tone used behind lyrics while retaining white-text contrast.
-  static Color lyricsSurfaceForSeed(Color seed) {
-    final hsl = HSLColor.fromColor(seed);
-    var surface = hsl
-        .withSaturation(hsl.saturation.clamp(0.28, 0.62))
-        .withLightness(hsl.lightness.clamp(0.16, 0.22))
-        .toColor();
-    while (_contrastRatio(surface, Colors.white) < 4.5) {
-      surface = Color.lerp(surface, Colors.black, 0.08)!;
-    }
-    return surface;
+  /// Shared cover-aware background for inline and full-screen lyrics.
+  static LinearGradient lyricsBackgroundGradientForSeed(Color? seed) {
+    final top = seed == null
+        ? AppColors.lyricsBackground
+        : pageTopForSeed(seed, Brightness.dark);
+    final bottom = seed == null
+        ? AppColors.lyricsBackground
+        : darkPageBottomForSeed(seed);
+    return LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [top, bottom],
+    );
   }
 
   static double contrastRatio(Color a, Color b) {
