@@ -16,6 +16,7 @@ import '../../../tts/models/tts_voice.dart';
 import '../../../tts/provider_registry.dart';
 import '../../../tts/tts_provider.dart';
 import '../../widgets/book_cover.dart';
+import '../../widgets/narrator_label.dart';
 
 class AlbumScreen extends ConsumerStatefulWidget {
   final drift_db.Book book;
@@ -32,7 +33,6 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   final Set<String> _generatingChapterIds = {};
   final ScrollController _scrollController = ScrollController();
   bool _didScrollToInitialChapter = false;
-  bool _albumPlayPending = false;
   late Future<Color?> _coverSeed;
 
   @override
@@ -199,49 +199,6 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       if (!mounted) return;
       _showSnackBar('播放缓存失败，请清除音频后重新生成');
       return;
-    }
-  }
-
-  Future<void> _resumeOrStart(List<drift_db.Chapter> chapters) async {
-    if (_albumPlayPending || chapters.isEmpty) return;
-    setState(() => _albumPlayPending = true);
-
-    try {
-      final handlerFuture = ref.read(luminaAudioHandlerProvider.future);
-      final database = ref.read(appDatabaseProvider);
-      final handler = await handlerFuture;
-      if (!mounted) return;
-      if (handler.currentBookId == widget.book.id) {
-        final liveIndex = chapters.indexWhere(
-          (chapter) => chapter.id == handler.currentChapterId,
-        );
-        if (liveIndex >= 0) {
-          unawaited(handler.play());
-          return;
-        }
-      }
-
-      final savedBook = await database.getBook(widget.book.id) ?? widget.book;
-      if (!mounted) return;
-      final savedIndex = savedBook.currentChapterId == null
-          ? -1
-          : chapters.indexWhere(
-              (chapter) => chapter.id == savedBook.currentChapterId,
-            );
-
-      if (savedIndex >= 0) {
-        await _playChapter(
-          chapters[savedIndex],
-          savedIndex,
-          resumeParagraphIndex: savedBook.currentParagraphIndex,
-          resumeOffsetMs: savedBook.playbackOffsetMs,
-          playAfterGeneration: true,
-        );
-      } else {
-        await _playChapter(chapters.first, 0, playAfterGeneration: true);
-      }
-    } finally {
-      if (mounted) setState(() => _albumPlayPending = false);
     }
   }
 
@@ -462,29 +419,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                     ),
                   ),
 
-                  // 播放按钮栏
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      child: Row(
-                        children: [
-                          Text(
-                            'Album • ${widget.book.author ?? "Unknown"}',
-                            style: TextStyle(
-                              color: context.appTextSecondary,
-                              fontSize: 14,
-                            ),
-                          ),
-                          const Spacer(),
-                          // 巨大的随机播放/播放按钮
-                          _buildAlbumPlayButton(chapters),
-                        ],
-                      ),
-                    ),
-                  ),
+                  const SliverToBoxAdapter(child: SizedBox(height: 8)),
 
                   // 章节列表
                   if (chapters.isEmpty)
@@ -500,50 +435,31 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                         final chapter = chapters[index];
                         final highlighted =
                             chapter.id == widget.initialChapterId;
-                        return ListTile(
-                          tileColor: highlighted
-                              ? context.appSurface.withValues(alpha: 0.55)
-                              : null,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 4,
-                          ),
-                          leading: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                '${index + 1}',
-                                style: TextStyle(
-                                  color: context.appTextSecondary,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ],
-                          ),
-                          title: Text(
-                            chapter.title,
-                            style: TextStyle(
-                              color: context.appTextPrimary,
-                              fontSize: 16,
+                        final card = _ChapterCard(
+                          index: index + 1,
+                          title: chapter.title,
+                          author: widget.book.author ?? 'Unknown Artist',
+                          bookVoiceId: widget.book.voiceId,
+                          highlighted: highlighted,
+                          progress: _generationProgress[chapter.id],
+                          bookId: widget.book.id,
+                          chapterId: chapter.id,
+                          onPlay: () => _playChapter(chapter, index),
+                          onDownload: () => _generateChapterAudio(chapter),
+                          onClearCache: () => _clearChapterCache(chapter),
+                          onRegenerate: () => _regenerateChapter(chapter),
+                        );
+                        if (index == chapters.length - 1) return card;
+                        return Column(
+                          children: [
+                            card,
+                            Divider(
+                              height: 1,
+                              indent: 32,
+                              endIndent: 32,
+                              color: context.appSurfaceHighlight,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          subtitle: Text(
-                            widget.book.author ?? "Unknown Artist",
-                            style: TextStyle(
-                              color: context.appTextSecondary,
-                              fontSize: 14,
-                            ),
-                          ),
-                          trailing: _ChapterActions(
-                            bookId: widget.book.id,
-                            chapterId: chapter.id,
-                            progress: _generationProgress[chapter.id],
-                            onClearCache: () => _clearChapterCache(chapter),
-                            onRegenerate: () => _regenerateChapter(chapter),
-                          ),
-                          onTap: () => _playChapter(chapter, index),
+                          ],
                         );
                       }, childCount: chapters.length),
                     ),
@@ -566,7 +482,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     _didScrollToInitialChapter = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
-      final target = 300.0 + 56.0 + index * 64.0;
+      // 章节卡片不再是紧凑 ListTile，按卡片的平均高度定位初始章节。
+      final target = 300.0 + 8.0 + index * 128.0;
       _scrollController.animateTo(
         target.clamp(0.0, _scrollController.position.maxScrollExtent),
         duration: const Duration(milliseconds: 260),
@@ -574,76 +491,160 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       );
     });
   }
+}
 
-  Widget _buildAlbumPlayButton(List<drift_db.Chapter> chapters) {
-    final accent = Theme.of(context).colorScheme.primary;
-    final handlerAsync = ref.watch(luminaAudioHandlerProvider);
+class _ChapterCard extends StatelessWidget {
+  final int index;
+  final String title;
+  final String author;
+  final String? bookVoiceId;
+  final bool highlighted;
+  final GenerationProgress? progress;
+  final String bookId;
+  final String chapterId;
+  final VoidCallback onPlay;
+  final VoidCallback onDownload;
+  final VoidCallback onClearCache;
+  final VoidCallback onRegenerate;
 
-    return handlerAsync.when(
-      loading: () => _albumControlButton(accent: accent, busy: true),
-      error: (_, _) => _albumControlButton(accent: accent),
-      data: (handler) => StreamBuilder(
-        stream: handler.playbackState,
-        initialData: handler.playbackState.value,
-        builder: (context, snapshot) {
-          final isCurrentBook = handler.currentBookId == widget.book.id;
-          final playing = isCurrentBook && (snapshot.data?.playing ?? false);
-          return _albumControlButton(
-            accent: accent,
-            busy: _albumPlayPending,
-            playing: playing,
-            onPressed: () {
-              if (isCurrentBook) {
-                unawaited(playing ? handler.pause() : handler.play());
-              } else {
-                unawaited(_resumeOrStart(chapters));
-              }
-            },
-          );
-        },
-      ),
-    );
+  const _ChapterCard({
+    required this.index,
+    required this.title,
+    required this.author,
+    required this.bookVoiceId,
+    required this.highlighted,
+    required this.bookId,
+    required this.chapterId,
+    required this.onPlay,
+    required this.onDownload,
+    required this.onClearCache,
+    required this.onRegenerate,
+    this.progress,
+  });
+
+  String _formatDuration(int ms) {
+    final duration = Duration(milliseconds: ms);
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes % 60;
+    final seconds = duration.inSeconds % 60;
+    String two(int value) => value.toString().padLeft(2, '0');
+    return hours > 0
+        ? '$hours:${two(minutes)}:${two(seconds)}'
+        : '$minutes:${two(seconds)}';
   }
 
-  Widget _albumControlButton({
-    required Color accent,
-    bool busy = false,
-    bool playing = false,
-    VoidCallback? onPressed,
-  }) {
-    return IconButton.filled(
-      tooltip: playing ? '暂停' : '播放',
-      iconSize: 36,
-      padding: const EdgeInsets.all(16),
-      style: IconButton.styleFrom(
-        backgroundColor: accent,
-        foregroundColor: Colors.black,
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: highlighted
+            ? context.appSurface.withValues(alpha: 0.72)
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
       ),
-      icon: busy
-          ? const SizedBox(
-              width: 30,
-              height: 30,
-              child: CircularProgressIndicator(
-                strokeWidth: 3,
-                color: Colors.black,
-              ),
-            )
-          : Icon(playing ? Icons.pause : Icons.play_arrow),
-      onPressed: busy ? null : onPressed,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: onPlay,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 12, 8),
+            child: FutureBuilder<ChapterManifest?>(
+              future: ManifestStore().load(bookId, chapterId),
+              builder: (context, snapshot) {
+                final manifest = snapshot.data;
+                final durationMs = manifest?.totalDurationMs ?? 0;
+                final metaStyle = TextStyle(
+                  color: context.appTextSecondary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  height: 1.2,
+                );
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$index. $title',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: context.appTextPrimary,
+                        fontSize: 17,
+                        height: 1.25,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // 元信息：作者 • 朗读者 • 类型 • 时长
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            author,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: metaStyle,
+                          ),
+                        ),
+                        Text(' • ', style: metaStyle),
+                        Flexible(
+                          child: NarratorLabel(
+                            voiceId: manifest?.voiceId ?? bookVoiceId,
+                            compact: true,
+                          ),
+                        ),
+                        Text(' • Audio', style: metaStyle),
+                        if (durationMs > 0)
+                          Text(
+                            ' • ${_formatDuration(durationMs)}',
+                            style: metaStyle,
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    // 操作行：右对齐的小图标 + 播放键
+                    Row(
+                      children: [
+                        const Spacer(),
+                        _ChapterActions(
+                          manifest: manifest,
+                          progress: progress,
+                          onDownload: onDownload,
+                          onClearCache: onClearCache,
+                          onRegenerate: onRegenerate,
+                        ),
+                        const SizedBox(width: 8),
+                        _ChapterPlayButton(
+                          bookId: bookId,
+                          chapterId: chapterId,
+                          onPlay: onPlay,
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
 
 class _ChapterActions extends StatelessWidget {
-  final String bookId;
-  final String chapterId;
+  final ChapterManifest? manifest;
   final GenerationProgress? progress;
+  final VoidCallback onDownload;
   final VoidCallback onClearCache;
   final VoidCallback onRegenerate;
 
   const _ChapterActions({
-    required this.bookId,
-    required this.chapterId,
+    required this.manifest,
+    required this.onDownload,
     required this.onClearCache,
     required this.onRegenerate,
     this.progress,
@@ -651,129 +652,181 @@ class _ChapterActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = Theme.of(context).colorScheme.primary;
-    final progress = this.progress;
-    if (progress != null) {
-      return _TrailingRow(
-        status: SizedBox(
-          width: 38,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                  value: progress.percent == 0 ? null : progress.percent,
-                  strokeWidth: 2,
-                  color: accent,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '${(progress.percent * 100).round()}%',
-                style: TextStyle(color: context.appTextSecondary, fontSize: 10),
-              ),
-            ],
-          ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _ChapterDownloadButton(
+          manifest: manifest,
+          progress: progress,
+          onPressed: onDownload,
         ),
-        onClearCache: onClearCache,
-        onRegenerate: onRegenerate,
-      );
-    }
-
-    return FutureBuilder<ChapterManifest?>(
-      future: ManifestStore().load(bookId, chapterId),
-      builder: (context, snapshot) {
-        final manifest = snapshot.data;
-        Widget status;
-        if (manifest != null && manifest.isReady) {
-          status = Tooltip(
-            message: '音频已缓存',
-            child: Icon(Icons.download_done, color: accent),
-          );
-        } else if (manifest != null && manifest.readyCount > 0) {
-          status = Tooltip(
-            message: '部分音频已缓存',
-            child: Text(
-              '${manifest.readyCount}/${manifest.segments.length}',
-              style: TextStyle(
-                color: accent,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
+        PopupMenuButton<String>(
+          tooltip: '章节操作',
+          color: context.appSurface,
+          iconSize: 24,
+          style: const ButtonStyle(visualDensity: VisualDensity.compact),
+          icon: Icon(Icons.more_horiz, color: context.appTextPrimary),
+          onSelected: (value) {
+            if (value == 'clear') onClearCache();
+            if (value == 'regenerate') onRegenerate();
+          },
+          itemBuilder: (context) => const [
+            PopupMenuItem(
+              value: 'clear',
+              child: Row(
+                children: [
+                  Icon(Icons.cleaning_services_outlined, size: 18),
+                  SizedBox(width: 8),
+                  Text('清除音频'),
+                ],
               ),
             ),
-          );
-        } else {
-          status = Tooltip(
-            message: '音频未缓存',
-            child: Icon(
-              Icons.download_for_offline_outlined,
-              color: context.appTextSecondary,
+            PopupMenuItem(
+              value: 'regenerate',
+              child: Row(
+                children: [
+                  Icon(Icons.refresh, size: 18),
+                  SizedBox(width: 8),
+                  Text('重新生成'),
+                ],
+              ),
             ),
-          );
-        }
-        return _TrailingRow(
-          status: status,
-          onClearCache: onClearCache,
-          onRegenerate: onRegenerate,
-        );
-      },
+          ],
+        ),
+      ],
     );
   }
 }
 
-class _TrailingRow extends StatelessWidget {
-  final Widget status;
-  final VoidCallback onClearCache;
-  final VoidCallback onRegenerate;
+class _ChapterDownloadButton extends StatelessWidget {
+  final ChapterManifest? manifest;
+  final GenerationProgress? progress;
+  final VoidCallback onPressed;
 
-  const _TrailingRow({
-    required this.status,
-    required this.onClearCache,
-    required this.onRegenerate,
+  const _ChapterDownloadButton({
+    required this.manifest,
+    required this.onPressed,
+    this.progress,
   });
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 92,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          SizedBox(width: 38, child: Center(child: status)),
-          PopupMenuButton<String>(
-            tooltip: '章节操作',
-            color: context.appSurface,
-            icon: Icon(Icons.more_vert, color: context.appTextSecondary),
-            onSelected: (value) {
-              if (value == 'clear') onClearCache();
-              if (value == 'regenerate') onRegenerate();
-            },
-            itemBuilder: (context) => const [
-              PopupMenuItem(
-                value: 'clear',
-                child: Row(
-                  children: [
-                    Icon(Icons.cleaning_services_outlined, size: 18),
-                    SizedBox(width: 8),
-                    Text('清除音频'),
-                  ],
+    final colorScheme = Theme.of(context).colorScheme;
+    final accent = colorScheme.primary;
+    final isCached = manifest?.isReady ?? false;
+
+    if (progress != null) {
+      return Tooltip(
+        message: '正在下载 ${(progress!.percent * 100).round()}%',
+        child: SizedBox(
+          width: 40,
+          height: 40,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  value: progress!.percent == 0 ? null : progress!.percent,
+                  strokeWidth: 2.5,
+                  color: accent,
+                  backgroundColor: accent.withValues(alpha: 0.16),
                 ),
               ),
-              PopupMenuItem(
-                value: 'regenerate',
-                child: Row(
-                  children: [
-                    Icon(Icons.refresh, size: 18),
-                    SizedBox(width: 8),
-                    Text('重新生成'),
-                  ],
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: accent,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
             ],
           ),
-        ],
+        ),
+      );
+    }
+
+    return Tooltip(
+      message: isCached ? '音频已缓存' : '下载音频',
+      child: IconButton(
+        // 缓存完成后用主题色对勾标记；清除缓存仍在更多菜单中。
+        onPressed: isCached ? () {} : onPressed,
+        iconSize: 24,
+        visualDensity: VisualDensity.compact,
+        color: isCached ? accent : context.appTextPrimary,
+        icon: Icon(
+          isCached
+              ? Icons.download_done_rounded
+              : Icons.arrow_circle_down_outlined,
+        ),
+      ),
+    );
+  }
+}
+
+class _ChapterPlayButton extends ConsumerWidget {
+  final String bookId;
+  final String chapterId;
+  final VoidCallback onPlay;
+
+  const _ChapterPlayButton({
+    required this.bookId,
+    required this.chapterId,
+    required this.onPlay,
+  });
+
+  Widget _button(
+    BuildContext context, {
+    required bool playing,
+    required VoidCallback onPressed,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Tooltip(
+      message: playing ? '暂停' : '播放章节',
+      child: IconButton(
+        onPressed: onPressed,
+        iconSize: 26,
+        padding: EdgeInsets.zero,
+        style: IconButton.styleFrom(
+          backgroundColor: isDark ? Colors.white : Colors.black,
+          foregroundColor: isDark ? Colors.black : Colors.white,
+          fixedSize: const Size.square(44),
+        ),
+        icon: Icon(playing ? Icons.pause_rounded : Icons.play_arrow_rounded),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final handlerAsync = ref.watch(luminaAudioHandlerProvider);
+
+    return handlerAsync.when(
+      loading: () => _button(context, playing: false, onPressed: onPlay),
+      error: (_, _) => _button(context, playing: false, onPressed: onPlay),
+      data: (handler) => StreamBuilder(
+        stream: handler.playbackState,
+        initialData: handler.playbackState.value,
+        builder: (context, snapshot) {
+          final isCurrentChapter =
+              handler.currentBookId == bookId &&
+              handler.currentChapterId == chapterId;
+          final playing = isCurrentChapter && (snapshot.data?.playing ?? false);
+          return _button(
+            context,
+            playing: playing,
+            onPressed: () {
+              if (isCurrentChapter) {
+                unawaited(playing ? handler.pause() : handler.play());
+              } else {
+                onPlay();
+              }
+            },
+          );
+        },
       ),
     );
   }

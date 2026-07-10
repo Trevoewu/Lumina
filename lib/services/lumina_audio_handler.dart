@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:audio_session/audio_session.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../domain/models/chapter_manifest.dart';
@@ -373,6 +374,9 @@ class LuminaAudioHandler extends BaseAudioHandler
 }
 
 Future<LuminaAudioHandler> initLuminaAudioHandler() async {
+  final session = await AudioSession.instance;
+  await session.configure(AudioSessionConfiguration.speech());
+
   return AudioService.init(
     builder: LuminaAudioHandler.new,
     config: const AudioServiceConfig(

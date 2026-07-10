@@ -12,8 +12,8 @@ import '../../../domain/models/vocabulary_entry.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
 import '../../widgets/design_system/app_search_field.dart';
 import '../../widgets/design_system/app_section_header.dart';
-import '../../widgets/design_system/app_surface.dart';
 import '../../widgets/dictionary_entry_content.dart';
+import '../../widgets/word_list_card.dart';
 
 class DictionaryScreen extends ConsumerStatefulWidget {
   const DictionaryScreen({super.key});
@@ -136,10 +136,14 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
                 _openCollection(_DictionaryCollectionKind.favorites),
           ),
           for (final favorite in _favorites.take(_previewLimit))
-            _WordTile(
-              result: favorite.lookup,
-              favorite: true,
-              onTap: () => _openResult(favorite.lookup),
+            Padding(
+              padding: EdgeInsets.only(bottom: design.spaceMd),
+              child: WordListCard(
+                entry: favorite.lookup.entry,
+                contextLabel: favorite.lookup.context?.bookTitle,
+                favorite: true,
+                onTap: () => _openResult(favorite.lookup),
+              ),
             ),
         ],
         if (_recent.isNotEmpty) ...[
@@ -149,7 +153,14 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
             onAction: () => _openCollection(_DictionaryCollectionKind.history),
           ),
           for (final result in _recent)
-            _WordTile(result: result, onTap: () => _openResult(result)),
+            Padding(
+              padding: EdgeInsets.only(bottom: design.spaceMd),
+              child: WordListCard(
+                entry: result.entry,
+                contextLabel: result.context?.bookTitle,
+                onTap: () => _openResult(result),
+              ),
+            ),
         ],
         if (_favorites.isEmpty && _recent.isEmpty)
           Padding(
@@ -263,10 +274,14 @@ class _DictionaryCollectionScreenState
                   final result = favorites
                       ? _favorites[index].lookup
                       : _history[index];
-                  return _WordTile(
-                    result: result,
-                    favorite: favorites,
-                    onTap: () => _openResult(result),
+                  return Padding(
+                    padding: EdgeInsets.only(bottom: design.spaceMd),
+                    child: WordListCard(
+                      entry: result.entry,
+                      favorite: favorites,
+                      contextLabel: result.context?.bookTitle,
+                      onTap: () => _openResult(result),
+                    ),
                   );
                 },
               ),
@@ -511,52 +526,6 @@ class _DictionaryWordScreenState extends ConsumerState<DictionaryWordScreen> {
               child: Text(context.tr('重试', 'Retry')),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _WordTile extends StatelessWidget {
-  final DictionaryLookupResult result;
-  final bool favorite;
-  final VoidCallback onTap;
-
-  const _WordTile({
-    required this.result,
-    required this.onTap,
-    this.favorite = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final entry = result.entry;
-    final subtitle =
-        entry.definitions.firstOrNull?.meaning ?? entry.shortExplanation ?? '';
-    final design = context.appDesign;
-    return Padding(
-      padding: EdgeInsets.only(bottom: design.spaceMd),
-      child: AppSurface(
-        child: ListTile(
-          onTap: onTap,
-          title: Text(
-            entry.word,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          subtitle: Text(
-            subtitle,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: context.appTextSecondary),
-          ),
-          trailing: Icon(
-            favorite ? Icons.bookmark : Icons.chevron_right,
-            color: favorite
-                ? Theme.of(context).colorScheme.primary
-                : context.appTextSecondary,
-          ),
         ),
       ),
     );

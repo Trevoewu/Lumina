@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Lumina app icon: open book radiating light">
+  <defs>
+    <linearGradient id="bg" x1="130" y1="90" x2="884" y2="928" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0F1E19"/>
+      <stop offset="1" stop-color="#050807"/>
+    </linearGradient>
+    <linearGradient id="book" x1="512" y1="600" x2="512" y2="840" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4ADE80"/>
+      <stop offset="1" stop-color="#0F7E3A"/>
+    </linearGradient>
+    <linearGradient id="rays" x1="512" y1="280" x2="512" y2="600" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F5FFF7"/>
+      <stop offset="1" stop-color="#93F8B6"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="0" stdDeviation="26" flood-color="#1DB954" flood-opacity="0.55"/>
+    </filter>
+    <filter id="bookShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="30" stdDeviation="30" flood-color="#000000" flood-opacity="0.45"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="20" flood-color="#1DB954" flood-opacity="0.20"/>
+    </filter>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <circle cx="512" cy="540" r="360" fill="#1DB954" opacity="0.08"/>
+
+  <!-- light rays -->
+  <g filter="url(#glow)" stroke="url(#rays)" stroke-width="46" stroke-linecap="round" fill="none">
+    <path d="M512 440 L512 292"/>
+    <path d="M629 480 L703 386"/>
+    <path d="M395 480 L321 386"/>
+    <path d="M697 572 L778 543"/>
+    <path d="M327 572 L246 543"/>
+  </g>
+
+  <!-- open book -->
+  <g filter="url(#bookShadow)">
+    <path d="M512 690 C452 646 372 630 268 648 L268 780 C372 762 452 778 512 822
+             C572 778 652 762 756 780 L756 648 C652 630 572 646 512 690 Z" fill="url(#book)"/>
+    <path d="M512 690 L512 822" stroke="#07130D" stroke-width="14" stroke-linecap="round" opacity="0.55"/>
+    <path d="M512 690 C452 646 372 630 268 648" stroke="#B8F5CC" stroke-width="12" stroke-linecap="round" fill="none" opacity="0.7"/>
+    <path d="M512 690 C572 646 652 630 756 648" stroke="#B8F5CC" stroke-width="12" stroke-linecap="round" fill="none" opacity="0.7"/>
+  </g>
+</svg>

@@ -7,6 +7,7 @@ import 'package:lumina/data/dictionary/openai_compatible_explanation_provider.da
 import 'package:lumina/data/dictionary/vocabulary_com_parser.dart';
 import 'package:lumina/data/dictionary/vocabulary_com_provider.dart';
 import 'package:lumina/domain/models/vocabulary_entry.dart';
+import 'package:lumina/services/reading_level_estimator.dart';
 import 'package:lumina/tts/api_key_store.dart';
 
 const _fixture = '''
@@ -36,6 +37,8 @@ const _fixture = '''
 ''';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   test('parses the Vocabulary.com fields used by the dictionary card', () {
     final entry = const VocabularyComParser().parse(
       _fixture,
@@ -66,6 +69,27 @@ void main() {
     expect(second.fromCache, isTrue);
     expect(second.cacheId, first.cacheId);
     expect(second.entry.definitions.single.meaning, 'fanatically patriotic');
+  });
+
+  test('successful lookups store CEFR-J word level metadata', () async {
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final repository = DictionaryRepository(
+      database,
+      provider: _LevelProvider(),
+    );
+    addTearDown(database.close);
+
+    final result = await repository.lookup('abandon');
+    final cached = await database.getDictionaryEntry(
+      VocabularyEntry.providerId,
+      'en',
+      'abandon',
+    );
+
+    expect(result.entry.readingLevelSystem, cefrJReadingLevelSystem);
+    expect(result.entry.readingLevelCode, 'B1');
+    expect(result.entry.readingLevelSource, cefrJVocabularyProfileSource);
+    expect(cached?.readingLevelCode, 'B1');
   });
 
   test('favorites do not remove the cached dictionary entry', () async {
@@ -364,6 +388,23 @@ class _FakeProvider extends VocabularyComProvider {
   Future<VocabularyEntry> lookup(String term) async {
     calls++;
     return const VocabularyComParser().parse(_fixture, requestedTerm: term);
+  }
+}
+
+class _LevelProvider extends VocabularyComProvider {
+  _LevelProvider() : super(dio: Dio());
+
+  @override
+  Future<VocabularyEntry> lookup(String term) async {
+    return VocabularyEntry(
+      word: term,
+      normalizedTerm: normalizeDictionaryTerm(term),
+      definitions: const [
+        VocabularyDefinition(partOfSpeech: 'verb', meaning: 'to leave behind'),
+      ],
+      otherForms: const [],
+      sourceUrl: 'https://example.com/$term',
+    );
   }
 }
 

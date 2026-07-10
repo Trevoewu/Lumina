@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../domain/models/vocabulary_entry.dart';
+import '../../services/reading_level_estimator.dart';
 import '../database/app_database.dart';
 import 'openai_compatible_explanation_provider.dart';
 import 'vocabulary_com_parser.dart';
@@ -178,7 +179,7 @@ class DictionaryRepository {
 
     try {
       final entry = await _provider.lookup(normalizedTerm);
-      final row = _rowFromEntry(
+      final row = await _rowFromEntry(
         id: cached?.id ?? _uuid.v4(),
         provider: VocabularyEntry.providerId,
         entry: entry,
@@ -186,9 +187,10 @@ class DictionaryRepository {
         accessCount: (cached?.accessCount ?? 0) + 1,
       );
       await _database.upsertDictionaryEntry(row);
+      final storedEntry = _fromRow(row);
       return DictionaryLookupResult(
         cacheId: row.id,
-        entry: entry,
+        entry: storedEntry,
         fromCache: false,
         context: context,
       );
@@ -327,16 +329,25 @@ class DictionaryRepository {
       shortExplanation: row.shortExplanation,
       longExplanation: row.longExplanation,
       sourceUrl: row.sourceUrl,
+      readingLevelSystem: row.readingLevelSystem,
+      readingLevelCode: row.readingLevelCode,
+      readingLevelSource: row.readingLevelSource,
     );
   }
 
-  DictionaryEntry _rowFromEntry({
+  Future<DictionaryEntry> _rowFromEntry({
     required String id,
     required String provider,
     required VocabularyEntry entry,
     required int now,
     required int accessCount,
-  }) {
+  }) async {
+    final readingLevel =
+        entry.readingLevelCode == null && entry.normalizedTerm.isNotEmpty
+        ? await ReadingLevelEstimator.instance.levelForEnglishTerm(
+            entry.normalizedTerm,
+          )
+        : null;
     return DictionaryEntry(
       id: id,
       provider: provider,
@@ -351,6 +362,9 @@ class DictionaryRepository {
       shortExplanation: entry.shortExplanation,
       longExplanation: entry.longExplanation,
       sourceUrl: entry.sourceUrl,
+      readingLevelSystem: entry.readingLevelSystem ?? readingLevel?.system,
+      readingLevelCode: entry.readingLevelCode ?? readingLevel?.code,
+      readingLevelSource: entry.readingLevelSource ?? readingLevel?.source,
       fetchedAt: now,
       expiresAt: null,
       lastAccessedAt: now,
@@ -379,7 +393,7 @@ class DictionaryRepository {
     required int now,
   }) async {
     final entry = await provider.explain(term: term, context: context);
-    final row = _rowFromEntry(
+    final row = await _rowFromEntry(
       id: _uuid.v4(),
       provider: providerId,
       entry: entry,
@@ -387,9 +401,10 @@ class DictionaryRepository {
       accessCount: 1,
     );
     await _database.upsertDictionaryEntry(row);
+    final storedEntry = _fromRow(row);
     return DictionaryLookupResult(
       cacheId: row.id,
-      entry: entry,
+      entry: storedEntry,
       fromCache: false,
       context: context,
     );

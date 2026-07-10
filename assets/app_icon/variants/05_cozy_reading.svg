@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Cozy reading app icon">
+  <defs>
+    <linearGradient id="bg" x1="126" y1="80" x2="882" y2="940" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#202416"/>
+      <stop offset="0.5" stop-color="#101512"/>
+      <stop offset="1" stop-color="#050807"/>
+    </linearGradient>
+    <radialGradient id="lamp" cx="512" cy="280" r="480" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFD37A" stop-opacity="0.62"/>
+      <stop offset="0.42" stop-color="#C88B39" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="paper" x1="248" y1="390" x2="776" y2="790" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFF4D6"/>
+      <stop offset="1" stop-color="#CFE8C7"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="32" stdDeviation="32" flood-color="#000000" flood-opacity="0.42"/>
+    </filter>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <rect width="1024" height="1024" fill="url(#lamp)"/>
+  <path d="M430 188 H594 L642 330 H382 Z" fill="#FFD37A"/>
+  <path d="M462 188 H562 L598 302 H426 Z" fill="#5B3A20" opacity="0.22"/>
+  <path d="M512 330 V430" stroke="#FFD37A" stroke-width="28" stroke-linecap="round"/>
+  <g filter="url(#shadow)">
+    <path d="M512 452 C432 404 326 392 232 410 C216 413 204 427 204 444 V706 C204 724 220 738 238 734 C344 714 432 740 500 808 C506 814 512 810 512 800 Z" fill="url(#paper)"/>
+    <path d="M512 452 C592 404 698 392 792 410 C808 413 820 427 820 444 V706 C820 724 804 738 786 734 C680 714 592 740 524 808 C518 814 512 810 512 800 Z" fill="url(#paper)"/>
+    <path d="M512 462 V806" stroke="#6B5C3D" stroke-width="22" stroke-linecap="round" opacity="0.72"/>
+    <path d="M288 512 C364 504 426 522 472 564" stroke="#8A6837" stroke-width="22" stroke-linecap="round" opacity="0.48"/>
+    <path d="M736 512 C660 504 598 522 552 564" stroke="#8A6837" stroke-width="22" stroke-linecap="round" opacity="0.48"/>
+  </g>
+  <g fill="none" stroke="#1DB954" stroke-width="28" stroke-linecap="round">
+    <path d="M378 686 C438 638 586 638 646 686"/>
+    <path d="M420 732 C468 704 556 704 604 732" opacity="0.8"/>
+  </g>
+</svg>

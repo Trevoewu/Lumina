@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="AI voice TTS app icon">
+  <defs>
+    <linearGradient id="bg" x1="132" y1="70" x2="882" y2="940" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#111827"/>
+      <stop offset="0.48" stop-color="#081210"/>
+      <stop offset="1" stop-color="#020403"/>
+    </linearGradient>
+    <radialGradient id="coreGlow" cx="512" cy="512" r="360" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#26D9A0" stop-opacity="0.52"/>
+      <stop offset="0.52" stop-color="#1DB954" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="core" x1="362" y1="268" x2="682" y2="756" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#B5FFE3"/>
+      <stop offset="0.5" stop-color="#1DB954"/>
+      <stop offset="1" stop-color="#0B6F3B"/>
+    </linearGradient>
+    <filter id="shadow" x="-35%" y="-35%" width="170%" height="170%">
+      <feDropShadow dx="0" dy="34" stdDeviation="32" flood-color="#000000" flood-opacity="0.48"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="30" flood-color="#1DB954" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <rect width="1024" height="1024" fill="url(#coreGlow)"/>
+  <g fill="none" stroke="#49635B" stroke-width="20" stroke-linecap="round" opacity="0.65">
+    <path d="M294 304 L392 392"/>
+    <path d="M730 304 L632 392"/>
+    <path d="M294 720 L392 632"/>
+    <path d="M730 720 L632 632"/>
+    <path d="M512 180 L512 296"/>
+    <path d="M512 728 L512 844"/>
+  </g>
+  <g fill="#1DB954">
+    <circle cx="294" cy="304" r="26"/>
+    <circle cx="730" cy="304" r="26"/>
+    <circle cx="294" cy="720" r="26"/>
+    <circle cx="730" cy="720" r="26"/>
+    <circle cx="512" cy="180" r="24"/>
+    <circle cx="512" cy="844" r="24"/>
+  </g>
+  <g filter="url(#shadow)">
+    <circle cx="512" cy="512" r="220" fill="#0F1714"/>
+    <circle cx="512" cy="512" r="178" fill="url(#core)"/>
+    <path d="M404 516 C428 444 470 410 512 410 C554 410 596 444 620 516 C596 590 554 624 512 624 C470 624 428 590 404 516 Z" fill="#06120D" opacity="0.88"/>
+    <path d="M454 516 C472 474 492 454 512 454 C532 454 552 474 570 516 C552 558 532 578 512 578 C492 578 472 558 454 516 Z" fill="#B5FFE3"/>
+  </g>
+  <g fill="none" stroke="#D7FFE7" stroke-width="22" stroke-linecap="round">
+    <path d="M304 512 H336"/>
+    <path d="M368 512 H386"/>
+    <path d="M638 512 H656"/>
+    <path d="M688 512 H720"/>
+  </g>
+</svg>

@@ -4223,6 +4223,39 @@ class $DictionaryEntriesTable extends DictionaryEntries
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _readingLevelSystemMeta =
+      const VerificationMeta('readingLevelSystem');
+  @override
+  late final GeneratedColumn<String> readingLevelSystem =
+      GeneratedColumn<String>(
+        'reading_level_system',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _readingLevelCodeMeta = const VerificationMeta(
+    'readingLevelCode',
+  );
+  @override
+  late final GeneratedColumn<String> readingLevelCode = GeneratedColumn<String>(
+    'reading_level_code',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _readingLevelSourceMeta =
+      const VerificationMeta('readingLevelSource');
+  @override
+  late final GeneratedColumn<String> readingLevelSource =
+      GeneratedColumn<String>(
+        'reading_level_source',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _fetchedAtMeta = const VerificationMeta(
     'fetchedAt',
   );
@@ -4283,6 +4316,9 @@ class $DictionaryEntriesTable extends DictionaryEntries
     shortExplanation,
     longExplanation,
     sourceUrl,
+    readingLevelSystem,
+    readingLevelCode,
+    readingLevelSource,
     fetchedAt,
     expiresAt,
     lastAccessedAt,
@@ -4407,6 +4443,33 @@ class $DictionaryEntriesTable extends DictionaryEntries
     } else if (isInserting) {
       context.missing(_sourceUrlMeta);
     }
+    if (data.containsKey('reading_level_system')) {
+      context.handle(
+        _readingLevelSystemMeta,
+        readingLevelSystem.isAcceptableOrUnknown(
+          data['reading_level_system']!,
+          _readingLevelSystemMeta,
+        ),
+      );
+    }
+    if (data.containsKey('reading_level_code')) {
+      context.handle(
+        _readingLevelCodeMeta,
+        readingLevelCode.isAcceptableOrUnknown(
+          data['reading_level_code']!,
+          _readingLevelCodeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('reading_level_source')) {
+      context.handle(
+        _readingLevelSourceMeta,
+        readingLevelSource.isAcceptableOrUnknown(
+          data['reading_level_source']!,
+          _readingLevelSourceMeta,
+        ),
+      );
+    }
     if (data.containsKey('fetched_at')) {
       context.handle(
         _fetchedAtMeta,
@@ -4506,6 +4569,18 @@ class $DictionaryEntriesTable extends DictionaryEntries
         DriftSqlType.string,
         data['${effectivePrefix}source_url'],
       )!,
+      readingLevelSystem: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reading_level_system'],
+      ),
+      readingLevelCode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reading_level_code'],
+      ),
+      readingLevelSource: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reading_level_source'],
+      ),
       fetchedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}fetched_at'],
@@ -4545,6 +4620,9 @@ class DictionaryEntry extends DataClass implements Insertable<DictionaryEntry> {
   final String? shortExplanation;
   final String? longExplanation;
   final String sourceUrl;
+  final String? readingLevelSystem;
+  final String? readingLevelCode;
+  final String? readingLevelSource;
   final int fetchedAt;
   final int? expiresAt;
   final int lastAccessedAt;
@@ -4563,6 +4641,9 @@ class DictionaryEntry extends DataClass implements Insertable<DictionaryEntry> {
     this.shortExplanation,
     this.longExplanation,
     required this.sourceUrl,
+    this.readingLevelSystem,
+    this.readingLevelCode,
+    this.readingLevelSource,
     required this.fetchedAt,
     this.expiresAt,
     required this.lastAccessedAt,
@@ -4596,6 +4677,15 @@ class DictionaryEntry extends DataClass implements Insertable<DictionaryEntry> {
       map['long_explanation'] = Variable<String>(longExplanation);
     }
     map['source_url'] = Variable<String>(sourceUrl);
+    if (!nullToAbsent || readingLevelSystem != null) {
+      map['reading_level_system'] = Variable<String>(readingLevelSystem);
+    }
+    if (!nullToAbsent || readingLevelCode != null) {
+      map['reading_level_code'] = Variable<String>(readingLevelCode);
+    }
+    if (!nullToAbsent || readingLevelSource != null) {
+      map['reading_level_source'] = Variable<String>(readingLevelSource);
+    }
     map['fetched_at'] = Variable<int>(fetchedAt);
     if (!nullToAbsent || expiresAt != null) {
       map['expires_at'] = Variable<int>(expiresAt);
@@ -4632,6 +4722,15 @@ class DictionaryEntry extends DataClass implements Insertable<DictionaryEntry> {
           ? const Value.absent()
           : Value(longExplanation),
       sourceUrl: Value(sourceUrl),
+      readingLevelSystem: readingLevelSystem == null && nullToAbsent
+          ? const Value.absent()
+          : Value(readingLevelSystem),
+      readingLevelCode: readingLevelCode == null && nullToAbsent
+          ? const Value.absent()
+          : Value(readingLevelCode),
+      readingLevelSource: readingLevelSource == null && nullToAbsent
+          ? const Value.absent()
+          : Value(readingLevelSource),
       fetchedAt: Value(fetchedAt),
       expiresAt: expiresAt == null && nullToAbsent
           ? const Value.absent()
@@ -4660,6 +4759,13 @@ class DictionaryEntry extends DataClass implements Insertable<DictionaryEntry> {
       shortExplanation: serializer.fromJson<String?>(json['shortExplanation']),
       longExplanation: serializer.fromJson<String?>(json['longExplanation']),
       sourceUrl: serializer.fromJson<String>(json['sourceUrl']),
+      readingLevelSystem: serializer.fromJson<String?>(
+        json['readingLevelSystem'],
+      ),
+      readingLevelCode: serializer.fromJson<String?>(json['readingLevelCode']),
+      readingLevelSource: serializer.fromJson<String?>(
+        json['readingLevelSource'],
+      ),
       fetchedAt: serializer.fromJson<int>(json['fetchedAt']),
       expiresAt: serializer.fromJson<int?>(json['expiresAt']),
       lastAccessedAt: serializer.fromJson<int>(json['lastAccessedAt']),
@@ -4683,6 +4789,9 @@ class DictionaryEntry extends DataClass implements Insertable<DictionaryEntry> {
       'shortExplanation': serializer.toJson<String?>(shortExplanation),
       'longExplanation': serializer.toJson<String?>(longExplanation),
       'sourceUrl': serializer.toJson<String>(sourceUrl),
+      'readingLevelSystem': serializer.toJson<String?>(readingLevelSystem),
+      'readingLevelCode': serializer.toJson<String?>(readingLevelCode),
+      'readingLevelSource': serializer.toJson<String?>(readingLevelSource),
       'fetchedAt': serializer.toJson<int>(fetchedAt),
       'expiresAt': serializer.toJson<int?>(expiresAt),
       'lastAccessedAt': serializer.toJson<int>(lastAccessedAt),
@@ -4704,6 +4813,9 @@ class DictionaryEntry extends DataClass implements Insertable<DictionaryEntry> {
     Value<String?> shortExplanation = const Value.absent(),
     Value<String?> longExplanation = const Value.absent(),
     String? sourceUrl,
+    Value<String?> readingLevelSystem = const Value.absent(),
+    Value<String?> readingLevelCode = const Value.absent(),
+    Value<String?> readingLevelSource = const Value.absent(),
     int? fetchedAt,
     Value<int?> expiresAt = const Value.absent(),
     int? lastAccessedAt,
@@ -4730,6 +4842,15 @@ class DictionaryEntry extends DataClass implements Insertable<DictionaryEntry> {
         ? longExplanation.value
         : this.longExplanation,
     sourceUrl: sourceUrl ?? this.sourceUrl,
+    readingLevelSystem: readingLevelSystem.present
+        ? readingLevelSystem.value
+        : this.readingLevelSystem,
+    readingLevelCode: readingLevelCode.present
+        ? readingLevelCode.value
+        : this.readingLevelCode,
+    readingLevelSource: readingLevelSource.present
+        ? readingLevelSource.value
+        : this.readingLevelSource,
     fetchedAt: fetchedAt ?? this.fetchedAt,
     expiresAt: expiresAt.present ? expiresAt.value : this.expiresAt,
     lastAccessedAt: lastAccessedAt ?? this.lastAccessedAt,
@@ -4766,6 +4887,15 @@ class DictionaryEntry extends DataClass implements Insertable<DictionaryEntry> {
           ? data.longExplanation.value
           : this.longExplanation,
       sourceUrl: data.sourceUrl.present ? data.sourceUrl.value : this.sourceUrl,
+      readingLevelSystem: data.readingLevelSystem.present
+          ? data.readingLevelSystem.value
+          : this.readingLevelSystem,
+      readingLevelCode: data.readingLevelCode.present
+          ? data.readingLevelCode.value
+          : this.readingLevelCode,
+      readingLevelSource: data.readingLevelSource.present
+          ? data.readingLevelSource.value
+          : this.readingLevelSource,
       fetchedAt: data.fetchedAt.present ? data.fetchedAt.value : this.fetchedAt,
       expiresAt: data.expiresAt.present ? data.expiresAt.value : this.expiresAt,
       lastAccessedAt: data.lastAccessedAt.present
@@ -4793,6 +4923,9 @@ class DictionaryEntry extends DataClass implements Insertable<DictionaryEntry> {
           ..write('shortExplanation: $shortExplanation, ')
           ..write('longExplanation: $longExplanation, ')
           ..write('sourceUrl: $sourceUrl, ')
+          ..write('readingLevelSystem: $readingLevelSystem, ')
+          ..write('readingLevelCode: $readingLevelCode, ')
+          ..write('readingLevelSource: $readingLevelSource, ')
           ..write('fetchedAt: $fetchedAt, ')
           ..write('expiresAt: $expiresAt, ')
           ..write('lastAccessedAt: $lastAccessedAt, ')
@@ -4816,6 +4949,9 @@ class DictionaryEntry extends DataClass implements Insertable<DictionaryEntry> {
     shortExplanation,
     longExplanation,
     sourceUrl,
+    readingLevelSystem,
+    readingLevelCode,
+    readingLevelSource,
     fetchedAt,
     expiresAt,
     lastAccessedAt,
@@ -4838,6 +4974,9 @@ class DictionaryEntry extends DataClass implements Insertable<DictionaryEntry> {
           other.shortExplanation == this.shortExplanation &&
           other.longExplanation == this.longExplanation &&
           other.sourceUrl == this.sourceUrl &&
+          other.readingLevelSystem == this.readingLevelSystem &&
+          other.readingLevelCode == this.readingLevelCode &&
+          other.readingLevelSource == this.readingLevelSource &&
           other.fetchedAt == this.fetchedAt &&
           other.expiresAt == this.expiresAt &&
           other.lastAccessedAt == this.lastAccessedAt &&
@@ -4858,6 +4997,9 @@ class DictionaryEntriesCompanion extends UpdateCompanion<DictionaryEntry> {
   final Value<String?> shortExplanation;
   final Value<String?> longExplanation;
   final Value<String> sourceUrl;
+  final Value<String?> readingLevelSystem;
+  final Value<String?> readingLevelCode;
+  final Value<String?> readingLevelSource;
   final Value<int> fetchedAt;
   final Value<int?> expiresAt;
   final Value<int> lastAccessedAt;
@@ -4877,6 +5019,9 @@ class DictionaryEntriesCompanion extends UpdateCompanion<DictionaryEntry> {
     this.shortExplanation = const Value.absent(),
     this.longExplanation = const Value.absent(),
     this.sourceUrl = const Value.absent(),
+    this.readingLevelSystem = const Value.absent(),
+    this.readingLevelCode = const Value.absent(),
+    this.readingLevelSource = const Value.absent(),
     this.fetchedAt = const Value.absent(),
     this.expiresAt = const Value.absent(),
     this.lastAccessedAt = const Value.absent(),
@@ -4897,6 +5042,9 @@ class DictionaryEntriesCompanion extends UpdateCompanion<DictionaryEntry> {
     this.shortExplanation = const Value.absent(),
     this.longExplanation = const Value.absent(),
     required String sourceUrl,
+    this.readingLevelSystem = const Value.absent(),
+    this.readingLevelCode = const Value.absent(),
+    this.readingLevelSource = const Value.absent(),
     required int fetchedAt,
     this.expiresAt = const Value.absent(),
     required int lastAccessedAt,
@@ -4925,6 +5073,9 @@ class DictionaryEntriesCompanion extends UpdateCompanion<DictionaryEntry> {
     Expression<String>? shortExplanation,
     Expression<String>? longExplanation,
     Expression<String>? sourceUrl,
+    Expression<String>? readingLevelSystem,
+    Expression<String>? readingLevelCode,
+    Expression<String>? readingLevelSource,
     Expression<int>? fetchedAt,
     Expression<int>? expiresAt,
     Expression<int>? lastAccessedAt,
@@ -4945,6 +5096,11 @@ class DictionaryEntriesCompanion extends UpdateCompanion<DictionaryEntry> {
       if (shortExplanation != null) 'short_explanation': shortExplanation,
       if (longExplanation != null) 'long_explanation': longExplanation,
       if (sourceUrl != null) 'source_url': sourceUrl,
+      if (readingLevelSystem != null)
+        'reading_level_system': readingLevelSystem,
+      if (readingLevelCode != null) 'reading_level_code': readingLevelCode,
+      if (readingLevelSource != null)
+        'reading_level_source': readingLevelSource,
       if (fetchedAt != null) 'fetched_at': fetchedAt,
       if (expiresAt != null) 'expires_at': expiresAt,
       if (lastAccessedAt != null) 'last_accessed_at': lastAccessedAt,
@@ -4967,6 +5123,9 @@ class DictionaryEntriesCompanion extends UpdateCompanion<DictionaryEntry> {
     Value<String?>? shortExplanation,
     Value<String?>? longExplanation,
     Value<String>? sourceUrl,
+    Value<String?>? readingLevelSystem,
+    Value<String?>? readingLevelCode,
+    Value<String?>? readingLevelSource,
     Value<int>? fetchedAt,
     Value<int?>? expiresAt,
     Value<int>? lastAccessedAt,
@@ -4987,6 +5146,9 @@ class DictionaryEntriesCompanion extends UpdateCompanion<DictionaryEntry> {
       shortExplanation: shortExplanation ?? this.shortExplanation,
       longExplanation: longExplanation ?? this.longExplanation,
       sourceUrl: sourceUrl ?? this.sourceUrl,
+      readingLevelSystem: readingLevelSystem ?? this.readingLevelSystem,
+      readingLevelCode: readingLevelCode ?? this.readingLevelCode,
+      readingLevelSource: readingLevelSource ?? this.readingLevelSource,
       fetchedAt: fetchedAt ?? this.fetchedAt,
       expiresAt: expiresAt ?? this.expiresAt,
       lastAccessedAt: lastAccessedAt ?? this.lastAccessedAt,
@@ -5037,6 +5199,15 @@ class DictionaryEntriesCompanion extends UpdateCompanion<DictionaryEntry> {
     if (sourceUrl.present) {
       map['source_url'] = Variable<String>(sourceUrl.value);
     }
+    if (readingLevelSystem.present) {
+      map['reading_level_system'] = Variable<String>(readingLevelSystem.value);
+    }
+    if (readingLevelCode.present) {
+      map['reading_level_code'] = Variable<String>(readingLevelCode.value);
+    }
+    if (readingLevelSource.present) {
+      map['reading_level_source'] = Variable<String>(readingLevelSource.value);
+    }
     if (fetchedAt.present) {
       map['fetched_at'] = Variable<int>(fetchedAt.value);
     }
@@ -5071,6 +5242,9 @@ class DictionaryEntriesCompanion extends UpdateCompanion<DictionaryEntry> {
           ..write('shortExplanation: $shortExplanation, ')
           ..write('longExplanation: $longExplanation, ')
           ..write('sourceUrl: $sourceUrl, ')
+          ..write('readingLevelSystem: $readingLevelSystem, ')
+          ..write('readingLevelCode: $readingLevelCode, ')
+          ..write('readingLevelSource: $readingLevelSource, ')
           ..write('fetchedAt: $fetchedAt, ')
           ..write('expiresAt: $expiresAt, ')
           ..write('lastAccessedAt: $lastAccessedAt, ')
@@ -8109,6 +8283,9 @@ typedef $$DictionaryEntriesTableCreateCompanionBuilder =
       Value<String?> shortExplanation,
       Value<String?> longExplanation,
       required String sourceUrl,
+      Value<String?> readingLevelSystem,
+      Value<String?> readingLevelCode,
+      Value<String?> readingLevelSource,
       required int fetchedAt,
       Value<int?> expiresAt,
       required int lastAccessedAt,
@@ -8130,6 +8307,9 @@ typedef $$DictionaryEntriesTableUpdateCompanionBuilder =
       Value<String?> shortExplanation,
       Value<String?> longExplanation,
       Value<String> sourceUrl,
+      Value<String?> readingLevelSystem,
+      Value<String?> readingLevelCode,
+      Value<String?> readingLevelSource,
       Value<int> fetchedAt,
       Value<int?> expiresAt,
       Value<int> lastAccessedAt,
@@ -8208,6 +8388,21 @@ class $$DictionaryEntriesTableFilterComposer
 
   ColumnFilters<String> get sourceUrl => $composableBuilder(
     column: $table.sourceUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get readingLevelSystem => $composableBuilder(
+    column: $table.readingLevelSystem,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get readingLevelCode => $composableBuilder(
+    column: $table.readingLevelCode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get readingLevelSource => $composableBuilder(
+    column: $table.readingLevelSource,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8306,6 +8501,21 @@ class $$DictionaryEntriesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get readingLevelSystem => $composableBuilder(
+    column: $table.readingLevelSystem,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get readingLevelCode => $composableBuilder(
+    column: $table.readingLevelCode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get readingLevelSource => $composableBuilder(
+    column: $table.readingLevelSource,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get fetchedAt => $composableBuilder(
     column: $table.fetchedAt,
     builder: (column) => ColumnOrderings(column),
@@ -8391,6 +8601,21 @@ class $$DictionaryEntriesTableAnnotationComposer
   GeneratedColumn<String> get sourceUrl =>
       $composableBuilder(column: $table.sourceUrl, builder: (column) => column);
 
+  GeneratedColumn<String> get readingLevelSystem => $composableBuilder(
+    column: $table.readingLevelSystem,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get readingLevelCode => $composableBuilder(
+    column: $table.readingLevelCode,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get readingLevelSource => $composableBuilder(
+    column: $table.readingLevelSource,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<int> get fetchedAt =>
       $composableBuilder(column: $table.fetchedAt, builder: (column) => column);
 
@@ -8461,6 +8686,9 @@ class $$DictionaryEntriesTableTableManager
                 Value<String?> shortExplanation = const Value.absent(),
                 Value<String?> longExplanation = const Value.absent(),
                 Value<String> sourceUrl = const Value.absent(),
+                Value<String?> readingLevelSystem = const Value.absent(),
+                Value<String?> readingLevelCode = const Value.absent(),
+                Value<String?> readingLevelSource = const Value.absent(),
                 Value<int> fetchedAt = const Value.absent(),
                 Value<int?> expiresAt = const Value.absent(),
                 Value<int> lastAccessedAt = const Value.absent(),
@@ -8480,6 +8708,9 @@ class $$DictionaryEntriesTableTableManager
                 shortExplanation: shortExplanation,
                 longExplanation: longExplanation,
                 sourceUrl: sourceUrl,
+                readingLevelSystem: readingLevelSystem,
+                readingLevelCode: readingLevelCode,
+                readingLevelSource: readingLevelSource,
                 fetchedAt: fetchedAt,
                 expiresAt: expiresAt,
                 lastAccessedAt: lastAccessedAt,
@@ -8501,6 +8732,9 @@ class $$DictionaryEntriesTableTableManager
                 Value<String?> shortExplanation = const Value.absent(),
                 Value<String?> longExplanation = const Value.absent(),
                 required String sourceUrl,
+                Value<String?> readingLevelSystem = const Value.absent(),
+                Value<String?> readingLevelCode = const Value.absent(),
+                Value<String?> readingLevelSource = const Value.absent(),
                 required int fetchedAt,
                 Value<int?> expiresAt = const Value.absent(),
                 required int lastAccessedAt,
@@ -8520,6 +8754,9 @@ class $$DictionaryEntriesTableTableManager
                 shortExplanation: shortExplanation,
                 longExplanation: longExplanation,
                 sourceUrl: sourceUrl,
+                readingLevelSystem: readingLevelSystem,
+                readingLevelCode: readingLevelCode,
+                readingLevelSource: readingLevelSource,
                 fetchedAt: fetchedAt,
                 expiresAt: expiresAt,
                 lastAccessedAt: lastAccessedAt,

@@ -6,11 +6,45 @@ import 'package:lumina/core/providers.dart';
 import 'package:lumina/data/database/app_database.dart';
 import 'package:lumina/data/dictionary/openai_compatible_explanation_provider.dart';
 import 'package:lumina/main.dart';
+import 'package:lumina/presentation/widgets/narrator_label.dart';
 import 'package:lumina/presentation/screens/settings/settings_screen.dart';
 import 'package:lumina/presentation/screens/settings/voice_library_screen.dart';
 import 'package:lumina/presentation/widgets/mini_player.dart';
 
 void main() {
+  testWidgets('narrator label shows the selected voice', (tester) async {
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+    await database.upsertVoice(
+      const Voice(
+        id: 'voice-a',
+        name: 'Voice A',
+        providerId: 'kokoro_local',
+        type: 'preset',
+        providerVoiceId: 'af_heart',
+        createdAt: 1,
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [appDatabaseProvider.overrideWithValue(database)],
+        child: MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 220,
+              child: NarratorLabel(voiceId: 'voice-a'),
+            ),
+          ),
+        ),
+      ),
+    );
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.text('Read by Voice A'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('app does not reserve mini player space without media', (
     tester,
   ) async {

@@ -27,4 +27,14 @@ void main() {
 
     expect(estimate, isNull);
   });
+
+  test('finds CEFR-J level for a single dictionary term', () async {
+    final estimate = await ReadingLevelEstimator.instance.levelForEnglishTerm(
+      'abandon',
+    );
+
+    expect(estimate, isNotNull);
+    expect(estimate!.code, 'B1');
+    expect(estimate.source, cefrJVocabularyProfileSource);
+  });
 }

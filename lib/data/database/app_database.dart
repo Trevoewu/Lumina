@@ -155,6 +155,9 @@ class DictionaryEntries extends Table {
   TextColumn get shortExplanation => text().nullable()();
   TextColumn get longExplanation => text().nullable()();
   TextColumn get sourceUrl => text()();
+  TextColumn get readingLevelSystem => text().nullable()();
+  TextColumn get readingLevelCode => text().nullable()();
+  TextColumn get readingLevelSource => text().nullable()();
   IntColumn get fetchedAt => integer()();
   IntColumn get expiresAt => integer().nullable()();
   IntColumn get lastAccessedAt => integer()();
@@ -222,7 +225,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e) : _repairPathsOnOpen = false;
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -251,6 +254,20 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(books, books.readingLevelSystem);
         await m.addColumn(books, books.readingLevelCode);
         await m.addColumn(books, books.readingLevelSource);
+      }
+      if (from >= 4 && from < 8) {
+        await m.addColumn(
+          dictionaryEntries,
+          dictionaryEntries.readingLevelSystem,
+        );
+        await m.addColumn(
+          dictionaryEntries,
+          dictionaryEntries.readingLevelCode,
+        );
+        await m.addColumn(
+          dictionaryEntries,
+          dictionaryEntries.readingLevelSource,
+        );
       }
     },
     beforeOpen: (_) async {

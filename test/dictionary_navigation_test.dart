@@ -13,6 +13,7 @@ import 'package:lumina/domain/models/vocabulary_entry.dart';
 import 'package:lumina/main.dart';
 import 'package:lumina/presentation/screens/dictionary/dictionary_screen.dart';
 import 'package:lumina/presentation/widgets/dictionary_lookup_sheet.dart';
+import 'package:lumina/services/reading_level_estimator.dart';
 
 const _fixture = '''
 <div class="definitionsContainer">
@@ -31,6 +32,8 @@ const _fixture = '''
 ''';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   testWidgets(
     'dictionary result is a secondary route that supports iOS back swipe',
     (tester) async {
@@ -59,14 +62,14 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await _pumpReady(tester);
 
       expect(
         find.byKey(const ValueKey('dictionary-search-field')),
         findsOneWidget,
       );
       await tester.tap(find.text('mulberry'));
-      await tester.pumpAndSettle();
+      await _pumpReady(tester);
 
       expect(
         find.byKey(const ValueKey('dictionary-detail-search-field')),
@@ -74,7 +77,7 @@ void main() {
       );
 
       await tester.dragFrom(const Offset(1, 400), const Offset(320, 0));
-      await tester.pumpAndSettle();
+      await _pumpReady(tester);
 
       expect(
         find.byKey(const ValueKey('dictionary-search-field')),
@@ -115,16 +118,16 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
 
     await tester.tap(find.byIcon(Icons.menu_book_outlined));
-    await tester.pumpAndSettle();
+    await _pumpReady(tester);
     await tester.tap(find.text('mulberry'));
-    await tester.pumpAndSettle();
+    await _pumpReady(tester);
     expect(
       find.byKey(const ValueKey('dictionary-detail-search-field')),
       findsOneWidget,
     );
 
     await tester.tap(find.byIcon(Icons.menu_book));
-    await tester.pumpAndSettle();
+    await _pumpReady(tester);
 
     expect(
       find.byKey(const ValueKey('dictionary-search-field')),
@@ -192,7 +195,7 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await _pumpReady(tester);
 
     expect(find.text('word4'), findsNWidgets(2));
     expect(find.text('word2'), findsOneWidget);
@@ -201,7 +204,7 @@ void main() {
     expect(find.text('View All'), findsNWidgets(2));
 
     await tester.tap(find.text('View All').first);
-    await tester.pumpAndSettle();
+    await _pumpReady(tester);
 
     expect(find.text('Favorites'), findsOneWidget);
     expect(find.text('word0'), findsOneWidget);
@@ -256,7 +259,7 @@ void main() {
     );
 
     await tester.tap(find.text('Open lookup'));
-    await tester.pumpAndSettle();
+    await _pumpReady(tester);
 
     expect(
       find.byKey(const ValueKey('dictionary-lookup-sheet')),
@@ -284,18 +287,25 @@ void main() {
     );
 
     await tester.tap(find.byTooltip('Search another word'));
-    await tester.pumpAndSettle();
+    await _pumpReady(tester);
     expect(
       find.byKey(const ValueKey('dictionary-sheet-search-field')),
       findsOneWidget,
     );
     await tester.tap(find.byTooltip('Hide search'));
-    await tester.pumpAndSettle();
+    await _pumpReady(tester);
     expect(
       find.byKey(const ValueKey('dictionary-sheet-search-field')),
       findsNothing,
     );
   });
+}
+
+Future<void> _pumpReady(WidgetTester tester) async {
+  await tester.pump();
+  for (var i = 0; i < 20; i++) {
+    await tester.pump(const Duration(milliseconds: 50));
+  }
 }
 
 class _FakeProvider extends VocabularyComProvider {
@@ -325,6 +335,9 @@ class _FakeProvider extends VocabularyComProvider {
       shortExplanation: 'A concise explanation.',
       longExplanation: 'A complete long explanation.',
       sourceUrl: parsed.sourceUrl,
+      readingLevelSystem: cefrJReadingLevelSystem,
+      readingLevelCode: 'A2',
+      readingLevelSource: cefrJVocabularyProfileSource,
     );
   }
 }

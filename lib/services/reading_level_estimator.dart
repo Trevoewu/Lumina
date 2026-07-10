@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 const cefrJReadingLevelSystem = 'cefr_j';
 const estimatedReadingLevelSource = 'estimated';
 const userReadingLevelSource = 'user';
+const cefrJVocabularyProfileSource = 'cefr_j_vocabulary_profile';
 
 class ReadingLevelEstimate {
   final String system;
@@ -55,6 +56,29 @@ class ReadingLevelEstimator {
       system: cefrJReadingLevelSystem,
       code: _levelName(levels[percentileIndex]),
       source: estimatedReadingLevelSource,
+      knownWords: levels.length,
+      sampledWords: tokens.length,
+    );
+  }
+
+  Future<ReadingLevelEstimate?> levelForEnglishTerm(String term) async {
+    final tokens = _tokenize([term]).toList();
+    if (tokens.isEmpty) return null;
+
+    final profile = await _loadProfile();
+    final levels = <int>[];
+    for (final token in tokens) {
+      final level = profile[token] ?? profile[_normalizeToken(token)];
+      if (level != null) levels.add(level);
+    }
+    if (levels.isEmpty) return null;
+    levels.sort();
+    return ReadingLevelEstimate(
+      system: cefrJReadingLevelSystem,
+      code: _levelName(levels.last),
+      source: tokens.length == 1 && levels.length == 1
+          ? cefrJVocabularyProfileSource
+          : estimatedReadingLevelSource,
       knownWords: levels.length,
       sampledWords: tokens.length,
     );

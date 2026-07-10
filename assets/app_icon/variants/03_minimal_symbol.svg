@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Minimal Lumina symbol app icon">
+  <defs>
+    <linearGradient id="bg" x1="130" y1="90" x2="884" y2="928" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0F1E19"/>
+      <stop offset="1" stop-color="#050807"/>
+    </linearGradient>
+    <linearGradient id="mark" x1="340" y1="198" x2="680" y2="822" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#93F8B6"/>
+      <stop offset="0.45" stop-color="#1DB954"/>
+      <stop offset="1" stop-color="#0F7E3A"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="32" stdDeviation="34" flood-color="#000000" flood-opacity="0.46"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="24" flood-color="#1DB954" flood-opacity="0.24"/>
+    </filter>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <circle cx="512" cy="512" r="342" fill="#1DB954" opacity="0.08"/>
+  <g filter="url(#shadow)">
+    <path d="M360 210 H488 C514 210 536 232 536 258 V654 C536 692 560 716 598 716 H710 C734 716 754 736 754 760 V814 H574 C458 814 376 734 376 618 V266 C376 238 350 238 360 210 Z" fill="url(#mark)"/>
+    <path d="M536 258 C620 286 684 346 724 438 C734 462 720 490 696 500 L622 532 C594 544 562 528 552 500 C540 466 518 440 488 422 L488 258 Z" fill="#F5FFF7"/>
+    <path d="M304 392 C356 336 424 320 488 348" stroke="#F5FFF7" stroke-width="38" stroke-linecap="round"/>
+    <path d="M278 512 C354 456 450 452 528 500" stroke="#1DB954" stroke-width="30" stroke-linecap="round"/>
+  </g>
+</svg>

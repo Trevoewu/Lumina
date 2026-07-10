@@ -36,6 +36,9 @@ class VocabularyEntry {
   final String? shortExplanation;
   final String? longExplanation;
   final String sourceUrl;
+  final String? readingLevelSystem;
+  final String? readingLevelCode;
+  final String? readingLevelSource;
 
   const VocabularyEntry({
     this.provider = providerId,
@@ -49,6 +52,9 @@ class VocabularyEntry {
     this.ukPhonetic,
     this.shortExplanation,
     this.longExplanation,
+    this.readingLevelSystem,
+    this.readingLevelCode,
+    this.readingLevelSource,
   });
 
   String get definitionsJson =>
