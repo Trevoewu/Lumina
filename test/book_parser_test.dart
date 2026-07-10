@@ -128,6 +128,113 @@ void main() {
     ]);
   });
 
+  test('EPUB parser keeps part introduction before the following chapter', () {
+    final html = '''
+      <body>
+        <h1>PART II</h1>
+        <p>Apartheid—the South African government policy of racial segregation—was genius at work.</p>
+        <p>It divided people and kept them apart.</p>
+        <h2>CHAPTER 9. The Cheese Boys</h2>
+        <p>Chapter nine starts here.</p>
+      </body>
+    ''';
+
+    expect(BookParser.epubHtmlChapterTitlesForTest(html), [
+      'PART II',
+      'CHAPTER 9. The Cheese Boys',
+    ]);
+    expect(BookParser.epubHtmlChapterParagraphsForTest(html), [
+      [
+        'Apartheid—the South African government policy of racial segregation—was genius at work.',
+        'It divided people and kept them apart.',
+      ],
+      ['Chapter nine starts here.'],
+    ]);
+  });
+
+  test('EPUB parser drops chapter link lists from part sections', () {
+    final html = '''
+      <body>
+        <h1>PART II</h1>
+        <p>Chapter 1: RunChapter 2: Born a CrimeChapter 3: Trevor, PrayChapter 4: ChameleonChapter 5: The Second GirlChapter 6: LoopholesChapter 7: FufiChapter 8: Robert</p>
+        <p>Apartheid—the South African government policy of racial segregation—was genius at work.</p>
+        <h2>CHAPTER 9. The Cheese Boys</h2>
+        <p>Chapter nine starts here.</p>
+      </body>
+    ''';
+
+    expect(BookParser.epubHtmlChapterTitlesForTest(html), [
+      'PART II',
+      'CHAPTER 9. The Cheese Boys',
+    ]);
+    expect(BookParser.epubHtmlChapterParagraphsForTest(html), [
+      [
+        'Apartheid—the South African government policy of racial segregation—was genius at work.',
+      ],
+      ['Chapter nine starts here.'],
+    ]);
+  });
+
+  test('EPUB parser follows spine order and merges continuation files', () {
+    final sections = BookParser.epubSpineSectionsForTest([
+      (
+        href: 'xhtml/book_toc_r1.xhtml',
+        navigationTitle: 'Contents',
+        html: '''
+          <body>
+            <h1>Contents</h1>
+            <p class="toc_part"><a href="p002.xhtml">Part II</a></p>
+            <p class="toc_chap"><a href="c009.xhtml">Chapter 9: The Mulberry Tree</a></p>
+            <p class="toc_chap"><a href="c010.xhtml">Chapter 10: A Young Man’s Long, Awkward, Occasionally Tragic, and Frequently Humiliating Education in Affairs of the Heart, Part I: Valentine’s Day</a></p>
+            <p class="toc_chap"><a href="c013.xhtml">Chapter 13: A Young Man’s Long, Awkward, Occasionally Tragic, and Frequently Humiliating Education in Affairs of the Heart, Part II: The Dance</a></p>
+          </body>
+        ''',
+      ),
+      (
+        href: 'xhtml/p002.xhtml',
+        navigationTitle: 'Part II',
+        html: '<body><img alt="PART II" src="part-two.jpg" /></body>',
+      ),
+      (
+        href: 'xhtml/p002-sup.xhtml',
+        navigationTitle: null,
+        html: '''
+          <html><head><title>Continued, Example Book</title></head><body>
+            <p>When Dutch colonists landed at the southern tip of Africa, they encountered an indigenous people.</p>
+            <p>This is the rest of the Part II introduction.</p>
+          </body></html>
+        ''',
+      ),
+      (
+        href: 'xhtml/c009.xhtml',
+        navigationTitle: 'Chapter 9: The Mulberry Tree',
+        html:
+            '<body><p>At the end of our street stood a giant mulberry tree.</p></body>',
+      ),
+      (
+        href: 'xhtml/c009-sup.xhtml',
+        navigationTitle: null,
+        html:
+            '<body><p>The chapter continues on the following print page.</p></body>',
+      ),
+    ]);
+
+    expect(sections.map((section) => section.title), [
+      'Part II',
+      'Chapter 9: The Mulberry Tree',
+    ]);
+    expect(sections.map((section) => section.paragraphs), [
+      [
+        'When Dutch colonists landed at the southern tip of Africa, they encountered an indigenous people.',
+        'This is the rest of the Part II introduction.',
+      ],
+      [
+        'At the end of our street stood a giant mulberry tree.',
+        'The chapter continues on the following print page.',
+      ],
+    ]);
+  });
+
   test('EPUB parser skips obvious non-story front matter sections', () {
     expect(
       BookParser.shouldSkipEpubChapterForTest('Table of Contents', [

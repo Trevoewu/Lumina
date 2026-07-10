@@ -168,6 +168,76 @@ void main() {
     },
   );
 
+  test('generation pauses new work and resumes from saved segments', () async {
+    final temp = await Directory.systemTemp.createTemp('lumina_pause_');
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final store = _TestManifestStore(temp);
+    final provider = _ConcurrentTestProvider(concurrency: 1);
+    const voice = TtsVoice(
+      id: 'voice',
+      name: 'Test voice',
+      providerId: 'parallel_test',
+      type: VoiceType.preset,
+      providerVoiceId: 'voice',
+      createdAt: 1,
+    );
+    addTearDown(() async {
+      await database.close();
+      if (await temp.exists()) await temp.delete(recursive: true);
+    });
+
+    await _insertBookFixture(database);
+    final orchestrator = GenerationOrchestrator(
+      database: database,
+      manifestStore: store,
+    );
+    final paused = Completer<void>();
+    final completed = Completer<void>();
+    var pauseIssued = false;
+    final subscription = orchestrator
+        .generateChapter(
+          bookId: 'book',
+          chapterId: 'chapter',
+          provider: provider,
+          voice: voice,
+        )
+        .listen(
+          (progress) {
+            if (!pauseIssued && progress.generating > 0) {
+              pauseIssued = true;
+              expect(
+                orchestrator.pauseChapter(bookId: 'book', chapterId: 'chapter'),
+                isTrue,
+              );
+            }
+            if (pauseIssued && progress.ready == 1 && !paused.isCompleted) {
+              paused.complete();
+            }
+          },
+          onError: (Object error, StackTrace stackTrace) {
+            if (!completed.isCompleted) {
+              completed.completeError(error, stackTrace);
+            }
+          },
+          onDone: () {
+            if (!completed.isCompleted) completed.complete();
+          },
+        );
+
+    await paused.future.timeout(const Duration(seconds: 2));
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    expect(provider.synthesisRequests, 1);
+    expect(
+      orchestrator.resumeChapter(bookId: 'book', chapterId: 'chapter'),
+      isTrue,
+    );
+    await completed.future.timeout(const Duration(seconds: 2));
+    await subscription.cancel();
+
+    expect(provider.synthesisRequests, 5);
+    expect(store.saved?.isReady, isTrue);
+  });
+
   test('sanitizes request-external timestamp offsets', () {
     final timings = sanitizeAudioTextTimings(const [
       AudioTextTiming(text: 'Hello', startMs: 12000, endMs: 12400),

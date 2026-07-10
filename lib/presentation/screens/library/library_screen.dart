@@ -23,6 +23,7 @@ import '../../widgets/book_cover.dart';
 import '../../widgets/book_card_metadata.dart';
 import '../../widgets/book_list_card.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
+import '../../widgets/half_screen_action_sheet.dart';
 import '../album/album_screen.dart';
 import '../search/search_screen.dart';
 
@@ -1121,6 +1122,7 @@ class _BookCard extends StatelessWidget {
           ),
       ],
       trailing: _BookActionsButton(
+        title: book.title,
         onEdit: onEdit,
         onReparse: onReparse,
         onCacheBook: onCacheBook,
@@ -1134,6 +1136,7 @@ class _BookCard extends StatelessWidget {
 }
 
 class _BookActionsButton extends StatelessWidget {
+  final String title;
   final VoidCallback onEdit;
   final VoidCallback onReparse;
   final VoidCallback onCacheBook;
@@ -1142,6 +1145,7 @@ class _BookActionsButton extends StatelessWidget {
   final _BookCacheProgress? cacheProgress;
 
   const _BookActionsButton({
+    required this.title,
     required this.onEdit,
     required this.onReparse,
     required this.onCacheBook,
@@ -1155,83 +1159,49 @@ class _BookActionsButton extends StatelessWidget {
     return SizedBox(
       width: 40,
       height: 40,
-      child: PopupMenuButton<String>(
+      child: IconButton(
         tooltip: '书籍操作',
-        color: context.appSurface,
         padding: EdgeInsets.zero,
-        iconSize: 22,
         icon: Icon(Icons.more_horiz, color: context.appTextSecondary),
-        onSelected: (value) {
-          if (value == 'edit') onEdit();
-          if (value == 'reparse') onReparse();
-          if (value == 'cache_book') onCacheBook();
-          if (value == 'cache') onClearCache();
-          if (value == 'delete') onDelete();
+        onPressed: () {
+          showHalfScreenActionSheet(
+            context,
+            title: title,
+            actions: [
+              HalfScreenActionSheetItem(
+                label: context.tr('编辑', 'Edit'),
+                icon: Icons.edit_outlined,
+                onPressed: onEdit,
+              ),
+              HalfScreenActionSheetItem(
+                label: context.tr('重新解析', 'Reparse'),
+                icon: Icons.auto_fix_high_outlined,
+                onPressed: onReparse,
+              ),
+              HalfScreenActionSheetItem(
+                label: cacheProgress == null
+                    ? context.tr('缓存整本书', 'Cache Entire Book')
+                    : context.tr(
+                        '缓存中 ${(cacheProgress!.percent * 100).round()}%',
+                        'Caching ${(cacheProgress!.percent * 100).round()}%',
+                      ),
+                icon: Icons.download_for_offline_outlined,
+                onPressed: cacheProgress == null ? onCacheBook : null,
+              ),
+              HalfScreenActionSheetItem(
+                label: context.tr('清除音频', 'Clear Audio'),
+                icon: Icons.cleaning_services_outlined,
+                onPressed: onClearCache,
+              ),
+              HalfScreenActionSheetItem(
+                label: context.tr('删除', 'Delete'),
+                icon: Icons.delete_outline,
+                onPressed: onDelete,
+                destructive: true,
+              ),
+            ],
+          );
         },
-        itemBuilder: (context) => [
-          const PopupMenuItem(
-            value: 'edit',
-            child: Row(
-              children: [
-                Icon(Icons.edit_outlined, size: 18),
-                SizedBox(width: 8),
-                Text('编辑'),
-              ],
-            ),
-          ),
-          const PopupMenuItem(
-            value: 'reparse',
-            child: Row(
-              children: [
-                Icon(Icons.auto_fix_high_outlined, size: 18),
-                SizedBox(width: 8),
-                Text('重新解析'),
-              ],
-            ),
-          ),
-          PopupMenuItem(
-            value: 'cache_book',
-            enabled: cacheProgress == null,
-            child: Row(
-              children: [
-                const Icon(Icons.download_for_offline_outlined, size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    cacheProgress == null
-                        ? context.tr('缓存整本书', 'Cache Entire Book')
-                        : context.tr(
-                            '缓存中 ${(cacheProgress!.percent * 100).round()}%',
-                            'Caching ${(cacheProgress!.percent * 100).round()}%',
-                          ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const PopupMenuItem(
-            value: 'cache',
-            child: Row(
-              children: [
-                Icon(Icons.cleaning_services_outlined, size: 18),
-                SizedBox(width: 8),
-                Text('清除音频'),
-              ],
-            ),
-          ),
-          const PopupMenuItem(
-            value: 'delete',
-            child: Row(
-              children: [
-                Icon(Icons.delete_outline, size: 18),
-                SizedBox(width: 8),
-                Text('删除'),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }

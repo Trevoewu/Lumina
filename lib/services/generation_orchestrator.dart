@@ -95,6 +95,24 @@ class GenerationOrchestrator {
     return job.stream;
   }
 
+  /// 暂停章节生成。当前已发出的 TTS 请求会完成，但不会继续派发新段落。
+  bool pauseChapter({required String bookId, required String chapterId}) {
+    final job = _activeChapterJobs['$bookId\u0000$chapterId'];
+    if (job == null) return false;
+    job.pause();
+    AppLogger.info('Generation', '暂停章节生成 book=$bookId chapter=$chapterId');
+    return true;
+  }
+
+  /// 继续已暂停的章节生成。
+  bool resumeChapter({required String bookId, required String chapterId}) {
+    final job = _activeChapterJobs['$bookId\u0000$chapterId'];
+    if (job == null) return false;
+    job.resume();
+    AppLogger.info('Generation', '继续章节生成 book=$bookId chapter=$chapterId');
+    return true;
+  }
+
   Future<void> _runChapterGenerationJob({
     required String generationKey,
     required _ChapterGenerationJob job,
@@ -107,6 +125,7 @@ class GenerationOrchestrator {
   }) async {
     try {
       await for (final progress in _generateChapterUnlocked(
+        job: job,
         bookId: bookId,
         chapterId: chapterId,
         provider: provider,
@@ -127,6 +146,7 @@ class GenerationOrchestrator {
   }
 
   Stream<GenerationProgress> _generateChapterUnlocked({
+    required _ChapterGenerationJob job,
     required String bookId,
     required String chapterId,
     required TtsProvider provider,
@@ -215,6 +235,7 @@ class GenerationOrchestrator {
     final active = <int, Future<_SegmentGenerationResult>>{};
     var nextPending = 0;
     while (nextPending < pendingIndexes.length || active.isNotEmpty) {
+      await job.waitIfPaused();
       final launchedIndexes = <int>[];
       while (active.length < concurrency &&
           nextPending < pendingIndexes.length) {
@@ -651,6 +672,7 @@ class _ChapterGenerationJob {
   final StreamController<GenerationProgress> _controller =
       StreamController<GenerationProgress>.broadcast();
   GenerationProgress? _latest;
+  Completer<void>? _resumeCompleter;
 
   Stream<GenerationProgress> get stream =>
       Stream<GenerationProgress>.multi((listener) {
@@ -667,6 +689,24 @@ class _ChapterGenerationJob {
   void add(GenerationProgress progress) {
     _latest = progress;
     if (!_controller.isClosed) _controller.add(progress);
+  }
+
+  void pause() {
+    _resumeCompleter ??= Completer<void>();
+  }
+
+  void resume() {
+    final completer = _resumeCompleter;
+    _resumeCompleter = null;
+    if (completer != null && !completer.isCompleted) completer.complete();
+  }
+
+  Future<void> waitIfPaused() async {
+    while (true) {
+      final completer = _resumeCompleter;
+      if (completer == null) return;
+      await completer.future;
+    }
   }
 
   void addError(Object error, StackTrace stackTrace) {

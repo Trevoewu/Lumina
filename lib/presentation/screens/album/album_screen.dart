@@ -16,6 +16,7 @@ import '../../../tts/models/tts_voice.dart';
 import '../../../tts/provider_registry.dart';
 import '../../../tts/tts_provider.dart';
 import '../../widgets/book_cover.dart';
+import '../../widgets/half_screen_action_sheet.dart';
 import '../../widgets/narrator_label.dart';
 
 class AlbumScreen extends ConsumerStatefulWidget {
@@ -31,6 +32,7 @@ class AlbumScreen extends ConsumerStatefulWidget {
 class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   final Map<String, GenerationProgress> _generationProgress = {};
   final Set<String> _generatingChapterIds = {};
+  final Set<String> _pausedChapterIds = {};
   final ScrollController _scrollController = ScrollController();
   bool _didScrollToInitialChapter = false;
   late Future<Color?> _coverSeed;
@@ -231,12 +233,19 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
             'provider=${provider.id} voice=${voice.id}',
       );
 
-      await for (final progress in orchestrator.generateChapter(
+      final generation = orchestrator.generateChapter(
         bookId: widget.book.id,
         chapterId: chapter.id,
         provider: provider,
         voice: voice,
-      )) {
+      );
+      if (_pausedChapterIds.contains(chapter.id)) {
+        orchestrator.pauseChapter(
+          bookId: widget.book.id,
+          chapterId: chapter.id,
+        );
+      }
+      await for (final progress in generation) {
         if (mounted) {
           setState(() => _generationProgress[chapter.id] = progress);
         }
@@ -266,8 +275,31 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
         setState(() {
           _generatingChapterIds.remove(chapter.id);
           _generationProgress.remove(chapter.id);
+          _pausedChapterIds.remove(chapter.id);
         });
       }
+    }
+  }
+
+  Future<void> _toggleChapterDownload(drift_db.Chapter chapter) async {
+    if (!_generatingChapterIds.contains(chapter.id)) {
+      await _generateChapterAudio(chapter);
+      return;
+    }
+
+    final orchestrator = ref.read(generationOrchestratorProvider);
+    final isPaused = _pausedChapterIds.contains(chapter.id);
+    setState(() {
+      if (isPaused) {
+        _pausedChapterIds.remove(chapter.id);
+      } else {
+        _pausedChapterIds.add(chapter.id);
+      }
+    });
+    if (isPaused) {
+      orchestrator.resumeChapter(bookId: widget.book.id, chapterId: chapter.id);
+    } else {
+      orchestrator.pauseChapter(bookId: widget.book.id, chapterId: chapter.id);
     }
   }
 
@@ -445,7 +477,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                           bookId: widget.book.id,
                           chapterId: chapter.id,
                           onPlay: () => _playChapter(chapter, index),
-                          onDownload: () => _generateChapterAudio(chapter),
+                          onDownload: () => _toggleChapterDownload(chapter),
+                          paused: _pausedChapterIds.contains(chapter.id),
                           onClearCache: () => _clearChapterCache(chapter),
                           onRegenerate: () => _regenerateChapter(chapter),
                         );
@@ -482,8 +515,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     _didScrollToInitialChapter = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
-      // 章节卡片不再是紧凑 ListTile，按卡片的平均高度定位初始章节。
-      final target = 300.0 + 8.0 + index * 128.0;
+      // 章节卡片按紧凑列表的平均高度定位初始章节。
+      final target = 300.0 + 8.0 + index * 120.0;
       _scrollController.animateTo(
         target.clamp(0.0, _scrollController.position.maxScrollExtent),
         duration: const Duration(milliseconds: 260),
@@ -504,6 +537,7 @@ class _ChapterCard extends StatelessWidget {
   final String chapterId;
   final VoidCallback onPlay;
   final VoidCallback onDownload;
+  final bool paused;
   final VoidCallback onClearCache;
   final VoidCallback onRegenerate;
 
@@ -517,6 +551,7 @@ class _ChapterCard extends StatelessWidget {
     required this.chapterId,
     required this.onPlay,
     required this.onDownload,
+    required this.paused,
     required this.onClearCache,
     required this.onRegenerate,
     this.progress,
@@ -550,7 +585,7 @@ class _ChapterCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           onTap: onPlay,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 12, 8),
+            padding: const EdgeInsets.fromLTRB(16, 10, 8, 6),
             child: FutureBuilder<ChapterManifest?>(
               future: ManifestStore().load(bookId, chapterId),
               builder: (context, snapshot) {
@@ -562,67 +597,58 @@ class _ChapterCard extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                   height: 1.2,
                 );
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Text(
-                      '$index. $title',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: context.appTextPrimary,
-                        fontSize: 17,
-                        height: 1.25,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    // 元信息：作者 • 朗读者 • 类型 • 时长
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '$index. $title',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: context.appTextPrimary,
+                              fontSize: 17,
+                              height: 1.25,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          // 作者、朗读者与时长各占一行，避免在窄屏上相互挤压。
+                          Text(
                             author,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: metaStyle,
                           ),
-                        ),
-                        Text(' • ', style: metaStyle),
-                        Flexible(
-                          child: NarratorLabel(
+                          const SizedBox(height: 2),
+                          NarratorLabel(
                             voiceId: manifest?.voiceId ?? bookVoiceId,
                             compact: true,
                           ),
-                        ),
-                        Text(' • Audio', style: metaStyle),
-                        if (durationMs > 0)
+                          const SizedBox(height: 2),
                           Text(
-                            ' • ${_formatDuration(durationMs)}',
+                            durationMs > 0
+                                ? 'Audio • ${_formatDuration(durationMs)}'
+                                : 'Audio',
                             style: metaStyle,
                           ),
-                      ],
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 4),
-                    // 操作行：右对齐的小图标 + 播放键
-                    Row(
-                      children: [
-                        const Spacer(),
-                        _ChapterActions(
-                          manifest: manifest,
-                          progress: progress,
-                          onDownload: onDownload,
-                          onClearCache: onClearCache,
-                          onRegenerate: onRegenerate,
-                        ),
-                        const SizedBox(width: 8),
-                        _ChapterPlayButton(
-                          bookId: bookId,
-                          chapterId: chapterId,
-                          onPlay: onPlay,
-                        ),
-                      ],
+                    const SizedBox(width: 8),
+                    // 保留下载和更多操作；点击整张卡片即可播放。
+                    _ChapterActions(
+                      chapterTitle: title,
+                      manifest: manifest,
+                      progress: progress,
+                      onDownload: onDownload,
+                      paused: paused,
+                      onClearCache: onClearCache,
+                      onRegenerate: onRegenerate,
                     ),
                   ],
                 );
@@ -636,15 +662,19 @@ class _ChapterCard extends StatelessWidget {
 }
 
 class _ChapterActions extends StatelessWidget {
+  final String chapterTitle;
   final ChapterManifest? manifest;
   final GenerationProgress? progress;
   final VoidCallback onDownload;
+  final bool paused;
   final VoidCallback onClearCache;
   final VoidCallback onRegenerate;
 
   const _ChapterActions({
+    required this.chapterTitle,
     required this.manifest,
     required this.onDownload,
+    required this.paused,
     required this.onClearCache,
     required this.onRegenerate,
     this.progress,
@@ -659,39 +689,31 @@ class _ChapterActions extends StatelessWidget {
           manifest: manifest,
           progress: progress,
           onPressed: onDownload,
+          paused: paused,
         ),
-        PopupMenuButton<String>(
+        IconButton(
           tooltip: '章节操作',
-          color: context.appSurface,
-          iconSize: 24,
-          style: const ButtonStyle(visualDensity: VisualDensity.compact),
           icon: Icon(Icons.more_horiz, color: context.appTextPrimary),
-          onSelected: (value) {
-            if (value == 'clear') onClearCache();
-            if (value == 'regenerate') onRegenerate();
+          constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+          padding: EdgeInsets.zero,
+          onPressed: () {
+            showHalfScreenActionSheet(
+              context,
+              title: chapterTitle,
+              actions: [
+                HalfScreenActionSheetItem(
+                  label: '清除音频',
+                  icon: Icons.cleaning_services_outlined,
+                  onPressed: onClearCache,
+                ),
+                HalfScreenActionSheetItem(
+                  label: '重新生成',
+                  icon: Icons.refresh_rounded,
+                  onPressed: onRegenerate,
+                ),
+              ],
+            );
           },
-          itemBuilder: (context) => const [
-            PopupMenuItem(
-              value: 'clear',
-              child: Row(
-                children: [
-                  Icon(Icons.cleaning_services_outlined, size: 18),
-                  SizedBox(width: 8),
-                  Text('清除音频'),
-                ],
-              ),
-            ),
-            PopupMenuItem(
-              value: 'regenerate',
-              child: Row(
-                children: [
-                  Icon(Icons.refresh, size: 18),
-                  SizedBox(width: 8),
-                  Text('重新生成'),
-                ],
-              ),
-            ),
-          ],
         ),
       ],
     );
@@ -702,10 +724,12 @@ class _ChapterDownloadButton extends StatelessWidget {
   final ChapterManifest? manifest;
   final GenerationProgress? progress;
   final VoidCallback onPressed;
+  final bool paused;
 
   const _ChapterDownloadButton({
     required this.manifest,
     required this.onPressed,
+    required this.paused,
     this.progress,
   });
 
@@ -717,32 +741,32 @@ class _ChapterDownloadButton extends StatelessWidget {
 
     if (progress != null) {
       return Tooltip(
-        message: '正在下载 ${(progress!.percent * 100).round()}%',
-        child: SizedBox(
-          width: 40,
-          height: 40,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              SizedBox(
-                width: 22,
-                height: 22,
-                child: CircularProgressIndicator(
+        message: paused
+            ? '继续下载 ${(progress!.percent * 100).round()}%'
+            : '暂停下载 ${(progress!.percent * 100).round()}%',
+        child: IconButton(
+          onPressed: onPressed,
+          constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+          padding: EdgeInsets.zero,
+          icon: SizedBox(
+            width: 22,
+            height: 22,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                CircularProgressIndicator(
                   value: progress!.percent == 0 ? null : progress!.percent,
                   strokeWidth: 2.5,
                   color: accent,
                   backgroundColor: accent.withValues(alpha: 0.16),
                 ),
-              ),
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
+                Icon(
+                  paused ? Icons.play_arrow_rounded : Icons.pause_rounded,
+                  size: 15,
                   color: accent,
-                  borderRadius: BorderRadius.circular(2),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       );
@@ -755,78 +779,14 @@ class _ChapterDownloadButton extends StatelessWidget {
         onPressed: isCached ? () {} : onPressed,
         iconSize: 24,
         visualDensity: VisualDensity.compact,
+        constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+        padding: EdgeInsets.zero,
         color: isCached ? accent : context.appTextPrimary,
         icon: Icon(
           isCached
               ? Icons.download_done_rounded
               : Icons.arrow_circle_down_outlined,
         ),
-      ),
-    );
-  }
-}
-
-class _ChapterPlayButton extends ConsumerWidget {
-  final String bookId;
-  final String chapterId;
-  final VoidCallback onPlay;
-
-  const _ChapterPlayButton({
-    required this.bookId,
-    required this.chapterId,
-    required this.onPlay,
-  });
-
-  Widget _button(
-    BuildContext context, {
-    required bool playing,
-    required VoidCallback onPressed,
-  }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Tooltip(
-      message: playing ? '暂停' : '播放章节',
-      child: IconButton(
-        onPressed: onPressed,
-        iconSize: 26,
-        padding: EdgeInsets.zero,
-        style: IconButton.styleFrom(
-          backgroundColor: isDark ? Colors.white : Colors.black,
-          foregroundColor: isDark ? Colors.black : Colors.white,
-          fixedSize: const Size.square(44),
-        ),
-        icon: Icon(playing ? Icons.pause_rounded : Icons.play_arrow_rounded),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final handlerAsync = ref.watch(luminaAudioHandlerProvider);
-
-    return handlerAsync.when(
-      loading: () => _button(context, playing: false, onPressed: onPlay),
-      error: (_, _) => _button(context, playing: false, onPressed: onPlay),
-      data: (handler) => StreamBuilder(
-        stream: handler.playbackState,
-        initialData: handler.playbackState.value,
-        builder: (context, snapshot) {
-          final isCurrentChapter =
-              handler.currentBookId == bookId &&
-              handler.currentChapterId == chapterId;
-          final playing = isCurrentChapter && (snapshot.data?.playing ?? false);
-          return _button(
-            context,
-            playing: playing,
-            onPressed: () {
-              if (isCurrentChapter) {
-                unawaited(playing ? handler.pause() : handler.play());
-              } else {
-                onPlay();
-              }
-            },
-          );
-        },
       ),
     );
   }

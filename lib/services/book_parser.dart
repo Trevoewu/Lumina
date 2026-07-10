@@ -46,6 +46,29 @@ class BookParser {
     ).map((section) => section.paragraphs).toList(growable: false);
   }
 
+  /// 按 EPUB spine 顺序组装章节，供回归测试验证跨文件续页。
+  @visibleForTesting
+  static List<({String title, List<String> paragraphs})>
+  epubSpineSectionsForTest(
+    List<({String href, String? navigationTitle, String html})> documents,
+  ) {
+    return _assembleEpubSpineDocuments(
+          documents
+              .map(
+                (document) => _EpubSpineDocument(
+                  href: document.href,
+                  navigationTitle: document.navigationTitle,
+                  html: document.html,
+                ),
+              )
+              .toList(growable: false),
+        )
+        .map(
+          (section) => (title: section.title, paragraphs: section.paragraphs),
+        )
+        .toList(growable: false);
+  }
+
   @visibleForTesting
   static bool shouldSkipEpubChapterForTest(
     String title,
@@ -124,71 +147,20 @@ class BookParser {
 
     final chapters = <Chapter>[];
     final paragraphs = <Paragraph>[];
-    final flat = <EpubChapter>[];
-    void collect(EpubChapter ch) {
-      flat.add(ch);
-      for (final sub in ch.subChapters) {
-        collect(sub);
-      }
-    }
-
-    for (final ch in epub.chapters) {
-      collect(ch);
-    }
-
+    final sections = _epubSectionsInReadingOrder(epub);
     int chIdx = 0;
-    int spineIdx = 0;
     int textOffset = 0;
-    for (final item in flat) {
-      final html = item.htmlContent ?? '';
-      final splitSections = _splitEpubHtmlIntoChapterSections(html);
-      if (splitSections.isNotEmpty) {
-        for (final section in splitSections) {
-          final chId = '${bookId}_ch_$chIdx';
-          final paras = _paragraphsFromPlainTexts(
-            section.paragraphs,
-            chId,
-            bookId,
-          );
-          if (paras.isEmpty) continue;
-          if (_shouldSkipEpubChapter(
-            title: section.title,
-            contentFileName: item.contentFileName,
-            paragraphTexts: section.paragraphs,
-          )) {
-            continue;
-          }
-          chapters.add(
-            Chapter(
-              id: chId,
-              bookId: bookId,
-              index: chIdx,
-              title: section.title,
-              textOffset: textOffset,
-            ),
-          );
-          paragraphs.addAll(paras);
-          textOffset += paras.length;
-          chIdx++;
-        }
-        spineIdx++;
-        continue;
-      }
-
+    for (final section in sections) {
       final chId = '${bookId}_ch_$chIdx';
-      final chTitle =
-          item.title ?? item.contentFileName ?? '第 ${spineIdx + 1} 章';
-      final paras = _htmlToParagraphs(html, chId, bookId);
+      final paras = _paragraphsFromPlainTexts(section.paragraphs, chId, bookId);
       if (paras.isEmpty) {
-        spineIdx++;
         continue;
       }
       if (_shouldSkipEpubChapter(
-        title: chTitle,
-        contentFileName: item.contentFileName,
-        paragraphTexts: paras.map((p) => p.text).toList(growable: false),
+        title: section.title,
+        contentFileName: section.sourceFileName,
+        paragraphTexts: section.paragraphs,
       )) {
-        spineIdx++;
         continue;
       }
       chapters.add(
@@ -196,14 +168,13 @@ class BookParser {
           id: chId,
           bookId: bookId,
           index: chIdx,
-          title: chTitle,
+          title: section.title,
           textOffset: textOffset,
         ),
       );
       paragraphs.addAll(paras);
       textOffset += paras.length;
       chIdx++;
-      spineIdx++;
     }
 
     final book = Book(
@@ -255,15 +226,382 @@ class BookParser {
     return coverPath;
   }
 
-  static List<Paragraph> _htmlToParagraphs(
-    String html,
-    String chapterId,
-    String bookId,
-  ) {
-    final body = _stripNonContentHtml(html);
-    final lines = _extractHtmlBlocks(body);
+  /// EPUB 的目录树用于提供标题，但它不一定等于阅读顺序。
+  ///
+  /// 一些出版社会把 Part 的图片页、正文续页（如 `*-sup.xhtml`）和
+  /// 章节正文拆成多个 spine 文件，而目录只指向图片页和章节首页。
+  /// 这里以 OPF spine 为准，避免把目录树 preorder 当作正文顺序。
+  static List<_EpubChapterSection> _epubSectionsInReadingOrder(EpubBook epub) {
+    final spineDocuments = _epubSpineDocuments(epub);
+    if (spineDocuments.isNotEmpty) {
+      return _assembleEpubSpineDocuments(spineDocuments);
+    }
+    return _legacyEpubSectionsFromNavigation(epub);
+  }
 
-    return _paragraphsFromPlainTexts(lines, chapterId, bookId);
+  static List<_EpubSpineDocument> _epubSpineDocuments(EpubBook epub) {
+    final content = epub.content;
+    final package = epub.schema?.package;
+    final manifest = package?.manifest;
+    final spine = package?.spine;
+    if (content == null || manifest == null || spine == null) {
+      return const <_EpubSpineDocument>[];
+    }
+
+    final htmlByPath = <String, String>{};
+    for (final entry in content.html.entries) {
+      final html = entry.value.content;
+      if (html == null) continue;
+      htmlByPath[_normalizeEpubContentPath(entry.key)] = html;
+    }
+
+    final manifestById = <String, EpubManifestItem>{
+      for (final item in manifest.items)
+        if (item.id != null && item.id!.isNotEmpty) item.id!: item,
+    };
+    final navigationTitles = _epubNavigationTitlesByContentPath(
+      epub.schema?.navigation,
+    );
+
+    final documents = <_EpubSpineDocument>[];
+    for (final spineItem in spine.items) {
+      final manifestItem = manifestById[spineItem.idRef];
+      final href = manifestItem?.href;
+      if (href == null || href.isEmpty) continue;
+
+      final normalizedPath = _normalizeEpubContentPath(href);
+      final html = content.html[href]?.content ?? htmlByPath[normalizedPath];
+      if (html == null) continue;
+
+      documents.add(
+        _EpubSpineDocument(
+          href: href,
+          html: html,
+          navigationTitle: navigationTitles[normalizedPath],
+          manifestProperties: manifestItem?.properties,
+        ),
+      );
+    }
+    return documents;
+  }
+
+  static Map<String, String> _epubNavigationTitlesByContentPath(
+    EpubNavigation? navigation,
+  ) {
+    final titles = <String, String>{};
+
+    void collect(EpubNavigationPoint point) {
+      final source = point.content?.source;
+      final title = point.navigationLabels
+          .map((label) => label.text?.trim())
+          .whereType<String>()
+          .firstWhere((label) => label.isNotEmpty, orElse: () => '');
+      final contentPath = _epubNavigationContentPath(source);
+      if (contentPath != null && title.isNotEmpty) {
+        titles.putIfAbsent(contentPath, () => title);
+      }
+      for (final child in point.childNavigationPoints) {
+        collect(child);
+      }
+    }
+
+    for (final point
+        in navigation?.navMap?.points ?? const <EpubNavigationPoint>[]) {
+      collect(point);
+    }
+    return titles;
+  }
+
+  static String? _epubNavigationContentPath(String? source) {
+    if (source == null || source.isEmpty) return null;
+    final anchorIndex = source.indexOf('#');
+    final path = anchorIndex == -1 ? source : source.substring(0, anchorIndex);
+    if (path.isEmpty) return null;
+    return _normalizeEpubContentPath(path);
+  }
+
+  static String _normalizeEpubContentPath(String value) {
+    var path = value.replaceAll('\\', '/');
+    try {
+      path = Uri.decodeFull(path);
+    } catch (_) {
+      // 保留原路径，后续仍可用精确键查找。
+    }
+
+    final parts = <String>[];
+    for (final part in path.split('/')) {
+      if (part.isEmpty || part == '.') continue;
+      if (part == '..') {
+        if (parts.isNotEmpty) parts.removeLast();
+        continue;
+      }
+      parts.add(part);
+    }
+    return parts.join('/');
+  }
+
+  static List<_EpubChapterSection> _assembleEpubSpineDocuments(
+    List<_EpubSpineDocument> documents,
+  ) {
+    final sections = <_EpubChapterSection>[];
+    String? currentTitle;
+    String? currentSourceFileName;
+    var currentParagraphs = <String>[];
+
+    void flushCurrent() {
+      final title = currentTitle;
+      final paragraphs = _mergeContinuationParagraphs(
+        currentParagraphs,
+      ).where(_isContentParagraph).toList(growable: false);
+      if (title != null && paragraphs.isNotEmpty) {
+        sections.add(
+          _EpubChapterSection(
+            title: title,
+            paragraphs: paragraphs,
+            sourceFileName: currentSourceFileName,
+          ),
+        );
+      }
+      currentTitle = null;
+      currentSourceFileName = null;
+      currentParagraphs = <String>[];
+    }
+
+    void beginSection(String title, String sourceFileName) {
+      final normalizedTitle = title.replaceAll(RegExp(r'\s+'), ' ').trim();
+      if (normalizedTitle.isEmpty) return;
+      if (currentTitle == normalizedTitle && currentParagraphs.isEmpty) {
+        currentSourceFileName ??= sourceFileName;
+        return;
+      }
+      flushCurrent();
+      currentTitle = normalizedTitle;
+      currentSourceFileName = sourceFileName;
+    }
+
+    void appendParagraphs(Iterable<String> paragraphs) {
+      final contentParagraphs = paragraphs
+          .where(_isContentParagraph)
+          .toList(growable: false);
+      final title = currentTitle;
+      if (title == null) {
+        currentParagraphs.addAll(contentParagraphs);
+        return;
+      }
+      currentParagraphs.addAll(
+        _filterEpubNavigationParagraphs(
+          contentParagraphs,
+          childTitles: const <String?>[],
+          withinStructuralSection: _looksLikeEpubPartHeading(title),
+        ),
+      );
+    }
+
+    for (final document in documents) {
+      if (_shouldSkipEpubSourceDocument(document)) continue;
+
+      final navigationTitle = document.navigationTitle
+          ?.replaceAll(RegExp(r'\s+'), ' ')
+          .trim();
+      final hasNavigationTitle =
+          navigationTitle != null && navigationTitle.isNotEmpty;
+      final splitSections = _splitEpubHtmlIntoChapterSections(
+        document.html,
+        initialTitle: hasNavigationTitle ? navigationTitle : null,
+      );
+
+      if (hasNavigationTitle) {
+        if (splitSections.isEmpty) {
+          // 图片型 Part 页没有可提取文本，仍需保留它作为后续续页的归属。
+          beginSection(navigationTitle, document.href);
+          appendParagraphs(
+            _extractHtmlBlocks(_stripNonContentHtml(document.html)),
+          );
+          continue;
+        }
+
+        final hasMatchingSection = splitSections.any(
+          (section) => _sameEpubSectionTitle(section.title, navigationTitle),
+        );
+        if (_looksLikeEpubPartHeading(navigationTitle) && !hasMatchingSection) {
+          beginSection(navigationTitle, document.href);
+        }
+        for (final section in splitSections) {
+          final sectionTitle =
+              _sameEpubSectionTitle(section.title, navigationTitle)
+              ? navigationTitle
+              : section.title;
+          beginSection(sectionTitle, document.href);
+          appendParagraphs(section.paragraphs);
+        }
+        continue;
+      }
+
+      final rawParagraphs = _extractHtmlBlocks(
+        _stripNonContentHtml(document.html),
+      );
+      if (_isEpubContinuationDocument(document) && currentTitle != null) {
+        // `*-sup.xhtml` / “Continued” 是紧随前一个 spine 项的续页。
+        appendParagraphs(rawParagraphs);
+        continue;
+      }
+
+      if (splitSections.isNotEmpty) {
+        for (final section in splitSections) {
+          beginSection(section.title, document.href);
+          appendParagraphs(section.paragraphs);
+        }
+        continue;
+      }
+
+      if (rawParagraphs.isEmpty) continue;
+      final fallbackTitle = _epubDocumentTitle(document.html);
+      if (fallbackTitle != null &&
+          !_looksLikeEpubContinuationTitle(fallbackTitle)) {
+        beginSection(fallbackTitle, document.href);
+        appendParagraphs(rawParagraphs);
+      } else if (currentTitle != null) {
+        appendParagraphs(rawParagraphs);
+      } else {
+        beginSection('第 ${sections.length + 1} 章', document.href);
+        appendParagraphs(rawParagraphs);
+      }
+    }
+
+    flushCurrent();
+    return sections;
+  }
+
+  static List<_EpubChapterSection> _legacyEpubSectionsFromNavigation(
+    EpubBook epub,
+  ) {
+    final documents = <_EpubSpineDocument>[];
+
+    void collect(EpubChapter chapter) {
+      final href = chapter.contentFileName;
+      final html = chapter.htmlContent;
+      if (href != null && html != null) {
+        documents.add(
+          _EpubSpineDocument(
+            href: href,
+            html: html,
+            navigationTitle: chapter.title,
+          ),
+        );
+      }
+      for (final child in chapter.subChapters) {
+        collect(child);
+      }
+    }
+
+    for (final chapter in epub.chapters) {
+      collect(chapter);
+    }
+    return _assembleEpubSpineDocuments(documents);
+  }
+
+  static bool _shouldSkipEpubSourceDocument(_EpubSpineDocument document) {
+    final documentTitle =
+        document.navigationTitle ??
+        _epubDocumentTitle(document.html) ??
+        document.href;
+    if (_shouldSkipEpubChapter(
+      title: documentTitle,
+      contentFileName: document.href,
+      paragraphTexts: _extractHtmlBlocks(_stripNonContentHtml(document.html)),
+    )) {
+      return true;
+    }
+
+    final properties = document.manifestProperties?.toLowerCase().split(
+      RegExp(r'\s+'),
+    );
+    if (properties?.contains('nav') ?? false) return true;
+
+    final normalizedPath = _normalizeEpubContentPath(
+      document.href,
+    ).toLowerCase();
+    if (RegExp(
+      r'(?:^|[._-])(toc|contents|navigation|nav)(?:[._-]|$)',
+    ).hasMatch(normalizedPath)) {
+      return true;
+    }
+
+    final parsed = html_parser.parse(_stripNonContentHtml(document.html));
+    final root = parsed.body ?? parsed.documentElement;
+    if (root == null) return false;
+
+    for (final nav in root.querySelectorAll('nav')) {
+      final attributes = nav.attributes.values.join(' ').toLowerCase();
+      if (attributes.contains('toc')) return true;
+    }
+
+    final tocClassCount = root.querySelectorAll('[class], [id]').where((
+      element,
+    ) {
+      final marker = '${element.className} ${element.id}'.toLowerCase();
+      return marker.contains('toc') || marker.contains('contents');
+    }).length;
+    final links = root.querySelectorAll('a[href]').length;
+    final contentsHeading = root
+        .querySelectorAll('h1, h2, h3, h4, h5, h6')
+        .map((heading) => _normalizeEpubSectionName(heading.text))
+        .any(
+          (heading) => heading == 'contents' || heading == 'table of contents',
+        );
+    return links >= 5 && (tocClassCount > 0 || contentsHeading);
+  }
+
+  static bool _isEpubContinuationDocument(_EpubSpineDocument document) {
+    final normalizedPath = _normalizeEpubContentPath(
+      document.href,
+    ).toLowerCase();
+    if (RegExp(
+      r'(?:^|[._-])(sup|cont|continued|continuation)(?:[._-]|$)',
+    ).hasMatch(normalizedPath)) {
+      return true;
+    }
+    final title = _epubDocumentTitle(document.html);
+    return title != null && _looksLikeEpubContinuationTitle(title);
+  }
+
+  static bool _looksLikeEpubContinuationTitle(String title) {
+    return RegExp(r'^continued\b', caseSensitive: false).hasMatch(title.trim());
+  }
+
+  static String? _epubDocumentTitle(String html) {
+    final document = html_parser.parse(html);
+    final title = _decodeHtmlText(document.querySelector('title')?.text ?? '');
+    if (title.isEmpty) return null;
+
+    final marker = RegExp(
+      r'^(chapter|chapitre|cap[ií]tulo|capitulo|part|book|volume|contents|table of contents|continued)\b',
+      caseSensitive: false,
+    );
+    if (marker.hasMatch(title)) {
+      final commaIndex = title.lastIndexOf(',');
+      if (commaIndex > 0) return title.substring(0, commaIndex).trim();
+    }
+    return title;
+  }
+
+  static bool _sameEpubSectionTitle(String first, String second) {
+    final firstKey = _navigationTextKey(first);
+    final secondKey = _navigationTextKey(second);
+    if (firstKey == secondKey) return true;
+
+    final pattern = RegExp(
+      r'^(chapter|chapitre|cap[ií]tulo|capitulo|part|book|volume)\s+([ivxlcdm]+|\d+)\b',
+      caseSensitive: false,
+    );
+    final firstMatch = pattern.firstMatch(first.trim());
+    final secondMatch = pattern.firstMatch(second.trim());
+    return firstMatch != null &&
+        secondMatch != null &&
+        firstMatch.group(1)!.toLowerCase() ==
+            secondMatch.group(1)!.toLowerCase() &&
+        firstMatch.group(2)!.toLowerCase() ==
+            secondMatch.group(2)!.toLowerCase();
   }
 
   static List<Paragraph> _paragraphsFromPlainTexts(
@@ -283,13 +621,14 @@ class BookParser {
   }
 
   static List<_EpubChapterSection> _splitEpubHtmlIntoChapterSections(
-    String html,
-  ) {
+    String html, {
+    String? initialTitle,
+  }) {
     final blocks = _extractHtmlBlockEntries(_stripNonContentHtml(html));
     if (blocks.isEmpty) return const [];
 
     final sections = <_EpubChapterSection>[];
-    String? currentTitle;
+    String? currentTitle = initialTitle?.replaceAll(RegExp(r'\s+'), ' ').trim();
     var currentParagraphs = <String>[];
 
     void flushCurrent() {
@@ -312,6 +651,10 @@ class BookParser {
       }
 
       if (currentTitle == null) continue;
+      if (_looksLikeEpubPartHeading(currentTitle) &&
+          _looksLikeEpubNavigationParagraph(block.text)) {
+        continue;
+      }
       currentParagraphs.add(block.text);
     }
 
@@ -362,12 +705,14 @@ class BookParser {
 
     final marker = '${block.tagName} ${block.className} ${block.id}'
         .toLowerCase();
-    if (RegExp(r'\b(chapter|chap|heading|title|section)\b').hasMatch(marker)) {
+    if (RegExp(
+      r'\b(chapter|chap|part|book|volume|heading|title|section)\b',
+    ).hasMatch(marker)) {
       return true;
     }
 
     return RegExp(
-      r'^(chapter|chapitre|cap[ií]tulo|capitulo)\s+([ivxlcdm]+|\d+)\b\.?$',
+      r'^(chapter|chapitre|cap[ií]tulo|capitulo|part|book|volume)\s+([ivxlcdm]+|\d+)\b\.?$',
       caseSensitive: false,
     ).hasMatch(block.text.trim());
   }
@@ -377,7 +722,75 @@ class BookParser {
     if (normalized.length > 120) return false;
 
     return RegExp(
-      r'^(chapter|chapitre|cap[ií]tulo|capitulo)\s+([ivxlcdm]+|\d+)\b\.?\s*.*$',
+      r'^(chapter|chapitre|cap[ií]tulo|capitulo)\s+([ivxlcdm]+|\d+)\b\.?\s*.*$|^(part|book|volume)\s+([ivxlcdm]+|\d+)\b(?:\.?\s*$|\s*[:—–-]\s*.*$)',
+      caseSensitive: false,
+    ).hasMatch(normalized);
+  }
+
+  static bool _looksLikeEpubPartHeading(String text) {
+    final normalized = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return RegExp(
+      r'^(part|book|volume)\s+([ivxlcdm]+|\d+)\b(?:\.?\s*$|\s*[:—–-]\s*.*$)',
+      caseSensitive: false,
+    ).hasMatch(normalized);
+  }
+
+  static List<String> _filterEpubNavigationParagraphs(
+    List<String> paragraphs, {
+    required Iterable<String?> childTitles,
+    required bool withinStructuralSection,
+  }) {
+    final childTitleKeys = childTitles
+        .whereType<String>()
+        .map(_navigationTextKey)
+        .where((key) => key.isNotEmpty)
+        .toList(growable: false);
+    return paragraphs
+        .where((text) {
+          if (_matchesChildNavigationText(text, childTitleKeys)) return false;
+          if (withinStructuralSection &&
+              _looksLikeEpubNavigationParagraph(text)) {
+            return false;
+          }
+          return true;
+        })
+        .toList(growable: false);
+  }
+
+  static bool _matchesChildNavigationText(
+    String text,
+    List<String> childTitleKeys,
+  ) {
+    if (childTitleKeys.isEmpty) return false;
+    final key = _navigationTextKey(text);
+    if (key.isEmpty) return false;
+    var matches = 0;
+    for (final childKey in childTitleKeys) {
+      if (key == childKey) return true;
+      if (key.contains(childKey)) matches++;
+      if (matches >= 2) return true;
+    }
+    return false;
+  }
+
+  static String _navigationTextKey(String text) {
+    return _decodeHtmlText(
+      text,
+    ).toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '');
+  }
+
+  static bool _looksLikeEpubNavigationParagraph(String text) {
+    final normalized = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (normalized.isEmpty) return false;
+
+    final chapterRefs = RegExp(
+      r'(chapter|chapitre|cap[ií]tulo|capitulo)\s+([ivxlcdm]+|\d+)\b',
+      caseSensitive: false,
+    ).allMatches(normalized).length;
+    if (chapterRefs >= 2) return true;
+
+    return RegExp(
+      r'^(chapter|chapitre|cap[ií]tulo|capitulo)\s+([ivxlcdm]+|\d+)\b(?:\.?\s*$|\s*[:—–-]\s*.+$)',
       caseSensitive: false,
     ).hasMatch(normalized);
   }
@@ -597,6 +1010,8 @@ class BookParser {
       'about author',
       'praise',
       'newsletter',
+      'discover your next great read',
+      'what s next on your reading list',
     };
     if (matchesAny(alwaysSkip)) return true;
 
@@ -807,8 +1222,27 @@ class BookParser {
 class _EpubChapterSection {
   final String title;
   final List<String> paragraphs;
+  final String? sourceFileName;
 
-  const _EpubChapterSection({required this.title, required this.paragraphs});
+  const _EpubChapterSection({
+    required this.title,
+    required this.paragraphs,
+    this.sourceFileName,
+  });
+}
+
+class _EpubSpineDocument {
+  final String href;
+  final String html;
+  final String? navigationTitle;
+  final String? manifestProperties;
+
+  const _EpubSpineDocument({
+    required this.href,
+    required this.html,
+    this.navigationTitle,
+    this.manifestProperties,
+  });
 }
 
 class _HtmlBlockEntry {
