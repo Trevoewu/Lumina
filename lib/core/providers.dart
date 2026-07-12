@@ -55,7 +55,10 @@ final manifestStoreProvider = Provider<ManifestStore>((ref) => ManifestStore());
 
 /// 缓存管理。
 final cacheManagerProvider = Provider<CacheManager>((ref) {
-  return CacheManager(ref.watch(manifestStoreProvider));
+  return CacheManager(
+    ref.watch(manifestStoreProvider),
+    ref.watch(generationOrchestratorProvider),
+  );
 });
 
 /// 增量生成调度器。

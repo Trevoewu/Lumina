@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../domain/models/chapter_manifest.dart';
 import 'manifest_store.dart';
+import 'generation_orchestrator.dart';
 
 /// 缓存统计。
 class CacheUsage {
@@ -24,8 +25,9 @@ class CacheUsage {
 /// 本地 TTS 音频缓存管理。
 class CacheManager {
   final ManifestStore manifestStore;
+  final GenerationOrchestrator generationOrchestrator;
 
-  CacheManager(this.manifestStore);
+  CacheManager(this.manifestStore, this.generationOrchestrator);
 
   Future<CacheUsage> usageForBook(String bookId) async {
     return CacheUsage(await manifestStore.bookCacheSizeBytes(bookId));
@@ -49,17 +51,30 @@ class CacheManager {
   }
 
   /// 清理整本书音频。
-  Future<void> clearBook(String bookId) => manifestStore.deleteBook(bookId);
+  Future<void> clearBook(String bookId) => generationOrchestrator
+      .runBookExclusive(bookId, () => manifestStore.deleteBook(bookId));
+
+  /// 清缓存后继续执行重解析或删书，整个过程保持生成封锁。
+  Future<T> clearBookAndRun<T>(String bookId, Future<T> Function() action) =>
+      generationOrchestrator.runBookExclusive(bookId, () async {
+        await manifestStore.deleteBook(bookId);
+        return action();
+      });
 
   /// 清理某章音频。
   Future<void> clearChapter(String bookId, String chapterId) =>
-      manifestStore.deleteChapter(bookId, chapterId);
+      generationOrchestrator.runBookExclusive(
+        bookId,
+        () => manifestStore.deleteChapter(bookId, chapterId),
+      );
 
   /// 清理全部生成音频。
   Future<void> clearAll() async {
     final dir = await getApplicationDocumentsDirectory();
     final audioRoot = Directory(p.join(dir.path, 'audio'));
-    await _deleteDirectoryContents(audioRoot, removeRoot: true);
+    await generationOrchestrator.runAllExclusive(
+      () => _deleteDirectoryContents(audioRoot, removeRoot: true),
+    );
   }
 
   /// 清理某书中除最近 N 章以外的音频。

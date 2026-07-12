@@ -266,8 +266,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         paragraphTexts: parsed.paragraphs.map((paragraph) => paragraph.text),
       );
 
-      await db.upsertBook(
-        drift_db.Book(
+      await db.replaceBookData(
+        book: drift_db.Book(
           id: parsed.book.id,
           title: parsed.book.title,
           author: parsed.book.author,
@@ -289,10 +289,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           readingLevelCode: readingLevel?.code,
           readingLevelSource: readingLevel?.source,
         ),
-      );
-
-      await db.insertChapters(
-        parsed.chapters
+        chapterEntries: parsed.chapters
             .map(
               (c) => drift_db.Chapter(
                 id: c.id,
@@ -304,10 +301,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               ),
             )
             .toList(),
-      );
-
-      await db.insertParagraphs(
-        parsed.paragraphs
+        paragraphEntries: parsed.paragraphs
             .map(
               (p) => drift_db.Paragraph(
                 id: p.id,
@@ -369,9 +363,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     try {
       final handler = await ref.read(luminaAudioHandlerProvider.future);
       await handler.unloadIfBook(book.id);
-      await ref.read(cacheManagerProvider).clearBook(book.id);
-      await _deleteImportedBookFiles(book);
-      await ref.read(appDatabaseProvider).deleteBookCascade(book.id);
+      await ref.read(cacheManagerProvider).clearBookAndRun(book.id, () async {
+        await _deleteImportedBookFiles(book);
+        await ref.read(appDatabaseProvider).deleteBookCascade(book.id);
+      });
       if (!mounted) return;
       setState(() => _reloadToken++);
       messenger.showSnackBar(SnackBar(content: Text('已删除《${book.title}》')));
@@ -710,86 +705,87 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       );
       final handler = await ref.read(luminaAudioHandlerProvider.future);
       await handler.unloadIfBook(book.id);
-      await ref.read(cacheManagerProvider).clearBook(book.id);
-
-      final appDir = await getApplicationDocumentsDirectory();
-      final parsed = await BookParser.reparseExisting(
-        sourcePath: book.sourcePath,
-        bookId: book.id,
-        appDir: appDir.path,
-      );
-      final language =
-          book.language ?? inferLanguageFromTitle(parsed.book.title);
-      final estimatedReadingLevel =
-          book.readingLevelSource == userReadingLevelSource
-          ? null
-          : await _estimateReadingLevel(
-              language: language,
-              paragraphTexts: parsed.paragraphs.map(
-                (paragraph) => paragraph.text,
+      late ParsedBook parsed;
+      await ref.read(cacheManagerProvider).clearBookAndRun(book.id, () async {
+        final appDir = await getApplicationDocumentsDirectory();
+        parsed = await BookParser.reparseExisting(
+          sourcePath: book.sourcePath,
+          bookId: book.id,
+          appDir: appDir.path,
+        );
+        final language =
+            book.language ?? inferLanguageFromTitle(parsed.book.title);
+        final estimatedReadingLevel =
+            book.readingLevelSource == userReadingLevelSource
+            ? null
+            : await _estimateReadingLevel(
+                language: language,
+                paragraphTexts: parsed.paragraphs.map(
+                  (paragraph) => paragraph.text,
+                ),
+              );
+        await ref
+            .read(appDatabaseProvider)
+            .replaceBookData(
+              book: drift_db.Book(
+                id: parsed.book.id,
+                title: parsed.book.title,
+                author: parsed.book.author,
+                language: language,
+                format: parsed.book.format.name,
+                sourcePath: parsed.book.sourcePath,
+                coverPath: parsed.book.coverPath,
+                chapterCount: parsed.book.chapterCount,
+                paragraphCount: parsed.book.paragraphCount,
+                currentChapterId: parsed.book.currentChapterId,
+                currentParagraphIndex: parsed.book.currentParagraphIndex,
+                playbackOffsetMs: parsed.book.playbackOffsetMs,
+                voiceId: book.voiceId,
+                importedAt: book.importedAt,
+                lastReadAt: DateTime.now().millisecondsSinceEpoch,
+                kind: book.kind,
+                externalSource: book.externalSource,
+                externalId: book.externalId,
+                rightsStatus: book.rightsStatus,
+                externalMetadataJson: book.externalMetadataJson,
+                readingLevelSystem:
+                    book.readingLevelSource == userReadingLevelSource
+                    ? book.readingLevelSystem
+                    : estimatedReadingLevel?.system,
+                readingLevelCode:
+                    book.readingLevelSource == userReadingLevelSource
+                    ? book.readingLevelCode
+                    : estimatedReadingLevel?.code,
+                readingLevelSource:
+                    book.readingLevelSource == userReadingLevelSource
+                    ? book.readingLevelSource
+                    : estimatedReadingLevel?.source,
               ),
+              chapterEntries: parsed.chapters
+                  .map(
+                    (c) => drift_db.Chapter(
+                      id: c.id,
+                      bookId: c.bookId,
+                      chapterIndex: c.index,
+                      title: c.title,
+                      textOffset: c.textOffset,
+                      isHidden: false,
+                    ),
+                  )
+                  .toList(),
+              paragraphEntries: parsed.paragraphs
+                  .map(
+                    (p) => drift_db.Paragraph(
+                      id: p.id,
+                      chapterId: p.chapterId,
+                      bookId: p.bookId,
+                      paragraphIndex: p.index,
+                      content: p.text,
+                    ),
+                  )
+                  .toList(),
             );
-      await ref
-          .read(appDatabaseProvider)
-          .replaceBookData(
-            book: drift_db.Book(
-              id: parsed.book.id,
-              title: parsed.book.title,
-              author: parsed.book.author,
-              language: language,
-              format: parsed.book.format.name,
-              sourcePath: parsed.book.sourcePath,
-              coverPath: parsed.book.coverPath,
-              chapterCount: parsed.book.chapterCount,
-              paragraphCount: parsed.book.paragraphCount,
-              currentChapterId: parsed.book.currentChapterId,
-              currentParagraphIndex: parsed.book.currentParagraphIndex,
-              playbackOffsetMs: parsed.book.playbackOffsetMs,
-              voiceId: book.voiceId,
-              importedAt: book.importedAt,
-              lastReadAt: DateTime.now().millisecondsSinceEpoch,
-              kind: book.kind,
-              externalSource: book.externalSource,
-              externalId: book.externalId,
-              rightsStatus: book.rightsStatus,
-              externalMetadataJson: book.externalMetadataJson,
-              readingLevelSystem:
-                  book.readingLevelSource == userReadingLevelSource
-                  ? book.readingLevelSystem
-                  : estimatedReadingLevel?.system,
-              readingLevelCode:
-                  book.readingLevelSource == userReadingLevelSource
-                  ? book.readingLevelCode
-                  : estimatedReadingLevel?.code,
-              readingLevelSource:
-                  book.readingLevelSource == userReadingLevelSource
-                  ? book.readingLevelSource
-                  : estimatedReadingLevel?.source,
-            ),
-            chapterEntries: parsed.chapters
-                .map(
-                  (c) => drift_db.Chapter(
-                    id: c.id,
-                    bookId: c.bookId,
-                    chapterIndex: c.index,
-                    title: c.title,
-                    textOffset: c.textOffset,
-                    isHidden: false,
-                  ),
-                )
-                .toList(),
-            paragraphEntries: parsed.paragraphs
-                .map(
-                  (p) => drift_db.Paragraph(
-                    id: p.id,
-                    chapterId: p.chapterId,
-                    bookId: p.bookId,
-                    paragraphIndex: p.index,
-                    content: p.text,
-                  ),
-                )
-                .toList(),
-          );
+      });
 
       if (!mounted) return;
       setState(() => _reloadToken++);

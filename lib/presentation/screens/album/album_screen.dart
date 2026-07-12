@@ -311,6 +311,18 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     }
   }
 
+  Future<void> _cancelChapterDownload(drift_db.Chapter chapter) async {
+    await ref
+        .read(generationOrchestratorProvider)
+        .cancelChapter(bookId: widget.book.id, chapterId: chapter.id);
+    if (!mounted) return;
+    setState(() {
+      _generatingChapterIds.remove(chapter.id);
+      _generationProgress.remove(chapter.id);
+      _pausedChapterIds.remove(chapter.id);
+    });
+  }
+
   Future<TtsVoice?> _resolveVoice(
     TtsProvider provider,
     drift_db.AppDatabase database,
@@ -664,6 +676,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                           chapterId: chapter.id,
                           onPlay: () => _playChapter(chapter, index),
                           onDownload: () => _toggleChapterDownload(chapter),
+                          onCancelDownload: () =>
+                              _cancelChapterDownload(chapter),
                           paused: _pausedChapterIds.contains(chapter.id),
                           onClearCache: () => _clearChapterCache(chapter),
                           onRegenerate: () => _regenerateChapter(chapter),
@@ -727,6 +741,7 @@ class _ChapterCard extends StatelessWidget {
   final String chapterId;
   final VoidCallback onPlay;
   final VoidCallback onDownload;
+  final VoidCallback onCancelDownload;
   final bool paused;
   final VoidCallback onClearCache;
   final VoidCallback onRegenerate;
@@ -744,6 +759,7 @@ class _ChapterCard extends StatelessWidget {
     required this.chapterId,
     required this.onPlay,
     required this.onDownload,
+    required this.onCancelDownload,
     required this.paused,
     required this.onClearCache,
     required this.onRegenerate,
@@ -844,6 +860,7 @@ class _ChapterCard extends StatelessWidget {
                       manifest: manifest,
                       progress: progress,
                       onDownload: onDownload,
+                      onCancelDownload: onCancelDownload,
                       paused: paused,
                       onClearCache: onClearCache,
                       onRegenerate: onRegenerate,
@@ -866,6 +883,7 @@ class _ChapterActions extends StatelessWidget {
   final ChapterManifest? manifest;
   final GenerationProgress? progress;
   final VoidCallback onDownload;
+  final VoidCallback onCancelDownload;
   final bool paused;
   final VoidCallback onClearCache;
   final VoidCallback onRegenerate;
@@ -876,6 +894,7 @@ class _ChapterActions extends StatelessWidget {
     required this.chapterTitle,
     required this.manifest,
     required this.onDownload,
+    required this.onCancelDownload,
     required this.paused,
     required this.onClearCache,
     required this.onRegenerate,
@@ -905,6 +924,12 @@ class _ChapterActions extends StatelessWidget {
               context,
               title: chapterTitle,
               actions: [
+                if (progress != null)
+                  HalfScreenActionSheetItem(
+                    label: '取消生成',
+                    icon: Icons.cancel_outlined,
+                    onPressed: onCancelDownload,
+                  ),
                 HalfScreenActionSheetItem(
                   label: '清除音频',
                   icon: Icons.cleaning_services_outlined,

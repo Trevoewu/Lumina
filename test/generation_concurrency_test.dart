@@ -238,6 +238,76 @@ void main() {
     expect(store.saved?.isReady, isTrue);
   });
 
+  test(
+    'exclusive book task cancels generation before cache deletion',
+    () async {
+      final temp = await Directory.systemTemp.createTemp('lumina_cancel_race_');
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      final store = _TestManifestStore(temp);
+      final provider = _ConcurrentTestProvider(concurrency: 3);
+      const voice = TtsVoice(
+        id: 'voice',
+        name: 'Test voice',
+        providerId: 'parallel_test',
+        type: VoiceType.preset,
+        providerVoiceId: 'voice',
+        createdAt: 1,
+      );
+      addTearDown(() async {
+        await database.close();
+        if (await temp.exists()) await temp.delete(recursive: true);
+      });
+
+      await _insertBookFixture(database);
+      final orchestrator = GenerationOrchestrator(
+        database: database,
+        manifestStore: store,
+      );
+      final started = Completer<void>();
+      orchestrator
+          .generateChapter(
+            bookId: 'book',
+            chapterId: 'chapter',
+            provider: provider,
+            voice: voice,
+          )
+          .listen((progress) {
+            if (progress.generating > 0 && !started.isCompleted) {
+              started.complete();
+            }
+          });
+      await started.future;
+
+      await orchestrator.runBookExclusive('book', () async {
+        await store.deleteBook('book');
+        await expectLater(
+          orchestrator
+              .generateChapter(
+                bookId: 'book',
+                chapterId: 'chapter',
+                provider: provider,
+                voice: voice,
+              )
+              .drain<void>(),
+          throwsStateError,
+        );
+      });
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+
+      expect(store.saved, isNull);
+      final bookAudio = Directory('${temp.path}/book');
+      expect(
+        await bookAudio.exists()
+            ? await bookAudio
+                  .list(recursive: true)
+                  .where((e) => e is File)
+                  .isEmpty
+            : true,
+        isTrue,
+      );
+    },
+  );
+
   test('sanitizes request-external timestamp offsets', () {
     final timings = sanitizeAudioTextTimings(const [
       AudioTextTiming(text: 'Hello', startMs: 12000, endMs: 12400),
@@ -401,6 +471,13 @@ class _TestManifestStore extends ManifestStore {
   @override
   Future<void> save(ChapterManifest manifest) async {
     saved = ChapterManifest.fromJson(manifest.toJson());
+  }
+
+  @override
+  Future<void> deleteBook(String bookId) async {
+    saved = null;
+    final directory = Directory('${root.path}/$bookId');
+    if (await directory.exists()) await directory.delete(recursive: true);
   }
 
   @override

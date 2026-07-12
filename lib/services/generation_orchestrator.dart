@@ -56,6 +56,8 @@ class GenerationOrchestrator {
   final db.AppDatabase database;
   final ManifestStore manifestStore;
   final Map<String, _ChapterGenerationJob> _activeChapterJobs = {};
+  final Set<String> _blockedBooks = {};
+  bool _allBooksBlocked = false;
 
   GenerationOrchestrator({required this.database, required this.manifestStore});
 
@@ -68,6 +70,11 @@ class GenerationOrchestrator {
     double speed = 1.0,
     int maxRetries = 3,
   }) {
+    if (_allBooksBlocked || _blockedBooks.contains(bookId)) {
+      return Stream<GenerationProgress>.error(
+        StateError('书籍正在清理、重新解析或删除，暂时不能生成音频'),
+      );
+    }
     final generationKey = '$bookId\u0000$chapterId';
     final active = _activeChapterJobs[generationKey];
     if (active != null) {
@@ -113,6 +120,62 @@ class GenerationOrchestrator {
     return true;
   }
 
+  /// 取消章节生成，并等待所有已经发出的请求停止落盘。
+  Future<bool> cancelChapter({
+    required String bookId,
+    required String chapterId,
+  }) async {
+    final job = _activeChapterJobs['$bookId\u0000$chapterId'];
+    if (job == null) return false;
+    job.cancel();
+    await job.done;
+    return true;
+  }
+
+  /// 在一本书上执行排他的破坏性操作。
+  ///
+  /// 操作期间禁止启动新生成；已有任务会被取消并完全退出，避免音频或
+  /// manifest 在清理、重解析、删书后被异步写回。
+  Future<T> runBookExclusive<T>(
+    String bookId,
+    Future<T> Function() action,
+  ) async {
+    if (_allBooksBlocked || !_blockedBooks.add(bookId)) {
+      throw StateError('书籍已有清理、重新解析或删除任务正在执行');
+    }
+    try {
+      final jobs = _activeChapterJobs.entries
+          .where((entry) => entry.key.startsWith('$bookId\u0000'))
+          .map((entry) => entry.value)
+          .toList();
+      for (final job in jobs) {
+        job.cancel();
+      }
+      await Future.wait(jobs.map((job) => job.done));
+      return await action();
+    } finally {
+      _blockedBooks.remove(bookId);
+    }
+  }
+
+  /// 在全部书籍上执行排他的缓存操作。
+  Future<T> runAllExclusive<T>(Future<T> Function() action) async {
+    if (_allBooksBlocked || _blockedBooks.isNotEmpty) {
+      throw StateError('已有清理、重新解析或删除任务正在执行');
+    }
+    _allBooksBlocked = true;
+    try {
+      final jobs = _activeChapterJobs.values.toList();
+      for (final job in jobs) {
+        job.cancel();
+      }
+      await Future.wait(jobs.map((job) => job.done));
+      return await action();
+    } finally {
+      _allBooksBlocked = false;
+    }
+  }
+
   Future<void> _runChapterGenerationJob({
     required String generationKey,
     required _ChapterGenerationJob job,
@@ -136,12 +199,15 @@ class GenerationOrchestrator {
         job.add(progress);
       }
     } catch (error, stackTrace) {
-      job.addError(error, stackTrace);
+      if (error is! _GenerationCancelled) {
+        job.addError(error, stackTrace);
+      }
     } finally {
       await job.close();
       if (identical(_activeChapterJobs[generationKey], job)) {
         _activeChapterJobs.remove(generationKey);
       }
+      job.complete();
     }
   }
 
@@ -154,6 +220,7 @@ class GenerationOrchestrator {
     required double speed,
     required int maxRetries,
   }) async* {
+    job.throwIfCancelled();
     final book = await database.getBook(bookId);
     if (book == null) {
       throw StateError('找不到书籍：$bookId');
@@ -195,6 +262,7 @@ class GenerationOrchestrator {
       updatedAt: DateTime.now().millisecondsSinceEpoch,
     );
 
+    job.throwIfCancelled();
     await manifestStore.save(manifest());
     yield _progressFromSegments(
       chapterId: chapterId,
@@ -234,74 +302,88 @@ class GenerationOrchestrator {
 
     final active = <int, Future<_SegmentGenerationResult>>{};
     var nextPending = 0;
-    while (nextPending < pendingIndexes.length || active.isNotEmpty) {
-      await job.waitIfPaused();
-      final launchedIndexes = <int>[];
-      while (active.length < concurrency &&
-          nextPending < pendingIndexes.length) {
-        final index = pendingIndexes[nextPending++];
-        final paragraph = paragraphs[index];
-        final current = segments[index];
+    try {
+      while (nextPending < pendingIndexes.length || active.isNotEmpty) {
+        await job.waitIfPaused();
+        job.throwIfCancelled();
+        final launchedIndexes = <int>[];
+        while (active.length < concurrency &&
+            nextPending < pendingIndexes.length) {
+          final index = pendingIndexes[nextPending++];
+          final paragraph = paragraphs[index];
+          final current = segments[index];
 
-        segments[index] = current.copyWith(
-          state: ParagraphAudioState.generating,
-          error: null,
-        );
-        active[index] = _generateParagraph(
-          index: index,
-          bookId: bookId,
-          chapterId: chapterId,
-          paragraph: paragraph,
-          current: current,
-          provider: provider,
-          voice: voice,
-          speed: speed,
-          maxRetries: maxRetries,
-          fadeInEnabled: fadeInEnabled,
-        );
-        launchedIndexes.add(index);
-      }
+          segments[index] = current.copyWith(
+            state: ParagraphAudioState.generating,
+            error: null,
+          );
+          active[index] = _generateParagraph(
+            job: job,
+            index: index,
+            bookId: bookId,
+            chapterId: chapterId,
+            paragraph: paragraph,
+            current: current,
+            provider: provider,
+            voice: voice,
+            speed: speed,
+            maxRetries: maxRetries,
+            fadeInEnabled: fadeInEnabled,
+          );
+          launchedIndexes.add(index);
+        }
 
-      if (launchedIndexes.isNotEmpty) {
-        final first = launchedIndexes.first;
+        if (launchedIndexes.isNotEmpty) {
+          final first = launchedIndexes.first;
+          job.throwIfCancelled();
+          await manifestStore.save(manifest());
+          yield _progressFromSegments(
+            chapterId: chapterId,
+            providerId: provider.id,
+            voiceId: voice.id,
+            segments: segments,
+            currentParagraphId: paragraphs[first].id,
+            currentParagraphIndex: first,
+          );
+        }
+
+        if (active.isEmpty) continue;
+        final completed = await Future.any(active.values);
+        active.remove(completed.index);
+        job.throwIfCancelled();
+        segments[completed.index] = completed.segment;
+
+        if (completed.billedCharacters > 0) {
+          await database.recordCost(
+            db.CostRecordsCompanion.insert(
+              bookId: bookId,
+              chapterId: chapterId,
+              providerId: provider.id,
+              characters: completed.billedCharacters,
+              createdAt: DateTime.now().millisecondsSinceEpoch,
+            ),
+          );
+        }
+
         await manifestStore.save(manifest());
         yield _progressFromSegments(
           chapterId: chapterId,
           providerId: provider.id,
           voiceId: voice.id,
           segments: segments,
-          currentParagraphId: paragraphs[first].id,
-          currentParagraphIndex: first,
+          currentParagraphId: paragraphs[completed.index].id,
+          currentParagraphIndex: completed.index,
+          error: completed.segment.error,
         );
       }
-
-      if (active.isEmpty) continue;
-      final completed = await Future.any(active.values);
-      active.remove(completed.index);
-      segments[completed.index] = completed.segment;
-
-      if (completed.billedCharacters > 0) {
-        await database.recordCost(
-          db.CostRecordsCompanion.insert(
-            bookId: bookId,
-            chapterId: chapterId,
-            providerId: provider.id,
-            characters: completed.billedCharacters,
-            createdAt: DateTime.now().millisecondsSinceEpoch,
-          ),
-        );
-      }
-
-      await manifestStore.save(manifest());
-      yield _progressFromSegments(
-        chapterId: chapterId,
-        providerId: provider.id,
-        voiceId: voice.id,
-        segments: segments,
-        currentParagraphId: paragraphs[completed.index].id,
-        currentParagraphIndex: completed.index,
-        error: completed.segment.error,
-      );
+    } finally {
+      // Future.any only waits for the first request. A cancelled job must not be
+      // considered finished until every in-flight provider call has returned
+      // and discarded its result.
+      await Future.wait(
+        active.values,
+        eagerError: false,
+      ).catchError((_) => <_SegmentGenerationResult>[]);
     }
     AppLogger.info(
       'Generation',
@@ -312,6 +394,7 @@ class GenerationOrchestrator {
   }
 
   Future<_SegmentGenerationResult> _generateParagraph({
+    required _ChapterGenerationJob job,
     required int index,
     required String bookId,
     required String chapterId,
@@ -325,12 +408,14 @@ class GenerationOrchestrator {
   }) async {
     try {
       final chunks = await _synthesizePossiblySplit(
+        job: job,
         provider: provider,
         voice: voice,
         text: paragraph.content,
         speed: speed,
         maxRetries: maxRetries,
       );
+      job.throwIfCancelled();
       if (chunks.isEmpty) throw StateError('TTS 未返回音频');
 
       final format = chunks.first.format;
@@ -364,6 +449,11 @@ class GenerationOrchestrator {
         format: format,
       );
       await _writeFileAtomically(File(absPath), bytes);
+      if (job.isCancelled) {
+        final file = File(absPath);
+        if (await file.exists()) await file.delete();
+        throw const _GenerationCancelled();
+      }
 
       final safeTimings = sanitizeAudioTextTimings(
         timings,
@@ -384,6 +474,8 @@ class GenerationOrchestrator {
           timings: safeTimings,
         ),
       );
+    } on _GenerationCancelled {
+      rethrow;
     } catch (error, stackTrace) {
       AppLogger.error(
         'Generation',
@@ -625,6 +717,7 @@ class GenerationOrchestrator {
   }
 
   Future<List<TtsChunk>> _synthesizePossiblySplit({
+    required _ChapterGenerationJob job,
     required TtsProvider provider,
     required TtsVoice voice,
     required String text,
@@ -634,12 +727,14 @@ class GenerationOrchestrator {
     final pieces = splitTextForTts(text, provider.capabilities.maxCharsPerCall);
     final chunks = <TtsChunk>[];
     for (final piece in pieces) {
+      job.throwIfCancelled();
       chunks.add(
         await _retry(
           () => provider.synthesize(text: piece, voice: voice, speed: speed),
           maxRetries,
         ),
       );
+      job.throwIfCancelled();
     }
     return chunks;
   }
@@ -673,6 +768,11 @@ class _ChapterGenerationJob {
       StreamController<GenerationProgress>.broadcast();
   GenerationProgress? _latest;
   Completer<void>? _resumeCompleter;
+  final Completer<void> _done = Completer<void>();
+  bool _cancelled = false;
+
+  Future<void> get done => _done.future;
+  bool get isCancelled => _cancelled;
 
   Stream<GenerationProgress> get stream =>
       Stream<GenerationProgress>.multi((listener) {
@@ -701,10 +801,26 @@ class _ChapterGenerationJob {
     if (completer != null && !completer.isCompleted) completer.complete();
   }
 
+  void cancel() {
+    _cancelled = true;
+    resume();
+  }
+
+  void throwIfCancelled() {
+    if (_cancelled) throw const _GenerationCancelled();
+  }
+
+  void complete() {
+    if (!_done.isCompleted) _done.complete();
+  }
+
   Future<void> waitIfPaused() async {
     while (true) {
       final completer = _resumeCompleter;
-      if (completer == null) return;
+      if (completer == null) {
+        throwIfCancelled();
+        return;
+      }
       await completer.future;
     }
   }
@@ -714,6 +830,10 @@ class _ChapterGenerationJob {
   }
 
   Future<void> close() => _controller.close();
+}
+
+class _GenerationCancelled implements Exception {
+  const _GenerationCancelled();
 }
 
 Future<void> _writeFileAtomically(File destination, List<int> bytes) async {
