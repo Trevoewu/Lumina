@@ -34,11 +34,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   Future<_OnlineSearchData>? _onlineFuture;
   _SearchScope _scope = _SearchScope.online;
   int _onlinePage = 1;
+  bool _localSearching = false;
+  bool _onlineSearching = false;
 
   @override
   void initState() {
     super.initState();
-    _future = _load('');
+    _future = _startLocalSearch('');
+    _onlineSearching = true;
+    _onlineFuture = _startOnlineSearch();
   }
 
   @override
@@ -55,12 +59,34 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       setState(() {
         if (_scope == _SearchScope.online) {
           _onlinePage = 1;
-          _onlineFuture = _loadOnline();
+          _onlineSearching = true;
+          _onlineFuture = _startOnlineSearch();
         } else {
-          _future = _load(value.trim());
+          _localSearching = true;
+          _future = _startLocalSearch(value.trim());
         }
       });
     });
+  }
+
+  Future<_OnlineSearchData> _startOnlineSearch() {
+    late final Future<_OnlineSearchData> future;
+    future = _loadOnline();
+    future.whenComplete(() {
+      if (!mounted || !identical(_onlineFuture, future)) return;
+      setState(() => _onlineSearching = false);
+    });
+    return future;
+  }
+
+  Future<_SearchData> _startLocalSearch(String query) {
+    late final Future<_SearchData> future;
+    future = _load(query);
+    future.whenComplete(() {
+      if (!mounted || !identical(_future, future)) return;
+      setState(() => _localSearching = false);
+    });
+    return future;
   }
 
   Future<_OnlineSearchData> _loadOnline() async {
@@ -127,9 +153,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    _onlineFuture ??= _loadOnline();
     final design = context.appDesign;
     final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
+    final searching = _scope == _SearchScope.online
+        ? _onlineSearching
+        : _localSearching;
 
     return CollapsingPageScaffold(
       title: context.tr('搜索', 'Search'),
@@ -138,6 +166,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           Padding(
             padding: EdgeInsets.fromLTRB(inset, 8, inset, 10),
             child: TextField(
+              key: const ValueKey('library-search-field'),
               controller: _controller,
               onChanged: _onQueryChanged,
               autofocus: false,
@@ -155,7 +184,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                       ),
                 hintStyle: TextStyle(color: context.appTextSecondary),
                 prefixIcon: Icon(Icons.search, color: context.appTextSecondary),
-                suffixIcon: _controller.text.isEmpty
+                suffixIcon: searching
+                    ? const Padding(
+                        padding: EdgeInsets.all(14),
+                        child: SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    : _controller.text.isEmpty
                     ? null
                     : IconButton(
                         tooltip: context.tr('清空', 'Clear'),
@@ -195,9 +232,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     _scope = selected;
                     if (_scope == _SearchScope.online) {
                       _onlinePage = 1;
-                      _onlineFuture = _loadOnline();
+                      _onlineSearching = true;
+                      _onlineFuture = _startOnlineSearch();
                     } else {
-                      _future = _load(_controller.text.trim());
+                      _localSearching = true;
+                      _future = _startLocalSearch(_controller.text.trim());
                     }
                   });
                 },
@@ -215,12 +254,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   void _runSearch() {
+    _debounce?.cancel();
     setState(() {
       if (_scope == _SearchScope.online) {
         _onlinePage = 1;
-        _onlineFuture = _loadOnline();
+        _onlineSearching = true;
+        _onlineFuture = _startOnlineSearch();
       } else {
-        _future = _load(_controller.text.trim());
+        _localSearching = true;
+        _future = _startLocalSearch(_controller.text.trim());
       }
     });
   }
@@ -235,7 +277,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           return const Center(child: CircularProgressIndicator());
         }
         if (data == null) return const SizedBox.shrink();
-        return _buildResults(data);
+        return _withSearchProgress(
+          visible: _localSearching,
+          child: _buildResults(data),
+        );
       },
     );
   }
@@ -256,8 +301,30 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           );
         }
         if (data == null) return const SizedBox.shrink();
-        return _buildOnlineResults(data, inset);
+        return _withSearchProgress(
+          visible: _onlineSearching,
+          child: _buildOnlineResults(data, inset),
+        );
       },
+    );
+  }
+
+  Widget _withSearchProgress({required bool visible, required Widget child}) {
+    return Stack(
+      children: [
+        child,
+        Positioned(
+          left: 0,
+          top: 0,
+          right: 0,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 120),
+            child: visible
+                ? const LinearProgressIndicator(minHeight: 2)
+                : const SizedBox.shrink(),
+          ),
+        ),
+      ],
     );
   }
 
@@ -284,7 +351,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   ? null
                   : () => setState(() {
                       _onlinePage++;
-                      _onlineFuture = _loadOnline();
+                      _onlineSearching = true;
+                      _onlineFuture = _startOnlineSearch();
                     }),
             ),
           );
@@ -325,7 +393,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               ),
             );
             if (!mounted) return;
-            setState(() => _onlineFuture = _loadOnline());
+            setState(() {
+              _onlineSearching = true;
+              _onlineFuture = _startOnlineSearch();
+            });
           },
         );
       },

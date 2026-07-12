@@ -22,6 +22,7 @@ class AppDesignTokens extends ThemeExtension<AppDesignTokens> {
   final double controlHeight;
   final double toolbarHeight;
   final String? readingFontFamily;
+  final List<String>? readingFontFamilyFallback;
 
   const AppDesignTokens({
     this.spaceXs = 4,
@@ -40,6 +41,7 @@ class AppDesignTokens extends ThemeExtension<AppDesignTokens> {
     this.controlHeight = 52,
     this.toolbarHeight = 56,
     this.readingFontFamily,
+    this.readingFontFamilyFallback,
   });
 
   double pageInsetFor(double width) =>
@@ -63,6 +65,7 @@ class AppDesignTokens extends ThemeExtension<AppDesignTokens> {
     double? controlHeight,
     double? toolbarHeight,
     String? readingFontFamily,
+    List<String>? readingFontFamilyFallback,
     bool clearReadingFontFamily = false,
   }) {
     return AppDesignTokens(
@@ -84,6 +87,9 @@ class AppDesignTokens extends ThemeExtension<AppDesignTokens> {
       readingFontFamily: clearReadingFontFamily
           ? null
           : readingFontFamily ?? this.readingFontFamily,
+      readingFontFamilyFallback: clearReadingFontFamily
+          ? null
+          : readingFontFamilyFallback ?? this.readingFontFamilyFallback,
     );
   }
 
@@ -114,6 +120,9 @@ class AppDesignTokens extends ThemeExtension<AppDesignTokens> {
       controlHeight: _lerp(controlHeight, other.controlHeight, t),
       toolbarHeight: _lerp(toolbarHeight, other.toolbarHeight, t),
       readingFontFamily: t < 0.5 ? readingFontFamily : other.readingFontFamily,
+      readingFontFamilyFallback: t < 0.5
+          ? readingFontFamilyFallback
+          : other.readingFontFamilyFallback,
     );
   }
 
@@ -124,6 +133,8 @@ extension AppDesignContext on BuildContext {
   AppDesignTokens get appDesign =>
       Theme.of(this).extension<AppDesignTokens>() ?? const AppDesignTokens();
 
-  TextStyle readingStyle(TextStyle base) =>
-      base.copyWith(fontFamily: appDesign.readingFontFamily);
+  TextStyle readingStyle(TextStyle base) => base.copyWith(
+    fontFamily: appDesign.readingFontFamily,
+    fontFamilyFallback: appDesign.readingFontFamilyFallback,
+  );
 }

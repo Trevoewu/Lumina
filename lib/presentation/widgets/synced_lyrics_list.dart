@@ -729,17 +729,12 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
 
   @override
   Widget build(BuildContext context) {
-    final fontFamily = Theme.of(context).textTheme.bodyMedium?.fontFamily;
     final wordSelectionActive = _wordSelectionLineId != null;
     final lines = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         for (final line in _lines)
-          _buildLineSlot(
-            line,
-            fontFamily,
-            wordSelectionActive: wordSelectionActive,
-          ),
+          _buildLineSlot(line, wordSelectionActive: wordSelectionActive),
       ],
     );
     final content = wordSelectionActive
@@ -780,8 +775,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
   }
 
   Widget _buildLineSlot(
-    SyncedLyricLine line,
-    String? fontFamily, {
+    SyncedLyricLine line, {
     required bool wordSelectionActive,
   }) {
     final selectingThisLine = line.id == _wordSelectionLineId;
@@ -807,25 +801,17 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
         child: selectingThisLine
             ? KeyedSubtree(
                 key: ValueKey('word-selection-${line.id}'),
-                child: _buildWordSelectionLine(line, fontFamily),
+                child: _buildWordSelectionLine(line),
               )
             : KeyedSubtree(
                 key: ValueKey('lyric-line-${line.id}'),
-                child: _buildLyricLine(
-                  line,
-                  fontFamily,
-                  enabled: !wordSelectionActive,
-                ),
+                child: _buildLyricLine(line, enabled: !wordSelectionActive),
               ),
       ),
     );
   }
 
-  Widget _buildLyricLine(
-    SyncedLyricLine line,
-    String? fontFamily, {
-    required bool enabled,
-  }) {
+  Widget _buildLyricLine(SyncedLyricLine line, {required bool enabled}) {
     final highlighted = line.id == _activeLineId;
     final pressed = line.id == _pressedLineId;
     return Listener(
@@ -864,7 +850,6 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
             child: AnimatedDefaultTextStyle(
               duration: const Duration(milliseconds: 220),
               style: _lineTextStyle(
-                fontFamily,
                 color: enabled
                     ? highlighted
                           ? AppColors.lyricsTextPrimary
@@ -881,12 +866,9 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
     );
   }
 
-  Widget _buildWordSelectionLine(SyncedLyricLine line, String? fontFamily) {
+  Widget _buildWordSelectionLine(SyncedLyricLine line) {
     final accent = Theme.of(context).colorScheme.primary;
-    final tokenStyle = _lineTextStyle(
-      fontFamily,
-      color: context.appTextPrimary,
-    );
+    final tokenStyle = _lineTextStyle(color: context.appTextPrimary);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Column(
@@ -994,13 +976,14 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
     );
   }
 
-  TextStyle _lineTextStyle(String? fontFamily, {required Color color}) {
+  TextStyle _lineTextStyle({required Color color}) {
     return TextStyle(
       fontSize: widget.expanded ? 22 : 18,
       fontWeight: FontWeight.w700,
       color: color,
       height: widget.expanded ? 1.35 : 1.4,
-      fontFamily: fontFamily,
+      fontFamily: context.appDesign.readingFontFamily,
+      fontFamilyFallback: context.appDesign.readingFontFamilyFallback,
     );
   }
 

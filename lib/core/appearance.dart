@@ -11,18 +11,30 @@ class AppearanceFontOption {
   final String id;
   final String label;
   final String? fontFamily;
+  final List<String>? fontFamilyFallback;
 
   const AppearanceFontOption({
     required this.id,
     required this.label,
     required this.fontFamily,
+    this.fontFamilyFallback,
   });
 }
 
 const appearanceFontOptions = [
   AppearanceFontOption(id: 'system', label: 'System', fontFamily: null),
-  AppearanceFontOption(id: 'serif', label: 'Serif', fontFamily: 'Georgia'),
-  AppearanceFontOption(id: 'mono', label: 'Mono', fontFamily: 'Menlo'),
+  AppearanceFontOption(
+    id: 'serif',
+    label: 'Georgia',
+    fontFamily: 'Georgia',
+    fontFamilyFallback: ['Literata'],
+  ),
+  AppearanceFontOption(
+    id: 'mono',
+    label: 'Menlo',
+    fontFamily: 'Menlo',
+    fontFamilyFallback: ['JetBrainsMono'],
+  ),
 ];
 
 const appearanceAccentOptions = [

@@ -69,10 +69,12 @@ class _LuminaAppState extends ConsumerState<LuminaApp> {
     final darkTheme = AppTheme.darkTheme(
       accentColor: appearance.accentColor,
       readingFontFamily: appearance.fontOption.fontFamily,
+      readingFontFamilyFallback: appearance.fontOption.fontFamilyFallback,
     );
     final lightTheme = AppTheme.lightTheme(
       accentColor: appearance.accentColor,
       readingFontFamily: appearance.fontOption.fontFamily,
+      readingFontFamilyFallback: appearance.fontOption.fontFamilyFallback,
     );
 
     return MaterialApp(

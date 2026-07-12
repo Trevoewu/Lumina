@@ -10,27 +10,35 @@ class AppTheme {
   static ThemeData darkTheme({
     Color accentColor = AppColors.primary,
     String? readingFontFamily,
+    List<String>? readingFontFamilyFallback,
   }) => _buildTheme(
     AppColors.darkColorScheme,
     accentColor: accentColor,
     readingFontFamily: readingFontFamily,
+    readingFontFamilyFallback: readingFontFamilyFallback,
   );
 
   static ThemeData lightTheme({
     Color accentColor = AppColors.primary,
     String? readingFontFamily,
+    List<String>? readingFontFamilyFallback,
   }) => _buildTheme(
     AppColors.lightColorScheme,
     accentColor: accentColor,
     readingFontFamily: readingFontFamily,
+    readingFontFamilyFallback: readingFontFamilyFallback,
   );
 
   static ThemeData _buildTheme(
     ColorScheme baseScheme, {
     required Color accentColor,
     required String? readingFontFamily,
+    required List<String>? readingFontFamilyFallback,
   }) {
-    final tokens = AppDesignTokens(readingFontFamily: readingFontFamily);
+    final tokens = AppDesignTokens(
+      readingFontFamily: readingFontFamily,
+      readingFontFamilyFallback: readingFontFamilyFallback,
+    );
     final colorScheme = baseScheme.copyWith(
       primary: accentColor,
       secondary: accentColor,
