@@ -8,6 +8,46 @@ import 'package:just_audio/just_audio.dart';
 import '../domain/models/chapter_manifest.dart';
 import 'app_log_service.dart';
 
+class ChapterPlaybackSource {
+  final ChapterManifest manifest;
+  final String chapterTitle;
+
+  const ChapterPlaybackSource({
+    required this.manifest,
+    required this.chapterTitle,
+  });
+}
+
+class _QueueEntry {
+  final ChapterManifest manifest;
+  final SegmentEntry segment;
+  final int chapterOffsetMs;
+  final int chapterDurationMs;
+
+  const _QueueEntry({
+    required this.manifest,
+    required this.segment,
+    required this.chapterOffsetMs,
+    required this.chapterDurationMs,
+  });
+}
+
+int nextChapterQueueIndex(List<String> chapterIds, int currentIndex) {
+  if (currentIndex < 0 || currentIndex >= chapterIds.length) return -1;
+  final currentChapterId = chapterIds[currentIndex];
+  return chapterIds.indexWhere(
+    (chapterId) => chapterId != currentChapterId,
+    currentIndex + 1,
+  );
+}
+
+int previousChapterQueueIndex(List<String> chapterIds, int currentIndex) {
+  if (currentIndex < 0 || currentIndex >= chapterIds.length) return -1;
+  final currentChapterStart = chapterIds.indexOf(chapterIds[currentIndex]);
+  if (currentChapterStart <= 0) return currentChapterStart;
+  return chapterIds.indexOf(chapterIds[currentChapterStart - 1]);
+}
+
 /// AudioService 后台播放 Handler。
 ///
 /// 每个段落作为一个 MediaItem / AudioSource queue item，便于锁屏控制、通知栏
@@ -17,8 +57,8 @@ class LuminaAudioHandler extends BaseAudioHandler
   final AudioPlayer _player;
 
   ChapterManifest? _manifest;
+  List<_QueueEntry> _queueEntries = const [];
   List<String> _paragraphIds = const [];
-  List<int> _paragraphStartOffsetsMs = const [];
   int _chapterDurationMs = 0;
   StreamSubscription? _playbackEventSub;
   StreamSubscription? _currentIndexSub;
@@ -29,10 +69,11 @@ class LuminaAudioHandler extends BaseAudioHandler
     : _player = player ?? AudioPlayer() {
     _playbackEventSub = _player.playbackEventStream.listen(_broadcastState);
     _currentIndexSub = _player.currentIndexStream.listen((index) {
-      if (index == null || index < 0 || index >= _paragraphIds.length) return;
+      if (index == null || index < 0 || index >= _queueEntries.length) return;
+      _applyCurrentEntry(index);
       final item = queue.value[index];
       mediaItem.add(item);
-      _currentParagraphController.add(_paragraphIds[index]);
+      _currentParagraphController.add(_queueEntries[index].segment.paragraphId);
     });
   }
 
@@ -49,8 +90,8 @@ class LuminaAudioHandler extends BaseAudioHandler
   String? get currentParagraphId =>
       mediaItem.valueOrNull?.extras?['paragraphId'] as String? ??
       mediaItem.valueOrNull?.id;
-  String? get currentBookId => _manifest?.bookId;
-  String? get currentChapterId => _manifest?.chapterId;
+  String? get currentBookId => currentManifest?.bookId;
+  String? get currentChapterId => currentManifest?.chapterId;
   ChapterManifest? get currentManifest => _manifest;
   int? get currentParagraphIndex {
     final manifest = _manifest;
@@ -68,60 +109,102 @@ class LuminaAudioHandler extends BaseAudioHandler
     String? bookTitle,
     String? chapterTitle,
   }) async {
+    await loadChapters(
+      chapters: [
+        ChapterPlaybackSource(
+          manifest: manifest,
+          chapterTitle: chapterTitle ?? '',
+        ),
+      ],
+      initialChapterId: manifest.chapterId,
+      audioRoot: audioRoot,
+      bookTitle: bookTitle,
+    );
+  }
+
+  Future<void> loadChapters({
+    required List<ChapterPlaybackSource> chapters,
+    required String initialChapterId,
+    required String audioRoot,
+    String? bookTitle,
+  }) async {
+    if (chapters.isEmpty) {
+      throw StateError('没有可播放的章节。');
+    }
     AppLogger.info(
       'Playback',
-      '加载章节 book=${manifest.bookId} chapter=${manifest.chapterId} '
-          'segments=${manifest.segments.length}',
+      '加载连续章节 book=${chapters.first.manifest.bookId} '
+          'initialChapter=$initialChapterId chapters=${chapters.length}',
     );
-    final readySegments = manifest.segments
-        .where((segment) => segment.state == ParagraphAudioState.ready)
-        .toList(growable: false);
-
-    final playableSegments = <SegmentEntry>[];
-    for (final segment in readySegments) {
-      final file = File('$audioRoot/${segment.audioFile}');
-      if (await file.exists() && await file.length() > 64) {
-        playableSegments.add(segment);
-      }
-    }
-
-    if (playableSegments.isEmpty) {
-      throw StateError('这一章没有可播放的缓存音频，请重新生成。');
-    }
-
-    var offsetMs = 0;
-    final offsets = <int>[];
-    for (final segment in playableSegments) {
-      offsets.add(offsetMs);
-      offsetMs += segment.durationMs;
-    }
 
     final items = <MediaItem>[];
     final sources = <AudioSource>[];
-    for (var i = 0; i < playableSegments.length; i++) {
-      final segment = playableSegments[i];
-      final file = File('$audioRoot/${segment.audioFile}');
-      final item = MediaItem(
-        id: segment.paragraphId,
-        album: bookTitle ?? 'Lumina',
-        title: chapterTitle == null
-            ? '段落 ${i + 1}'
-            : '$chapterTitle · 段落 ${i + 1}',
-        duration: Duration(milliseconds: segment.durationMs),
-        extras: {
-          'bookId': manifest.bookId,
-          'chapterId': manifest.chapterId,
-          'paragraphId': segment.paragraphId,
-          'audioFile': segment.audioFile,
-        },
+    final entries = <_QueueEntry>[];
+    var initialIndex = -1;
+    for (final chapter in chapters) {
+      final playable = <SegmentEntry>[];
+      for (final segment in chapter.manifest.segments) {
+        if (segment.state != ParagraphAudioState.ready) continue;
+        final file = File('$audioRoot/${segment.audioFile}');
+        if (await file.exists() && await file.length() > 64) {
+          playable.add(segment);
+        }
+      }
+      final chapterDurationMs = playable.fold<int>(
+        0,
+        (total, segment) => total + segment.durationMs,
       );
-      items.add(item);
-      sources.add(AudioSource.uri(file.uri, tag: item));
+      var chapterOffsetMs = 0;
+      for (var i = 0; i < playable.length; i++) {
+        final segment = playable[i];
+        if (chapter.manifest.chapterId == initialChapterId &&
+            initialIndex < 0) {
+          initialIndex = entries.length;
+        }
+        final item = MediaItem(
+          id: segment.paragraphId,
+          album: bookTitle ?? 'Lumina',
+          title: chapter.chapterTitle.isEmpty
+              ? '段落 ${i + 1}'
+              : '${chapter.chapterTitle} · 段落 ${i + 1}',
+          duration: Duration(milliseconds: segment.durationMs),
+          extras: {
+            'bookId': chapter.manifest.bookId,
+            'chapterId': chapter.manifest.chapterId,
+            'paragraphId': segment.paragraphId,
+            'audioFile': segment.audioFile,
+          },
+        );
+        entries.add(
+          _QueueEntry(
+            manifest: chapter.manifest,
+            segment: segment,
+            chapterOffsetMs: chapterOffsetMs,
+            chapterDurationMs: chapterDurationMs,
+          ),
+        );
+        items.add(item);
+        sources.add(
+          AudioSource.uri(
+            File('$audioRoot/${segment.audioFile}').uri,
+            tag: item,
+          ),
+        );
+        chapterOffsetMs += segment.durationMs;
+      }
     }
 
+    if (initialIndex < 0) {
+      throw StateError('这一章没有可播放的缓存音频，请重新生成。');
+    }
+
+    _queueEntries = entries;
+    _paragraphIds = entries
+        .map((entry) => entry.segment.paragraphId)
+        .toList(growable: false);
     queue.add(items);
     try {
-      await _player.setAudioSources(sources);
+      await _player.setAudioSources(sources, initialIndex: initialIndex);
     } catch (error, stackTrace) {
       try {
         await _player.stop();
@@ -130,29 +213,21 @@ class LuminaAudioHandler extends BaseAudioHandler
       await _resetLoadedState();
       AppLogger.error(
         'Playback',
-        '播放器加载音频源失败 chapter=${manifest.chapterId}',
+        '播放器加载音频源失败 chapter=$initialChapterId',
         error: error,
         stackTrace: stackTrace,
       );
       throw StateError('音频缓存无法播放，请清除后重新生成。$error');
     }
 
-    _manifest = manifest;
-    _paragraphIds = playableSegments
-        .map((segment) => segment.paragraphId)
-        .toList(growable: false);
-    _paragraphStartOffsetsMs = offsets;
-    _chapterDurationMs = playableSegments.fold<int>(
-      0,
-      (total, segment) => total + segment.durationMs,
-    );
-    mediaItem.add(items.first);
-    _currentParagraphController.add(items.first.id);
+    _applyCurrentEntry(initialIndex);
+    mediaItem.add(items[initialIndex]);
+    _currentParagraphController.add(items[initialIndex].id);
     _broadcastState(_player.playbackEvent);
     AppLogger.info(
       'Playback',
-      '章节加载完成 chapter=${manifest.chapterId} '
-          'playable=${playableSegments.length} durationMs=$_chapterDurationMs',
+      '连续章节加载完成 chapter=$initialChapterId '
+          'queueItems=${entries.length} durationMs=$_chapterDurationMs',
     );
   }
 
@@ -166,9 +241,7 @@ class LuminaAudioHandler extends BaseAudioHandler
   ) async {
     final index = _paragraphIds.indexOf(paragraphId);
     if (index < 0) return;
-    final segment = _manifest?.segments
-        .where((entry) => entry.paragraphId == paragraphId)
-        .firstOrNull;
+    final segment = index < 0 ? null : _queueEntries[index].segment;
     final endMs = segment?.durationMs ?? position.inMilliseconds;
     final offsetMs = position.inMilliseconds.clamp(0, endMs);
     await _player.seek(Duration(milliseconds: offsetMs), index: index);
@@ -187,7 +260,11 @@ class LuminaAudioHandler extends BaseAudioHandler
     }
 
     final segment = manifest.segments[paragraphIndex];
-    final queueIndex = _paragraphIds.indexOf(segment.paragraphId);
+    final queueIndex = _queueEntries.indexWhere(
+      (entry) =>
+          entry.manifest.chapterId == manifest.chapterId &&
+          entry.segment.paragraphId == segment.paragraphId,
+    );
     if (queueIndex < 0) return false;
 
     final offsetMs = position.inMilliseconds.clamp(0, segment.durationMs);
@@ -196,21 +273,26 @@ class LuminaAudioHandler extends BaseAudioHandler
   }
 
   Future<void> seekToChapterOffset(Duration offset) async {
-    if (_paragraphStartOffsetsMs.isEmpty || _chapterDurationMs <= 0) return;
+    final chapterId = currentChapterId;
+    if (chapterId == null || _chapterDurationMs <= 0) return;
 
     final targetMs = offset.inMilliseconds.clamp(0, _chapterDurationMs);
-    for (var index = 0; index < _paragraphStartOffsetsMs.length; index++) {
-      final startMs = _paragraphStartOffsetsMs[index];
-      final endMs = index + 1 < _paragraphStartOffsetsMs.length
-          ? _paragraphStartOffsetsMs[index + 1]
-          : _chapterDurationMs;
-      final isLast = index == _paragraphStartOffsetsMs.length - 1;
+    final chapterIndices = <int>[
+      for (var i = 0; i < _queueEntries.length; i++)
+        if (_queueEntries[i].manifest.chapterId == chapterId) i,
+    ];
+    for (var localIndex = 0; localIndex < chapterIndices.length; localIndex++) {
+      final queueIndex = chapterIndices[localIndex];
+      final entry = _queueEntries[queueIndex];
+      final startMs = entry.chapterOffsetMs;
+      final endMs = startMs + entry.segment.durationMs;
+      final isLast = localIndex == chapterIndices.length - 1;
       if (targetMs < endMs || isLast) {
         await _player.seek(
           Duration(
             milliseconds: (targetMs - startMs).clamp(0, endMs - startMs),
           ),
-          index: index,
+          index: queueIndex,
         );
         return;
       }
@@ -256,7 +338,11 @@ class LuminaAudioHandler extends BaseAudioHandler
   }
 
   Future<void> unloadIfChapter(String bookId, String chapterId) async {
-    if (_manifest?.bookId != bookId || _manifest?.chapterId != chapterId) {
+    if (!_queueEntries.any(
+      (entry) =>
+          entry.manifest.bookId == bookId &&
+          entry.manifest.chapterId == chapterId,
+    )) {
       return;
     }
     await unload();
@@ -275,8 +361,8 @@ class LuminaAudioHandler extends BaseAudioHandler
 
   Future<void> _resetLoadedState() async {
     _manifest = null;
+    _queueEntries = const [];
     _paragraphIds = const [];
-    _paragraphStartOffsetsMs = const [];
     _chapterDurationMs = 0;
     queue.add(const []);
     mediaItem.add(null);
@@ -293,10 +379,34 @@ class LuminaAudioHandler extends BaseAudioHandler
   }
 
   @override
-  Future<void> skipToNext() => _player.seekToNext();
+  Future<void> skipToNext() async {
+    final index = _player.currentIndex;
+    if (index == null || index < 0 || index >= _queueEntries.length) return;
+    final nextIndex = nextChapterQueueIndex(
+      _queueEntries
+          .map((entry) => entry.manifest.chapterId)
+          .toList(growable: false),
+      index,
+    );
+    if (nextIndex >= 0) {
+      await _player.seek(Duration.zero, index: nextIndex);
+    }
+  }
 
   @override
-  Future<void> skipToPrevious() => _player.seekToPrevious();
+  Future<void> skipToPrevious() async {
+    final index = _player.currentIndex;
+    if (index == null || index < 0 || index >= _queueEntries.length) return;
+    final previousChapterStart = previousChapterQueueIndex(
+      _queueEntries
+          .map((entry) => entry.manifest.chapterId)
+          .toList(growable: false),
+      index,
+    );
+    if (previousChapterStart >= 0) {
+      await _player.seek(Duration.zero, index: previousChapterStart);
+    }
+  }
 
   @override
   Future<void> setSpeed(double speed) async {
@@ -343,12 +453,12 @@ class LuminaAudioHandler extends BaseAudioHandler
   }
 
   Duration _chapterPositionFrom(Duration paragraphPosition) {
-    if (_paragraphStartOffsetsMs.isEmpty || _chapterDurationMs <= 0) {
+    if (_queueEntries.isEmpty || _chapterDurationMs <= 0) {
       return paragraphPosition;
     }
 
     final index = _player.currentIndex ?? 0;
-    if (index < 0 || index >= _paragraphStartOffsetsMs.length) {
+    if (index < 0 || index >= _queueEntries.length) {
       return Duration(
         milliseconds: paragraphPosition.inMilliseconds.clamp(
           0,
@@ -358,8 +468,15 @@ class LuminaAudioHandler extends BaseAudioHandler
     }
 
     final positionMs =
-        _paragraphStartOffsetsMs[index] + paragraphPosition.inMilliseconds;
+        _queueEntries[index].chapterOffsetMs + paragraphPosition.inMilliseconds;
     return Duration(milliseconds: positionMs.clamp(0, _chapterDurationMs));
+  }
+
+  void _applyCurrentEntry(int index) {
+    if (index < 0 || index >= _queueEntries.length) return;
+    final entry = _queueEntries[index];
+    _manifest = entry.manifest;
+    _chapterDurationMs = entry.chapterDurationMs;
   }
 
   AudioProcessingState _mapProcessingState(ProcessingState state) {

@@ -13,10 +13,6 @@ import '../../../services/lumina_audio_handler.dart';
 import '../../widgets/book_cover.dart';
 import '../../widgets/synced_lyrics_list.dart';
 
-String? _themeFontFamily(BuildContext context) {
-  return context.appDesign.readingFontFamily;
-}
-
 class PlayerScreen extends ConsumerStatefulWidget {
   final drift_db.Book book;
   final drift_db.Chapter? initialChapter;
@@ -120,7 +116,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                               letterSpacing: 1.2,
                               fontWeight: FontWeight.bold,
                               color: topForeground.withValues(alpha: 0.72),
-                              fontFamily: _themeFontFamily(context),
                             ),
                           ),
                         ),
@@ -394,7 +389,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (chapterId == null) return const SizedBox.shrink();
 
     final db = ref.watch(appDatabaseProvider);
-    final fontFamily = _themeFontFamily(context);
     return Container(
       key: const ValueKey('lyrics-card'),
       margin: const EdgeInsets.fromLTRB(24, 0, 24, 8),
@@ -423,7 +417,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
                       color: AppColors.lyricsTextPrimary,
-                      fontFamily: fontFamily,
                     ),
                   ),
                   Row(
@@ -653,8 +646,6 @@ class _FullScreenLyricsSheetState
   Widget build(BuildContext context) {
     final db = ref.watch(appDatabaseProvider);
     final handlerAsync = ref.watch(luminaAudioHandlerProvider);
-    final fontFamily = _themeFontFamily(context);
-
     return FutureBuilder<Color?>(
       future: _coverSeed,
       builder: (context, paletteSnapshot) {
@@ -705,7 +696,6 @@ class _FullScreenLyricsSheetState
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
                                 letterSpacing: 1.2,
-                                fontFamily: fontFamily,
                               ),
                             ),
                           ),

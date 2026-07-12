@@ -12,6 +12,7 @@ import '../../../data/database/app_database.dart' as drift_db;
 import '../../../domain/models/chapter_manifest.dart';
 import '../../../domain/models/book_rights.dart';
 import '../../../services/app_log_service.dart';
+import '../../../services/book_playback_queue.dart';
 import '../../widgets/book_card_metadata.dart';
 import '../../widgets/book_list_card.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
@@ -515,12 +516,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         )) {
       try {
         final handler = await ref.read(luminaAudioHandlerProvider.future);
-        final audioRoot = await manifestStore.audioRoot(book.id);
-        await handler.loadChapter(
-          manifest: manifest,
-          audioRoot: audioRoot.path,
+        await loadBookPlaybackQueue(
+          handler: handler,
+          database: ref.read(appDatabaseProvider),
+          manifestStore: manifestStore,
+          bookId: book.id,
           bookTitle: book.title,
-          chapterTitle: chapter.title,
+          initialManifest: manifest,
         );
         await handler.playFromParagraph(hit.paragraph.id);
       } catch (error, stackTrace) {

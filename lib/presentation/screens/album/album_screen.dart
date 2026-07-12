@@ -10,6 +10,7 @@ import '../../../data/database/app_database.dart' as drift_db;
 import '../../../data/settings/provider_selection_repository.dart';
 import '../../../domain/models/chapter_manifest.dart';
 import '../../../services/app_log_service.dart';
+import '../../../services/book_playback_queue.dart';
 import '../../../services/cover_palette_service.dart';
 import '../../../services/generation_orchestrator.dart';
 import '../../../services/manifest_store.dart';
@@ -174,12 +175,13 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       final handlerFuture = ref.read(luminaAudioHandlerProvider.future);
       final manifestStore = ref.read(manifestStoreProvider);
       final handler = await handlerFuture;
-      final audioRoot = await manifestStore.audioRoot(widget.book.id);
-      await handler.loadChapter(
-        manifest: manifest,
-        audioRoot: audioRoot.path,
+      await loadBookPlaybackQueue(
+        handler: handler,
+        database: ref.read(appDatabaseProvider),
+        manifestStore: manifestStore,
+        bookId: widget.book.id,
         bookTitle: widget.book.title,
-        chapterTitle: chapter.title,
+        initialManifest: manifest,
       );
       if (resumeParagraphIndex != null) {
         final restored = await handler.seekToProgress(

@@ -30,11 +30,9 @@ class DictionaryEntryContent extends StatelessWidget {
     final design = context.appDesign;
     final entry = result.entry;
     final accent = Theme.of(context).colorScheme.primary;
-    final readingTitle = context.readingStyle(
-      Theme.of(
-        context,
-      ).textTheme.headlineLarge!.copyWith(color: context.appTextPrimary),
-    );
+    final titleStyle = Theme.of(
+      context,
+    ).textTheme.headlineLarge!.copyWith(color: context.appTextPrimary);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -42,7 +40,7 @@ class DictionaryEntryContent extends StatelessWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(child: Text(entry.word, style: readingTitle)),
+            Expanded(child: Text(entry.word, style: titleStyle)),
             IconButton(
               tooltip: favorite
                   ? context.tr('取消收藏', 'Remove favorite')
@@ -145,10 +143,8 @@ class DictionaryEntryContent extends StatelessWidget {
                 SizedBox(height: design.spaceSm),
                 Text(
                   lookupContext.sentence,
-                  style: context.readingStyle(
-                    Theme.of(context).textTheme.bodyLarge!.copyWith(
-                      color: context.appTextPrimary,
-                    ),
+                  style: Theme.of(context).textTheme.bodyLarge!.copyWith(
+                    color: context.appTextPrimary,
                   ),
                 ),
                 if (lookupContext.audioStartMs != null) ...[

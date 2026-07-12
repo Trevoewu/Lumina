@@ -132,9 +132,4 @@ class AppDesignTokens extends ThemeExtension<AppDesignTokens> {
 extension AppDesignContext on BuildContext {
   AppDesignTokens get appDesign =>
       Theme.of(this).extension<AppDesignTokens>() ?? const AppDesignTokens();
-
-  TextStyle readingStyle(TextStyle base) => base.copyWith(
-    fontFamily: appDesign.readingFontFamily,
-    fontFamilyFallback: appDesign.readingFontFamilyFallback,
-  );
 }

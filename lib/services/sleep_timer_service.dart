@@ -1,7 +1,5 @@
 import 'dart:async';
 
-import 'package:audio_service/audio_service.dart';
-
 import 'lumina_audio_handler.dart';
 
 enum SleepTimerMode { off, duration, chapterEnd }
@@ -34,7 +32,7 @@ class SleepTimerState {
 class SleepTimerService {
   final _controller = StreamController<SleepTimerState>.broadcast();
   Timer? _timer;
-  StreamSubscription<PlaybackState>? _playbackSub;
+  StreamSubscription<String?>? _playbackSub;
   SleepTimerState _state = const SleepTimerState.off();
 
   SleepTimerState get state => _state;
@@ -57,8 +55,12 @@ class SleepTimerService {
     await cancel();
     _state = const SleepTimerState.chapterEnd();
     _controller.add(_state);
-    _playbackSub = handler.playbackState.listen((state) async {
-      if (state.processingState == AudioProcessingState.completed) {
+    final scheduledChapterId = handler.currentChapterId;
+    _playbackSub = handler.currentParagraphIdStream.listen((_) async {
+      final currentChapterId = handler.currentChapterId;
+      if (scheduledChapterId != null &&
+          currentChapterId != null &&
+          currentChapterId != scheduledChapterId) {
         await handler.pause();
         await cancel();
       }
