@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/app_colors.dart';
 import '../../../core/app_design_tokens.dart';
@@ -15,6 +17,7 @@ import '../../../services/book_playback_queue.dart';
 import '../../../services/cover_palette_service.dart';
 import '../../../services/generation_orchestrator.dart';
 import '../../../services/lumina_audio_handler.dart';
+import '../../../services/sleep_timer_service.dart';
 import '../../../tts/models/tts_voice.dart';
 import '../../../tts/provider_registry.dart';
 import '../../../tts/tts_provider.dart';
@@ -43,6 +46,8 @@ class PlayerScreen extends ConsumerStatefulWidget {
 }
 
 class _PlayerScreenState extends ConsumerState<PlayerScreen> {
+  static const _playerTransitionDuration = Duration(milliseconds: 480);
+
   double _speed = 1.0;
   late Future<Color?> _coverSeed;
   ChapterManifest? _selectedManifest;
@@ -52,6 +57,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _preparingStream = false;
   bool _streamPlaybackRequested = false;
   bool _startingPlayback = false;
+  bool _lyricsMode = false;
   int _paragraphCount = 0;
 
   @override
@@ -69,6 +75,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.book.coverPath != widget.book.coverPath) {
       _coverSeed = CoverPaletteService.seedForPath(widget.book.coverPath);
+    }
+    if (oldWidget.initialChapter?.id != widget.initialChapter?.id) {
+      _lyricsMode = false;
     }
   }
 
@@ -368,7 +377,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   ) async {
     if (playing || _streamPlaybackRequested || _startingPlayback) {
       if (mounted) {
-        setState(() => _streamPlaybackRequested = false);
+        setState(() {
+          _streamPlaybackRequested = false;
+          _lyricsMode = true;
+        });
       }
       await handler.pause();
       return;
@@ -380,7 +392,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       return;
     }
 
-    setState(() => _streamPlaybackRequested = true);
+    setState(() {
+      _streamPlaybackRequested = true;
+      _lyricsMode = true;
+    });
     final manifest = _selectedManifest;
     final hasPlayablePrefix =
         manifest != null && _playablePrefix(manifest).segments.isNotEmpty;
@@ -534,76 +549,51 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       builder: (context, paletteSnapshot) {
         final seed = paletteSnapshot.data;
         final topTint = seed == null
-            ? context.appSurface
-            : CoverPaletteService.pageTopForSeed(
-                seed,
-                Theme.of(context).brightness,
-              );
+            ? AppColors.surface
+            : CoverPaletteService.darkSurfaceForSeed(seed);
         final pageBottom = seed == null
-            ? context.appBackground
-            : Theme.of(context).brightness == Brightness.dark
-            ? CoverPaletteService.darkPageBottomForSeed(seed)
-            : context.appBackground;
+            ? AppColors.background
+            : CoverPaletteService.darkPageBottomForSeed(seed);
+        final middleTint = Color.lerp(topTint, pageBottom, 0.62)!;
         final lyricsBackground =
             CoverPaletteService.lyricsBackgroundGradientForSeed(seed);
-        final topForeground = CoverPaletteService.foregroundFor(topTint);
-        final contentForeground = CoverPaletteService.foregroundFor(pageBottom);
-
-        return Scaffold(
-          backgroundColor: Colors.transparent,
-          body: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [topTint, pageBottom],
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: SystemUiOverlayStyle.light,
+          child: Scaffold(
+            backgroundColor: pageBottom,
+            body: Container(
+              key: const ValueKey('player-immersive-background'),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [topTint, middleTint, pageBottom],
+                  stops: const [0, 0.46, 1],
+                ),
               ),
-            ),
-            child: SafeArea(
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8.0,
-                      vertical: 8.0,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        IconButton(
-                          icon: Icon(
-                            Icons.keyboard_arrow_down,
-                            size: 32,
-                            color: topForeground,
+              child: SafeArea(
+                child: Column(
+                  children: [
+                    _buildPlayerHeader(),
+                    Expanded(
+                      child: handlerAsync.when(
+                        loading: () => const Center(
+                          child: CircularProgressIndicator(
+                            color: AppColors.textPrimary,
                           ),
-                          onPressed: () => Navigator.of(context).pop(),
                         ),
-                        Expanded(
+                        error: (error, _) => Center(
                           child: Text(
-                            widget.book.title,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 12,
-                              letterSpacing: 1.2,
-                              fontWeight: FontWeight.bold,
-                              color: topForeground.withValues(alpha: 0.72),
+                            context.tr(
+                              '播放器不可用：$error',
+                              'Player unavailable: $error',
+                            ),
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
                             ),
                           ),
                         ),
-                        IconButton(
-                          icon: Icon(Icons.more_vert, color: topForeground),
-                          onPressed: () {},
-                        ),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: handlerAsync.when(
-                      loading: () =>
-                          const Center(child: CircularProgressIndicator()),
-                      error: (e, _) => Center(child: Text('Error: $e')),
-                      data: (handler) {
-                        return StreamBuilder(
+                        data: (handler) => StreamBuilder(
                           stream: handler.playbackState,
                           initialData: handler.playbackState.value,
                           builder: (context, snapshot) {
@@ -628,138 +618,435 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                 widget.initialChapter?.title ??
                                 currentItem?.title ??
                                 context.tr('未知章节', 'Unknown Chapter');
+                            final lyricsMode =
+                                currentChapterId != null &&
+                                (_lyricsMode || playing);
 
-                            return Column(
-                              children: [
-                                Expanded(
-                                  flex: 5,
-                                  child: Center(
-                                    child: AspectRatio(
-                                      aspectRatio: 1.0,
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 32,
-                                          vertical: 16,
+                            return LayoutBuilder(
+                              builder: (context, constraints) {
+                                final design = context.appDesign;
+                                final pageInset = design.pageInsetFor(
+                                  constraints.maxWidth,
+                                );
+                                final compact = constraints.maxHeight < 720;
+                                final availableArtworkWidth = math.max(
+                                  0.0,
+                                  constraints.maxWidth - pageInset * 2,
+                                );
+                                final expandedArtworkSize = math.min(
+                                  availableArtworkWidth,
+                                  compact ? 280.0 : 320.0,
+                                );
+                                final artworkSize = lyricsMode
+                                    ? compact
+                                          ? 64.0
+                                          : 80.0
+                                    : expandedArtworkSize;
+                                final bottomAnchored =
+                                    lyricsMode && constraints.maxHeight >= 500;
+                                final viewportContentHeight = math.max(
+                                  0.0,
+                                  constraints.maxHeight - design.spaceLg,
+                                );
+                                final fallbackLiveLyricsHeight =
+                                    (constraints.maxHeight * 0.42)
+                                        .clamp(220.0, 360.0)
+                                        .toDouble();
+                                final previewHeight = compact ? 208.0 : 240.0;
+
+                                return SingleChildScrollView(
+                                  key: const ValueKey('player-scroll-view'),
+                                  physics: const BouncingScrollPhysics(),
+                                  padding: EdgeInsets.only(
+                                    bottom: design.spaceLg,
+                                  ),
+                                  child: ConstrainedBox(
+                                    constraints: bottomAnchored
+                                        ? BoxConstraints.tightFor(
+                                            height: viewportContentHeight,
+                                          )
+                                        : BoxConstraints(
+                                            minHeight: viewportContentHeight,
+                                          ),
+                                    child: Column(
+                                      children: [
+                                        SizedBox(
+                                          height: compact
+                                              ? design.spaceSm
+                                              : design.spaceLg,
                                         ),
-                                        child: Container(
-                                          decoration: BoxDecoration(
-                                            color: context.appSurfaceHighlight,
-                                            borderRadius: BorderRadius.circular(
-                                              12,
+                                        _buildArtwork(
+                                          artworkSize,
+                                          borderRadius: design.radiusSmall,
+                                        ),
+                                        AnimatedContainer(
+                                          duration: _playerTransitionDuration,
+                                          curve: Curves.easeInOutCubic,
+                                          height: compact
+                                              ? design.spaceLg
+                                              : lyricsMode
+                                              ? design.spaceLg
+                                              : design.spaceXxl,
+                                        ),
+                                        if (lyricsMode && bottomAnchored)
+                                          Expanded(
+                                            child: _buildLiveLyricsStage(
+                                              currentChapterId,
+                                              handler,
+                                              manifest,
+                                              selectedLoaded,
                                             ),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: Colors.black.withValues(
-                                                  alpha: 0.4,
-                                                ),
-                                                blurRadius: 30,
-                                                offset: const Offset(0, 15),
-                                              ),
-                                            ],
+                                          )
+                                        else if (lyricsMode)
+                                          SizedBox(
+                                            height: fallbackLiveLyricsHeight,
+                                            child: _buildLiveLyricsStage(
+                                              currentChapterId,
+                                              handler,
+                                              manifest,
+                                              selectedLoaded,
+                                            ),
                                           ),
-                                          child: BookCover(
-                                            coverPath: widget.book.coverPath,
-                                            iconSize: 120,
-                                            borderRadius: 12,
+                                        if (lyricsMode)
+                                          SizedBox(height: design.spaceXl),
+                                        Padding(
+                                          padding: EdgeInsets.symmetric(
+                                            horizontal: pageInset,
+                                          ),
+                                          child: _buildChapterMetadata(
+                                            chapterTitle,
                                           ),
                                         ),
-                                      ),
+                                        SizedBox(height: design.spaceLg),
+                                        Padding(
+                                          padding: EdgeInsets.symmetric(
+                                            horizontal: pageInset,
+                                          ),
+                                          child: StreamBuilder<Duration>(
+                                            stream:
+                                                handler.chapterPositionStream,
+                                            initialData:
+                                                handler.chapterPosition,
+                                            builder:
+                                                (context, positionSnapshot) {
+                                                  return _buildControls(
+                                                    handler,
+                                                    playing,
+                                                    selectedLoaded
+                                                        ? positionSnapshot
+                                                                  .data ??
+                                                              Duration.zero
+                                                        : Duration.zero,
+                                                    duration,
+                                                    manifest: manifest,
+                                                    selectedLoaded:
+                                                        selectedLoaded,
+                                                    foregroundColor:
+                                                        AppColors.textPrimary,
+                                                  );
+                                                },
+                                          ),
+                                        ),
+                                        AnimatedSize(
+                                          duration: _playerTransitionDuration,
+                                          curve: Curves.easeInOutCubic,
+                                          alignment: Alignment.topCenter,
+                                          child: lyricsMode
+                                              ? const SizedBox.shrink()
+                                              : Padding(
+                                                  padding: EdgeInsets.only(
+                                                    top: design.spaceXl,
+                                                  ),
+                                                  child: SizedBox(
+                                                    height: previewHeight,
+                                                    child: _buildLyricsCard(
+                                                      currentChapterId,
+                                                      handler,
+                                                      manifest,
+                                                      selectedLoaded,
+                                                      lyricsBackground,
+                                                    ),
+                                                  ),
+                                                ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 24,
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              chapterTitle,
-                                              style: TextStyle(
-                                                fontSize: 22,
-                                                fontWeight: FontWeight.bold,
-                                                color: contentForeground,
-                                              ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              widget.book.author ??
-                                                  context.tr(
-                                                    '未知作者',
-                                                    'Unknown Author',
-                                                  ),
-                                              style: TextStyle(
-                                                fontSize: 16,
-                                                color: contentForeground
-                                                    .withValues(alpha: 0.72),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(Icons.favorite_border),
-                                        onPressed: () {},
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 24,
-                                  ),
-                                  child: StreamBuilder<Duration>(
-                                    stream: handler.chapterPositionStream,
-                                    initialData: handler.chapterPosition,
-                                    builder: (context, positionSnapshot) {
-                                      return _buildControls(
-                                        handler,
-                                        playing,
-                                        selectedLoaded
-                                            ? positionSnapshot.data ??
-                                                  Duration.zero
-                                            : Duration.zero,
-                                        duration,
-                                        manifest: manifest,
-                                        selectedLoaded: selectedLoaded,
-                                        foregroundColor: contentForeground,
-                                      );
-                                    },
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                Expanded(
-                                  flex: 5,
-                                  child: _buildLyricsCard(
-                                    currentChapterId,
-                                    handler,
-                                    manifest,
-                                    selectedLoaded,
-                                    lyricsBackground,
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                              ],
+                                );
+                              },
                             );
                           },
-                        );
-                      },
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPlayerHeader() {
+    final design = context.appDesign;
+    return SizedBox(
+      height: design.toolbarHeight,
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: design.spaceSm),
+        child: Row(
+          children: [
+            IconButton(
+              tooltip: context.tr('收起播放器', 'Close player'),
+              icon: const Icon(
+                Icons.keyboard_arrow_down_rounded,
+                size: 32,
+                color: AppColors.textPrimary,
+              ),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            Expanded(
+              child: Text(
+                widget.book.title,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: AppColors.textPrimary,
+                  letterSpacing: 0.4,
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: context.tr('更多选项', 'More options'),
+              icon: const Icon(
+                Icons.more_horiz_rounded,
+                color: AppColors.textPrimary,
+              ),
+              onPressed: () {},
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  ThemeData _immersiveTheme() {
+    final base = Theme.of(context);
+    final accent = base.colorScheme.primary;
+    final colorScheme = AppColors.darkColorScheme.copyWith(
+      primary: accent,
+      secondary: accent,
+    );
+    return base.copyWith(
+      colorScheme: colorScheme,
+      scaffoldBackgroundColor: AppColors.background,
+      textTheme: base.textTheme.apply(
+        bodyColor: AppColors.textPrimary,
+        displayColor: AppColors.textPrimary,
+      ),
+      iconTheme: const IconThemeData(color: AppColors.textPrimary),
+      chipTheme: base.chipTheme.copyWith(
+        backgroundColor: AppColors.surfaceHighlight,
+        selectedColor: accent,
+        labelStyle: base.textTheme.labelLarge?.copyWith(
+          color: AppColors.textPrimary,
+        ),
+      ),
+      sliderTheme: base.sliderTheme.copyWith(
+        activeTrackColor: accent,
+        inactiveTrackColor: AppColors.surfaceHighlight,
+        thumbColor: accent,
+      ),
+    );
+  }
+
+  Widget _buildArtwork(double size, {required double borderRadius}) {
+    final compactArtwork = size <= 96;
+    return TweenAnimationBuilder<double>(
+      key: const ValueKey('player-artwork'),
+      tween: Tween<double>(end: size),
+      duration: _playerTransitionDuration,
+      curve: Curves.easeInOutCubic,
+      builder: (context, animatedSize, child) {
+        final scale = size <= 0 ? 1.0 : animatedSize / size;
+        return SizedBox.square(
+          dimension: size,
+          child: Transform.scale(
+            alignment: Alignment.topCenter,
+            scale: scale,
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(borderRadius),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.46),
+                    blurRadius: compactArtwork ? 16 : 32,
+                    spreadRadius: compactArtwork ? 0 : 2,
+                    offset: Offset(0, compactArtwork ? 6 : 16),
+                  ),
+                ],
+              ),
+              child: child,
+            ),
+          ),
+        );
+      },
+      child: Theme(
+        data: _immersiveTheme(),
+        child: BookCover(
+          coverPath: widget.book.coverPath,
+          iconSize: size * 0.32,
+          borderRadius: borderRadius,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChapterMetadata(String chapterTitle) {
+    final design = context.appDesign;
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                chapterTitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              SizedBox(height: design.spaceXs),
+              Text(
+                widget.book.author ?? context.tr('未知作者', 'Unknown Author'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.copyWith(color: AppColors.textSecondary),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(width: design.spaceMd),
+        IconButton(
+          tooltip: context.tr('收藏', 'Save'),
+          icon: const Icon(Icons.favorite_border_rounded),
+          color: AppColors.textPrimary,
+          onPressed: () {},
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLiveLyricsStage(
+    String? chapterId,
+    LuminaAudioHandler handler,
+    ChapterManifest? manifest,
+    bool playbackEnabled,
+  ) {
+    if (chapterId == null) return const SizedBox.shrink();
+
+    final design = context.appDesign;
+    final pageInset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
+    return TweenAnimationBuilder<double>(
+      key: ValueKey('player-live-lyrics-reveal-$chapterId'),
+      tween: Tween(begin: 0, end: 1),
+      duration: _playerTransitionDuration,
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) => Opacity(
+        opacity: value,
+        child: Transform.translate(
+          offset: Offset(0, design.spaceMd * (1 - value)),
+          child: child,
+        ),
+      ),
+      child: Container(
+        key: const ValueKey('player-live-lyrics-stage'),
+        margin: EdgeInsets.symmetric(horizontal: pageInset),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Text(
+                  context.tr('同步正文', 'Live text'),
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  tooltip: context.tr('全屏正文', 'Full-screen text'),
+                  icon: const Icon(
+                    Icons.open_in_full_rounded,
+                    size: 20,
+                    color: AppColors.textPrimary,
+                  ),
+                  onPressed: () => _showFullScreenLyrics(
+                    chapterId,
+                    manifest,
+                    playbackEnabled,
+                  ),
+                ),
+              ],
+            ),
+            Expanded(
+              child: _buildSyncedLyrics(
+                chapterId: chapterId,
+                handler: handler,
+                manifest: manifest,
+                playbackEnabled: playbackEnabled,
+                expanded: true,
+                focusMode: true,
+                listKey: ValueKey(
+                  'player-live-lyrics-list:$chapterId:${handler.currentChapterId}',
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSyncedLyrics({
+    required String chapterId,
+    required LuminaAudioHandler handler,
+    required ChapterManifest? manifest,
+    required bool playbackEnabled,
+    required bool expanded,
+    required bool focusMode,
+    required Key listKey,
+  }) {
+    final db = ref.watch(appDatabaseProvider);
+    return FutureBuilder<List<drift_db.Paragraph>>(
+      future: db.getParagraphs(chapterId),
+      builder: (context, snapshot) {
+        final paragraphs = snapshot.data ?? const <drift_db.Paragraph>[];
+        if (paragraphs.isEmpty) {
+          return Center(
+            child: Text(
+              context.tr('无正文', 'No text'),
+              style: const TextStyle(color: AppColors.lyricsTextSecondary),
+            ),
+          );
+        }
+        return SyncedLyricsList(
+          key: listKey,
+          paragraphs: paragraphs,
+          manifest: manifest,
+          handler: handler,
+          playbackEnabled: playbackEnabled,
+          expanded: expanded,
+          focusMode: focusMode,
+          bookTitle: widget.book.title,
+          chapterTitle: widget.initialChapter?.title,
+          bookId: widget.book.id,
+          chapterId: chapterId,
         );
       },
     );
@@ -774,9 +1061,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     required bool selectedLoaded,
     required Color foregroundColor,
   }) {
-    final controlColor = Theme.of(context).colorScheme.primary;
-    final cacheColor = context.appTextSecondary.withValues(alpha: 0.62);
-    final secondaryColor = foregroundColor.withValues(alpha: 0.72);
+    final design = context.appDesign;
+    final accent = Theme.of(context).colorScheme.primary;
+    final controlColor = foregroundColor;
+    final cacheColor = AppColors.textSecondary.withValues(alpha: 0.46);
+    final secondaryColor = AppColors.textSecondary;
+    final inactiveTrackColor = foregroundColor.withValues(alpha: 0.18);
     final playbackFraction = duration.inMilliseconds <= 0
         ? 0.0
         : (position.inMilliseconds / duration.inMilliseconds)
@@ -792,8 +1082,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       PlayerPrimaryAudioAction.play => context.tr('播放', 'Play'),
       PlayerPrimaryAudioAction.pause => context.tr('暂停', 'Pause'),
     };
+    final remaining = duration - position;
+    final remainingLabel = duration.inMilliseconds <= 0
+        ? _fmt(duration)
+        : '-${_fmt(remaining.isNegative ? Duration.zero : remaining)}';
+    final speedIsCustomized = (_speed - 1).abs() > 0.01;
 
     return Column(
+      key: const ValueKey('player-playback-controls'),
       children: [
         TweenAnimationBuilder<double>(
           tween: Tween<double>(end: cacheFraction),
@@ -808,13 +1104,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               data: SliderTheme.of(context).copyWith(
                 activeTrackColor: controlColor,
                 secondaryActiveTrackColor: cacheColor,
-                inactiveTrackColor: context.appSurfaceHighlight,
+                inactiveTrackColor: inactiveTrackColor,
                 thumbColor: controlColor,
                 disabledActiveTrackColor: controlColor,
                 disabledSecondaryActiveTrackColor: cacheColor,
-                disabledInactiveTrackColor: context.appSurfaceHighlight,
+                disabledInactiveTrackColor: inactiveTrackColor,
                 trackHeight: 4,
-                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
                 disabledThumbColor: hasCachedAudio
                     ? controlColor
                     : Colors.transparent,
@@ -848,15 +1144,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           children: [
             Text(
               _fmt(position),
-              style: TextStyle(fontSize: 12, color: secondaryColor),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: secondaryColor,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
             ),
             Text(
-              _fmt(duration),
-              style: TextStyle(fontSize: 12, color: secondaryColor),
+              remainingLabel,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: secondaryColor,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: design.spaceSm),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -865,17 +1167,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               icon: Text(
                 '${_speed.toStringAsFixed(1)}x',
                 style: TextStyle(
-                  color: secondaryColor,
+                  color: speedIsCustomized ? accent : secondaryColor,
                   fontSize: 13,
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              color: secondaryColor,
+              color: speedIsCustomized ? accent : secondaryColor,
               onPressed: _showSpeedSheet,
             ),
             IconButton(
-              icon: const Icon(Icons.skip_previous, size: 36),
+              tooltip: context.tr('上一段', 'Previous'),
+              icon: const Icon(Icons.skip_previous_rounded, size: 36),
               color: foregroundColor,
+              disabledColor: secondaryColor.withValues(alpha: 0.42),
               onPressed: selectedLoaded ? handler.skipToPrevious : null,
             ),
             Tooltip(
@@ -884,7 +1188,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 button: true,
                 label: primaryTooltip,
                 child: Material(
-                  color: controlColor,
+                  color: AppColors.textPrimary,
                   shape: const CircleBorder(),
                   child: InkWell(
                     key: const ValueKey('player-primary-audio-action'),
@@ -892,7 +1196,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     onTap: () =>
                         unawaited(_handlePrimaryAudioAction(handler, playing)),
                     child: SizedBox.square(
-                      dimension: 64,
+                      dimension: design.spaceXxl * 2,
                       child: Center(
                         child: AnimatedSwitcher(
                           duration: const Duration(milliseconds: 220),
@@ -909,7 +1213,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           },
                           child: _buildPrimaryAudioGlyph(
                             action: primaryAction,
-                            color: Theme.of(context).colorScheme.onPrimary,
+                            color: AppColors.background,
                           ),
                         ),
                       ),
@@ -919,14 +1223,34 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.skip_next, size: 36),
+              tooltip: context.tr('下一段', 'Next'),
+              icon: const Icon(Icons.skip_next_rounded, size: 36),
               color: foregroundColor,
+              disabledColor: secondaryColor.withValues(alpha: 0.42),
               onPressed: selectedLoaded ? handler.skipToNext : null,
             ),
-            IconButton(
-              icon: const Icon(Icons.repeat),
-              color: secondaryColor,
-              onPressed: () {},
+            StreamBuilder<SleepTimerState>(
+              stream: ref.watch(sleepTimerServiceProvider).stream,
+              initialData: ref.watch(sleepTimerServiceProvider).state,
+              builder: (context, timerSnapshot) {
+                final timerState =
+                    timerSnapshot.data ?? const SleepTimerState.off();
+                return IconButton(
+                  tooltip: timerState.active
+                      ? context.tr(
+                          '定时关闭：${_sleepTimerLabel(timerState)}',
+                          'Sleep timer: ${_sleepTimerLabel(timerState)}',
+                        )
+                      : context.tr('定时关闭', 'Sleep timer'),
+                  icon: Icon(
+                    timerState.active
+                        ? Icons.timer_rounded
+                        : Icons.timer_outlined,
+                  ),
+                  color: timerState.active ? accent : secondaryColor,
+                  onPressed: () => _showSleepTimerSheet(handler),
+                );
+              },
             ),
           ],
         ),
@@ -963,16 +1287,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   ) {
     if (chapterId == null) return const SizedBox.shrink();
 
-    final db = ref.watch(appDatabaseProvider);
+    final design = context.appDesign;
+    final pageInset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
     return Container(
       key: const ValueKey('lyrics-card'),
-      margin: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+      margin: EdgeInsets.symmetric(horizontal: pageInset),
       decoration: BoxDecoration(
         gradient: background,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(design.radiusLarge),
+        border: Border.all(
+          color: AppColors.textPrimary.withValues(alpha: 0.08),
+        ),
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(design.radiusLarge),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -986,30 +1314,33 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    context.tr('正文', 'Text'),
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: AppColors.lyricsTextPrimary,
+                  Expanded(
+                    child: Text(
+                      context.tr('正文预览', 'Text preview'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: AppColors.lyricsTextPrimary,
+                      ),
                     ),
                   ),
                   Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
                         icon: const Icon(
                           Icons.share_outlined,
-                          size: 20,
-                          color: AppColors.lyricsTextSecondary,
+                          size: 22,
+                          color: AppColors.lyricsTextPrimary,
                         ),
                         tooltip: context.tr('分享正文', 'Share text'),
                         onPressed: () {},
                       ),
                       IconButton(
                         icon: const Icon(
-                          Icons.open_in_full,
-                          size: 20,
-                          color: AppColors.lyricsTextSecondary,
+                          Icons.open_in_full_rounded,
+                          size: 22,
+                          color: AppColors.lyricsTextPrimary,
                         ),
                         tooltip: context.tr('全屏正文', 'Full-screen text'),
                         onPressed: () => _showFullScreenLyrics(
@@ -1024,35 +1355,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ),
             ),
             Expanded(
-              child: FutureBuilder<List<drift_db.Paragraph>>(
-                future: db.getParagraphs(chapterId),
-                builder: (context, snapshot) {
-                  final paragraphs =
-                      snapshot.data ?? const <drift_db.Paragraph>[];
-                  if (paragraphs.isEmpty) {
-                    return Center(
-                      child: Text(
-                        context.tr('无正文', 'No text'),
-                        style: const TextStyle(
-                          color: AppColors.lyricsTextSecondary,
-                        ),
-                      ),
-                    );
-                  }
-                  return SyncedLyricsList(
-                    key: ValueKey(
-                      '$chapterId:${playbackEnabled ? handler.currentChapterId : 'reading'}',
-                    ),
-                    paragraphs: paragraphs,
-                    manifest: manifest,
-                    handler: handler,
-                    playbackEnabled: playbackEnabled,
-                    bookTitle: widget.book.title,
-                    chapterTitle: widget.initialChapter?.title,
-                    bookId: widget.book.id,
-                    chapterId: chapterId,
-                  );
-                },
+              child: _buildSyncedLyrics(
+                chapterId: chapterId,
+                handler: handler,
+                manifest: manifest,
+                playbackEnabled: playbackEnabled,
+                expanded: false,
+                focusMode: false,
+                listKey: ValueKey(
+                  'player-preview-lyrics-list:$chapterId:${playbackEnabled ? handler.currentChapterId : 'reading'}',
+                ),
               ),
             ),
           ],
@@ -1075,11 +1387,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      backgroundColor: context.appSurface,
-      builder: (context) {
-        final accent = Theme.of(context).colorScheme.primary;
-        return StatefulBuilder(
+      backgroundColor: AppColors.surface,
+      builder: (_) => Theme(
+        data: _immersiveTheme(),
+        child: StatefulBuilder(
           builder: (context, setSheetState) {
+            final accent = Theme.of(context).colorScheme.primary;
             return SafeArea(
               top: false,
               child: Padding(
@@ -1161,8 +1474,107 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ),
             );
           },
-        );
-      },
+        ),
+      ),
+    );
+  }
+
+  String _sleepTimerLabel(SleepTimerState state) {
+    return switch (state.mode) {
+      SleepTimerMode.off => context.tr('关闭', 'Off'),
+      SleepTimerMode.duration => context.tr(
+        '${state.duration!.inMinutes} 分钟后',
+        'In ${state.duration!.inMinutes} minutes',
+      ),
+      SleepTimerMode.chapterEnd => context.tr('本章结束', 'End of chapter'),
+    };
+  }
+
+  void _showSleepTimerSheet(LuminaAudioHandler handler) {
+    final timerService = ref.read(sleepTimerServiceProvider);
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: AppColors.surface,
+      builder: (sheetContext) => Theme(
+        data: _immersiveTheme(),
+        child: Builder(
+          builder: (context) => SafeArea(
+            top: false,
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                context.appDesign.spaceXl,
+                context.appDesign.spaceSm,
+                context.appDesign.spaceXl,
+                context.appDesign.spaceXl,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    context.tr('定时关闭', 'Sleep timer'),
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: context.appTextPrimary,
+                    ),
+                  ),
+                  SizedBox(height: context.appDesign.spaceXs),
+                  Text(
+                    context.tr(
+                      '当前：${_sleepTimerLabel(timerService.state)}',
+                      'Current: ${_sleepTimerLabel(timerService.state)}',
+                    ),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: context.appTextSecondary,
+                    ),
+                  ),
+                  SizedBox(height: context.appDesign.spaceLg),
+                  Wrap(
+                    spacing: context.appDesign.spaceSm,
+                    runSpacing: context.appDesign.spaceSm,
+                    children: [
+                      for (final minutes in const [15, 30, 45, 60])
+                        ActionChip(
+                          label: Text(
+                            context.tr('$minutes 分钟', '$minutes minutes'),
+                          ),
+                          onPressed: () async {
+                            await timerService.scheduleDuration(
+                              Duration(minutes: minutes),
+                              handler,
+                            );
+                            if (sheetContext.mounted) {
+                              Navigator.of(sheetContext).pop();
+                            }
+                          },
+                        ),
+                      ActionChip(
+                        label: Text(context.tr('本章结束', 'End of chapter')),
+                        onPressed: () async {
+                          await timerService.scheduleChapterEnd(handler);
+                          if (sheetContext.mounted) {
+                            Navigator.of(sheetContext).pop();
+                          }
+                        },
+                      ),
+                      if (timerService.state.active)
+                        ActionChip(
+                          label: Text(context.tr('关闭定时', 'Turn off')),
+                          onPressed: () async {
+                            await timerService.cancel();
+                            if (sheetContext.mounted) {
+                              Navigator.of(sheetContext).pop();
+                            }
+                          },
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 

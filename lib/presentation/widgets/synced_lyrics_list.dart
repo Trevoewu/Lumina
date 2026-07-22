@@ -366,6 +366,7 @@ class SyncedLyricsList extends StatefulWidget {
   final LuminaAudioHandler handler;
   final bool playbackEnabled;
   final bool expanded;
+  final bool focusMode;
   final String? bookTitle;
   final String? chapterTitle;
   final String? bookId;
@@ -378,6 +379,7 @@ class SyncedLyricsList extends StatefulWidget {
     required this.handler,
     this.playbackEnabled = true,
     this.expanded = false,
+    this.focusMode = false,
     this.bookTitle,
     this.chapterTitle,
     this.bookId,
@@ -514,7 +516,14 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
     final position = _scrollController.position;
     final viewport = RenderAbstractViewport.of(renderObject);
     final target = viewport
-        .getOffsetToReveal(renderObject, widget.expanded ? 0.24 : 0.18)
+        .getOffsetToReveal(
+          renderObject,
+          widget.focusMode
+              ? 0.34
+              : widget.expanded
+              ? 0.24
+              : 0.18,
+        )
         .offset
         .clamp(position.minScrollExtent, position.maxScrollExtent)
         .toDouble();
@@ -774,11 +783,15 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
       child: SingleChildScrollView(
         controller: _scrollController,
         padding: EdgeInsets.fromLTRB(
-          widget.expanded
+          widget.focusMode
+              ? 0
+              : widget.expanded
               ? context.appDesign.pageGutter
               : context.appDesign.spaceLg,
           context.appDesign.spaceSm,
-          widget.expanded
+          widget.focusMode
+              ? 0
+              : widget.expanded
               ? context.appDesign.pageGutter
               : context.appDesign.spaceLg,
           context.appDesign.spaceXxl + context.appDesign.spaceLg,
@@ -868,7 +881,11 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
                     ? highlighted
                           ? AppColors.lyricsTextPrimary
                           : AppColors.lyricsTextPrimary.withValues(
-                              alpha: widget.expanded ? 0.42 : 0.3,
+                              alpha: widget.focusMode
+                                  ? 0.56
+                                  : widget.expanded
+                                  ? 0.42
+                                  : 0.3,
                             )
                     : AppColors.lyricsTextPrimary.withValues(alpha: 0.16),
               ),
@@ -992,10 +1009,10 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
 
   TextStyle _lineTextStyle({required Color color}) {
     return TextStyle(
-      fontSize: widget.expanded ? 22 : 18,
+      fontSize: widget.expanded || widget.focusMode ? 22 : 18,
       fontWeight: FontWeight.w700,
       color: color,
-      height: widget.expanded ? 1.35 : 1.4,
+      height: widget.expanded || widget.focusMode ? 1.35 : 1.4,
       fontFamily: context.appDesign.readingFontFamily,
       fontFamilyFallback: context.appDesign.readingFontFamilyFallback,
     );

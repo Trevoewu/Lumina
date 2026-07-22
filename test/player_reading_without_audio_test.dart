@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
@@ -13,6 +14,7 @@ import 'package:lumina/presentation/screens/album/album_screen.dart';
 import 'package:lumina/presentation/screens/player/player_screen.dart';
 import 'package:lumina/services/lumina_audio_handler.dart';
 import 'package:lumina/services/manifest_store.dart';
+import 'package:lumina/services/sleep_timer_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -20,7 +22,7 @@ void main() {
   testWidgets(
     'an uncached chapter remains readable and offers streaming playback',
     (tester) async {
-      tester.view.physicalSize = const Size(430, 1000);
+      tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
@@ -29,7 +31,10 @@ void main() {
       final temp = Directory.systemTemp.createTempSync('lumina_reader_test_');
       final manifestStore = ManifestStore(documentsDirectory: () async => temp);
       final audioHandler = _TestAudioHandler();
+      final sleepTimerService = SleepTimerService();
       addTearDown(database.close);
+      addTearDown(audioHandler.dispose);
+      addTearDown(sleepTimerService.dispose);
       addTearDown(() {
         if (temp.existsSync()) temp.deleteSync(recursive: true);
       });
@@ -41,7 +46,7 @@ void main() {
         format: 'epub',
         sourcePath: '/tmp/readable.epub',
         chapterCount: 1,
-        paragraphCount: 1,
+        paragraphCount: 6,
         currentParagraphIndex: 0,
         playbackOffsetMs: 0,
         importedAt: 1,
@@ -62,15 +67,50 @@ void main() {
         chapterEntries: const [chapter],
         paragraphEntries: const [
           Paragraph(
-            id: 'readable-paragraph',
+            id: 'readable-paragraph-1',
             chapterId: 'readable-chapter',
             bookId: 'readable-book',
             paragraphIndex: 0,
             content: 'This text is readable before any audio is cached.',
           ),
+          Paragraph(
+            id: 'readable-paragraph-2',
+            chapterId: 'readable-chapter',
+            bookId: 'readable-book',
+            paragraphIndex: 1,
+            content: 'The story continues across several visible lines.',
+          ),
+          Paragraph(
+            id: 'readable-paragraph-3',
+            chapterId: 'readable-chapter',
+            bookId: 'readable-book',
+            paragraphIndex: 2,
+            content: 'The current sentence stays bright while it is spoken.',
+          ),
+          Paragraph(
+            id: 'readable-paragraph-4',
+            chapterId: 'readable-chapter',
+            bookId: 'readable-book',
+            paragraphIndex: 3,
+            content: 'Nearby sentences remain visible for context.',
+          ),
+          Paragraph(
+            id: 'readable-paragraph-5',
+            chapterId: 'readable-chapter',
+            bookId: 'readable-book',
+            paragraphIndex: 4,
+            content: 'More than one line stays on screen as playback moves.',
+          ),
+          Paragraph(
+            id: 'readable-paragraph-6',
+            chapterId: 'readable-chapter',
+            bookId: 'readable-book',
+            paragraphIndex: 5,
+            content: 'You can tap any sentence to continue from there.',
+          ),
         ],
       );
-      expect(await database.getParagraphs(chapter.id), hasLength(1));
+      expect(await database.getParagraphs(chapter.id), hasLength(6));
 
       await tester.pumpWidget(
         ProviderScope(
@@ -80,9 +120,10 @@ void main() {
             luminaAudioHandlerProvider.overrideWith(
               (ref) async => audioHandler,
             ),
+            sleepTimerServiceProvider.overrideWithValue(sleepTimerService),
           ],
           child: MaterialApp(
-            theme: AppTheme.darkTheme(),
+            theme: AppTheme.lightTheme(),
             home: const PlayerScreen(book: book, initialChapter: chapter),
           ),
         ),
@@ -132,6 +173,107 @@ void main() {
         sliderTheme.data.activeTrackColor,
         isNot(sliderTheme.data.secondaryActiveTrackColor),
       );
+      expect(
+        find.byKey(const ValueKey('player-immersive-background')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('player-artwork')), findsOneWidget);
+      expect(find.text('Text preview'), findsOneWidget);
+      expect(find.byIcon(Icons.more_horiz_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.timer_outlined), findsOneWidget);
+
+      final background = tester.widget<Container>(
+        find.byKey(const ValueKey('player-immersive-background')),
+      );
+      final backgroundDecoration = background.decoration! as BoxDecoration;
+      final backgroundGradient =
+          backgroundDecoration.gradient! as LinearGradient;
+      expect(
+        backgroundGradient.colors.every(
+          (color) => color.computeLuminance() < 0.2,
+        ),
+        isTrue,
+      );
+      final primaryButtonMaterial = tester.widget<Material>(
+        find
+            .ancestor(
+              of: find.byKey(const ValueKey('player-primary-audio-action')),
+              matching: find.byType(Material),
+            )
+            .first,
+      );
+      expect(primaryButtonMaterial.color, Colors.white);
+
+      await expectLater(
+        find.byType(PlayerScreen),
+        matchesGoldenFile('goldens/player_spotify_dark_390.png'),
+      );
+
+      await tester.tap(find.byIcon(Icons.timer_outlined));
+      await tester.pumpAndSettle();
+      expect(find.text('Sleep timer'), findsOneWidget);
+      await tester.tap(find.text('15 minutes'));
+      await tester.pumpAndSettle();
+      expect(sleepTimerService.state.mode, SleepTimerMode.duration);
+      expect(sleepTimerService.state.duration, const Duration(minutes: 15));
+      await sleepTimerService.cancel();
+
+      audioHandler.startLoadedChapter(
+        bookId: book.id,
+        chapterId: chapter.id,
+        paragraphId: 'readable-paragraph-3',
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('player-live-lyrics-stage')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('lyrics-card')), findsNothing);
+      expect(find.text('Live text'), findsOneWidget);
+      expect(
+        find.text('The story continues across several visible lines.'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('The current sentence stays bright while it is spoken.'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Nearby sentences remain visible for context.'),
+        findsOneWidget,
+      );
+      final compactArtwork = tester.getSize(
+        find.byKey(const ValueKey('player-artwork')),
+      );
+      expect(compactArtwork, const Size.square(80));
+      final viewportHeight =
+          tester.view.physicalSize.height / tester.view.devicePixelRatio;
+      final controlsBottom = tester
+          .getBottomRight(
+            find.byKey(const ValueKey('player-playback-controls')),
+          )
+          .dy;
+      expect(viewportHeight - controlsBottom, inInclusiveRange(12, 20));
+
+      await expectLater(
+        find.byType(PlayerScreen),
+        matchesGoldenFile('goldens/player_spotify_playing_390.png'),
+      );
+
+      await tester.tap(
+        find.byKey(const ValueKey('player-primary-audio-action')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.play_arrow), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('player-live-lyrics-stage')),
+        findsOneWidget,
+      );
+      expect(
+        tester.getSize(find.byKey(const ValueKey('player-artwork'))),
+        const Size.square(80),
+      );
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump(const Duration(milliseconds: 1));
@@ -166,6 +308,7 @@ void main() {
     final manifestStore = ManifestStore(documentsDirectory: () async => temp);
     final audioHandler = _TestAudioHandler();
     addTearDown(database.close);
+    addTearDown(audioHandler.dispose);
     addTearDown(() {
       if (temp.existsSync()) temp.deleteSync(recursive: true);
     });
@@ -269,41 +412,101 @@ void main() {
 }
 
 class _TestAudioHandler extends BaseAudioHandler implements LuminaAudioHandler {
-  @override
-  Duration get chapterDuration => Duration.zero;
+  final _paragraphController = StreamController<String?>.broadcast();
+  final _positionController = StreamController<Duration>.broadcast();
+  final _chapterPositionController = StreamController<Duration>.broadcast();
+  String? _bookId;
+  String? _chapterId;
+  String? _paragraphId;
+  Duration _position = Duration.zero;
+  Duration _chapterDuration = Duration.zero;
+  bool _disposed = false;
+
+  void startLoadedChapter({
+    required String bookId,
+    required String chapterId,
+    required String paragraphId,
+  }) {
+    _bookId = bookId;
+    _chapterId = chapterId;
+    _paragraphId = paragraphId;
+    _position = Duration.zero;
+    _chapterDuration = const Duration(minutes: 22, seconds: 9);
+    _paragraphController.add(paragraphId);
+    _positionController.add(_position);
+    _chapterPositionController.add(_position);
+    playbackState.add(
+      playbackState.value.copyWith(
+        controls: const [
+          MediaControl.skipToPrevious,
+          MediaControl.pause,
+          MediaControl.skipToNext,
+        ],
+        processingState: AudioProcessingState.ready,
+        playing: true,
+        updatePosition: _position,
+        bufferedPosition: _chapterDuration,
+        speed: 1,
+      ),
+    );
+  }
 
   @override
-  Duration get chapterPosition => Duration.zero;
+  Duration get chapterDuration => _chapterDuration;
 
   @override
-  Stream<Duration> get chapterPositionStream => const Stream.empty();
+  Duration get chapterPosition => _position;
 
   @override
-  String? get currentBookId => null;
+  Stream<Duration> get chapterPositionStream =>
+      _chapterPositionController.stream;
 
   @override
-  String? get currentChapterId => null;
+  String? get currentBookId => _bookId;
+
+  @override
+  String? get currentChapterId => _chapterId;
 
   @override
   ChapterManifest? get currentManifest => null;
 
   @override
-  String? get currentParagraphId => null;
+  String? get currentParagraphId => _paragraphId;
 
   @override
-  Stream<String?> get currentParagraphIdStream => const Stream.empty();
+  Stream<String?> get currentParagraphIdStream => _paragraphController.stream;
 
   @override
-  Duration get position => Duration.zero;
+  Duration get position => _position;
 
   @override
-  Stream<Duration> get positionStream => const Stream.empty();
+  Stream<Duration> get positionStream => _positionController.stream;
 
   @override
   Future<void> setSpeed(double speed) async {}
 
   @override
-  Future<void> dispose() async {}
+  Future<void> pause() async {
+    playbackState.add(
+      playbackState.value.copyWith(
+        controls: const [
+          MediaControl.skipToPrevious,
+          MediaControl.play,
+          MediaControl.skipToNext,
+        ],
+        playing: false,
+      ),
+    );
+  }
+
+  @override
+  Future<void> dispose() async {
+    if (_disposed) return;
+    _disposed = true;
+    await _paragraphController.close();
+    await _positionController.close();
+    await _chapterPositionController.close();
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
