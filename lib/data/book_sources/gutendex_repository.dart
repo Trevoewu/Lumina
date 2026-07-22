@@ -136,7 +136,67 @@ class GutendexBook {
 
   String get preferredExtension => epubUrl != null ? '.epub' : '.txt';
 
+  List<GutendexDownloadSource> get downloadSources {
+    final sources = <GutendexDownloadSource>[];
+    final seenUrls = <String>{};
+
+    void add(String? url, String extension) {
+      if (url == null || !seenUrls.add(url)) return;
+      sources.add(GutendexDownloadSource(url: url, extension: extension));
+    }
+
+    final epub = epubUrl;
+    if (epub != null) {
+      if (_isProjectGutenbergUrl(epub)) {
+        final fileName = _gutenbergEpubFileName(epub, id);
+        add('https://gutenberg.pglaf.org/cache/epub/$id/$fileName', '.epub');
+        add('https://mirror.cs.odu.edu/gutenberg-epub/$id/$fileName', '.epub');
+      }
+      add(epub, '.epub');
+    }
+
+    final text = textUrl;
+    if (text != null) {
+      if (_isProjectGutenbergUrl(text)) {
+        final fileName = 'pg$id.txt';
+        add('https://gutenberg.pglaf.org/cache/epub/$id/$fileName', '.txt');
+        add('https://mirror.cs.odu.edu/gutenberg-epub/$id/$fileName', '.txt');
+      }
+      add(text, '.txt');
+    }
+    return sources;
+  }
+
   bool get canImport => isPublicDomain && preferredDownloadUrl != null;
+}
+
+class GutendexDownloadSource {
+  final String url;
+  final String extension;
+
+  const GutendexDownloadSource({required this.url, required this.extension});
+}
+
+class GutendexDownloadException implements Exception {
+  final Object? cause;
+
+  const GutendexDownloadException([this.cause]);
+
+  @override
+  String toString() => 'Could not download this book from Project Gutenberg.';
+}
+
+bool _isProjectGutenbergUrl(String url) {
+  final host = Uri.tryParse(url)?.host.toLowerCase();
+  return host == 'gutenberg.org' || host?.endsWith('.gutenberg.org') == true;
+}
+
+String _gutenbergEpubFileName(String url, int id) {
+  final path = Uri.tryParse(url)?.path.toLowerCase() ?? '';
+  if (path.contains('.epub3.noimages')) return 'pg$id-3.epub';
+  if (path.contains('.epub.noimages')) return 'pg$id.epub';
+  if (path.contains('.epub.images')) return 'pg$id-images.epub';
+  return 'pg$id-images-3.epub';
 }
 
 class GutendexPerson {
@@ -199,8 +259,8 @@ class GutendexRepository {
     if (!book.isPublicDomain) {
       throw StateError('This Gutendex book is not marked public domain.');
     }
-    final sourceUrl = book.preferredDownloadUrl;
-    if (sourceUrl == null) {
+    final downloadSources = book.downloadSources;
+    if (downloadSources.isEmpty) {
       throw StateError('No EPUB or plain text download is available.');
     }
 
@@ -212,20 +272,22 @@ class GutendexRepository {
 
     final importDir = Directory(p.join(appDir, 'imports', gutendexSourceId));
     await importDir.create(recursive: true);
-    final tempSource = File(
-      p.join(importDir.path, '${book.id}${book.preferredExtension}'),
-    );
-    await _dio.download(
-      sourceUrl,
-      tempSource.path,
-      onReceiveProgress: onDownloadProgress,
+    final downloaded = await _downloadBookSource(
+      sources: downloadSources,
+      importDir: importDir,
+      bookId: book.id,
+      onDownloadProgress: onDownloadProgress,
     );
 
-    final parsed = await BookParser.parse(
-      sourcePath: tempSource.path,
-      appDir: appDir,
-    );
-    await tempSource.delete().catchError((_) => tempSource);
+    late final ParsedBook parsed;
+    try {
+      parsed = await BookParser.parse(
+        sourcePath: downloaded.file.path,
+        appDir: appDir,
+      );
+    } finally {
+      await downloaded.file.delete().catchError((_) => downloaded.file);
+    }
     final language = book.languages.isEmpty ? null : book.languages.join(',');
     final readingLevel = await _estimateReadingLevel(
       language: language,
@@ -242,7 +304,8 @@ class GutendexRepository {
     final metadataJson = jsonEncode({
       'source': gutendexSourceId,
       'source_url': 'https://gutendex.com/books/${book.id}',
-      'download_url': sourceUrl,
+      'download_url': downloaded.source.url,
+      'gutendex_download_url': book.preferredDownloadUrl,
       'rights_status': publicDomainRightsStatus,
       'raw': book.rawJson,
     });
@@ -300,6 +363,36 @@ class GutendexRepository {
           .toList(),
     );
     return row;
+  }
+
+  Future<({File file, GutendexDownloadSource source})> _downloadBookSource({
+    required List<GutendexDownloadSource> sources,
+    required Directory importDir,
+    required int bookId,
+    required void Function(int received, int total)? onDownloadProgress,
+  }) async {
+    Object? lastError;
+    for (final source in sources) {
+      final output = File(p.join(importDir.path, '$bookId${source.extension}'));
+      try {
+        await output.delete().catchError((_) => output);
+        await _dio.download(
+          source.url,
+          output.path,
+          deleteOnError: true,
+          onReceiveProgress: onDownloadProgress,
+          options: Options(receiveTimeout: const Duration(minutes: 2)),
+        );
+        if (!await output.exists() || await output.length() == 0) {
+          throw StateError('Project Gutenberg returned an empty file.');
+        }
+        return (file: output, source: source);
+      } catch (error) {
+        lastError = error;
+        await output.delete().catchError((_) => output);
+      }
+    }
+    throw GutendexDownloadException(lastError);
   }
 
   Future<String?> _downloadCover({

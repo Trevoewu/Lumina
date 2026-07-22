@@ -108,6 +108,7 @@ class LuminaAudioHandler extends BaseAudioHandler
     required String audioRoot,
     String? bookTitle,
     String? chapterTitle,
+    String paragraphLabel = 'Paragraph',
   }) async {
     await loadChapters(
       chapters: [
@@ -119,6 +120,7 @@ class LuminaAudioHandler extends BaseAudioHandler
       initialChapterId: manifest.chapterId,
       audioRoot: audioRoot,
       bookTitle: bookTitle,
+      paragraphLabel: paragraphLabel,
     );
   }
 
@@ -127,6 +129,7 @@ class LuminaAudioHandler extends BaseAudioHandler
     required String initialChapterId,
     required String audioRoot,
     String? bookTitle,
+    String paragraphLabel = 'Paragraph',
   }) async {
     if (chapters.isEmpty) {
       throw StateError('没有可播放的章节。');
@@ -161,19 +164,13 @@ class LuminaAudioHandler extends BaseAudioHandler
             initialIndex < 0) {
           initialIndex = entries.length;
         }
-        final item = MediaItem(
-          id: segment.paragraphId,
-          album: bookTitle ?? 'Lumina',
-          title: chapter.chapterTitle.isEmpty
-              ? '段落 ${i + 1}'
-              : '${chapter.chapterTitle} · 段落 ${i + 1}',
-          duration: Duration(milliseconds: segment.durationMs),
-          extras: {
-            'bookId': chapter.manifest.bookId,
-            'chapterId': chapter.manifest.chapterId,
-            'paragraphId': segment.paragraphId,
-            'audioFile': segment.audioFile,
-          },
+        final item = _mediaItemForSegment(
+          manifest: chapter.manifest,
+          segment: segment,
+          paragraphNumber: i + 1,
+          bookTitle: bookTitle,
+          chapterTitle: chapter.chapterTitle,
+          paragraphLabel: paragraphLabel,
         );
         entries.add(
           _QueueEntry(
@@ -228,6 +225,153 @@ class LuminaAudioHandler extends BaseAudioHandler
       'Playback',
       '连续章节加载完成 chapter=$initialChapterId '
           'queueItems=${entries.length} durationMs=$_chapterDurationMs',
+    );
+  }
+
+  /// 把新缓存好的连续段落追加到当前章节播放队列。
+  ///
+  /// [manifest] 应只包含从章节开头起连续就绪的分段；这样播放不会
+  /// 跳过尚未生成的段落。新音频会在下一章之前插入，不重载当前播放位置。
+  Future<bool> appendChapterSegments({
+    required ChapterManifest manifest,
+    required String audioRoot,
+    required String chapterTitle,
+    String? bookTitle,
+    String paragraphLabel = 'Paragraph',
+  }) async {
+    if (currentBookId != manifest.bookId ||
+        currentChapterId != manifest.chapterId) {
+      return false;
+    }
+
+    final chapterStart = _queueEntries.indexWhere(
+      (entry) => entry.manifest.chapterId == manifest.chapterId,
+    );
+    if (chapterStart < 0) return false;
+    final chapterEnd =
+        _queueEntries.lastIndexWhere(
+          (entry) => entry.manifest.chapterId == manifest.chapterId,
+        ) +
+        1;
+    final existing = _queueEntries.sublist(chapterStart, chapterEnd);
+
+    final playable = <SegmentEntry>[];
+    for (final segment in manifest.segments) {
+      if (segment.state != ParagraphAudioState.ready) break;
+      final file = File('$audioRoot/${segment.audioFile}');
+      if (!await file.exists() || await file.length() <= 64) break;
+      playable.add(segment);
+    }
+    if (playable.length <= existing.length) return false;
+    for (var i = 0; i < existing.length; i++) {
+      if (existing[i].segment.paragraphId != playable[i].paragraphId) {
+        return false;
+      }
+    }
+
+    final additions = playable.skip(existing.length).toList(growable: false);
+    final wasWaitingAtCacheBoundary =
+        _player.processingState == ProcessingState.completed;
+    final additionSources = additions
+        .map(
+          (segment) => AudioSource.uri(
+            File('$audioRoot/${segment.audioFile}').uri,
+            tag: _mediaItemForSegment(
+              manifest: manifest,
+              segment: segment,
+              paragraphNumber: manifest.segments.indexOf(segment) + 1,
+              bookTitle: bookTitle,
+              chapterTitle: chapterTitle,
+              paragraphLabel: paragraphLabel,
+            ),
+          ),
+        )
+        .toList(growable: false);
+    await _player.insertAudioSources(chapterEnd, additionSources);
+
+    final chapterDurationMs = playable.fold<int>(
+      0,
+      (total, segment) => total + segment.durationMs,
+    );
+    var chapterOffsetMs = 0;
+    final chapterEntries = <_QueueEntry>[];
+    final chapterItems = <MediaItem>[];
+    for (var i = 0; i < playable.length; i++) {
+      final segment = playable[i];
+      chapterEntries.add(
+        _QueueEntry(
+          manifest: manifest,
+          segment: segment,
+          chapterOffsetMs: chapterOffsetMs,
+          chapterDurationMs: chapterDurationMs,
+        ),
+      );
+      chapterItems.add(
+        _mediaItemForSegment(
+          manifest: manifest,
+          segment: segment,
+          paragraphNumber: i + 1,
+          bookTitle: bookTitle,
+          chapterTitle: chapterTitle,
+          paragraphLabel: paragraphLabel,
+        ),
+      );
+      chapterOffsetMs += segment.durationMs;
+    }
+
+    _queueEntries = [
+      ..._queueEntries.take(chapterStart),
+      ...chapterEntries,
+      ..._queueEntries.skip(chapterEnd),
+    ];
+    _paragraphIds = _queueEntries
+        .map((entry) => entry.segment.paragraphId)
+        .toList(growable: false);
+    final updatedQueue = [...queue.value]
+      ..replaceRange(chapterStart, chapterEnd, chapterItems);
+    queue.add(updatedQueue);
+
+    if (wasWaitingAtCacheBoundary) {
+      await _player.seek(Duration.zero, index: chapterEnd);
+    }
+
+    final currentIndex = _player.currentIndex;
+    if (currentIndex != null) {
+      _applyCurrentEntry(currentIndex);
+      if (currentIndex < updatedQueue.length) {
+        mediaItem.add(updatedQueue[currentIndex]);
+      }
+    }
+    _broadcastState(_player.playbackEvent);
+    AppLogger.info(
+      'Playback',
+      '流式追加章节缓存 chapter=${manifest.chapterId} '
+          'added=${additions.length} playable=${playable.length}',
+    );
+    return true;
+  }
+
+  MediaItem _mediaItemForSegment({
+    required ChapterManifest manifest,
+    required SegmentEntry segment,
+    required int paragraphNumber,
+    required String chapterTitle,
+    required String paragraphLabel,
+    String? bookTitle,
+  }) {
+    return MediaItem(
+      id: segment.paragraphId,
+      album: bookTitle ?? 'Lumina',
+      title: chapterTitle.isEmpty
+          ? '$paragraphLabel $paragraphNumber'
+          : '$chapterTitle · $paragraphLabel $paragraphNumber',
+      duration: Duration(milliseconds: segment.durationMs),
+      extras: {
+        'bookId': manifest.bookId,
+        'chapterId': manifest.chapterId,
+        'paragraphId': segment.paragraphId,
+        'audioFile': segment.audioFile,
+      },
     );
   }
 

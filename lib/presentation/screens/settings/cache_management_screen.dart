@@ -37,7 +37,9 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           if (data == null) {
-            return const Center(child: Text('暂无缓存信息'));
+            return Center(
+              child: Text(context.tr('暂无缓存信息', 'No cache information')),
+            );
           }
 
           return RefreshIndicator(
@@ -52,12 +54,12 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                       color: context.appTextSecondary,
                     ),
                     title: Text(
-                      '总音频缓存',
+                      context.tr('总音频缓存', 'Total audio cache'),
                       style: TextStyle(color: context.appTextPrimary),
                     ),
                     subtitle: Text(data.total.humanReadable),
                     trailing: IconButton(
-                      tooltip: '清空',
+                      tooltip: context.tr('清空', 'Clear all'),
                       onPressed: _clearing || data.total.bytes == 0
                           ? null
                           : () => _clearAll(cache),
@@ -75,7 +77,7 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                 Padding(
                   padding: EdgeInsets.only(left: 4, bottom: 8),
                   child: Text(
-                    '按书籍清理',
+                    context.tr('按书籍清理', 'Clear by book'),
                     style: TextStyle(
                       color: context.appTextSecondary,
                       fontWeight: FontWeight.w700,
@@ -84,10 +86,10 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                 ),
                 const SizedBox(height: 8),
                 if (data.books.isEmpty)
-                  const _SurfaceTile(
+                  _SurfaceTile(
                     child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Text('暂无导入书籍'),
+                      padding: const EdgeInsets.all(24),
+                      child: Text(context.tr('暂无导入书籍', 'No imported books')),
                     ),
                   )
                 else
@@ -105,7 +107,7 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                           style: TextStyle(color: context.appTextPrimary),
                         ),
                         subtitle: Text(
-                          '${row.usage.humanReadable} · ${row.book.chapterCount} 章',
+                          '${row.usage.humanReadable} · ${row.book.chapterCount} ${context.tr('章', 'chapters')}',
                           style: TextStyle(color: context.appTextSecondary),
                         ),
                         children: [
@@ -113,7 +115,10 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                             alignment: MainAxisAlignment.end,
                             children: [
                               IconButton(
-                                tooltip: '清理整本书音频',
+                                tooltip: context.tr(
+                                  '清理整本书音频',
+                                  'Clear audio for this book',
+                                ),
                                 onPressed: row.usage.bytes == 0 || _clearing
                                     ? null
                                     : () => _clearBook(cache, row.book),
@@ -128,9 +133,11 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                                   chapterSnapshot.data ??
                                   const <_ChapterCacheRow>[];
                               if (chaptersRows.isEmpty) {
-                                return const Padding(
-                                  padding: EdgeInsets.all(16),
-                                  child: Text('暂无章节'),
+                                return Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Text(
+                                    context.tr('暂无章节', 'No chapters'),
+                                  ),
                                 );
                               }
                               return Column(
@@ -153,7 +160,10 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                                         ),
                                       ),
                                       trailing: IconButton(
-                                        tooltip: '清理章节音频',
+                                        tooltip: context.tr(
+                                          '清理章节音频',
+                                          'Clear chapter audio',
+                                        ),
                                         onPressed: _clearing
                                             ? null
                                             : () => _clearChapter(
@@ -212,7 +222,9 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
   }
 
   Future<void> _clearAll(CacheManager cache) async {
-    if (!await _confirm('清空所有音频缓存？')) return;
+    if (!await _confirm(context.tr('清空所有音频缓存？', 'Clear all audio cache?'))) {
+      return;
+    }
     setState(() => _clearing = true);
     try {
       await cache.clearAll();
@@ -226,7 +238,14 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
   }
 
   Future<void> _clearBook(CacheManager cache, drift_db.Book book) async {
-    if (!await _confirm('清理《${book.title}》的所有音频缓存？')) return;
+    if (!await _confirm(
+      context.tr(
+        '清理《${book.title}》的所有音频缓存？',
+        'Clear all cached audio for "${book.title}"?',
+      ),
+    )) {
+      return;
+    }
     setState(() => _clearing = true);
     try {
       await cache.clearBook(book.id);
@@ -249,7 +268,14 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
     drift_db.Book book,
     drift_db.Chapter chapter,
   ) async {
-    if (!await _confirm('清理《${book.title}》- ${chapter.title} 的音频缓存？')) return;
+    if (!await _confirm(
+      context.tr(
+        '清理《${book.title}》- ${chapter.title} 的音频缓存？',
+        'Clear cached audio for "${book.title}" — ${chapter.title}?',
+      ),
+    )) {
+      return;
+    }
     setState(() => _clearing = true);
     try {
       await cache.clearChapter(book.id, chapter.id);
@@ -272,7 +298,12 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         duration: const Duration(seconds: 6),
-        content: Text('缓存清理未完全完成：$error'),
+        content: Text(
+          context.tr(
+            '缓存清理未完全完成，请稍后重试。',
+            'The cache could not be fully cleared. Please try again.',
+          ),
+        ),
       ),
     );
   }
@@ -281,16 +312,16 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('确认清理'),
+        title: Text(context.tr('确认清理', 'Confirm clearing')),
         content: Text(message),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: Text('取消'),
+            child: Text(context.tr('取消', 'Cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: Text('清理'),
+            child: Text(context.tr('清理', 'Clear')),
           ),
         ],
       ),

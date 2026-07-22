@@ -52,4 +52,32 @@ void main() {
     expect(copyrighted.canImport, isFalse);
     expect(undownloadable.canImport, isFalse);
   });
+
+  test('GutendexBook prefers official mirrors for Gutenberg downloads', () {
+    final book = GutendexBook.fromJson({
+      'id': 2701,
+      'title': 'Moby Dick; Or, The Whale',
+      'authors': [],
+      'languages': ['en'],
+      'copyright': false,
+      'formats': {
+        'application/epub+zip':
+            'https://www.gutenberg.org/ebooks/2701.epub3.images',
+        'text/plain; charset=utf-8':
+            'https://www.gutenberg.org/ebooks/2701.txt.utf-8',
+      },
+    });
+
+    expect(
+      book.downloadSources.map((source) => source.url),
+      containsAllInOrder([
+        'https://gutenberg.pglaf.org/cache/epub/2701/pg2701-images-3.epub',
+        'https://mirror.cs.odu.edu/gutenberg-epub/2701/pg2701-images-3.epub',
+        'https://www.gutenberg.org/ebooks/2701.epub3.images',
+        'https://gutenberg.pglaf.org/cache/epub/2701/pg2701.txt',
+        'https://mirror.cs.odu.edu/gutenberg-epub/2701/pg2701.txt',
+        'https://www.gutenberg.org/ebooks/2701.txt.utf-8',
+      ]),
+    );
+  });
 }

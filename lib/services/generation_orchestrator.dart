@@ -102,6 +102,17 @@ class GenerationOrchestrator {
     return job.stream;
   }
 
+  /// 订阅一个已经存在的章节生成任务，不会创建新的生成任务。
+  ///
+  /// 阅读页可以借此复用从章节列表或“缓存整本书”入口启动的任务，
+  /// 并立即收到该任务最近一次的进度。
+  Stream<GenerationProgress>? watchChapterGeneration({
+    required String bookId,
+    required String chapterId,
+  }) {
+    return _activeChapterJobs['$bookId\u0000$chapterId']?.stream;
+  }
+
   /// 暂停章节生成。当前已发出的 TTS 请求会完成，但不会继续派发新段落。
   bool pauseChapter({required String bookId, required String chapterId}) {
     final job = _activeChapterJobs['$bookId\u0000$chapterId'];

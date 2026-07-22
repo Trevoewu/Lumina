@@ -40,6 +40,7 @@ class SettingValueRow extends StatelessWidget {
   final String title;
   final String? subtitle;
   final String? value;
+  final Color? valueColor;
   final VoidCallback? onTap;
   final Widget? trailing;
 
@@ -50,6 +51,7 @@ class SettingValueRow extends StatelessWidget {
     required this.title,
     this.subtitle,
     this.value,
+    this.valueColor,
     this.onTap,
     this.trailing,
   });
@@ -82,7 +84,10 @@ class SettingValueRow extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: scheme.onSurfaceVariant,
+                          color: valueColor ?? scheme.onSurfaceVariant,
+                          fontWeight: valueColor == null
+                              ? null
+                              : FontWeight.w600,
                         ),
                       ),
                     ),

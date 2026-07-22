@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -10,7 +8,6 @@ import '../../../data/database/app_database.dart' as drift_db;
 import '../../../data/settings/provider_selection_repository.dart';
 import '../../../domain/models/chapter_manifest.dart';
 import '../../../services/app_log_service.dart';
-import '../../../services/book_playback_queue.dart';
 import '../../../services/cover_palette_service.dart';
 import '../../../services/generation_orchestrator.dart';
 import '../../../services/manifest_store.dart';
@@ -20,6 +17,7 @@ import '../../../tts/tts_provider.dart';
 import '../../widgets/book_cover.dart';
 import '../../widgets/half_screen_action_sheet.dart';
 import '../../widgets/narrator_label.dart';
+import '../player/player_screen.dart';
 
 class AlbumScreen extends ConsumerStatefulWidget {
   final drift_db.Book book;
@@ -59,51 +57,14 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     super.dispose();
   }
 
-  Future<void> _playChapter(
-    drift_db.Chapter chapter,
-    int index, {
-    int? resumeParagraphIndex,
-    int resumeOffsetMs = 0,
-    bool playAfterGeneration = false,
-  }) async {
-    final manifestStore = ref.read(manifestStoreProvider);
-
-    final manifest = await manifestStore.load(widget.book.id, chapter.id);
-    if (!mounted) return;
-    if (manifest != null && manifest.readyCount > 0) {
-      if (!manifest.isReady) {
-        _showSnackBar(
-          '播放已缓存的 ${manifest.readyCount}/${manifest.segments.length} 段',
-        );
-      }
-      await _loadAndPlayChapter(
-        manifest,
-        chapter,
-        resumeParagraphIndex: resumeParagraphIndex,
-        resumeOffsetMs: resumeOffsetMs,
-      );
-      return;
-    }
-
-    if (_generatingChapterIds.contains(chapter.id)) {
-      AppLogger.info('Generation', '章节已经在生成中 chapter=${chapter.id}');
-      return;
-    }
-
-    await _generateChapterAudio(chapter);
-    if (!playAfterGeneration || !mounted) return;
-
-    final generatedManifest = await manifestStore.load(
-      widget.book.id,
-      chapter.id,
+  Future<void> _openChapter(drift_db.Chapter chapter) async {
+    await Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            PlayerScreen(book: widget.book, initialChapter: chapter),
+      ),
     );
-    if (generatedManifest == null || generatedManifest.readyCount == 0) return;
-    await _loadAndPlayChapter(
-      generatedManifest,
-      chapter,
-      resumeParagraphIndex: resumeParagraphIndex,
-      resumeOffsetMs: resumeOffsetMs,
-    );
+    if (mounted) setState(() {});
   }
 
   Future<void> _clearChapterCache(drift_db.Chapter chapter) async {
@@ -163,48 +124,6 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     await cacheManager.clearChapter(widget.book.id, chapter.id);
     if (!mounted) return;
     await _generateChapterAudio(chapter);
-  }
-
-  Future<void> _loadAndPlayChapter(
-    ChapterManifest manifest,
-    drift_db.Chapter chapter, {
-    int? resumeParagraphIndex,
-    int resumeOffsetMs = 0,
-  }) async {
-    try {
-      final handlerFuture = ref.read(luminaAudioHandlerProvider.future);
-      final manifestStore = ref.read(manifestStoreProvider);
-      final handler = await handlerFuture;
-      await loadBookPlaybackQueue(
-        handler: handler,
-        database: ref.read(appDatabaseProvider),
-        manifestStore: manifestStore,
-        bookId: widget.book.id,
-        bookTitle: widget.book.title,
-        initialManifest: manifest,
-      );
-      if (resumeParagraphIndex != null) {
-        final restored = await handler.seekToProgress(
-          paragraphIndex: resumeParagraphIndex,
-          position: Duration(milliseconds: resumeOffsetMs),
-        );
-        if (!restored) {
-          _showSnackBar('保存位置尚未缓存，已从本章开头播放');
-        }
-      }
-      unawaited(handler.play());
-    } catch (error, stackTrace) {
-      AppLogger.error(
-        'Playback',
-        '播放章节缓存失败 '
-            '(book=${widget.book.id}, chapter=${chapter.id})',
-        error: error,
-        stackTrace: stackTrace,
-      );
-      if (!mounted) return;
-      _showSnackBar('播放缓存失败，请清除音频后重新生成');
-      return;
-    }
   }
 
   Future<void> _generateChapterAudio(drift_db.Chapter chapter) async {
@@ -674,7 +593,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                           progress: _generationProgress[chapter.id],
                           bookId: widget.book.id,
                           chapterId: chapter.id,
-                          onPlay: () => _playChapter(chapter, index),
+                          onPlay: () => _openChapter(chapter),
                           onDownload: () => _toggleChapterDownload(chapter),
                           onCancelDownload: () =>
                               _cancelChapterDownload(chapter),
@@ -854,7 +773,7 @@ class _ChapterCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    // 保留下载和更多操作；点击整张卡片即可播放。
+                    // 章节缓存统一收纳到更多操作；点击卡片直接进入阅读。
                     _ChapterActions(
                       chapterTitle: title,
                       manifest: manifest,
@@ -905,128 +824,62 @@ class _ChapterActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _ChapterDownloadButton(
-          manifest: manifest,
-          progress: progress,
-          onPressed: onDownload,
-          paused: paused,
-        ),
-        IconButton(
-          tooltip: '章节操作',
-          icon: Icon(Icons.more_horiz, color: context.appTextPrimary),
-          constraints: const BoxConstraints.tightFor(width: 40, height: 40),
-          padding: EdgeInsets.zero,
-          onPressed: () {
-            showHalfScreenActionSheet(
-              context,
-              title: chapterTitle,
-              actions: [
-                if (progress != null)
-                  HalfScreenActionSheetItem(
-                    label: '取消生成',
-                    icon: Icons.cancel_outlined,
-                    onPressed: onCancelDownload,
-                  ),
-                HalfScreenActionSheetItem(
-                  label: '清除音频',
-                  icon: Icons.cleaning_services_outlined,
-                  onPressed: onClearCache,
-                ),
-                HalfScreenActionSheetItem(
-                  label: '重新生成',
-                  icon: Icons.refresh_rounded,
-                  onPressed: onRegenerate,
-                ),
-                HalfScreenActionSheetItem(
-                  label: context.tr('修改旁白', 'Change narrator'),
-                  icon: Icons.record_voice_over_outlined,
-                  onPressed: onChangeNarrator,
-                ),
-                HalfScreenActionSheetItem(
-                  label: context.tr('在本书中隐藏', 'Hide in this book'),
-                  icon: Icons.visibility_off_outlined,
-                  onPressed: onHideInBook,
-                ),
-              ],
-            );
-          },
-        ),
-      ],
-    );
-  }
-}
-
-class _ChapterDownloadButton extends StatelessWidget {
-  final ChapterManifest? manifest;
-  final GenerationProgress? progress;
-  final VoidCallback onPressed;
-  final bool paused;
-
-  const _ChapterDownloadButton({
-    required this.manifest,
-    required this.onPressed,
-    required this.paused,
-    this.progress,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final accent = colorScheme.primary;
-    final isCached = manifest?.isReady ?? false;
-
-    if (progress != null) {
-      return Tooltip(
-        message: paused
-            ? '继续下载 ${(progress!.percent * 100).round()}%'
-            : '暂停下载 ${(progress!.percent * 100).round()}%',
-        child: IconButton(
-          onPressed: onPressed,
-          constraints: const BoxConstraints.tightFor(width: 40, height: 40),
-          padding: EdgeInsets.zero,
-          icon: SizedBox(
-            width: 22,
-            height: 22,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                CircularProgressIndicator(
-                  value: progress!.percent == 0 ? null : progress!.percent,
-                  strokeWidth: 2.5,
-                  color: accent,
-                  backgroundColor: accent.withValues(alpha: 0.16),
-                ),
-                Icon(
-                  paused ? Icons.play_arrow_rounded : Icons.pause_rounded,
-                  size: 15,
-                  color: accent,
-                ),
-              ],
+    final isGenerating = progress != null;
+    final hasCache = (manifest?.readyCount ?? 0) > 0;
+    final isFullyCached = manifest?.isReady ?? false;
+    return IconButton(
+      tooltip: '章节操作',
+      icon: Icon(Icons.more_horiz, color: context.appTextPrimary),
+      constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+      padding: EdgeInsets.zero,
+      onPressed: () {
+        showHalfScreenActionSheet(
+          context,
+          title: chapterTitle,
+          actions: [
+            if (isGenerating)
+              HalfScreenActionSheetItem(
+                label: paused ? '继续缓存' : '暂停缓存',
+                icon: paused ? Icons.play_arrow_rounded : Icons.pause_rounded,
+                onPressed: onDownload,
+              )
+            else if (!isFullyCached)
+              HalfScreenActionSheetItem(
+                label: hasCache ? '继续缓存音频' : '缓存音频',
+                icon: Icons.download_for_offline_outlined,
+                onPressed: onDownload,
+              ),
+            if (isGenerating)
+              HalfScreenActionSheetItem(
+                label: '取消缓存',
+                icon: Icons.cancel_outlined,
+                onPressed: onCancelDownload,
+              ),
+            if (!isGenerating && hasCache)
+              HalfScreenActionSheetItem(
+                label: '清除音频',
+                icon: Icons.cleaning_services_outlined,
+                onPressed: onClearCache,
+              ),
+            if (!isGenerating && hasCache)
+              HalfScreenActionSheetItem(
+                label: '重新生成',
+                icon: Icons.refresh_rounded,
+                onPressed: onRegenerate,
+              ),
+            HalfScreenActionSheetItem(
+              label: context.tr('修改旁白', 'Change narrator'),
+              icon: Icons.record_voice_over_outlined,
+              onPressed: onChangeNarrator,
             ),
-          ),
-        ),
-      );
-    }
-
-    return Tooltip(
-      message: isCached ? '音频已缓存' : '下载音频',
-      child: IconButton(
-        // 缓存完成后用主题色对勾标记；清除缓存仍在更多菜单中。
-        onPressed: isCached ? () {} : onPressed,
-        iconSize: 24,
-        visualDensity: VisualDensity.compact,
-        constraints: const BoxConstraints.tightFor(width: 40, height: 40),
-        padding: EdgeInsets.zero,
-        color: isCached ? accent : context.appTextPrimary,
-        icon: Icon(
-          isCached
-              ? Icons.download_done_rounded
-              : Icons.arrow_circle_down_outlined,
-        ),
-      ),
+            HalfScreenActionSheetItem(
+              label: context.tr('在本书中隐藏', 'Hide in this book'),
+              icon: Icons.visibility_off_outlined,
+              onPressed: onHideInBook,
+            ),
+          ],
+        );
+      },
     );
   }
 }

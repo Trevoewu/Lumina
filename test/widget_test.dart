@@ -39,9 +39,9 @@ void main() {
         ),
       ),
     );
-      await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 100));
 
-      expect(find.text('Read by Voice A'), findsOneWidget);
+    expect(find.text('Read by Voice A'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -66,6 +66,32 @@ void main() {
     expect(find.byType(MiniPlayer), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));
+  });
+
+  testWidgets('app text size is relative to system accessibility scaling', (
+    tester,
+  ) async {
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+    await database.setSetting('appearance_font_scale', '1.30');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [appDatabaseProvider.overrideWithValue(database)],
+        child: const LuminaApp(),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 500));
+
+    final contentContext = tester.element(
+      find.byKey(const ValueKey('app-content-layer')),
+    );
+    expect(
+      MediaQuery.textScalerOf(contentContext).scale(10),
+      closeTo(26, 0.01),
+    );
   });
 
   testWidgets('book menu exposes whole-book caching', (tester) async {
@@ -293,14 +319,20 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 500));
 
-    expect(find.textContaining('当前音色 · preset · af_heart'), findsOneWidget);
+    expect(
+      find.textContaining('Current voice · preset · af_heart'),
+      findsOneWidget,
+    );
     await tester.tap(find.text('Voice B'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.textContaining('当前音色 · preset · af_bella'), findsOneWidget);
+    expect(
+      find.textContaining('Current voice · preset · af_bella'),
+      findsOneWidget,
+    );
     expect(find.byType(SnackBar), findsNothing);
-    expect(find.text('已设为当前音色'), findsOneWidget);
+    expect(find.text('Set as current voice'), findsOneWidget);
   });
 
   testWidgets('settings opens LLM provider picker and requires an API key', (

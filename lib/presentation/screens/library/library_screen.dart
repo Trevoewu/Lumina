@@ -156,65 +156,67 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   /// 空状态：大图标 + 优雅文案 + 导入按钮。
   Widget _buildEmptyState() {
     final accent = Theme.of(context).colorScheme.primary;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.auto_stories_rounded,
-              size: 120,
-              color: context.appSurfaceHighlight,
-            ),
-            const SizedBox(height: 24),
-            Text(
-              context.tr('你的书架空空如也', 'Your library is empty'),
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: context.appTextPrimary,
+    return SingleChildScrollView(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.auto_stories_rounded,
+                size: 120,
+                color: context.appSurfaceHighlight,
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              context.tr(
-                '导入 EPUB 或 TXT 文件，开启你的听书之旅',
-                'Import an EPUB or TXT file to start listening',
-              ),
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: context.appTextSecondary),
-            ),
-            const SizedBox(height: 32),
-            FilledButton.icon(
-              style: FilledButton.styleFrom(
-                backgroundColor: accent,
-                foregroundColor: Colors.black,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 28,
-                  vertical: 14,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30),
+              const SizedBox(height: 24),
+              Text(
+                context.tr('你的书架空空如也', 'Your library is empty'),
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: context.appTextPrimary,
                 ),
               ),
-              onPressed: _importing ? null : () => _importBook(context),
-              icon: _importing
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.black,
-                      ),
-                    )
-                  : Icon(Icons.upload_file),
-              label: Text(
-                _importing ? '导入中...' : '导入书籍',
-                style: TextStyle(fontWeight: FontWeight.bold),
+              const SizedBox(height: 8),
+              Text(
+                context.tr(
+                  '导入 EPUB 或 TXT 文件，开启你的听书之旅',
+                  'Import an EPUB or TXT file to start listening',
+                ),
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: context.appTextSecondary),
               ),
-            ),
-          ],
+              const SizedBox(height: 32),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: accent,
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 28,
+                    vertical: 14,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                ),
+                onPressed: _importing ? null : () => _importBook(context),
+                icon: _importing
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.black,
+                        ),
+                      )
+                    : Icon(Icons.upload_file),
+                label: Text(
+                  _importing ? '导入中...' : '导入书籍',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -226,7 +228,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     setState(() => _importing = true);
 
     try {
-      final result = await FilePicker.pickFiles(
+      final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['epub', 'txt'],
       );
@@ -927,7 +929,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                           avatar: Icon(Icons.image_outlined, size: 18),
                           label: Text('更换封面'),
                           onPressed: () async {
-                            final picked = await FilePicker.pickFiles(
+                            final picked = await FilePicker.platform.pickFiles(
                               type: FileType.image,
                             );
                             final path = picked?.files.single.path;

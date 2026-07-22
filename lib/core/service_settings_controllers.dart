@@ -4,6 +4,9 @@ import '../data/database/app_database.dart' as drift_db;
 import '../data/dictionary/openai_compatible_explanation_provider.dart';
 import '../tts/models/tts_voice.dart';
 import '../tts/provider_registry.dart';
+import '../tts/providers/fish_audio_api_tts_provider.dart';
+import '../tts/providers/minimax_tts_provider.dart';
+import '../tts/tts_provider.dart';
 import 'providers.dart';
 
 enum AiServiceKind { tts, dictionaryExplanation }
@@ -259,6 +262,38 @@ class TtsSettingsController extends AsyncNotifier<TtsSettingsState> {
 
   String _ttsSubtitle(bool requiresNetwork) =>
       requiresNetwork ? 'Cloud service' : 'On-device service';
+}
+
+final ttsProviderConfigurationStatusProvider =
+    FutureProvider<Map<String, bool>>((ref) async {
+      final providers = ref.watch(providerRegistryProvider).all;
+      final entries = await Future.wait(
+        providers.map(
+          (provider) async =>
+              MapEntry(provider.id, await _isTtsProviderConfigured(provider)),
+        ),
+      );
+      return Map.fromEntries(entries);
+    });
+
+Future<bool> _isTtsProviderConfigured(TtsProvider provider) async {
+  try {
+    return await _readTtsProviderConfiguration(
+      provider,
+    ).timeout(const Duration(seconds: 3), onTimeout: () => false);
+  } catch (_) {
+    return false;
+  }
+}
+
+Future<bool> _readTtsProviderConfiguration(TtsProvider provider) async {
+  if (provider is FishAudioApiTtsProvider) {
+    return (await provider.apiKey)?.trim().isNotEmpty == true;
+  }
+  if (provider is MinimaxTtsProvider) {
+    return (await provider.apiKey)?.trim().isNotEmpty == true;
+  }
+  return provider.validate();
 }
 
 class LlmSettingsController extends AsyncNotifier<LlmSettingsState> {

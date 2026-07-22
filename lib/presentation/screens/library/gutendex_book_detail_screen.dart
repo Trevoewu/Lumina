@@ -86,7 +86,7 @@ class _GutendexBookDetailScreenState
       messenger.showSnackBar(
         SnackBar(
           duration: const Duration(seconds: 8),
-          content: Text(context.tr('导入失败：$error', 'Import failed: $error')),
+          content: Text(_importFailureMessage(error)),
         ),
       );
     } finally {
@@ -97,6 +97,16 @@ class _GutendexBookDetailScreenState
         });
       }
     }
+  }
+
+  String _importFailureMessage(Object error) {
+    if (error is GutendexDownloadException) {
+      return context.tr(
+        '无法连接到 Project Gutenberg 下载服务器，请检查网络或代理后重试。',
+        'Could not reach the Project Gutenberg download servers. Check your network or proxy and try again.',
+      );
+    }
+    return context.tr('导入失败，请重试。', 'Import failed. Please try again.');
   }
 
   void _openBook(drift_db.Book book) {

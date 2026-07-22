@@ -127,15 +127,15 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '克隆音色',
+                        context.tr('克隆音色', 'Clone Voice'),
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: 12),
                       TextField(
                         controller: _cloneNameController,
-                        decoration: const InputDecoration(
-                          border: OutlineInputBorder(),
-                          labelText: '音色名称',
+                        decoration: InputDecoration(
+                          border: const OutlineInputBorder(),
+                          labelText: context.tr('音色名称', 'Voice name'),
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -143,10 +143,13 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                         controller: _cloneTextController,
                         minLines: 2,
                         maxLines: 4,
-                        decoration: const InputDecoration(
-                          border: OutlineInputBorder(),
-                          labelText: '参考文本',
-                          hintText: '尽量填写样本音频中实际说出的文字，可显著稳定音色',
+                        decoration: InputDecoration(
+                          border: const OutlineInputBorder(),
+                          labelText: context.tr('参考文本', 'Reference transcript'),
+                          hintText: context.tr(
+                            '尽量填写样本音频中实际说出的文字，可显著稳定音色',
+                            'Enter the words spoken in the sample for a more stable voice.',
+                          ),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -163,7 +166,9 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                                   ),
                                 )
                               : Icon(Icons.upload_file_outlined),
-                          label: Text('选择音频并保存'),
+                          label: Text(
+                            context.tr('选择音频并保存', 'Choose Audio and Save'),
+                          ),
                         ),
                       ),
                     ],
@@ -180,15 +185,15 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '描述生成音色',
+                        context.tr('描述生成音色', 'Design a Voice'),
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: 12),
                       TextField(
                         controller: _nameController,
-                        decoration: const InputDecoration(
-                          border: OutlineInputBorder(),
-                          labelText: '音色名称',
+                        decoration: InputDecoration(
+                          border: const OutlineInputBorder(),
+                          labelText: context.tr('音色名称', 'Voice name'),
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -197,10 +202,13 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                         minLines: 3,
                         maxLines: 5,
                         maxLength: capabilities.maxDescriptionLength,
-                        decoration: const InputDecoration(
-                          border: OutlineInputBorder(),
-                          labelText: '音色描述',
-                          hintText: '例如：温暖、自然、适合睡前听书的女声',
+                        decoration: InputDecoration(
+                          border: const OutlineInputBorder(),
+                          labelText: context.tr('音色描述', 'Voice description'),
+                          hintText: context.tr(
+                            '例如：温暖、自然、适合睡前听书的女声',
+                            'For example: a warm, natural female voice for bedtime listening',
+                          ),
                         ),
                       ),
                       Align(
@@ -218,7 +226,7 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                                   ),
                                 )
                               : Icon(Icons.auto_awesome),
-                          label: Text('生成并保存'),
+                          label: Text(context.tr('生成并保存', 'Generate and Save')),
                         ),
                       ),
                     ],
@@ -240,10 +248,15 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                   return const Center(child: CircularProgressIndicator());
                 }
                 if (voices.isEmpty) {
-                  return const Card(
+                  return Card(
                     child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Text('暂无保存音色。可以先同步预置音色。'),
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        context.tr(
+                          '暂无保存音色。可以先同步预置音色。',
+                          'No saved voices. Sync preset voices to get started.',
+                        ),
+                      ),
                     ),
                   );
                 }
@@ -261,7 +274,7 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                           title: Text(voice.name),
                           subtitle: Text(
                             voice.id == _activeVoiceId
-                                ? '当前音色 · ${voice.type} · ${voice.providerVoiceId}'
+                                ? '${context.tr('当前音色', 'Current voice')} · ${voice.type} · ${voice.providerVoiceId}'
                                 : '${voice.type} · ${voice.providerVoiceId}',
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
@@ -271,7 +284,7 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                             children: [
                               if (voice.id == _activeVoiceId)
                                 Tooltip(
-                                  message: '当前音色',
+                                  message: context.tr('当前音色', 'Current voice'),
                                   child: Icon(
                                     Icons.check_circle,
                                     color: Theme.of(
@@ -280,7 +293,10 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                                   ),
                                 ),
                               IconButton(
-                                tooltip: '删除本地记录',
+                                tooltip: context.tr(
+                                  '删除本地记录',
+                                  'Delete local record',
+                                ),
                                 icon: Icon(Icons.delete_outline),
                                 onPressed: () => _deleteVoice(voice.id),
                               ),
@@ -309,7 +325,12 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
         await db.upsertVoice(_toDbVoice(voice));
       }
       if (!mounted) return;
-      _showFeedback('已同步 ${voices.length} 个 $providerId 音色');
+      _showFeedback(
+        context.tr(
+          '已同步 ${voices.length} 个 $providerId 音色',
+          'Synced ${voices.length} $providerId voices',
+        ),
+      );
       _reloadVoices();
     } catch (e, stackTrace) {
       AppLogger.error(
@@ -319,7 +340,10 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
         stackTrace: stackTrace,
       );
       if (!mounted) return;
-      _showFeedback('同步失败：$e', isError: true);
+      _showFeedback(
+        context.tr('同步音色失败。', 'Unable to sync voices.'),
+        isError: true,
+      );
     } finally {
       if (mounted) setState(() => _loadingPreset = false);
     }
@@ -329,7 +353,10 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
     final name = _nameController.text.trim();
     final description = _descriptionController.text.trim();
     if (name.isEmpty || description.isEmpty) {
-      _showFeedback('请填写音色名称和描述', isError: true);
+      _showFeedback(
+        context.tr('请填写音色名称和描述', 'Enter a voice name and description'),
+        isError: true,
+      );
       return;
     }
 
@@ -348,12 +375,17 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
       _nameController.clear();
       _descriptionController.clear();
       if (!mounted) return;
-      _showFeedback('音色已生成并设为当前音色');
+      _showFeedback(
+        context.tr('音色已生成并设为当前音色', 'Voice generated and set as current'),
+      );
       _reloadVoices();
     } catch (e, stackTrace) {
       AppLogger.error('Voice', '描述生成音色失败', error: e, stackTrace: stackTrace);
       if (!mounted) return;
-      _showFeedback('生成失败：$e', isError: true);
+      _showFeedback(
+        context.tr('音色生成失败。', 'Unable to generate the voice.'),
+        isError: true,
+      );
     } finally {
       if (mounted) setState(() => _creatingVoice = false);
     }
@@ -362,7 +394,7 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
   Future<void> _cloneVoice() async {
     final name = _cloneNameController.text.trim();
     if (name.isEmpty) {
-      _showFeedback('请填写音色名称', isError: true);
+      _showFeedback(context.tr('请填写音色名称', 'Enter a voice name'), isError: true);
       return;
     }
 
@@ -370,7 +402,13 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
     final transcript = _cloneTextController.text.trim();
     if (provider.id == FishAudioLocalTtsProvider.idValue &&
         transcript.isEmpty) {
-      _showFeedback('Fish Audio 克隆音色必须填写参考文本', isError: true);
+      _showFeedback(
+        context.tr(
+          'Fish Audio 克隆音色必须填写参考文本',
+          'Fish Audio voice cloning requires a reference transcript',
+        ),
+        isError: true,
+      );
       return;
     }
     final constraints = provider.capabilities.cloneConstraints;
@@ -380,7 +418,7 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
             .toList() ??
         const ['wav', 'mp3', 'm4a'];
 
-    final picked = await FilePicker.pickFiles(
+    final picked = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: allowedExtensions,
       withData: true,
@@ -395,14 +433,23 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
         (filePath == null ? null : await File(filePath).readAsBytes());
     if (bytes == null) {
       if (!mounted) return;
-      _showFeedback('无法读取音频文件', isError: true);
+      _showFeedback(
+        context.tr('无法读取音频文件', 'Unable to read the audio file'),
+        isError: true,
+      );
       return;
     }
     if (!mounted) return;
     final maxSize = constraints?.maxSizeBytes;
     if (maxSize != null && bytes.length > maxSize) {
       if (!mounted) return;
-      _showFeedback('样本文件过大：最大 ${_formatBytes(maxSize)}', isError: true);
+      _showFeedback(
+        context.tr(
+          '样本文件过大：最大 ${_formatBytes(maxSize)}',
+          'The sample is too large. Maximum: ${_formatBytes(maxSize)}',
+        ),
+        isError: true,
+      );
       return;
     }
 
@@ -428,12 +475,17 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
       _cloneNameController.clear();
       _cloneTextController.clear();
       if (!mounted) return;
-      _showFeedback('克隆音色已保存并设为当前音色');
+      _showFeedback(
+        context.tr('克隆音色已保存并设为当前音色', 'Cloned voice saved and set as current'),
+      );
       _reloadVoices();
     } catch (e, stackTrace) {
       AppLogger.error('Voice', '克隆音色失败', error: e, stackTrace: stackTrace);
       if (!mounted) return;
-      _showFeedback('克隆失败：$e', isError: true);
+      _showFeedback(
+        context.tr('音色克隆失败。', 'Unable to clone the voice.'),
+        isError: true,
+      );
     } finally {
       if (mounted) setState(() => _cloningVoice = false);
     }
@@ -446,7 +498,7 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
         .setSelectedVoice(providerId, voiceId);
     if (!mounted) return;
     setState(() => _activeVoiceId = voiceId);
-    _showFeedback('已设为当前音色');
+    _showFeedback(context.tr('已设为当前音色', 'Set as current voice'));
   }
 
   Future<void> _loadActiveVoice() async {
@@ -470,7 +522,7 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
     }
     if (!mounted) return;
     _reloadVoices();
-    _showFeedback('音色记录已删除');
+    _showFeedback(context.tr('音色记录已删除', 'Voice record deleted'));
   }
 
   void _reloadVoices() {
@@ -516,11 +568,18 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
 
   String _capabilityLine(TtsCapabilities caps) {
     final bits = <String>[];
-    bits.add(caps.paid ? '按量计费' : '免费');
-    if (caps.presetVoices) bits.add('预置音色');
-    if (caps.voiceCloning) bits.add('克隆');
-    if (caps.voiceDescription) bits.add('描述生成');
-    bits.add('单次上限 ${caps.maxCharsPerCall} 字');
+    bits.add(
+      caps.paid ? context.tr('按量计费', 'Usage-based') : context.tr('免费', 'Free'),
+    );
+    if (caps.presetVoices) bits.add(context.tr('预置音色', 'Preset voices'));
+    if (caps.voiceCloning) bits.add(context.tr('克隆', 'Cloning'));
+    if (caps.voiceDescription) bits.add(context.tr('描述生成', 'Voice design'));
+    bits.add(
+      context.tr(
+        '单次上限 ${caps.maxCharsPerCall} 字',
+        '${caps.maxCharsPerCall} characters per request',
+      ),
+    );
     return bits.join(' · ');
   }
 

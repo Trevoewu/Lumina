@@ -506,6 +506,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final chapter = hit.chapter;
     if (book == null || chapter == null) return;
 
+    final paragraphLabel = context.tr('段落', 'Paragraph');
     final manifestStore = ref.read(manifestStoreProvider);
     final manifest = await manifestStore.load(book.id, chapter.id);
     if (manifest != null &&
@@ -523,6 +524,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           bookId: book.id,
           bookTitle: book.title,
           initialManifest: manifest,
+          paragraphLabel: paragraphLabel,
         );
         await handler.playFromParagraph(hit.paragraph.id);
       } catch (error, stackTrace) {
@@ -533,18 +535,32 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           stackTrace: stackTrace,
         );
         if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('播放缓存失败，请清除音频后重新生成')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              context.tr(
+                '播放缓存失败，请清除音频后重新生成',
+                'Unable to play cached audio. Clear it and generate it again.',
+              ),
+            ),
+          ),
+        );
         return;
       }
       return;
     }
 
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('这一段音频还未缓存，已打开对应章节')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          context.tr(
+            '这一段音频还未缓存，已打开对应章节',
+            'This paragraph is not cached yet. Its chapter has been opened.',
+          ),
+        ),
+      ),
+    );
     _openChapter(book, chapter);
   }
 }

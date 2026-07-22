@@ -8,10 +8,29 @@ import '../../../core/app_design_tokens.dart';
 import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart' as drift_db;
+import '../../../data/settings/provider_selection_repository.dart';
+import '../../../domain/models/chapter_manifest.dart';
+import '../../../services/app_log_service.dart';
+import '../../../services/book_playback_queue.dart';
 import '../../../services/cover_palette_service.dart';
+import '../../../services/generation_orchestrator.dart';
 import '../../../services/lumina_audio_handler.dart';
+import '../../../tts/models/tts_voice.dart';
+import '../../../tts/provider_registry.dart';
+import '../../../tts/tts_provider.dart';
 import '../../widgets/book_cover.dart';
 import '../../widgets/synced_lyrics_list.dart';
+
+enum PlayerPrimaryAudioAction { play, pause }
+
+PlayerPrimaryAudioAction resolvePlayerPrimaryAudioAction({
+  required bool playing,
+  required bool playbackRequested,
+}) {
+  return playing || playbackRequested
+      ? PlayerPrimaryAudioAction.pause
+      : PlayerPrimaryAudioAction.play;
+}
 
 class PlayerScreen extends ConsumerStatefulWidget {
   final drift_db.Book book;
@@ -26,13 +45,22 @@ class PlayerScreen extends ConsumerStatefulWidget {
 class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   double _speed = 1.0;
   late Future<Color?> _coverSeed;
+  ChapterManifest? _selectedManifest;
+  GenerationProgress? _generationProgress;
+  StreamSubscription<GenerationProgress>? _generationSubscription;
+  Future<void> _generationUpdate = Future.value();
+  bool _preparingStream = false;
+  bool _streamPlaybackRequested = false;
+  bool _startingPlayback = false;
+  int _paragraphCount = 0;
 
   @override
   void initState() {
     super.initState();
     _coverSeed = CoverPaletteService.seedForPath(widget.book.coverPath);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadPlaybackSpeed();
+      unawaited(_loadPlaybackSpeed());
+      unawaited(_loadSelectedChapterState());
     });
   }
 
@@ -44,6 +72,245 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
   }
 
+  @override
+  void dispose() {
+    unawaited(_generationSubscription?.cancel());
+    super.dispose();
+  }
+
+  Future<void> _loadSelectedChapterState() async {
+    final chapter = widget.initialChapter;
+    if (chapter == null) return;
+
+    final database = ref.read(appDatabaseProvider);
+    final manifestStore = ref.read(manifestStoreProvider);
+    final results = await Future.wait<Object?>([
+      manifestStore.load(widget.book.id, chapter.id),
+      database.getParagraphs(chapter.id),
+    ]);
+    if (!mounted) return;
+    final manifest = results[0] as ChapterManifest?;
+    final paragraphs = results[1] as List<drift_db.Paragraph>;
+    setState(() {
+      _selectedManifest = manifest;
+      _paragraphCount = paragraphs.length;
+    });
+
+    final activeGeneration = ref
+        .read(generationOrchestratorProvider)
+        .watchChapterGeneration(bookId: widget.book.id, chapterId: chapter.id);
+    if (activeGeneration != null) {
+      _listenToGeneration(activeGeneration);
+    }
+  }
+
+  void _listenToGeneration(Stream<GenerationProgress> stream) {
+    unawaited(_generationSubscription?.cancel());
+    late StreamSubscription<GenerationProgress> subscription;
+    subscription = stream.listen(
+      (progress) {
+        _generationUpdate = _generationUpdate
+            .then((_) => _applyGenerationProgress(progress))
+            .catchError((Object error, StackTrace stackTrace) {
+              AppLogger.error(
+                'Playback',
+                '追加流式缓存到播放队列失败 '
+                    'book=${widget.book.id} chapter=${progress.chapterId}',
+                error: error,
+                stackTrace: stackTrace,
+              );
+            });
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        AppLogger.error(
+          'Generation',
+          '阅读页缓存章节失败 book=${widget.book.id} '
+              'chapter=${widget.initialChapter?.id}',
+          error: error,
+          stackTrace: stackTrace,
+        );
+        if (!mounted || !identical(_generationSubscription, subscription)) {
+          return;
+        }
+        setState(() {
+          _generationSubscription = null;
+          _streamPlaybackRequested = false;
+        });
+        _showSnackBar(
+          context.tr('音频缓存失败：$error', 'Unable to cache audio: $error'),
+        );
+      },
+      onDone: () {
+        final pendingUpdate = _generationUpdate;
+        unawaited(pendingUpdate.then((_) => _finishGeneration(subscription)));
+      },
+    );
+    setState(() => _generationSubscription = subscription);
+  }
+
+  Future<void> _applyGenerationProgress(GenerationProgress progress) async {
+    final chapter = widget.initialChapter;
+    if (chapter == null) return;
+    final manifest = await ref
+        .read(manifestStoreProvider)
+        .load(widget.book.id, chapter.id);
+    if (!mounted) return;
+    setState(() {
+      _generationProgress = progress;
+      _selectedManifest = manifest ?? _selectedManifest;
+    });
+    if (manifest != null) {
+      await _syncStreamingPlayback(manifest);
+    }
+  }
+
+  Future<void> _finishGeneration(
+    StreamSubscription<GenerationProgress> subscription,
+  ) async {
+    final chapter = widget.initialChapter;
+    final manifest = chapter == null
+        ? null
+        : await ref
+              .read(manifestStoreProvider)
+              .load(widget.book.id, chapter.id);
+    if (!mounted || !identical(_generationSubscription, subscription)) return;
+    setState(() {
+      _selectedManifest = manifest ?? _selectedManifest;
+      _generationSubscription = null;
+      _streamPlaybackRequested = false;
+    });
+  }
+
+  Future<bool> _ensureChapterCachingStarted() async {
+    final chapter = widget.initialChapter;
+    if (chapter == null) return false;
+    if (_generationSubscription != null) return true;
+    if (_preparingStream) return false;
+
+    setState(() => _preparingStream = true);
+    try {
+      final provider = ref.read(activeTtsProviderProvider);
+      final database = ref.read(appDatabaseProvider);
+      final voice = await _resolveVoice(
+        provider,
+        database,
+        ref.read(providerSelectionRepositoryProvider),
+        chapterVoiceId: chapter.voiceId,
+      );
+      if (!mounted) return false;
+      if (voice == null) {
+        _showSnackBar(
+          context.tr(
+            '${provider.displayName} 没有可用音色',
+            '${provider.displayName} has no available voice',
+          ),
+        );
+        return false;
+      }
+      if (!await provider.validate()) {
+        if (!mounted) return false;
+        _showSnackBar(
+          context.tr(
+            '${provider.displayName} 未配置完成，无法缓存音频',
+            '${provider.displayName} is not configured, so audio cannot be cached',
+          ),
+        );
+        return false;
+      }
+
+      final stream = ref
+          .read(generationOrchestratorProvider)
+          .generateChapter(
+            bookId: widget.book.id,
+            chapterId: chapter.id,
+            provider: provider,
+            voice: voice,
+          );
+      _listenToGeneration(stream);
+      return true;
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        'Generation',
+        '阅读页启动章节缓存失败 book=${widget.book.id} chapter=${chapter.id}',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      if (mounted) {
+        _showSnackBar(
+          context.tr('无法开始缓存：$error', 'Unable to start caching: $error'),
+        );
+      }
+      return false;
+    } finally {
+      if (mounted) setState(() => _preparingStream = false);
+    }
+  }
+
+  Future<TtsVoice?> _resolveVoice(
+    TtsProvider provider,
+    drift_db.AppDatabase database,
+    ProviderSelectionRepository selections, {
+    String? chapterVoiceId,
+  }) async {
+    final savedVoices = await database.getVoicesByProvider(provider.id);
+    final presetVoices = await provider.listPresetVoices();
+    final voices = <TtsVoice>[
+      for (final voice in savedVoices) _voiceFromDb(voice),
+      for (final voice in presetVoices)
+        if (!savedVoices.any(
+          (saved) =>
+              saved.id == voice.id ||
+              saved.providerVoiceId == voice.providerVoiceId,
+        ))
+          voice,
+    ];
+    if (voices.isEmpty) return null;
+
+    final activeVoiceId = await selections.selectedVoice(provider.id);
+    for (final preferredVoiceId in [
+      chapterVoiceId,
+      widget.book.voiceId,
+      activeVoiceId,
+    ]) {
+      if (preferredVoiceId == null) continue;
+      for (final voice in voices) {
+        if (voice.id == preferredVoiceId ||
+            voice.providerVoiceId == preferredVoiceId) {
+          return voice;
+        }
+      }
+    }
+
+    final latestSavedVoices = [...savedVoices]
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    for (final voice in latestSavedVoices) {
+      if (voice.type == VoiceType.clone.name) return _voiceFromDb(voice);
+    }
+    return voices.first;
+  }
+
+  TtsVoice _voiceFromDb(drift_db.Voice voice) {
+    return TtsVoice(
+      id: voice.id,
+      name: voice.name,
+      providerId: voice.providerId,
+      type: VoiceType.values.byName(voice.type),
+      providerVoiceId: voice.providerVoiceId,
+      samplePath: voice.samplePath,
+      description: voice.description,
+      presetDescription: voice.presetDescription,
+      previewUrl: voice.previewUrl,
+      createdAt: voice.createdAt,
+    );
+  }
+
+  void _showSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
   Future<void> _loadPlaybackSpeed() async {
     final value = await ref
         .read(appDatabaseProvider)
@@ -53,6 +320,210 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     await handler.setSpeed(speed);
     if (!mounted) return;
     setState(() => _speed = speed.toDouble());
+  }
+
+  bool _isSelectedChapterLoaded(LuminaAudioHandler handler) {
+    final chapter = widget.initialChapter;
+    if (chapter == null) return handler.currentBookId == widget.book.id;
+    return handler.currentBookId == widget.book.id &&
+        handler.currentChapterId == chapter.id;
+  }
+
+  ChapterManifest? _effectiveManifest(LuminaAudioHandler handler) {
+    return widget.initialChapter == null
+        ? handler.currentManifest
+        : _selectedManifest;
+  }
+
+  double _cacheFraction(ChapterManifest? manifest) {
+    final progress = _generationProgress;
+    if (progress != null && progress.total > 0) {
+      return progress.percent.clamp(0.0, 1.0);
+    }
+    final total = manifest?.segments.length ?? _paragraphCount;
+    if (total <= 0) return 0;
+    return ((manifest?.readyCount ?? 0) / total).clamp(0.0, 1.0);
+  }
+
+  ChapterManifest _playablePrefix(ChapterManifest manifest) {
+    final playable = <SegmentEntry>[];
+    for (final segment in manifest.segments) {
+      if (segment.state != ParagraphAudioState.ready) break;
+      playable.add(segment);
+    }
+    return ChapterManifest(
+      chapterId: manifest.chapterId,
+      bookId: manifest.bookId,
+      providerId: manifest.providerId,
+      voiceId: manifest.voiceId,
+      speed: manifest.speed,
+      segments: playable,
+      updatedAt: manifest.updatedAt,
+    );
+  }
+
+  Future<void> _handlePrimaryAudioAction(
+    LuminaAudioHandler handler,
+    bool playing,
+  ) async {
+    if (playing || _streamPlaybackRequested || _startingPlayback) {
+      if (mounted) {
+        setState(() => _streamPlaybackRequested = false);
+      }
+      await handler.pause();
+      return;
+    }
+
+    final chapter = widget.initialChapter;
+    if (chapter == null) {
+      await handler.play();
+      return;
+    }
+
+    setState(() => _streamPlaybackRequested = true);
+    final manifest = _selectedManifest;
+    final hasPlayablePrefix =
+        manifest != null && _playablePrefix(manifest).segments.isNotEmpty;
+    var startedPlayback = false;
+    if (hasPlayablePrefix) {
+      startedPlayback = await _startPlayback(handler, manifest);
+    }
+
+    final needsCaching = manifest == null || !manifest.isReady;
+    var caching = _generationSubscription != null;
+    if (needsCaching && !caching) {
+      caching = await _ensureChapterCachingStarted();
+    }
+    if (!mounted) return;
+
+    if (!needsCaching || (!caching && !startedPlayback)) {
+      setState(() => _streamPlaybackRequested = false);
+    }
+  }
+
+  Future<void> _syncStreamingPlayback(ChapterManifest manifest) async {
+    final playable = _playablePrefix(manifest);
+    if (playable.segments.isEmpty) return;
+
+    final handler = await ref.read(luminaAudioHandlerProvider.future);
+    if (!mounted) return;
+    final paragraphLabel = context.tr('段落', 'Paragraph');
+    if (!_isSelectedChapterLoaded(handler)) {
+      if (_streamPlaybackRequested) {
+        await _startPlayback(handler, manifest);
+      }
+      return;
+    }
+
+    final audioRoot = await ref
+        .read(manifestStoreProvider)
+        .audioRoot(widget.book.id);
+    final extended = await handler.appendChapterSegments(
+      manifest: playable,
+      audioRoot: audioRoot.path,
+      bookTitle: widget.book.title,
+      chapterTitle: widget.initialChapter?.title ?? '',
+      paragraphLabel: paragraphLabel,
+    );
+    if (extended && _streamPlaybackRequested) {
+      await handler.play();
+    }
+  }
+
+  Future<bool> _startPlayback(
+    LuminaAudioHandler handler,
+    ChapterManifest manifest,
+  ) async {
+    if (_startingPlayback) return false;
+    setState(() => _startingPlayback = true);
+    try {
+      return await _playCachedAudio(handler, manifest: manifest);
+    } finally {
+      if (mounted) setState(() => _startingPlayback = false);
+    }
+  }
+
+  Future<bool> _playCachedAudio(
+    LuminaAudioHandler handler, {
+    ChapterManifest? manifest,
+  }) async {
+    final chapter = widget.initialChapter;
+    if (chapter == null) {
+      await handler.play();
+      return true;
+    }
+
+    final latestManifest =
+        manifest ??
+        await ref.read(manifestStoreProvider).load(widget.book.id, chapter.id);
+    if (!mounted) return false;
+    final paragraphLabel = context.tr('段落', 'Paragraph');
+    setState(() => _selectedManifest = latestManifest ?? _selectedManifest);
+    if (latestManifest == null) return false;
+    final playable = _playablePrefix(latestManifest);
+    if (playable.segments.isEmpty) {
+      return false;
+    }
+
+    final loadedManifest = _isSelectedChapterLoaded(handler)
+        ? handler.currentManifest
+        : null;
+    if (loadedManifest == null) {
+      try {
+        if (latestManifest.isReady) {
+          await loadBookPlaybackQueue(
+            handler: handler,
+            database: ref.read(appDatabaseProvider),
+            manifestStore: ref.read(manifestStoreProvider),
+            bookId: widget.book.id,
+            bookTitle: widget.book.title,
+            initialManifest: playable,
+            paragraphLabel: paragraphLabel,
+          );
+        } else {
+          final audioRoot = await ref
+              .read(manifestStoreProvider)
+              .audioRoot(widget.book.id);
+          await handler.loadChapter(
+            manifest: playable,
+            audioRoot: audioRoot.path,
+            bookTitle: widget.book.title,
+            chapterTitle: chapter.title,
+            paragraphLabel: paragraphLabel,
+          );
+        }
+      } catch (error, stackTrace) {
+        AppLogger.error(
+          'Playback',
+          '阅读页播放缓存失败 book=${widget.book.id} chapter=${chapter.id}',
+          error: error,
+          stackTrace: stackTrace,
+        );
+        if (mounted) {
+          _showSnackBar(
+            context.tr(
+              '播放缓存失败，请清除音频后重新生成',
+              'Unable to play cached audio. Clear it and generate it again.',
+            ),
+          );
+        }
+        return false;
+      }
+    } else if (loadedManifest.readyCount < playable.readyCount) {
+      final audioRoot = await ref
+          .read(manifestStoreProvider)
+          .audioRoot(widget.book.id);
+      await handler.appendChapterSegments(
+        manifest: playable,
+        audioRoot: audioRoot.path,
+        bookTitle: widget.book.title,
+        chapterTitle: chapter.title,
+        paragraphLabel: paragraphLabel,
+      );
+    }
+    if (mounted) setState(() {});
+    await handler.play();
+    return true;
   }
 
   @override
@@ -138,10 +609,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           builder: (context, snapshot) {
                             final state = snapshot.data;
                             final currentItem = handler.mediaItem.valueOrNull;
-                            final playing = state?.playing ?? false;
-                            final duration = handler.chapterDuration;
+                            final selectedLoaded = _isSelectedChapterLoaded(
+                              handler,
+                            );
+                            final manifest = _effectiveManifest(handler);
+                            final playing =
+                                selectedLoaded && (state?.playing ?? false);
+                            final duration = selectedLoaded
+                                ? handler.chapterDuration
+                                : Duration(
+                                    milliseconds:
+                                        manifest?.totalDurationMs ?? 0,
+                                  );
                             final currentChapterId =
+                                widget.initialChapter?.id ??
                                 currentItem?.extras?['chapterId'] as String?;
+                            final chapterTitle =
+                                widget.initialChapter?.title ??
+                                currentItem?.title ??
+                                context.tr('未知章节', 'Unknown Chapter');
 
                             return Column(
                               children: [
@@ -195,14 +681,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                               CrossAxisAlignment.start,
                                           children: [
                                             Text(
-                                              currentItem?.title ??
-                                                  widget
-                                                      .initialChapter
-                                                      ?.title ??
-                                                  context.tr(
-                                                    '未知章节',
-                                                    'Unknown Chapter',
-                                                  ),
+                                              chapterTitle,
                                               style: TextStyle(
                                                 fontSize: 22,
                                                 fontWeight: FontWeight.bold,
@@ -246,8 +725,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                       return _buildControls(
                                         handler,
                                         playing,
-                                        positionSnapshot.data ?? Duration.zero,
+                                        selectedLoaded
+                                            ? positionSnapshot.data ??
+                                                  Duration.zero
+                                            : Duration.zero,
                                         duration,
+                                        manifest: manifest,
+                                        selectedLoaded: selectedLoaded,
                                         foregroundColor: contentForeground,
                                       );
                                     },
@@ -257,9 +741,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                 Expanded(
                                   flex: 5,
                                   child: _buildLyricsCard(
-                                    currentChapterId ??
-                                        widget.initialChapter?.id,
+                                    currentChapterId,
                                     handler,
+                                    manifest,
+                                    selectedLoaded,
                                     lyricsBackground,
                                   ),
                                 ),
@@ -285,34 +770,78 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     bool playing,
     Duration position,
     Duration duration, {
+    required ChapterManifest? manifest,
+    required bool selectedLoaded,
     required Color foregroundColor,
   }) {
     final controlColor = Theme.of(context).colorScheme.primary;
+    final cacheColor = context.appTextSecondary.withValues(alpha: 0.62);
     final secondaryColor = foregroundColor.withValues(alpha: 0.72);
-    final progress = duration.inMilliseconds <= 0
+    final playbackFraction = duration.inMilliseconds <= 0
         ? 0.0
         : (position.inMilliseconds / duration.inMilliseconds)
               .clamp(0.0, 1.0)
               .toDouble();
+    final cacheFraction = _cacheFraction(manifest);
+    final hasCachedAudio = (manifest?.readyCount ?? 0) > 0;
+    final primaryAction = resolvePlayerPrimaryAudioAction(
+      playing: playing,
+      playbackRequested: _streamPlaybackRequested || _startingPlayback,
+    );
+    final primaryTooltip = switch (primaryAction) {
+      PlayerPrimaryAudioAction.play => context.tr('播放', 'Play'),
+      PlayerPrimaryAudioAction.pause => context.tr('暂停', 'Pause'),
+    };
 
     return Column(
       children: [
-        SliderTheme(
-          data: SliderTheme.of(context).copyWith(
-            activeTrackColor: controlColor,
-            inactiveTrackColor: context.appSurfaceHighlight,
-            thumbColor: controlColor,
-            trackHeight: 4,
-            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-            overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-          ),
-          child: Slider(
-            value: progress,
-            onChanged: (value) {
-              final seekMs = (value * duration.inMilliseconds).round();
-              handler.seek(Duration(milliseconds: seekMs));
-            },
-          ),
+        TweenAnimationBuilder<double>(
+          tween: Tween<double>(end: cacheFraction),
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOutCubic,
+          builder: (context, animatedCacheFraction, _) {
+            final playbackTrackProgress =
+                (playbackFraction * animatedCacheFraction)
+                    .clamp(0.0, animatedCacheFraction)
+                    .toDouble();
+            return SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                activeTrackColor: controlColor,
+                secondaryActiveTrackColor: cacheColor,
+                inactiveTrackColor: context.appSurfaceHighlight,
+                thumbColor: controlColor,
+                disabledActiveTrackColor: controlColor,
+                disabledSecondaryActiveTrackColor: cacheColor,
+                disabledInactiveTrackColor: context.appSurfaceHighlight,
+                trackHeight: 4,
+                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                disabledThumbColor: hasCachedAudio
+                    ? controlColor
+                    : Colors.transparent,
+                overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+              ),
+              child: Slider(
+                key: const ValueKey('player-cache-playback-progress'),
+                value: playbackTrackProgress,
+                secondaryTrackValue:
+                    animatedCacheFraction < playbackTrackProgress
+                    ? playbackTrackProgress
+                    : animatedCacheFraction,
+                onChanged:
+                    !selectedLoaded ||
+                        duration.inMilliseconds <= 0 ||
+                        cacheFraction <= 0
+                    ? null
+                    : (value) {
+                        final cachedValue = value.clamp(0.0, cacheFraction);
+                        final seekFraction = cachedValue / cacheFraction;
+                        final seekMs = (seekFraction * duration.inMilliseconds)
+                            .round();
+                        handler.seek(Duration(milliseconds: seekMs));
+                      },
+              ),
+            );
+          },
         ),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -347,28 +876,52 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             IconButton(
               icon: const Icon(Icons.skip_previous, size: 36),
               color: foregroundColor,
-              onPressed: handler.skipToPrevious,
+              onPressed: selectedLoaded ? handler.skipToPrevious : null,
             ),
-            GestureDetector(
-              onTap: playing ? handler.pause : handler.play,
-              child: Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
+            Tooltip(
+              message: primaryTooltip,
+              child: Semantics(
+                button: true,
+                label: primaryTooltip,
+                child: Material(
                   color: controlColor,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  playing ? Icons.pause : Icons.play_arrow,
-                  size: 32,
-                  color: Theme.of(context).colorScheme.onPrimary,
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    key: const ValueKey('player-primary-audio-action'),
+                    customBorder: const CircleBorder(),
+                    onTap: () =>
+                        unawaited(_handlePrimaryAudioAction(handler, playing)),
+                    child: SizedBox.square(
+                      dimension: 64,
+                      child: Center(
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 220),
+                          switchInCurve: Curves.easeOutBack,
+                          switchOutCurve: Curves.easeIn,
+                          transitionBuilder: (child, animation) {
+                            return FadeTransition(
+                              opacity: animation,
+                              child: ScaleTransition(
+                                scale: animation,
+                                child: child,
+                              ),
+                            );
+                          },
+                          child: _buildPrimaryAudioGlyph(
+                            action: primaryAction,
+                            color: Theme.of(context).colorScheme.onPrimary,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
             IconButton(
               icon: const Icon(Icons.skip_next, size: 36),
               color: foregroundColor,
-              onPressed: handler.skipToNext,
+              onPressed: selectedLoaded ? handler.skipToNext : null,
             ),
             IconButton(
               icon: const Icon(Icons.repeat),
@@ -381,9 +934,31 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
+  Widget _buildPrimaryAudioGlyph({
+    required PlayerPrimaryAudioAction action,
+    required Color color,
+  }) {
+    return switch (action) {
+      PlayerPrimaryAudioAction.play => Icon(
+        Icons.play_arrow,
+        key: const ValueKey(PlayerPrimaryAudioAction.play),
+        size: 32,
+        color: color,
+      ),
+      PlayerPrimaryAudioAction.pause => Icon(
+        Icons.pause,
+        key: const ValueKey(PlayerPrimaryAudioAction.pause),
+        size: 32,
+        color: color,
+      ),
+    };
+  }
+
   Widget _buildLyricsCard(
     String? chapterId,
     LuminaAudioHandler handler,
+    ChapterManifest? manifest,
+    bool playbackEnabled,
     Gradient background,
   ) {
     if (chapterId == null) return const SizedBox.shrink();
@@ -412,7 +987,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    context.tr('歌词', 'Lyrics'),
+                    context.tr('正文', 'Text'),
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
@@ -427,7 +1002,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           size: 20,
                           color: AppColors.lyricsTextSecondary,
                         ),
-                        tooltip: context.tr('分享歌词', 'Share lyrics'),
+                        tooltip: context.tr('分享正文', 'Share text'),
                         onPressed: () {},
                       ),
                       IconButton(
@@ -436,8 +1011,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           size: 20,
                           color: AppColors.lyricsTextSecondary,
                         ),
-                        tooltip: context.tr('全屏歌词', 'Full-screen lyrics'),
-                        onPressed: () => _showFullScreenLyrics(chapterId),
+                        tooltip: context.tr('全屏正文', 'Full-screen text'),
+                        onPressed: () => _showFullScreenLyrics(
+                          chapterId,
+                          manifest,
+                          playbackEnabled,
+                        ),
                       ),
                     ],
                   ),
@@ -453,7 +1032,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   if (paragraphs.isEmpty) {
                     return Center(
                       child: Text(
-                        context.tr('无歌词', 'No lyrics'),
+                        context.tr('无正文', 'No text'),
                         style: const TextStyle(
                           color: AppColors.lyricsTextSecondary,
                         ),
@@ -461,10 +1040,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     );
                   }
                   return SyncedLyricsList(
-                    key: ValueKey('$chapterId:${handler.currentChapterId}'),
+                    key: ValueKey(
+                      '$chapterId:${playbackEnabled ? handler.currentChapterId : 'reading'}',
+                    ),
                     paragraphs: paragraphs,
-                    manifest: handler.currentManifest,
+                    manifest: manifest,
                     handler: handler,
+                    playbackEnabled: playbackEnabled,
                     bookTitle: widget.book.title,
                     chapterTitle: widget.initialChapter?.title,
                     bookId: widget.book.id,
@@ -595,7 +1177,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     setState(() => _speed = clamped);
   }
 
-  void _showFullScreenLyrics(String chapterId) {
+  void _showFullScreenLyrics(
+    String chapterId,
+    ChapterManifest? manifest,
+    bool playbackEnabled,
+  ) {
     Navigator.of(context, rootNavigator: true).push(
       // A fullscreenDialog disables iOS's interactive edge-pop gesture.
       MaterialPageRoute<void>(
@@ -605,6 +1191,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           chapterTitle: widget.initialChapter?.title ?? '',
           chapterId: chapterId,
           coverPath: widget.book.coverPath,
+          manifest: manifest,
+          playbackEnabled: playbackEnabled,
         ),
       ),
     );
@@ -617,6 +1205,8 @@ class _FullScreenLyricsSheet extends ConsumerStatefulWidget {
   final String chapterTitle;
   final String chapterId;
   final String? coverPath;
+  final ChapterManifest? manifest;
+  final bool playbackEnabled;
 
   const _FullScreenLyricsSheet({
     required this.bookId,
@@ -624,6 +1214,8 @@ class _FullScreenLyricsSheet extends ConsumerStatefulWidget {
     required this.chapterTitle,
     required this.chapterId,
     required this.coverPath,
+    required this.manifest,
+    required this.playbackEnabled,
   });
 
   @override
@@ -712,7 +1304,7 @@ class _FullScreenLyricsSheetState
                           if (paragraphs.isEmpty) {
                             return Center(
                               child: Text(
-                                context.tr('无歌词', 'No lyrics'),
+                                context.tr('无正文', 'No text'),
                                 style: const TextStyle(
                                   color: AppColors.lyricsTextSecondary,
                                 ),
@@ -739,8 +1331,9 @@ class _FullScreenLyricsSheetState
                                 '${widget.chapterId}:${handler.currentChapterId}',
                               ),
                               paragraphs: paragraphs,
-                              manifest: handler.currentManifest,
+                              manifest: widget.manifest,
                               handler: handler,
+                              playbackEnabled: widget.playbackEnabled,
                               expanded: true,
                               bookId: widget.bookId,
                               bookTitle: widget.bookTitle,
@@ -750,15 +1343,16 @@ class _FullScreenLyricsSheetState
                         },
                       ),
                     ),
-                    handlerAsync.when(
-                      loading: () => const SizedBox(height: 156),
-                      error: (_, _) => const SizedBox.shrink(),
-                      data: (handler) => _FullScreenPlaybackControls(
-                        key: _controlsKey,
-                        handler: handler,
-                        backgroundColor: bottomTint,
+                    if (widget.playbackEnabled)
+                      handlerAsync.when(
+                        loading: () => const SizedBox(height: 156),
+                        error: (_, _) => const SizedBox.shrink(),
+                        data: (handler) => _FullScreenPlaybackControls(
+                          key: _controlsKey,
+                          handler: handler,
+                          backgroundColor: bottomTint,
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),

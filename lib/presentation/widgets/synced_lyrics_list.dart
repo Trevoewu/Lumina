@@ -364,6 +364,7 @@ class SyncedLyricsList extends StatefulWidget {
   final List<drift_db.Paragraph> paragraphs;
   final ChapterManifest? manifest;
   final LuminaAudioHandler handler;
+  final bool playbackEnabled;
   final bool expanded;
   final String? bookTitle;
   final String? chapterTitle;
@@ -375,6 +376,7 @@ class SyncedLyricsList extends StatefulWidget {
     required this.paragraphs,
     required this.manifest,
     required this.handler,
+    this.playbackEnabled = true,
     this.expanded = false,
     this.bookTitle,
     this.chapterTitle,
@@ -424,7 +426,10 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
         oldWidget.manifest != widget.manifest) {
       _rebuildLines();
     }
-    if (oldWidget.handler != widget.handler) _bindHandler();
+    if (oldWidget.handler != widget.handler ||
+        oldWidget.playbackEnabled != widget.playbackEnabled) {
+      _bindHandler();
+    }
   }
 
   void _rebuildLines() {
@@ -443,6 +448,11 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
   void _bindHandler() {
     _paragraphSub?.cancel();
     _positionSub?.cancel();
+    if (!widget.playbackEnabled) {
+      _paragraphId = null;
+      _activeLineId = null;
+      return;
+    }
     _paragraphId = widget.handler.currentParagraphId;
     _paragraphSub = widget.handler.currentParagraphIdStream.listen((id) {
       _paragraphId = id;
@@ -454,6 +464,10 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
 
   void _sync(Duration position, {bool forceScroll = false}) {
     if (!mounted) return;
+    if (!widget.playbackEnabled) {
+      if (_activeLineId != null) setState(() => _activeLineId = null);
+      return;
+    }
     final paragraphLines = _lines
         .where((line) => line.paragraphId == _paragraphId)
         .toList(growable: false);
@@ -817,7 +831,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
     return Listener(
       onPointerDown: enabled ? (_) => _selectionLineId = line.id : null,
       child: InkWell(
-        onTap: enabled
+        onTap: enabled && widget.playbackEnabled
             ? () => widget.handler.playFromParagraphOffset(
                 line.paragraphId,
                 Duration(milliseconds: line.startMs),

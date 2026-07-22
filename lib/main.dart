@@ -94,7 +94,10 @@ class _LuminaAppState extends ConsumerState<LuminaApp> {
         final media = MediaQuery.of(context);
         return MediaQuery(
           data: media.copyWith(
-            textScaler: TextScaler.linear(appearance.fontScale),
+            textScaler: _RelativeTextScaler(
+              media.textScaler,
+              appearance.fontScale,
+            ),
           ),
           child: _MacWindowInset(child: child ?? const SizedBox.shrink()),
         );
@@ -102,6 +105,30 @@ class _LuminaAppState extends ConsumerState<LuminaApp> {
       home: const AppScaffold(),
     );
   }
+}
+
+/// Applies Lumina's reading-size preference without discarding the platform's
+/// accessibility text scaling (including nonlinear scaling on newer systems).
+class _RelativeTextScaler extends TextScaler {
+  final TextScaler systemScaler;
+  final double factor;
+
+  const _RelativeTextScaler(this.systemScaler, this.factor);
+
+  @override
+  double scale(double fontSize) => systemScaler.scale(fontSize) * factor;
+
+  @override
+  double get textScaleFactor => systemScaler.scale(1) * factor;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _RelativeTextScaler &&
+      other.systemScaler == systemScaler &&
+      other.factor == factor;
+
+  @override
+  int get hashCode => Object.hash(systemScaler, factor);
 }
 
 class _MacWindowInset extends StatelessWidget {

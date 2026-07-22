@@ -72,54 +72,56 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ],
           ),
           AppSectionHeader(title: context.tr('AI 服务', 'AI Services')),
-          tts.when(
-            loading: () => _loadingServiceCard(
-              key: const ValueKey('tts-service-settings'),
-              icon: Icons.record_voice_over_outlined,
-              title: context.tr('文本转语音', 'Text to Speech'),
-            ),
-            error: (error, _) => _errorServiceCard(
-              key: const ValueKey('tts-service-settings'),
-              icon: Icons.record_voice_over_outlined,
-              title: context.tr('文本转语音', 'Text to Speech'),
-              error: error,
-              onTap: () => ref.invalidate(ttsSettingsControllerProvider),
-            ),
-            data: (state) => ServiceStatusCard(
-              cardKey: const ValueKey('tts-service-settings'),
-              icon: Icons.record_voice_over_outlined,
-              title: context.tr('文本转语音', 'Text to Speech'),
-              provider:
-                  state.providerName ?? context.tr('未选择服务', 'No provider'),
-              selection: state.voiceName ?? context.tr('未选择音色', 'No voice'),
-              readiness: state.readiness,
-              onTap: () => _push(const TtsServiceScreen()),
-            ),
-          ),
-          SizedBox(height: design.spaceMd),
-          llm.when(
-            loading: () => _loadingServiceCard(
-              key: const ValueKey('llm-provider-settings'),
-              icon: Icons.auto_awesome_outlined,
-              title: context.tr('词典解释', 'Dictionary Explanation'),
-            ),
-            error: (error, _) => _errorServiceCard(
-              key: const ValueKey('llm-provider-settings'),
-              icon: Icons.auto_awesome_outlined,
-              title: context.tr('词典解释', 'Dictionary Explanation'),
-              error: error,
-              onTap: () => ref.invalidate(llmSettingsControllerProvider),
-            ),
-            data: (state) => ServiceStatusCard(
-              cardKey: const ValueKey('llm-provider-settings'),
-              icon: Icons.auto_awesome_outlined,
-              title: context.tr('词典解释', 'Dictionary Explanation'),
-              provider:
-                  state.providerName ?? context.tr('未选择服务', 'No provider'),
-              selection: state.modelId ?? context.tr('未选择模型', 'No model'),
-              readiness: state.readiness,
-              onTap: () => _push(const DictionaryExplanationServiceScreen()),
-            ),
+          SettingsGroup(
+            children: [
+              tts.when(
+                loading: () => _loadingServiceRow(
+                  key: const ValueKey('tts-service-settings'),
+                  icon: Icons.record_voice_over_outlined,
+                  title: context.tr('文本转语音', 'Text to Speech'),
+                ),
+                error: (error, _) => _errorServiceRow(
+                  key: const ValueKey('tts-service-settings'),
+                  icon: Icons.record_voice_over_outlined,
+                  title: context.tr('文本转语音', 'Text to Speech'),
+                  onTap: () => ref.invalidate(ttsSettingsControllerProvider),
+                ),
+                data: (state) => _serviceRow(
+                  key: const ValueKey('tts-service-settings'),
+                  icon: Icons.record_voice_over_outlined,
+                  title: context.tr('文本转语音', 'Text to Speech'),
+                  provider:
+                      state.providerName ?? context.tr('未选择服务', 'No provider'),
+                  selection: state.voiceName ?? context.tr('未选择音色', 'No voice'),
+                  readiness: state.readiness,
+                  onTap: () => _push(const TtsServiceScreen()),
+                ),
+              ),
+              llm.when(
+                loading: () => _loadingServiceRow(
+                  key: const ValueKey('llm-provider-settings'),
+                  icon: Icons.auto_awesome_outlined,
+                  title: context.tr('词典解释', 'Dictionary Explanation'),
+                ),
+                error: (error, _) => _errorServiceRow(
+                  key: const ValueKey('llm-provider-settings'),
+                  icon: Icons.auto_awesome_outlined,
+                  title: context.tr('词典解释', 'Dictionary Explanation'),
+                  onTap: () => ref.invalidate(llmSettingsControllerProvider),
+                ),
+                data: (state) => _serviceRow(
+                  key: const ValueKey('llm-provider-settings'),
+                  icon: Icons.auto_awesome_outlined,
+                  title: context.tr('词典解释', 'Dictionary Explanation'),
+                  provider:
+                      state.providerName ?? context.tr('未选择服务', 'No provider'),
+                  selection: state.modelId ?? context.tr('未选择模型', 'No model'),
+                  readiness: state.readiness,
+                  onTap: () =>
+                      _push(const DictionaryExplanationServiceScreen()),
+                ),
+              ),
+            ],
           ),
           AppSectionHeader(title: context.tr('播放', 'Playback')),
           SettingsGroup(
@@ -294,35 +296,83 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     AppThemePreference.dark => context.tr('深色', 'Dark'),
   };
 
-  Widget _loadingServiceCard({
+  Widget _serviceRow({
     required Key key,
     required IconData icon,
     required String title,
-  }) => ServiceStatusCard(
-    cardKey: key,
-    icon: icon,
-    title: title,
-    provider: context.tr('读取中', 'Loading'),
-    selection: '',
-    readiness: ServiceReadiness.loading,
-    onTap: () {},
-  );
-
-  Widget _errorServiceCard({
-    required Key key,
-    required IconData icon,
-    required String title,
-    required Object error,
+    required String provider,
+    required String selection,
+    required ServiceReadiness readiness,
     required VoidCallback onTap,
-  }) => ServiceStatusCard(
-    cardKey: key,
-    icon: icon,
-    title: title,
-    provider: context.tr('读取失败', 'Failed to load'),
-    selection: '$error',
-    readiness: ServiceReadiness.error,
-    onTap: onTap,
-  );
+  }) {
+    final status = _readinessPresentation(readiness);
+    return SettingValueRow(
+      rowKey: key,
+      icon: icon,
+      title: title,
+      subtitle: '$provider · $selection',
+      value: status.label,
+      valueColor: status.color,
+      onTap: onTap,
+    );
+  }
+
+  Widget _loadingServiceRow({
+    required Key key,
+    required IconData icon,
+    required String title,
+  }) {
+    final status = _readinessPresentation(ServiceReadiness.loading);
+    return SettingValueRow(
+      rowKey: key,
+      icon: icon,
+      title: title,
+      value: status.label,
+      valueColor: status.color,
+    );
+  }
+
+  Widget _errorServiceRow({
+    required Key key,
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+  }) {
+    final status = _readinessPresentation(ServiceReadiness.error);
+    return SettingValueRow(
+      rowKey: key,
+      icon: icon,
+      title: title,
+      subtitle: context.tr('点按重试', 'Tap to retry'),
+      value: status.label,
+      valueColor: status.color,
+      onTap: onTap,
+    );
+  }
+
+  ({String label, Color color}) _readinessPresentation(
+    ServiceReadiness readiness,
+  ) {
+    final scheme = Theme.of(context).colorScheme;
+    return switch (readiness) {
+      ServiceReadiness.loading => (
+        label: context.tr('检查中', 'Checking'),
+        color: scheme.onSurfaceVariant,
+      ),
+      ServiceReadiness.setupRequired => (
+        label: context.tr('设置', 'Setup'),
+        color: scheme.tertiary,
+      ),
+      ServiceReadiness.ready => (
+        label: context.tr('就绪', 'Ready'),
+        color: scheme.primary,
+      ),
+      ServiceReadiness.error => (
+        label: context.tr('注意', 'Attention'),
+        color: scheme.error,
+      ),
+    };
+  }
 
   Future<void> _push(Widget page) async {
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
