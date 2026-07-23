@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../core/app_design_tokens.dart';
 import '../../services/cover_palette_service.dart';
+import 'disk_cached_network_image.dart';
 
 class BookListCard extends StatefulWidget {
   final String title;
@@ -211,31 +212,45 @@ class _BookListCover extends StatelessWidget {
   Widget build(BuildContext context) {
     final path = localPath;
     final url = remoteUrl;
-    final file = path == null ? null : File(path);
-    final hasLocalCover = file != null && file.existsSync();
+    final fallback = _remoteOrPlaceholder(context, url);
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: ColoredBox(
         color: context.appSurfaceHighlight,
-        child: hasLocalCover
-            ? Image.file(
-                file,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => _placeholder(context),
-              )
-            : url == null
-            ? _placeholder(context)
-            : Image.network(
-                url,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => _placeholder(context),
-                loadingBuilder: (context, child, progress) {
-                  if (progress == null) return child;
-                  return _placeholder(context);
+        child: path == null || path.isEmpty
+            ? fallback
+            : LayoutBuilder(
+                builder: (context, constraints) {
+                  final ratio = MediaQuery.devicePixelRatioOf(context);
+                  final cacheWidth = (constraints.maxWidth * ratio)
+                      .ceil()
+                      .clamp(1, 4096)
+                      .toInt();
+                  final cacheHeight = (constraints.maxHeight * ratio)
+                      .ceil()
+                      .clamp(1, 4096)
+                      .toInt();
+                  return Image.file(
+                    File(path),
+                    fit: BoxFit.cover,
+                    cacheWidth: cacheWidth,
+                    cacheHeight: cacheHeight,
+                    gaplessPlayback: true,
+                    errorBuilder: (_, _, _) => fallback,
+                  );
                 },
               ),
       ),
+    );
+  }
+
+  Widget _remoteOrPlaceholder(BuildContext context, String? url) {
+    if (url == null || url.isEmpty) return _placeholder(context);
+    return DiskCachedNetworkImage(
+      url: url,
+      placeholder: _placeholder(context),
+      fit: BoxFit.cover,
     );
   }
 

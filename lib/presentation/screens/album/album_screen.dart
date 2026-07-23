@@ -60,8 +60,11 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   Future<void> _openChapter(drift_db.Chapter chapter) async {
     await Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute<void>(
-        builder: (_) =>
-            PlayerScreen(book: widget.book, initialChapter: chapter),
+        builder: (_) => PlayerScreen(
+          book: widget.book,
+          initialChapter: chapter,
+          autoplayOnOpen: true,
+        ),
       ),
     );
     if (mounted) setState(() {});

@@ -18,6 +18,26 @@ class ChapterPlaybackSource {
   });
 }
 
+class PodcastPlaybackSource {
+  final String episodeId;
+  final String showId;
+  final String showTitle;
+  final String title;
+  final String audioUrl;
+  final String? imageUrl;
+  final int durationMs;
+
+  const PodcastPlaybackSource({
+    required this.episodeId,
+    required this.showId,
+    required this.showTitle,
+    required this.title,
+    required this.audioUrl,
+    required this.imageUrl,
+    required this.durationMs,
+  });
+}
+
 class _QueueEntry {
   final ChapterManifest manifest;
   final SegmentEntry segment;
@@ -58,10 +78,12 @@ class LuminaAudioHandler extends BaseAudioHandler
 
   ChapterManifest? _manifest;
   List<_QueueEntry> _queueEntries = const [];
+  List<PodcastPlaybackSource> _podcastEntries = const [];
   List<String> _paragraphIds = const [];
   int _chapterDurationMs = 0;
   StreamSubscription? _playbackEventSub;
   StreamSubscription? _currentIndexSub;
+  StreamSubscription? _durationSub;
 
   final _currentParagraphController = StreamController<String?>.broadcast();
 
@@ -69,11 +91,32 @@ class LuminaAudioHandler extends BaseAudioHandler
     : _player = player ?? AudioPlayer() {
     _playbackEventSub = _player.playbackEventStream.listen(_broadcastState);
     _currentIndexSub = _player.currentIndexStream.listen((index) {
-      if (index == null || index < 0 || index >= _queueEntries.length) return;
+      if (index == null || index < 0) return;
+      if (_podcastEntries.isNotEmpty) {
+        if (index >= _podcastEntries.length || index >= queue.value.length) {
+          return;
+        }
+        _manifest = null;
+        _chapterDurationMs = _podcastEntries[index].durationMs;
+        mediaItem.add(queue.value[index]);
+        _currentParagraphController.add(_podcastEntries[index].episodeId);
+        return;
+      }
+      if (index >= _queueEntries.length) return;
       _applyCurrentEntry(index);
       final item = queue.value[index];
       mediaItem.add(item);
       _currentParagraphController.add(_queueEntries[index].segment.paragraphId);
+    });
+    _durationSub = _player.durationStream.listen((duration) {
+      if (_podcastEntries.isEmpty || duration == null) return;
+      _chapterDurationMs = duration.inMilliseconds;
+      final index = _player.currentIndex;
+      if (index == null || index < 0 || index >= queue.value.length) return;
+      final currentQueue = [...queue.value];
+      currentQueue[index] = currentQueue[index].copyWith(duration: duration);
+      queue.add(currentQueue);
+      mediaItem.add(currentQueue[index]);
     });
   }
 
@@ -87,10 +130,17 @@ class LuminaAudioHandler extends BaseAudioHandler
   Duration get chapterDuration => Duration(milliseconds: _chapterDurationMs);
   Stream<Duration> get chapterPositionStream =>
       _player.positionStream.map(_chapterPositionFrom);
-  String? get currentParagraphId =>
-      mediaItem.valueOrNull?.extras?['paragraphId'] as String? ??
-      mediaItem.valueOrNull?.id;
+  bool get isPodcast =>
+      mediaItem.valueOrNull?.extras?['mediaType'] == 'podcast';
+  String? get currentParagraphId => isPodcast
+      ? currentPodcastEpisodeId
+      : mediaItem.valueOrNull?.extras?['paragraphId'] as String? ??
+            mediaItem.valueOrNull?.id;
   String? get currentBookId => currentManifest?.bookId;
+  String? get currentPodcastEpisodeId =>
+      mediaItem.valueOrNull?.extras?['podcastEpisodeId'] as String?;
+  String? get currentPodcastShowId =>
+      mediaItem.valueOrNull?.extras?['podcastShowId'] as String?;
   String? get currentChapterId => currentManifest?.chapterId;
   ChapterManifest? get currentManifest => _manifest;
   int? get currentParagraphIndex {
@@ -134,6 +184,7 @@ class LuminaAudioHandler extends BaseAudioHandler
     if (chapters.isEmpty) {
       throw StateError('没有可播放的章节。');
     }
+    _podcastEntries = const [];
     AppLogger.info(
       'Playback',
       '加载连续章节 book=${chapters.first.manifest.bookId} '
@@ -226,6 +277,78 @@ class LuminaAudioHandler extends BaseAudioHandler
       '连续章节加载完成 chapter=$initialChapterId '
           'queueItems=${entries.length} durationMs=$_chapterDurationMs',
     );
+  }
+
+  Future<void> loadPodcastQueue({
+    required List<PodcastPlaybackSource> episodes,
+    required String initialEpisodeId,
+    Duration initialPosition = Duration.zero,
+  }) async {
+    if (episodes.isEmpty) throw StateError('没有可播放的 Podcast 单集。');
+    final initialIndex = episodes.indexWhere(
+      (episode) => episode.episodeId == initialEpisodeId,
+    );
+    if (initialIndex < 0) throw StateError('找不到要播放的 Podcast 单集。');
+
+    AppLogger.info(
+      'Playback',
+      '加载 Podcast 队列 episode=$initialEpisodeId count=${episodes.length}',
+    );
+    final items = <MediaItem>[
+      for (final episode in episodes)
+        MediaItem(
+          id: episode.episodeId,
+          album: episode.showTitle,
+          title: episode.title,
+          artUri: episode.imageUrl == null
+              ? null
+              : Uri.tryParse(episode.imageUrl!),
+          duration: episode.durationMs <= 0
+              ? null
+              : Duration(milliseconds: episode.durationMs),
+          extras: {
+            'mediaType': 'podcast',
+            'podcastEpisodeId': episode.episodeId,
+            'podcastShowId': episode.showId,
+            'audioUrl': episode.audioUrl,
+            if (episode.imageUrl != null) 'imageUrl': episode.imageUrl,
+          },
+        ),
+    ];
+    final sources = <AudioSource>[
+      for (var index = 0; index < episodes.length; index++)
+        AudioSource.uri(Uri.parse(episodes[index].audioUrl), tag: items[index]),
+    ];
+
+    _manifest = null;
+    _queueEntries = const [];
+    _paragraphIds = const [];
+    _podcastEntries = episodes;
+    _chapterDurationMs = episodes[initialIndex].durationMs;
+    queue.add(items);
+    try {
+      await _player.setAudioSources(sources, initialIndex: initialIndex);
+      if (initialPosition > Duration.zero) {
+        await _player.seek(initialPosition, index: initialIndex);
+      }
+    } catch (error, stackTrace) {
+      try {
+        await _player.stop();
+        await _player.clearAudioSources();
+      } catch (_) {}
+      await _resetLoadedState();
+      AppLogger.error(
+        'Playback',
+        'Podcast 音频加载失败 episode=$initialEpisodeId',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      throw StateError('无法加载 Podcast 音频：$error');
+    }
+
+    mediaItem.add(items[initialIndex]);
+    _currentParagraphController.add(initialEpisodeId);
+    _broadcastState(_player.playbackEvent);
   }
 
   /// 把新缓存好的连续段落追加到当前章节播放队列。
@@ -383,6 +506,16 @@ class LuminaAudioHandler extends BaseAudioHandler
     String paragraphId,
     Duration position,
   ) async {
+    if (_podcastEntries.isNotEmpty) {
+      if (currentPodcastEpisodeId != paragraphId) return;
+      final durationMs = _chapterDurationMs;
+      final offsetMs = durationMs <= 0
+          ? position.inMilliseconds.clamp(0, 1 << 31)
+          : position.inMilliseconds.clamp(0, durationMs);
+      await _player.seek(Duration(milliseconds: offsetMs));
+      unawaited(play());
+      return;
+    }
     final index = _paragraphIds.indexOf(paragraphId);
     if (index < 0) return;
     final segment = index < 0 ? null : _queueEntries[index].segment;
@@ -417,6 +550,19 @@ class LuminaAudioHandler extends BaseAudioHandler
   }
 
   Future<void> seekToChapterOffset(Duration offset) async {
+    if (_podcastEntries.isNotEmpty) {
+      final knownDurationMs = _chapterDurationMs > 0
+          ? _chapterDurationMs
+          : _player.duration?.inMilliseconds ?? 0;
+      final requestedMs = offset.inMilliseconds;
+      final targetMs = knownDurationMs > 0
+          ? requestedMs.clamp(0, knownDurationMs)
+          : requestedMs < 0
+          ? 0
+          : requestedMs;
+      await _player.seek(Duration(milliseconds: targetMs));
+      return;
+    }
     final chapterId = currentChapterId;
     if (chapterId == null || _chapterDurationMs <= 0) return;
 
@@ -446,8 +592,11 @@ class LuminaAudioHandler extends BaseAudioHandler
   @override
   Future<void> play() async {
     if (_player.processingState == ProcessingState.completed &&
-        _paragraphIds.isNotEmpty) {
-      await _player.seek(Duration.zero, index: 0);
+        (_paragraphIds.isNotEmpty || _podcastEntries.isNotEmpty)) {
+      await _player.seek(
+        Duration.zero,
+        index: _podcastEntries.isNotEmpty ? _player.currentIndex : 0,
+      );
     }
     if (!_player.playing) {
       AppLogger.info(
@@ -492,6 +641,11 @@ class LuminaAudioHandler extends BaseAudioHandler
     await unload();
   }
 
+  Future<void> unloadIfPodcastEpisode(String episodeId) async {
+    if (currentPodcastEpisodeId != episodeId) return;
+    await unload();
+  }
+
   Future<void> unload() async {
     AppLogger.info(
       'Playback',
@@ -506,6 +660,7 @@ class LuminaAudioHandler extends BaseAudioHandler
   Future<void> _resetLoadedState() async {
     _manifest = null;
     _queueEntries = const [];
+    _podcastEntries = const [];
     _paragraphIds = const [];
     _chapterDurationMs = 0;
     queue.add(const []);
@@ -525,7 +680,14 @@ class LuminaAudioHandler extends BaseAudioHandler
   @override
   Future<void> skipToNext() async {
     final index = _player.currentIndex;
-    if (index == null || index < 0 || index >= _queueEntries.length) return;
+    if (index == null || index < 0) return;
+    if (_podcastEntries.isNotEmpty) {
+      if (index + 1 < _podcastEntries.length) {
+        await _player.seek(Duration.zero, index: index + 1);
+      }
+      return;
+    }
+    if (index >= _queueEntries.length) return;
     final nextIndex = nextChapterQueueIndex(
       _queueEntries
           .map((entry) => entry.manifest.chapterId)
@@ -540,7 +702,16 @@ class LuminaAudioHandler extends BaseAudioHandler
   @override
   Future<void> skipToPrevious() async {
     final index = _player.currentIndex;
-    if (index == null || index < 0 || index >= _queueEntries.length) return;
+    if (index == null || index < 0) return;
+    if (_podcastEntries.isNotEmpty) {
+      if (_player.position > const Duration(seconds: 5) || index == 0) {
+        await _player.seek(Duration.zero, index: index);
+      } else {
+        await _player.seek(Duration.zero, index: index - 1);
+      }
+      return;
+    }
+    if (index >= _queueEntries.length) return;
     final previousChapterStart = previousChapterQueueIndex(
       _queueEntries
           .map((entry) => entry.manifest.chapterId)
@@ -562,6 +733,7 @@ class LuminaAudioHandler extends BaseAudioHandler
   Future<void> dispose() async {
     await _playbackEventSub?.cancel();
     await _currentIndexSub?.cancel();
+    await _durationSub?.cancel();
     await _currentParagraphController.close();
     await _player.dispose();
   }
@@ -597,6 +769,7 @@ class LuminaAudioHandler extends BaseAudioHandler
   }
 
   Duration _chapterPositionFrom(Duration paragraphPosition) {
+    if (_podcastEntries.isNotEmpty) return paragraphPosition;
     if (_queueEntries.isEmpty || _chapterDurationMs <= 0) {
       return paragraphPosition;
     }

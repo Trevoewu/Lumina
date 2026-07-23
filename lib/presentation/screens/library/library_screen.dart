@@ -22,10 +22,68 @@ import '../../../tts/tts_provider.dart';
 import '../../widgets/book_cover.dart';
 import '../../widgets/book_card_metadata.dart';
 import '../../widgets/book_list_card.dart';
-import '../../widgets/collapsing_page_scaffold.dart';
 import '../../widgets/half_screen_action_sheet.dart';
 import '../album/album_screen.dart';
+import '../podcast/podcast_index_search_screen.dart';
+import '../podcast/podcast_library_view.dart';
 import '../search/search_screen.dart';
+import 'home_overview_view.dart';
+
+enum _HomeSection { all, books, podcasts }
+
+enum _HomeAddAction { importBook, discoverPodcast, addPodcast }
+
+class _HomeSectionSelector extends StatelessWidget {
+  final _HomeSection selected;
+  final ValueChanged<_HomeSection> onSelected;
+
+  const _HomeSectionSelector({
+    required this.selected,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final design = context.appDesign;
+    final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
+    final labels = <_HomeSection, String>{
+      _HomeSection.all: context.tr('全部', 'All'),
+      _HomeSection.books: context.tr('书籍', 'Books'),
+      _HomeSection.podcasts: 'Podcast',
+    };
+    return SizedBox(
+      height: 56,
+      child: ListView.separated(
+        key: const ValueKey('home-section-selector'),
+        padding: EdgeInsets.fromLTRB(inset, 5, design.spaceXs, 5),
+        scrollDirection: Axis.horizontal,
+        primary: false,
+        itemCount: _HomeSection.values.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 10),
+        itemBuilder: (context, index) {
+          final section = _HomeSection.values[index];
+          return ChoiceChip(
+            key: ValueKey('home-section-${section.name}'),
+            label: Text(labels[section]!),
+            selected: selected == section,
+            showCheckmark: false,
+            onSelected: (_) => onSelected(section),
+            labelStyle: TextStyle(
+              color: selected == section
+                  ? Theme.of(context).colorScheme.onPrimary
+                  : context.appTextPrimary,
+              fontWeight: FontWeight.w700,
+            ),
+            selectedColor: Theme.of(context).colorScheme.primary,
+            backgroundColor: context.appSurfaceHighlight,
+            side: BorderSide.none,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          );
+        },
+      ),
+    );
+  }
+}
 
 /// 书架首页。
 class LibraryScreen extends ConsumerStatefulWidget {
@@ -38,8 +96,21 @@ class LibraryScreen extends ConsumerStatefulWidget {
 class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   int _reloadToken = 0;
   bool _importing = false;
+  bool _addingPodcast = false;
+  _HomeSection _section = _HomeSection.all;
   final Set<String> _coverBackfillStarted = {};
   final Map<String, _BookCacheProgress> _bookCacheProgress = {};
+  final ScrollController _overviewScrollController = ScrollController();
+  final ScrollController _booksScrollController = ScrollController();
+  final ScrollController _podcastsScrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _overviewScrollController.dispose();
+    _booksScrollController.dispose();
+    _podcastsScrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,71 +119,273 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final design = context.appDesign;
     final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
 
-    return CollapsingPageScaffold(
-      title: context.tr('书架', 'Your Library'),
-      actions: [
-        IconButton(
-          tooltip: context.tr('搜索书籍', 'Search Books'),
-          onPressed: () async {
-            await Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => const SearchScreen()));
-            if (mounted) setState(() => _reloadToken++);
-          },
-          icon: Icon(Icons.search, color: context.appTextPrimary),
-        ),
-        IconButton(
-          tooltip: context.tr('导入书籍', 'Import Book'),
-          onPressed: _importing ? null : () => _importBook(context),
-          icon: _importing
-              ? SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    color: accent,
+    return Scaffold(
+      backgroundColor: context.appBackground,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            Material(
+              key: const ValueKey('home-fixed-header'),
+              color: context.appBackground,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _HomeSectionSelector(
+                      selected: _section,
+                      onSelected: (section) {
+                        if (section != _section) {
+                          setState(() => _section = section);
+                        }
+                      },
+                    ),
                   ),
-                )
-              : Icon(Icons.add, color: context.appTextPrimary),
+                  IconButton(
+                    key: const ValueKey('home-search-action'),
+                    tooltip: _section == _HomeSection.podcasts
+                        ? context.tr('搜索 Podcast Index', 'Search Podcast Index')
+                        : context.tr('搜索书籍', 'Search books'),
+                    onPressed: _openSearch,
+                    icon: Icon(Icons.search, color: context.appTextPrimary),
+                  ),
+                  IconButton(
+                    key: const ValueKey('home-add-action'),
+                    tooltip: _section == _HomeSection.podcasts
+                        ? context.tr('添加 Podcast', 'Add podcast')
+                        : _section == _HomeSection.books
+                        ? context.tr('导入书籍', 'Import book')
+                        : context.tr('添加内容', 'Add content'),
+                    onPressed: _importing || _addingPodcast
+                        ? null
+                        : _handleAddAction,
+                    icon: _importing || _addingPodcast
+                        ? SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: accent,
+                            ),
+                          )
+                        : Icon(Icons.add, color: context.appTextPrimary),
+                  ),
+                  SizedBox(width: design.spaceXs),
+                ],
+              ),
+            ),
+            Expanded(
+              child: IndexedStack(
+                index: _section.index,
+                children: [
+                  HomeOverviewView(
+                    reloadToken: _reloadToken,
+                    scrollController: _overviewScrollController,
+                    onImportBook: () => _importBook(context),
+                    onAddPodcast: _showAddPodcastDialog,
+                    onSearchPodcastIndex: _showPodcastIndexSearch,
+                  ),
+                  _buildBooks(db, inset, design),
+                  PodcastLibraryView(
+                    scrollController: _podcastsScrollController,
+                    onAddPodcast: _showAddPodcastDialog,
+                    onSearchPodcastIndex: _showPodcastIndexSearch,
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
-      ],
-      body: FutureBuilder<List<drift_db.Book>>(
-        key: ValueKey(_reloadToken),
-        future: db.getAllBooks(),
-        builder: (context, snapshot) {
-          final books = snapshot.data ?? const <drift_db.Book>[];
-
-          if (books.isEmpty) {
-            return _buildEmptyState();
-          }
-
-          _backfillMissingCovers(books);
-
-          return ListView.separated(
-            padding: EdgeInsets.fromLTRB(inset, design.spaceLg, inset, 120),
-            itemCount: books.length,
-            separatorBuilder: (_, _) => SizedBox(height: design.spaceMd),
-            itemBuilder: (context, i) {
-              final book = books[i];
-              return _BookCard(
-                book: book,
-                cacheProgress: _bookCacheProgress[book.id],
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => AlbumScreen(book: book)),
-                  );
-                },
-                onEdit: () => _showEditBookSheet(book),
-                onReparse: () => _confirmReparseBook(book),
-                onCacheBook: () => _cacheWholeBook(book),
-                onClearCache: () => _confirmClearBookCache(book),
-                onDelete: () => _confirmDeleteBook(book),
-              );
-            },
-          );
-        },
       ),
     );
+  }
+
+  Future<void> _openSearch() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _section == _HomeSection.podcasts
+            ? const PodcastIndexSearchScreen()
+            : const SearchScreen(),
+      ),
+    );
+    if (mounted) setState(() => _reloadToken++);
+  }
+
+  void _handleAddAction() {
+    switch (_section) {
+      case _HomeSection.all:
+        _showAddContentSheet();
+        break;
+      case _HomeSection.books:
+        _importBook(context);
+        break;
+      case _HomeSection.podcasts:
+        _showAddPodcastDialog();
+        break;
+    }
+  }
+
+  Widget _buildBooks(
+    drift_db.AppDatabase db,
+    double inset,
+    AppDesignTokens design,
+  ) {
+    return FutureBuilder<List<drift_db.Book>>(
+      key: ValueKey(_reloadToken),
+      future: db.getAllBooks(),
+      builder: (context, snapshot) {
+        final books = snapshot.data ?? const <drift_db.Book>[];
+
+        if (books.isEmpty) return _buildEmptyState();
+        _backfillMissingCovers(books);
+
+        return ListView.separated(
+          key: const PageStorageKey('home-books-list'),
+          controller: _booksScrollController,
+          primary: false,
+          padding: EdgeInsets.fromLTRB(inset, design.spaceLg, inset, 120),
+          itemCount: books.length,
+          separatorBuilder: (_, _) => SizedBox(height: design.spaceMd),
+          itemBuilder: (context, i) {
+            final book = books[i];
+            return _BookCard(
+              book: book,
+              cacheProgress: _bookCacheProgress[book.id],
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => AlbumScreen(book: book)),
+                );
+              },
+              onEdit: () => _showEditBookSheet(book),
+              onReparse: () => _confirmReparseBook(book),
+              onCacheBook: () => _cacheWholeBook(book),
+              onClearCache: () => _confirmClearBookCache(book),
+              onDelete: () => _confirmDeleteBook(book),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _showAddContentSheet() async {
+    final action = await showModalBottomSheet<_HomeAddAction>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.auto_stories_rounded),
+              title: Text(context.tr('导入书籍', 'Import book')),
+              subtitle: const Text('EPUB / TXT'),
+              onTap: () =>
+                  Navigator.pop(sheetContext, _HomeAddAction.importBook),
+            ),
+            ListTile(
+              leading: const Icon(Icons.travel_explore_rounded),
+              title: Text(context.tr('发现 Podcast', 'Discover podcasts')),
+              subtitle: const Text('Podcast Index'),
+              onTap: () =>
+                  Navigator.pop(sheetContext, _HomeAddAction.discoverPodcast),
+            ),
+            ListTile(
+              leading: const Icon(Icons.rss_feed),
+              title: Text(context.tr('通过 RSS 添加', 'Add with RSS')),
+              subtitle: Text(context.tr('粘贴 Feed 地址', 'Paste a feed URL')),
+              onTap: () =>
+                  Navigator.pop(sheetContext, _HomeAddAction.addPodcast),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || action == null) return;
+    switch (action) {
+      case _HomeAddAction.importBook:
+        await _importBook(context);
+        break;
+      case _HomeAddAction.discoverPodcast:
+        await _showPodcastIndexSearch();
+        break;
+      case _HomeAddAction.addPodcast:
+        await _showAddPodcastDialog();
+        break;
+    }
+  }
+
+  Future<void> _showPodcastIndexSearch() async {
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const PodcastIndexSearchScreen()));
+    if (mounted) setState(() => _reloadToken++);
+  }
+
+  Future<void> _showAddPodcastDialog() async {
+    if (_addingPodcast) return;
+    final controller = TextEditingController();
+    final feedUrl = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(context.tr('添加 Podcast', 'Add podcast')),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.url,
+          textInputAction: TextInputAction.done,
+          autocorrect: false,
+          decoration: InputDecoration(
+            labelText: 'RSS URL',
+            hintText: 'https://example.com/feed.xml',
+            prefixIcon: const Icon(Icons.rss_feed),
+          ),
+          onSubmitted: (value) => Navigator.pop(dialogContext, value.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(context.tr('取消', 'Cancel')),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, controller.text.trim()),
+            child: Text(context.tr('订阅', 'Subscribe')),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (!mounted || feedUrl == null || feedUrl.isEmpty) return;
+
+    setState(() => _addingPodcast = true);
+    try {
+      final result = await ref
+          .read(podcastRepositoryProvider)
+          .subscribe(feedUrl);
+      if (!mounted) return;
+      setState(() {
+        _section = _HomeSection.podcasts;
+        _reloadToken++;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.tr(
+              '已订阅 ${result.show.title}，获取 ${result.importedEpisodes} 个单集',
+              'Subscribed to ${result.show.title} with ${result.importedEpisodes} episodes',
+            ),
+          ),
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('添加失败：$error')));
+      }
+    } finally {
+      if (mounted) setState(() => _addingPodcast = false);
+    }
   }
 
   void _backfillMissingCovers(List<drift_db.Book> books) {

@@ -205,6 +205,60 @@ class FavoriteWords extends Table {
   ];
 }
 
+/// 用户订阅的 Podcast 节目。
+class PodcastShows extends Table {
+  TextColumn get id => text()();
+  TextColumn get feedUrl => text()();
+  TextColumn get title => text()();
+  TextColumn get author => text().nullable()();
+  TextColumn get description => text().withDefault(const Constant(''))();
+  TextColumn get imageUrl => text().nullable()();
+  TextColumn get language => text().nullable()();
+  TextColumn get websiteUrl => text().nullable()();
+  IntColumn get subscribedAt => integer()();
+  IntColumn get lastRefreshedAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+    {feedUrl},
+  ];
+}
+
+/// Podcast 单集、播放进度与本地转写结果。
+class PodcastEpisodes extends Table {
+  TextColumn get id => text()();
+  TextColumn get showId => text()();
+  TextColumn get guid => text()();
+  TextColumn get title => text()();
+  TextColumn get description => text().withDefault(const Constant(''))();
+  TextColumn get audioUrl => text()();
+  TextColumn get imageUrl => text().nullable()();
+  IntColumn get publishedAt => integer().withDefault(const Constant(0))();
+  IntColumn get durationMs => integer().withDefault(const Constant(0))();
+  IntColumn get playbackPositionMs =>
+      integer().withDefault(const Constant(0))();
+  IntColumn get lastPlayedAt => integer().withDefault(const Constant(0))();
+  BoolColumn get isPlayed => boolean().withDefault(const Constant(false))();
+  TextColumn get localAudioPath => text().nullable()();
+  TextColumn get transcriptJson => text().nullable()();
+  TextColumn get transcriptLanguage => text().nullable()();
+  TextColumn get transcriptStatus =>
+      text().withDefault(const Constant('none'))();
+  TextColumn get transcriptError => text().nullable()();
+  TextColumn get sourceTranscriptUrl => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+    {showId, guid},
+  ];
+}
+
 // ─────────────────────────────────────────────
 // 数据库
 // ─────────────────────────────────────────────
@@ -221,6 +275,8 @@ class FavoriteWords extends Table {
     ListeningDays,
     DictionaryEntries,
     FavoriteWords,
+    PodcastShows,
+    PodcastEpisodes,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -231,7 +287,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e) : _repairPathsOnOpen = false;
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 10;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -292,6 +348,10 @@ class AppDatabase extends _$AppDatabase {
           // chapter rows (including the original import-only schema).
           await m.createTable(chapters);
         }
+      }
+      if (from < 10) {
+        await m.createTable(podcastShows);
+        await m.createTable(podcastEpisodes);
       }
     },
     beforeOpen: (_) async {
@@ -679,6 +739,126 @@ class AppDatabase extends _$AppDatabase {
           entry: row.readTable(dictionaryEntries),
         ),
     ];
+  }
+
+  // ── Podcast ──
+
+  Stream<List<PodcastShow>> watchPodcastShows() => (select(
+    podcastShows,
+  )..orderBy([(show) => OrderingTerm.desc(show.lastRefreshedAt)])).watch();
+
+  Future<List<PodcastShow>> getPodcastShows() => (select(
+    podcastShows,
+  )..orderBy([(show) => OrderingTerm.desc(show.lastRefreshedAt)])).get();
+
+  Future<PodcastShow?> getPodcastShow(String id) => (select(
+    podcastShows,
+  )..where((show) => show.id.equals(id))).getSingleOrNull();
+
+  Future<PodcastShow?> getPodcastShowByFeedUrl(String feedUrl) => (select(
+    podcastShows,
+  )..where((show) => show.feedUrl.equals(feedUrl))).getSingleOrNull();
+
+  Future<void> upsertPodcastShow(PodcastShow show) =>
+      into(podcastShows).insertOnConflictUpdate(show);
+
+  Stream<List<PodcastEpisode>> watchPodcastEpisodes(String showId) =>
+      (select(podcastEpisodes)
+            ..where((episode) => episode.showId.equals(showId))
+            ..orderBy([(episode) => OrderingTerm.desc(episode.publishedAt)]))
+          .watch();
+
+  Future<List<PodcastEpisode>> getPodcastEpisodes(String showId) =>
+      (select(podcastEpisodes)
+            ..where((episode) => episode.showId.equals(showId))
+            ..orderBy([(episode) => OrderingTerm.desc(episode.publishedAt)]))
+          .get();
+
+  Future<List<PodcastEpisode>> getRecentPodcastEpisodes({int limit = 30}) =>
+      (select(podcastEpisodes)
+            ..orderBy([(episode) => OrderingTerm.desc(episode.publishedAt)])
+            ..limit(limit))
+          .get();
+
+  Future<PodcastEpisode?> getPodcastEpisode(String id) => (select(
+    podcastEpisodes,
+  )..where((episode) => episode.id.equals(id))).getSingleOrNull();
+
+  Stream<PodcastEpisode?> watchPodcastEpisode(String id) => (select(
+    podcastEpisodes,
+  )..where((episode) => episode.id.equals(id))).watchSingleOrNull();
+
+  Future<PodcastEpisode?> getPodcastEpisodeByGuid(String showId, String guid) =>
+      (select(podcastEpisodes)..where(
+            (episode) =>
+                episode.showId.equals(showId) & episode.guid.equals(guid),
+          ))
+          .getSingleOrNull();
+
+  Future<void> upsertPodcastEpisode(PodcastEpisode episode) =>
+      into(podcastEpisodes).insertOnConflictUpdate(episode);
+
+  Future<void> deletePodcastShowCascade(String showId) async {
+    await transaction(() async {
+      await (delete(
+        podcastEpisodes,
+      )..where((episode) => episode.showId.equals(showId))).go();
+      await (delete(
+        podcastShows,
+      )..where((show) => show.id.equals(showId))).go();
+    });
+  }
+
+  Future<void> updatePodcastProgress(
+    String episodeId, {
+    required int positionMs,
+    required bool isPlayed,
+  }) async {
+    await (update(
+      podcastEpisodes,
+    )..where((episode) => episode.id.equals(episodeId))).write(
+      PodcastEpisodesCompanion(
+        playbackPositionMs: Value(positionMs),
+        lastPlayedAt: Value(DateTime.now().millisecondsSinceEpoch),
+        // Completion is sticky: replaying an already-finished episode from
+        // the beginning should not silently turn it back into an unplayed one.
+        isPlayed: isPlayed ? const Value(true) : const Value.absent(),
+      ),
+    );
+  }
+
+  Future<void> updatePodcastLocalAudioPath(
+    String episodeId,
+    String localAudioPath,
+  ) async {
+    await (update(podcastEpisodes)
+          ..where((episode) => episode.id.equals(episodeId)))
+        .write(PodcastEpisodesCompanion(localAudioPath: Value(localAudioPath)));
+  }
+
+  Future<void> updatePodcastTranscript(
+    String episodeId, {
+    required String status,
+    String? transcriptJson,
+    String? language,
+    String? error,
+  }) async {
+    await (update(
+      podcastEpisodes,
+    )..where((episode) => episode.id.equals(episodeId))).write(
+      PodcastEpisodesCompanion(
+        transcriptStatus: Value(status),
+        // Status/progress updates must not erase transcript chunks that were
+        // already persisted. A non-null value explicitly replaces the field.
+        transcriptJson: transcriptJson == null
+            ? const Value.absent()
+            : Value(transcriptJson),
+        transcriptLanguage: language == null
+            ? const Value.absent()
+            : Value(language),
+        transcriptError: Value(error),
+      ),
+    );
   }
 }
 

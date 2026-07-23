@@ -1,8 +1,12 @@
+import 'package:audio_service/audio_service.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lumina/core/theme.dart';
 import 'package:lumina/data/database/app_database.dart';
 import 'package:lumina/domain/models/audio_text_timing.dart';
 import 'package:lumina/domain/models/chapter_manifest.dart';
 import 'package:lumina/presentation/widgets/synced_lyrics_list.dart';
+import 'package:lumina/services/lumina_audio_handler.dart';
 
 void main() {
   test('tokenizes words, hyphenated phrases, numbers, and punctuation', () {
@@ -221,4 +225,138 @@ void main() {
     expect(lines.last.startMs, lines.first.endMs);
     expect(lines.last.endMs, 1000);
   });
+
+  testWidgets('long transcripts lazily build only visible lyric lines', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 500);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final handler = _VirtualLyricsAudioHandler();
+    addTearDown(handler.dispose);
+    final transcriptLines = [
+      for (var index = 0; index < 500; index++) 'Transcript segment $index.',
+    ];
+    final timings = [
+      for (var index = 0; index < transcriptLines.length; index++)
+        AudioTextTiming(
+          text: transcriptLines[index],
+          startMs: index * 1000,
+          endMs: (index + 1) * 1000,
+        ),
+    ];
+    final manifest = ChapterManifest(
+      chapterId: 'long-transcript',
+      bookId: 'podcast:long-show',
+      providerId: 'whisper-local',
+      voiceId: '',
+      speed: 1,
+      updatedAt: 1,
+      segments: [
+        SegmentEntry(
+          paragraphId: 'long-transcript',
+          audioFile: 'https://example.com/episode.mp3',
+          durationMs: 500000,
+          state: ParagraphAudioState.ready,
+          format: 'podcast',
+          timings: timings,
+        ),
+      ],
+    );
+    final paragraphs = [
+      Paragraph(
+        id: 'long-transcript',
+        chapterId: 'long-transcript',
+        bookId: 'podcast:long-show',
+        paragraphIndex: 0,
+        content: transcriptLines.join('\n'),
+      ),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.darkTheme(),
+        home: Scaffold(
+          body: SizedBox(
+            width: 390,
+            height: 500,
+            child: SyncedLyricsList(
+              paragraphs: paragraphs,
+              manifest: manifest,
+              handler: handler,
+              playbackEnabled: false,
+              expanded: true,
+              virtualized: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final virtualList = find.byKey(
+      const ValueKey('synced-lyrics-virtualized-list'),
+    );
+    expect(virtualList, findsOneWidget);
+    expect(find.text('Transcript segment 0.'), findsOneWidget);
+    expect(find.text('Transcript segment 499.'), findsNothing);
+    expect(
+      find.byType(AnimatedDefaultTextStyle).evaluate().length,
+      lessThan(50),
+    );
+
+    final scrollable = tester.state<ScrollableState>(
+      find.descendant(of: virtualList, matching: find.byType(Scrollable)),
+    );
+    scrollable.position.jumpTo(scrollable.position.maxScrollExtent);
+    await tester.pumpAndSettle();
+    expect(find.text('Transcript segment 499.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+}
+
+class _VirtualLyricsAudioHandler extends BaseAudioHandler
+    implements LuminaAudioHandler {
+  @override
+  Duration get chapterDuration => Duration.zero;
+
+  @override
+  Duration get chapterPosition => Duration.zero;
+
+  @override
+  Stream<Duration> get chapterPositionStream => const Stream<Duration>.empty();
+
+  @override
+  String? get currentBookId => null;
+
+  @override
+  String? get currentChapterId => null;
+
+  @override
+  ChapterManifest? get currentManifest => null;
+
+  @override
+  String? get currentParagraphId => null;
+
+  @override
+  String? get currentPodcastEpisodeId => null;
+
+  @override
+  Stream<String?> get currentParagraphIdStream => const Stream<String?>.empty();
+
+  @override
+  Duration get position => Duration.zero;
+
+  @override
+  Stream<Duration> get positionStream => const Stream<Duration>.empty();
+
+  @override
+  Future<void> setSpeed(double speed) async {}
+
+  @override
+  Future<void> dispose() async {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

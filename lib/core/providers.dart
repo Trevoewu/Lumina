@@ -6,12 +6,15 @@ import '../services/cache_manager.dart';
 import '../data/book_sources/gutendex_repository.dart';
 import '../data/dictionary/dictionary_repository.dart';
 import '../data/dictionary/openai_compatible_explanation_provider.dart';
+import '../data/podcasts/podcast_index_repository.dart';
+import '../data/podcasts/podcast_repository.dart';
 import '../data/settings/provider_selection_repository.dart';
 import '../services/fish_audio_model_manager.dart';
 import '../services/generation_orchestrator.dart';
 import '../services/kokoro_model_manager.dart';
 import '../services/lumina_audio_handler.dart';
 import '../services/manifest_store.dart';
+import '../services/podcast_transcription_service.dart';
 import '../services/playback_progress_service.dart';
 import '../services/sleep_timer_service.dart';
 import 'database_provider.dart';
@@ -21,6 +24,19 @@ export 'database_provider.dart';
 final gutendexRepositoryProvider = Provider<GutendexRepository>((ref) {
   return GutendexRepository();
 });
+
+final podcastRepositoryProvider = Provider<PodcastRepository>((ref) {
+  return PodcastRepository(ref.watch(appDatabaseProvider));
+});
+
+final podcastIndexRepositoryProvider = Provider<PodcastIndexRepository>((ref) {
+  return PodcastIndexRepository();
+});
+
+final podcastTranscriptionServiceProvider =
+    Provider<PodcastTranscriptionService>((ref) {
+      return PodcastTranscriptionService(ref.watch(appDatabaseProvider));
+    });
 
 final openAiCompatibleExplanationProvider =
     Provider<OpenAiCompatibleExplanationProvider>((ref) {

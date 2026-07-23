@@ -371,6 +371,7 @@ class SyncedLyricsList extends StatefulWidget {
   final String? chapterTitle;
   final String? bookId;
   final String? chapterId;
+  final bool virtualized;
 
   const SyncedLyricsList({
     super.key,
@@ -384,6 +385,7 @@ class SyncedLyricsList extends StatefulWidget {
     this.chapterTitle,
     this.bookId,
     this.chapterId,
+    this.virtualized = false,
   });
 
   @override
@@ -398,7 +400,17 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
   StreamSubscription<String?>? _paragraphSub;
   StreamSubscription<Duration>? _positionSub;
   Timer? _scrollDebounce;
+  Timer? _manualScrollResume;
   List<SyncedLyricLine> _lines = const [];
+  Map<String, List<SyncedLyricLine>> _linesByParagraph = const {};
+  Map<String, int> _lineIndexById = const {};
+  List<double> _virtualLineExtents = const [];
+  List<double> _virtualLineOffsets = const [];
+  double? _virtualMetricsWidth;
+  TextStyle? _virtualMetricsStyle;
+  TextDirection? _virtualMetricsDirection;
+  TextScaler? _virtualMetricsTextScaler;
+  double _virtualTopPadding = 0;
   String? _paragraphId;
   String? _activeLineId;
   String? _pendingScrollLineId;
@@ -413,6 +425,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
   Offset? _pointerStartPosition;
   bool _pointerDidDrag = false;
   String? _pressedLineId;
+  bool _manuallyScrolling = false;
 
   @override
   void initState() {
@@ -428,6 +441,11 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
         oldWidget.manifest != widget.manifest) {
       _rebuildLines();
     }
+    if (oldWidget.expanded != widget.expanded ||
+        oldWidget.focusMode != widget.focusMode ||
+        oldWidget.virtualized != widget.virtualized) {
+      _invalidateVirtualMetrics();
+    }
     if (oldWidget.handler != widget.handler ||
         oldWidget.playbackEnabled != widget.playbackEnabled) {
       _bindHandler();
@@ -436,6 +454,17 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
 
   void _rebuildLines() {
     _lines = buildSyncedLyricLines(widget.paragraphs, widget.manifest);
+    final linesByParagraph = <String, List<SyncedLyricLine>>{};
+    final lineIndexById = <String, int>{};
+    for (var index = 0; index < _lines.length; index++) {
+      final line = _lines[index];
+      (linesByParagraph[line.paragraphId] ??= []).add(line);
+      lineIndexById[line.id] = index;
+    }
+    _linesByParagraph = linesByParagraph;
+    _lineIndexById = lineIndexById;
+    _lineKeys.removeWhere((id, _) => !lineIndexById.containsKey(id));
+    _invalidateVirtualMetrics();
     if (_wordSelectionLineId != null &&
         !_lines.any((line) => line.id == _wordSelectionLineId)) {
       _wordSelectionLineId = null;
@@ -470,21 +499,31 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
       if (_activeLineId != null) setState(() => _activeLineId = null);
       return;
     }
-    final paragraphLines = _lines
-        .where((line) => line.paragraphId == _paragraphId)
-        .toList(growable: false);
-    SyncedLyricLine? active;
-    for (final line in paragraphLines) {
-      if (active == null || position.inMilliseconds >= line.startMs) {
-        active = line;
-      } else {
-        break;
-      }
-    }
+    final paragraphLines = _linesByParagraph[_paragraphId] ?? const [];
+    final active = _activeLineAt(paragraphLines, position.inMilliseconds);
     if (_wordSelectionLineId != null) return;
     if (!forceScroll && active?.id == _activeLineId) return;
     setState(() => _activeLineId = active?.id);
-    if (active != null) _scrollTo(active.id, force: forceScroll);
+    if (active != null && !_manuallyScrolling) {
+      _scrollTo(active.id, force: forceScroll);
+    }
+  }
+
+  SyncedLyricLine? _activeLineAt(List<SyncedLyricLine> lines, int positionMs) {
+    if (lines.isEmpty) return null;
+    var low = 0;
+    var high = lines.length - 1;
+    var result = 0;
+    while (low <= high) {
+      final middle = low + ((high - low) >> 1);
+      if (lines[middle].startMs <= positionMs) {
+        result = middle;
+        low = middle + 1;
+      } else {
+        high = middle - 1;
+      }
+    }
+    return lines[result];
   }
 
   void _scrollTo(String lineId, {bool force = false}) {
@@ -509,6 +548,10 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
 
   void _animateToLine(String lineId, {required bool force}) {
     if (!_scrollController.hasClients) return;
+    if (widget.virtualized) {
+      _animateToVirtualizedLine(lineId, force: force);
+      return;
+    }
     final lineContext = _lineKeys[lineId]?.currentContext;
     final renderObject = lineContext?.findRenderObject();
     if (renderObject == null || !renderObject.attached) return;
@@ -539,6 +582,113 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
       duration: Duration(milliseconds: durationMs),
       curve: Curves.easeInOutCubic,
     );
+  }
+
+  void _animateToVirtualizedLine(String lineId, {required bool force}) {
+    final index = _lineIndexById[lineId];
+    if (index == null ||
+        index >= _virtualLineExtents.length ||
+        index >= _virtualLineOffsets.length) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _animateToLine(lineId, force: force);
+      });
+      return;
+    }
+
+    final position = _scrollController.position;
+    final alignment = widget.focusMode
+        ? 0.34
+        : widget.expanded
+        ? 0.24
+        : 0.18;
+    final extent = _virtualLineExtents[index];
+    final itemStart = _virtualTopPadding + _virtualLineOffsets[index];
+    final target =
+        (itemStart - (position.viewportDimension - extent) * alignment)
+            .clamp(position.minScrollExtent, position.maxScrollExtent)
+            .toDouble();
+    final distance = (target - position.pixels).abs();
+    final tolerance = math.max(12.0, position.viewportDimension * 0.035);
+    if (!force && distance <= tolerance) return;
+
+    // Large seeks and the initial restore should land immediately. Nearby
+    // transcript lines use a short animation so playback tracking stays calm.
+    if (force || distance > position.viewportDimension * 1.25) {
+      _scrollController.jumpTo(target);
+      return;
+    }
+    final viewportExtent = math.max(position.viewportDimension, 1.0);
+    final screenDistance = (distance / viewportExtent).clamp(0.0, 1.0);
+    final durationMs = (220 + screenDistance * 180).round();
+    _scrollController.animateTo(
+      target,
+      duration: Duration(milliseconds: durationMs),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  void _invalidateVirtualMetrics() {
+    _virtualLineExtents = const [];
+    _virtualLineOffsets = const [];
+    _virtualMetricsWidth = null;
+    _virtualMetricsStyle = null;
+    _virtualMetricsDirection = null;
+    _virtualMetricsTextScaler = null;
+  }
+
+  void _ensureVirtualMetrics(double width) {
+    final safeWidth = math.max(width, 1.0);
+    final style = _lineTextStyle(color: AppColors.lyricsTextPrimary);
+    final direction = Directionality.of(context);
+    final textScaler = MediaQuery.textScalerOf(context);
+    if (_virtualMetricsWidth == safeWidth &&
+        _virtualMetricsStyle == style &&
+        _virtualMetricsDirection == direction &&
+        _virtualMetricsTextScaler == textScaler &&
+        _virtualLineExtents.length == _lines.length) {
+      return;
+    }
+
+    final extents = <double>[];
+    final offsets = <double>[];
+    var offset = 0.0;
+    for (final line in _lines) {
+      offsets.add(offset);
+      final painter = TextPainter(
+        text: TextSpan(text: line.text, style: style),
+        textDirection: direction,
+        textScaler: textScaler,
+      )..layout(maxWidth: safeWidth);
+      final extent = painter.height + 20;
+      painter.dispose();
+      extents.add(extent);
+      offset += extent;
+    }
+    _virtualLineExtents = extents;
+    _virtualLineOffsets = offsets;
+    _virtualMetricsWidth = safeWidth;
+    _virtualMetricsStyle = style;
+    _virtualMetricsDirection = direction;
+    _virtualMetricsTextScaler = textScaler;
+  }
+
+  bool _handleScrollNotification(ScrollNotification notification) {
+    if (notification is ScrollStartNotification &&
+        notification.dragDetails != null) {
+      _manualScrollResume?.cancel();
+      _scrollDebounce?.cancel();
+      _pendingScrollLineId = null;
+      _pendingForceScroll = false;
+      _manuallyScrolling = true;
+    } else if (notification is ScrollEndNotification && _manuallyScrolling) {
+      _manualScrollResume?.cancel();
+      _manualScrollResume = Timer(const Duration(seconds: 3), () {
+        if (!mounted) return;
+        _manuallyScrolling = false;
+        _sync(widget.handler.position, forceScroll: true);
+      });
+    }
+    return false;
   }
 
   Widget _buildSelectionMenu(
@@ -746,6 +896,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
     _paragraphSub?.cancel();
     _positionSub?.cancel();
     _scrollDebounce?.cancel();
+    _manualScrollResume?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
@@ -753,6 +904,40 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
   @override
   Widget build(BuildContext context) {
     final wordSelectionActive = _wordSelectionLineId != null;
+    final scrollable = widget.virtualized
+        ? _buildVirtualizedList(wordSelectionActive)
+        : _buildEagerList(wordSelectionActive);
+    return TapRegion(
+      groupId: SelectableRegion,
+      onTapOutside: (_) {
+        if (wordSelectionActive) {
+          _exitWordSelection();
+        } else {
+          _clearSelection();
+        }
+      },
+      child: NotificationListener<ScrollNotification>(
+        onNotification: _handleScrollNotification,
+        child: scrollable,
+      ),
+    );
+  }
+
+  EdgeInsets _lyricsPadding() {
+    final horizontal = widget.focusMode
+        ? 0.0
+        : widget.expanded
+        ? context.appDesign.pageGutter
+        : context.appDesign.spaceLg;
+    return EdgeInsets.fromLTRB(
+      horizontal,
+      context.appDesign.spaceSm,
+      horizontal,
+      context.appDesign.spaceXxl + context.appDesign.spaceLg,
+    );
+  }
+
+  Widget _buildEagerList(bool wordSelectionActive) {
     final lines = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -771,33 +956,51 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
             contextMenuBuilder: _buildSelectionMenu,
             child: lines,
           );
-    return TapRegion(
-      groupId: SelectableRegion,
-      onTapOutside: (_) {
-        if (wordSelectionActive) {
-          _exitWordSelection();
-        } else {
-          _clearSelection();
+    return SingleChildScrollView(
+      controller: _scrollController,
+      padding: _lyricsPadding(),
+      child: content,
+    );
+  }
+
+  Widget _buildVirtualizedList(bool wordSelectionActive) {
+    final padding = _lyricsPadding();
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final contentWidth = constraints.maxWidth - padding.horizontal;
+        _virtualTopPadding = padding.top;
+        _ensureVirtualMetrics(contentWidth);
+        Widget list = ListView.builder(
+          key: const ValueKey('synced-lyrics-virtualized-list'),
+          controller: _scrollController,
+          padding: padding,
+          itemCount: _lines.length,
+          itemExtentBuilder: (index, _) {
+            if (index >= _virtualLineExtents.length) return null;
+            final selectionExtra = _lines[index].id == _wordSelectionLineId
+                ? 70.0
+                : 0.0;
+            return _virtualLineExtents[index] + selectionExtra;
+          },
+          addAutomaticKeepAlives: false,
+          itemBuilder: (context, index) => _buildLineSlot(
+            _lines[index],
+            wordSelectionActive: wordSelectionActive,
+          ),
+        );
+        if (!wordSelectionActive) {
+          list = SelectionArea(
+            key: _selectionAreaKey,
+            onSelectionChanged: (content) {
+              _selectedText = content?.plainText.trim() ?? '';
+              if (content == null) _selectionLineId = null;
+            },
+            contextMenuBuilder: _buildSelectionMenu,
+            child: list,
+          );
         }
+        return list;
       },
-      child: SingleChildScrollView(
-        controller: _scrollController,
-        padding: EdgeInsets.fromLTRB(
-          widget.focusMode
-              ? 0
-              : widget.expanded
-              ? context.appDesign.pageGutter
-              : context.appDesign.spaceLg,
-          context.appDesign.spaceSm,
-          widget.focusMode
-              ? 0
-              : widget.expanded
-              ? context.appDesign.pageGutter
-              : context.appDesign.spaceLg,
-          context.appDesign.spaceXxl + context.appDesign.spaceLg,
-        ),
-        child: content,
-      ),
     );
   }
 
@@ -806,35 +1009,38 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
     required bool wordSelectionActive,
   }) {
     final selectingThisLine = line.id == _wordSelectionLineId;
+    final child = selectingThisLine
+        ? KeyedSubtree(
+            key: ValueKey('word-selection-${line.id}'),
+            child: _buildWordSelectionLine(line),
+          )
+        : KeyedSubtree(
+            key: ValueKey('lyric-line-${line.id}'),
+            child: _buildLyricLine(line, enabled: !wordSelectionActive),
+          );
     return KeyedSubtree(
       key: _lineKeys.putIfAbsent(line.id, GlobalKey.new),
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 240),
-        reverseDuration: const Duration(milliseconds: 180),
-        switchInCurve: Curves.easeOutCubic,
-        switchOutCurve: Curves.easeInCubic,
-        layoutBuilder: (currentChild, previousChildren) => Stack(
-          alignment: Alignment.topLeft,
-          children: [...previousChildren, ?currentChild],
-        ),
-        transitionBuilder: (child, animation) => FadeTransition(
-          opacity: animation,
-          child: SizeTransition(
-            sizeFactor: animation,
-            alignment: Alignment.topLeft,
-            child: child,
-          ),
-        ),
-        child: selectingThisLine
-            ? KeyedSubtree(
-                key: ValueKey('word-selection-${line.id}'),
-                child: _buildWordSelectionLine(line),
-              )
-            : KeyedSubtree(
-                key: ValueKey('lyric-line-${line.id}'),
-                child: _buildLyricLine(line, enabled: !wordSelectionActive),
+      child: widget.virtualized
+          ? child
+          : AnimatedSwitcher(
+              duration: const Duration(milliseconds: 240),
+              reverseDuration: const Duration(milliseconds: 180),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              layoutBuilder: (currentChild, previousChildren) => Stack(
+                alignment: Alignment.topLeft,
+                children: [...previousChildren, ?currentChild],
               ),
-      ),
+              transitionBuilder: (child, animation) => FadeTransition(
+                opacity: animation,
+                child: SizeTransition(
+                  sizeFactor: animation,
+                  alignment: Alignment.topLeft,
+                  child: child,
+                ),
+              ),
+              child: child,
+            ),
     );
   }
 

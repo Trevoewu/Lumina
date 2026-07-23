@@ -21,21 +21,33 @@ class BookCover extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final path = coverPath;
-    final coverExists = path != null && File(path).existsSync();
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
       child: Container(
         color: context.appSurface,
-        child: coverExists
-            ? Image.file(
-                File(path),
-                fit: BoxFit.cover,
-                width: double.infinity,
-                height: double.infinity,
-                errorBuilder: (_, _, _) => _placeholder(context),
-              )
-            : _placeholder(context),
+        child: path == null || path.isEmpty
+            ? _placeholder(context)
+            : LayoutBuilder(
+                builder: (context, constraints) {
+                  final pixelRatio = MediaQuery.devicePixelRatioOf(context);
+                  int? cachePixels(double extent) {
+                    if (!extent.isFinite || extent <= 0) return null;
+                    return (extent * pixelRatio).ceil().clamp(1, 4096).toInt();
+                  }
+
+                  return Image.file(
+                    File(path),
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: double.infinity,
+                    cacheWidth: cachePixels(constraints.maxWidth),
+                    cacheHeight: cachePixels(constraints.maxHeight),
+                    gaplessPlayback: true,
+                    errorBuilder: (_, _, _) => _placeholder(context),
+                  );
+                },
+              ),
       ),
     );
   }

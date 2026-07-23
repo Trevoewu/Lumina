@@ -305,7 +305,7 @@ void main() {
 
     final database = AppDatabase.forTesting(NativeDatabase.memory());
     final temp = Directory.systemTemp.createTempSync('lumina_nav_test_');
-    final manifestStore = ManifestStore(documentsDirectory: () async => temp);
+    final manifestStore = _TestManifestStore(temp);
     final audioHandler = _TestAudioHandler();
     addTearDown(database.close);
     addTearDown(audioHandler.dispose);
@@ -346,6 +346,22 @@ void main() {
           bookId: 'navigation-book',
           paragraphIndex: 0,
           content: 'The player opens before audio is prepared.',
+        ),
+      ],
+    );
+    manifestStore.manifest = const ChapterManifest(
+      chapterId: 'navigation-chapter',
+      bookId: 'navigation-book',
+      providerId: 'test',
+      voiceId: 'test',
+      speed: 1,
+      updatedAt: 1,
+      segments: [
+        SegmentEntry(
+          paragraphId: 'navigation-paragraph',
+          audioFile: 'navigation-chapter/navigation-paragraph.mp3',
+          durationMs: 2000,
+          state: ParagraphAudioState.ready,
         ),
       ],
     );
@@ -405,10 +421,28 @@ void main() {
       find.byKey(const ValueKey('player-primary-audio-action')),
       findsOneWidget,
     );
+    expect(audioHandler.playCalls, 1);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));
   });
+}
+
+class _TestManifestStore extends ManifestStore {
+  final Directory root;
+  ChapterManifest? manifest;
+
+  _TestManifestStore(this.root) : super(documentsDirectory: () async => root);
+
+  @override
+  Future<Directory> audioRoot(String bookId) async => root;
+
+  @override
+  Future<ChapterManifest?> load(String bookId, String chapterId) async {
+    final value = manifest;
+    if (value?.bookId != bookId || value?.chapterId != chapterId) return null;
+    return value;
+  }
 }
 
 class _TestAudioHandler extends BaseAudioHandler implements LuminaAudioHandler {
@@ -420,6 +454,8 @@ class _TestAudioHandler extends BaseAudioHandler implements LuminaAudioHandler {
   String? _paragraphId;
   Duration _position = Duration.zero;
   Duration _chapterDuration = Duration.zero;
+  ChapterManifest? _manifest;
+  int playCalls = 0;
   bool _disposed = false;
 
   void startLoadedChapter({
@@ -468,7 +504,7 @@ class _TestAudioHandler extends BaseAudioHandler implements LuminaAudioHandler {
   String? get currentChapterId => _chapterId;
 
   @override
-  ChapterManifest? get currentManifest => null;
+  ChapterManifest? get currentManifest => _manifest;
 
   @override
   String? get currentParagraphId => _paragraphId;
@@ -484,6 +520,65 @@ class _TestAudioHandler extends BaseAudioHandler implements LuminaAudioHandler {
 
   @override
   Future<void> setSpeed(double speed) async {}
+
+  @override
+  Future<void> loadChapters({
+    required List<ChapterPlaybackSource> chapters,
+    required String initialChapterId,
+    required String audioRoot,
+    String? bookTitle,
+    String paragraphLabel = 'Paragraph',
+  }) async {
+    final selected = chapters.firstWhere(
+      (chapter) => chapter.manifest.chapterId == initialChapterId,
+    );
+    _manifest = selected.manifest;
+    _bookId = selected.manifest.bookId;
+    _chapterId = selected.manifest.chapterId;
+    _paragraphId = selected.manifest.segments.first.paragraphId;
+    _position = Duration.zero;
+    _chapterDuration = Duration(
+      milliseconds: selected.manifest.totalDurationMs,
+    );
+    mediaItem.add(
+      MediaItem(
+        id: _paragraphId!,
+        title: selected.chapterTitle,
+        extras: {
+          'bookId': _bookId,
+          'chapterId': _chapterId,
+          'paragraphId': _paragraphId,
+        },
+      ),
+    );
+    playbackState.add(
+      playbackState.value.copyWith(
+        processingState: AudioProcessingState.ready,
+        playing: false,
+        updatePosition: Duration.zero,
+        bufferedPosition: _chapterDuration,
+      ),
+    );
+    _paragraphController.add(_paragraphId);
+  }
+
+  @override
+  Future<void> play() async {
+    playCalls++;
+    playbackState.add(
+      playbackState.value.copyWith(
+        controls: const [
+          MediaControl.skipToPrevious,
+          MediaControl.pause,
+          MediaControl.skipToNext,
+        ],
+        processingState: AudioProcessingState.ready,
+        playing: true,
+        updatePosition: _position,
+        bufferedPosition: _chapterDuration,
+      ),
+    );
+  }
 
   @override
   Future<void> pause() async {

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -17,12 +18,15 @@ import '../../../services/book_playback_queue.dart';
 import '../../../services/cover_palette_service.dart';
 import '../../../services/generation_orchestrator.dart';
 import '../../../services/lumina_audio_handler.dart';
+import '../../../services/podcast_transcription_service.dart';
 import '../../../services/sleep_timer_service.dart';
 import '../../../tts/models/tts_voice.dart';
 import '../../../tts/provider_registry.dart';
 import '../../../tts/tts_provider.dart';
 import '../../widgets/book_cover.dart';
+import '../../widgets/podcast_artwork.dart';
 import '../../widgets/synced_lyrics_list.dart';
+import '../podcast/podcast_formatters.dart';
 
 enum PlayerPrimaryAudioAction { play, pause }
 
@@ -38,11 +42,151 @@ PlayerPrimaryAudioAction resolvePlayerPrimaryAudioAction({
 class PlayerScreen extends ConsumerStatefulWidget {
   final drift_db.Book book;
   final drift_db.Chapter? initialChapter;
+  final PodcastPlayerData? podcast;
+  final bool autoplayOnOpen;
 
-  const PlayerScreen({super.key, required this.book, this.initialChapter});
+  const PlayerScreen({
+    super.key,
+    required this.book,
+    this.initialChapter,
+    this.podcast,
+    this.autoplayOnOpen = false,
+  });
+
+  factory PlayerScreen.podcast({Key? key, required PodcastPlayerData podcast}) {
+    final episode = podcast.episode;
+    final show = podcast.show;
+    final bookId = 'podcast:${show.id}';
+    return PlayerScreen(
+      key: key,
+      podcast: podcast,
+      book: drift_db.Book(
+        id: bookId,
+        title: show.title,
+        author: show.title,
+        format: 'podcast',
+        sourcePath: episode.audioUrl,
+        chapterCount: podcast.episodes.length,
+        paragraphCount: 1,
+        currentChapterId: episode.id,
+        currentParagraphIndex: 0,
+        playbackOffsetMs: episode.playbackPositionMs,
+        importedAt: episode.publishedAt,
+        lastReadAt: episode.lastPlayedAt,
+        kind: 'podcast',
+        externalSource: 'podcast',
+        externalId: show.id,
+        rightsStatus: 'streaming',
+        language: show.language,
+      ),
+      initialChapter: drift_db.Chapter(
+        id: episode.id,
+        bookId: bookId,
+        chapterIndex: 0,
+        title: episode.title,
+        textOffset: 0,
+        isHidden: false,
+      ),
+    );
+  }
 
   @override
   ConsumerState<PlayerScreen> createState() => _PlayerScreenState();
+}
+
+class PodcastPlayerData {
+  final drift_db.PodcastEpisode episode;
+  final drift_db.PodcastShow show;
+  final List<drift_db.PodcastEpisode> episodes;
+
+  const PodcastPlayerData({
+    required this.episode,
+    required this.show,
+    required this.episodes,
+  });
+}
+
+class _PodcastTranscriptContent {
+  final ChapterManifest manifest;
+  final List<drift_db.Paragraph> paragraphs;
+  final int timingCount;
+
+  const _PodcastTranscriptContent({
+    required this.manifest,
+    required this.paragraphs,
+    required this.timingCount,
+  });
+}
+
+/// Playback progress changes once per second and must not invalidate the
+/// transcript UI. Only fields that can affect this player return true here.
+bool podcastEpisodeRequiresPlayerRefresh(
+  drift_db.PodcastEpisode? previous,
+  drift_db.PodcastEpisode? next,
+) {
+  if (identical(previous, next)) return false;
+  if (previous == null || next == null) return previous != next;
+  return previous.id != next.id ||
+      previous.showId != next.showId ||
+      previous.guid != next.guid ||
+      previous.title != next.title ||
+      previous.description != next.description ||
+      previous.audioUrl != next.audioUrl ||
+      previous.imageUrl != next.imageUrl ||
+      previous.publishedAt != next.publishedAt ||
+      previous.durationMs != next.durationMs ||
+      previous.localAudioPath != next.localAudioPath ||
+      previous.transcriptJson != next.transcriptJson ||
+      previous.transcriptLanguage != next.transcriptLanguage ||
+      previous.transcriptStatus != next.transcriptStatus ||
+      previous.transcriptError != next.transcriptError ||
+      previous.sourceTranscriptUrl != next.sourceTranscriptUrl;
+}
+
+_PodcastTranscriptContent _buildPodcastTranscriptContent(
+  PodcastPlayerData data,
+  drift_db.PodcastEpisode episode,
+) {
+  final timings = PodcastTranscriptionService.decodeTranscript(
+    episode.transcriptJson,
+  );
+  final transcriptEndMs = timings.isEmpty ? 0 : timings.last.endMs;
+  final manifest = ChapterManifest(
+    chapterId: episode.id,
+    bookId: 'podcast:${data.show.id}',
+    providerId: 'whisper-local',
+    voiceId: '',
+    speed: 1,
+    segments: [
+      SegmentEntry(
+        paragraphId: episode.id,
+        audioFile: episode.audioUrl,
+        durationMs: math.max(episode.durationMs, transcriptEndMs),
+        state: ParagraphAudioState.ready,
+        format: 'podcast',
+        timings: timings,
+      ),
+    ],
+    updatedAt: episode.lastPlayedAt,
+  );
+  final paragraphs = timings.isEmpty
+      ? const <drift_db.Paragraph>[]
+      : [
+          drift_db.Paragraph(
+            id: episode.id,
+            chapterId: episode.id,
+            bookId: 'podcast:${data.show.id}',
+            paragraphIndex: 0,
+            // Newlines retain Whisper segment boundaries while the shared
+            // lyrics widget keeps the episode as one seekable paragraph.
+            content: timings.map((timing) => timing.text).join('\n'),
+          ),
+        ];
+  return _PodcastTranscriptContent(
+    manifest: manifest,
+    paragraphs: paragraphs,
+    timingCount: timings.length,
+  );
 }
 
 class _PlayerScreenState extends ConsumerState<PlayerScreen> {
@@ -59,21 +203,46 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _startingPlayback = false;
   bool _lyricsMode = false;
   int _paragraphCount = 0;
+  drift_db.PodcastEpisode? _podcastEpisode;
+  _PodcastTranscriptContent? _podcastTranscript;
+  StreamSubscription<drift_db.PodcastEpisode?>? _podcastEpisodeSubscription;
+  bool _transcribingPodcast = false;
+  PodcastTranscriptionProgress? _transcriptionProgress;
+  bool _autoplayHandled = false;
+  bool _showFullPodcastNotes = false;
+
+  bool get _isPodcast => widget.podcast != null;
 
   @override
   void initState() {
     super.initState();
-    _coverSeed = CoverPaletteService.seedForPath(widget.book.coverPath);
+    _podcastEpisode = widget.podcast?.episode;
+    if (_isPodcast) {
+      final transcript = _buildPodcastTranscriptContent(
+        widget.podcast!,
+        _podcastEpisode!,
+      );
+      _podcastTranscript = transcript;
+      _selectedManifest = transcript.manifest;
+      _paragraphCount = transcript.paragraphs.length;
+    }
+    _coverSeed = _isPodcast
+        ? Future<Color?>.value()
+        : CoverPaletteService.seedForPath(widget.book.coverPath);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_loadPlaybackSpeed());
-      unawaited(_loadSelectedChapterState());
+      if (_isPodcast) {
+        _watchPodcastEpisode();
+      } else {
+        unawaited(_loadSelectedChapterState());
+      }
     });
   }
 
   @override
   void didUpdateWidget(covariant PlayerScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.book.coverPath != widget.book.coverPath) {
+    if (!_isPodcast && oldWidget.book.coverPath != widget.book.coverPath) {
       _coverSeed = CoverPaletteService.seedForPath(widget.book.coverPath);
     }
     if (oldWidget.initialChapter?.id != widget.initialChapter?.id) {
@@ -84,7 +253,30 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   void dispose() {
     unawaited(_generationSubscription?.cancel());
+    unawaited(_podcastEpisodeSubscription?.cancel());
     super.dispose();
+  }
+
+  void _watchPodcastEpisode() {
+    final data = widget.podcast;
+    if (data == null) return;
+    unawaited(_podcastEpisodeSubscription?.cancel());
+    _podcastEpisodeSubscription = ref
+        .read(appDatabaseProvider)
+        .watchPodcastEpisode(data.episode.id)
+        .listen((episode) {
+          if (!mounted || episode == null) return;
+          if (!podcastEpisodeRequiresPlayerRefresh(_podcastEpisode, episode)) {
+            return;
+          }
+          final transcript = _buildPodcastTranscriptContent(data, episode);
+          setState(() {
+            _podcastEpisode = episode;
+            _podcastTranscript = transcript;
+            _selectedManifest = transcript.manifest;
+            _paragraphCount = transcript.paragraphs.length;
+          });
+        });
   }
 
   Future<void> _loadSelectedChapterState() async {
@@ -111,6 +303,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (activeGeneration != null) {
       _listenToGeneration(activeGeneration);
     }
+    await _autoplayIfRequested();
+  }
+
+  Future<void> _autoplayIfRequested() async {
+    if (!widget.autoplayOnOpen || _autoplayHandled || !mounted) return;
+    _autoplayHandled = true;
+    final handler = await ref.read(luminaAudioHandlerProvider.future);
+    if (!mounted) return;
+    final alreadyPlaying =
+        _isSelectedChapterLoaded(handler) &&
+        handler.playbackState.value.playing;
+    if (alreadyPlaying) {
+      setState(() => _lyricsMode = true);
+      return;
+    }
+    await _handlePrimaryAudioAction(handler, false);
   }
 
   void _listenToGeneration(Stream<GenerationProgress> stream) {
@@ -332,6 +540,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   bool _isSelectedChapterLoaded(LuminaAudioHandler handler) {
+    if (_isPodcast) {
+      return handler.currentPodcastEpisodeId == _podcastEpisode?.id;
+    }
     final chapter = widget.initialChapter;
     if (chapter == null) return handler.currentBookId == widget.book.id;
     return handler.currentBookId == widget.book.id &&
@@ -339,12 +550,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   ChapterManifest? _effectiveManifest(LuminaAudioHandler handler) {
+    if (_isPodcast) return _selectedManifest;
     return widget.initialChapter == null
         ? handler.currentManifest
         : _selectedManifest;
   }
 
   double _cacheFraction(ChapterManifest? manifest) {
+    if (_isPodcast) return 1;
     final progress = _generationProgress;
     if (progress != null && progress.total > 0) {
       return progress.percent.clamp(0.0, 1.0);
@@ -386,6 +599,34 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       return;
     }
 
+    if (_isPodcast) {
+      setState(() {
+        _startingPlayback = true;
+        _lyricsMode = true;
+      });
+      try {
+        if (!_isSelectedChapterLoaded(handler)) {
+          await _loadPodcastPlayback(handler);
+        }
+        await handler.play();
+      } catch (error, stackTrace) {
+        AppLogger.error(
+          'Playback',
+          'Podcast 播放失败 episode=${_podcastEpisode?.id}',
+          error: error,
+          stackTrace: stackTrace,
+        );
+        if (mounted) {
+          _showSnackBar(
+            context.tr('Podcast 播放失败：$error', 'Unable to play podcast: $error'),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _startingPlayback = false);
+      }
+      return;
+    }
+
     final chapter = widget.initialChapter;
     if (chapter == null) {
       await handler.play();
@@ -413,6 +654,92 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
     if (!needsCaching || (!caching && !startedPlayback)) {
       setState(() => _streamPlaybackRequested = false);
+    }
+  }
+
+  Future<void> _loadPodcastPlayback(LuminaAudioHandler handler) async {
+    final data = widget.podcast;
+    final selected = _podcastEpisode;
+    if (data == null || selected == null) return;
+
+    final database = ref.read(appDatabaseProvider);
+    final freshEpisodes = await database.getPodcastEpisodes(data.show.id);
+    final episodes = freshEpisodes.isEmpty ? data.episodes : freshEpisodes;
+
+    String playbackUrl(drift_db.PodcastEpisode episode) {
+      final localPath = episode.localAudioPath;
+      if (localPath != null && File(localPath).existsSync()) {
+        return File(localPath).uri.toString();
+      }
+      return episode.audioUrl;
+    }
+
+    await handler.loadPodcastQueue(
+      episodes: [
+        for (final episode in episodes)
+          PodcastPlaybackSource(
+            episodeId: episode.id,
+            showId: data.show.id,
+            showTitle: data.show.title,
+            title: episode.title,
+            audioUrl: playbackUrl(episode),
+            imageUrl: episode.imageUrl ?? data.show.imageUrl,
+            durationMs: episode.durationMs,
+          ),
+      ],
+      initialEpisodeId: selected.id,
+      initialPosition: Duration(milliseconds: selected.playbackPositionMs),
+    );
+  }
+
+  Future<void> _startPodcastTranscription() async {
+    final data = widget.podcast;
+    final episode = _podcastEpisode;
+    if (data == null || episode == null || _transcribingPodcast) return;
+
+    final handler = await ref.read(luminaAudioHandlerProvider.future);
+    if (handler.playbackState.value.playing) await handler.pause();
+    if (!mounted) return;
+    setState(() {
+      _transcribingPodcast = true;
+      _transcriptionProgress = const PodcastTranscriptionProgress(
+        stage: PodcastTranscriptionStage.preparing,
+        message: '正在准备本地转写',
+      );
+    });
+
+    try {
+      final languagePreference = await ref
+          .read(appDatabaseProvider)
+          .getSetting(PodcastTranscriptionService.languagePreferenceSettingKey);
+      await ref
+          .read(podcastTranscriptionServiceProvider)
+          .transcribe(
+            episode,
+            languageHint:
+                languagePreference ==
+                    PodcastTranscriptionService.automaticLanguagePreference
+                ? null
+                : data.show.language,
+            onProgress: (progress) {
+              if (mounted) {
+                setState(() => _transcriptionProgress = progress);
+              }
+            },
+          );
+    } catch (error) {
+      if (mounted) {
+        _showSnackBar(
+          context.tr('本地转写失败：$error', 'Local transcription failed: $error'),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _transcribingPodcast = false;
+          _transcriptionProgress = null;
+        });
+      }
     }
   }
 
@@ -624,6 +951,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
                             return LayoutBuilder(
                               builder: (context, constraints) {
+                                if (_isPodcast) {
+                                  return _buildPodcastPlayerBody(
+                                    constraints: constraints,
+                                    handler: handler,
+                                    playing: playing,
+                                    selectedLoaded: selectedLoaded,
+                                    duration: duration,
+                                    manifest: manifest,
+                                    chapterId: currentChapterId,
+                                    chapterTitle: chapterTitle,
+                                  );
+                                }
                                 final design = context.appDesign;
                                 final pageInset = design.pageInsetFor(
                                   constraints.maxWidth,
@@ -789,6 +1128,368 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
+  Widget _buildPodcastPlayerBody({
+    required BoxConstraints constraints,
+    required LuminaAudioHandler handler,
+    required bool playing,
+    required bool selectedLoaded,
+    required Duration duration,
+    required ChapterManifest? manifest,
+    required String? chapterId,
+    required String chapterTitle,
+  }) {
+    final data = widget.podcast!;
+    final episode = _podcastEpisode ?? data.episode;
+    final design = context.appDesign;
+    final pageInset = design.pageInsetFor(constraints.maxWidth);
+    final compact = constraints.maxHeight < 720;
+    final availableArtworkWidth = math.max(
+      0.0,
+      constraints.maxWidth - pageInset * 2,
+    );
+    final artworkSize = math.min(
+      availableArtworkWidth,
+      compact ? 260.0 : 320.0,
+    );
+    final viewportContentHeight = math.max(
+      0.0,
+      constraints.maxHeight - design.spaceLg,
+    );
+
+    return SingleChildScrollView(
+      key: const ValueKey('podcast-player-scroll-view'),
+      physics: const BouncingScrollPhysics(),
+      padding: EdgeInsets.only(bottom: design.spaceXxl),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minHeight: viewportContentHeight),
+        child: Column(
+          children: [
+            SizedBox(height: compact ? design.spaceSm : design.spaceLg),
+            _buildArtwork(artworkSize, borderRadius: design.radiusLarge),
+            SizedBox(height: compact ? design.spaceLg : design.spaceXl),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: pageInset),
+              child: _buildChapterMetadata(chapterTitle),
+            ),
+            SizedBox(height: design.spaceLg),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: pageInset),
+              child: StreamBuilder<Duration>(
+                stream: handler.chapterPositionStream,
+                initialData: handler.chapterPosition,
+                builder: (context, positionSnapshot) {
+                  return _buildControls(
+                    handler,
+                    playing,
+                    selectedLoaded
+                        ? positionSnapshot.data ?? Duration.zero
+                        : Duration.zero,
+                    duration,
+                    manifest: manifest,
+                    selectedLoaded: selectedLoaded,
+                    foregroundColor: AppColors.textPrimary,
+                  );
+                },
+              ),
+            ),
+            SizedBox(height: design.spaceXxl),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: pageInset),
+              child: Column(
+                children: [
+                  _buildPodcastInformationCard(episode, data.show),
+                  SizedBox(height: design.spaceMd),
+                  _buildPodcastTranscriptCard(
+                    episode: episode,
+                    handler: handler,
+                    manifest: manifest,
+                    chapterId: chapterId,
+                    playbackEnabled: selectedLoaded,
+                  ),
+                  SizedBox(height: design.spaceMd),
+                  _buildPodcastShownotesCard(episode),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPodcastInformationCard(
+    drift_db.PodcastEpisode episode,
+    drift_db.PodcastShow show,
+  ) {
+    final date = formatPodcastDate(episode.publishedAt);
+    final duration = formatPodcastDuration(episode.durationMs);
+    final language = show.language?.trim();
+    final localPath = episode.localAudioPath;
+    final audioCached =
+        localPath != null &&
+        localPath.isNotEmpty &&
+        File(localPath).existsSync();
+    final transcriptCached = (_podcastTranscript?.timingCount ?? 0) > 0;
+
+    return _buildPodcastSectionCard(
+      key: const ValueKey('podcast-information-card'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildPodcastCardTitle(
+            icon: Icons.info_outline_rounded,
+            title: context.tr('单集信息', 'Episode information'),
+          ),
+          SizedBox(height: context.appDesign.spaceMd),
+          Text(
+            show.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          SizedBox(height: context.appDesign.spaceMd),
+          Wrap(
+            spacing: context.appDesign.spaceSm,
+            runSpacing: context.appDesign.spaceSm,
+            children: [
+              if (date.isNotEmpty)
+                _buildPodcastInfoChip(Icons.calendar_today_outlined, date),
+              if (duration.isNotEmpty)
+                _buildPodcastInfoChip(Icons.schedule_rounded, duration),
+              if (language != null && language.isNotEmpty)
+                _buildPodcastInfoChip(Icons.language_rounded, language),
+              if (audioCached)
+                _buildPodcastInfoChip(
+                  Icons.download_done_rounded,
+                  context.tr('音频已缓存', 'Audio cached'),
+                ),
+              if (transcriptCached)
+                _buildPodcastInfoChip(
+                  Icons.subtitles_rounded,
+                  context.tr('字幕已缓存', 'Transcript cached'),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPodcastTranscriptCard({
+    required drift_db.PodcastEpisode episode,
+    required LuminaAudioHandler handler,
+    required ChapterManifest? manifest,
+    required String? chapterId,
+    required bool playbackEnabled,
+  }) {
+    final hasTranscript = (_podcastTranscript?.timingCount ?? 0) > 0;
+    final safeChapterId = chapterId ?? episode.id;
+    return _buildPodcastSectionCard(
+      key: const ValueKey('podcast-transcript-card'),
+      padding: EdgeInsets.zero,
+      child: Column(
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              context.appDesign.spaceLg,
+              context.appDesign.spaceMd,
+              context.appDesign.spaceSm,
+              context.appDesign.spaceXs,
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _buildPodcastCardTitle(
+                    icon: Icons.subtitles_rounded,
+                    title: context.tr('字幕', 'Transcript'),
+                  ),
+                ),
+                if (hasTranscript)
+                  IconButton(
+                    tooltip: context.tr('重新转写', 'Transcribe again'),
+                    icon: _transcribingPodcast
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.auto_awesome_rounded, size: 20),
+                    onPressed: _transcribingPodcast
+                        ? null
+                        : _startPodcastTranscription,
+                  ),
+                if (hasTranscript)
+                  IconButton(
+                    tooltip: context.tr('全屏字幕', 'Full-screen transcript'),
+                    icon: const Icon(Icons.open_in_full_rounded, size: 20),
+                    onPressed: () => _showFullScreenLyrics(
+                      safeChapterId,
+                      manifest,
+                      playbackEnabled,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          SizedBox(
+            height: hasTranscript ? 280 : 176,
+            child: _buildSyncedLyrics(
+              chapterId: safeChapterId,
+              handler: handler,
+              manifest: manifest,
+              playbackEnabled: playbackEnabled,
+              expanded: false,
+              focusMode: false,
+              listKey: ValueKey(
+                'podcast-transcript-list:${episode.id}:'
+                '${_podcastTranscript?.timingCount ?? 0}',
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPodcastShownotesCard(drift_db.PodcastEpisode episode) {
+    final notes = episode.description.trim();
+    final canExpand = notes.length > 180;
+    return _buildPodcastSectionCard(
+      key: const ValueKey('podcast-shownotes-card'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildPodcastCardTitle(
+            icon: Icons.notes_rounded,
+            title: context.tr('节目笔记', 'Shownotes'),
+          ),
+          SizedBox(height: context.appDesign.spaceMd),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 240),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: Text(
+              notes.isEmpty
+                  ? context.tr('该单集没有附带节目笔记。', 'No shownotes provided.')
+                  : notes,
+              key: const ValueKey('podcast-episode-description'),
+              maxLines: _showFullPodcastNotes ? null : 5,
+              overflow: _showFullPodcastNotes
+                  ? TextOverflow.visible
+                  : TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: AppColors.textSecondary,
+                height: 1.5,
+              ),
+            ),
+          ),
+          if (canExpand) ...[
+            SizedBox(height: context.appDesign.spaceSm),
+            TextButton.icon(
+              key: const ValueKey('podcast-shownotes-toggle'),
+              onPressed: () => setState(
+                () => _showFullPodcastNotes = !_showFullPodcastNotes,
+              ),
+              iconAlignment: IconAlignment.end,
+              icon: Icon(
+                _showFullPodcastNotes
+                    ? Icons.keyboard_arrow_up_rounded
+                    : Icons.keyboard_arrow_down_rounded,
+              ),
+              label: Text(
+                _showFullPodcastNotes
+                    ? context.tr('收起', 'Show less')
+                    : context.tr('查看完整笔记', 'Show full notes'),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPodcastSectionCard({
+    required Key key,
+    required Widget child,
+    EdgeInsetsGeometry? padding,
+  }) {
+    final design = context.appDesign;
+    return Container(
+      key: key,
+      width: double.infinity,
+      padding: padding ?? EdgeInsets.all(design.spaceLg),
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: AppColors.surface.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(design.radiusLarge),
+        border: Border.all(
+          color: AppColors.textPrimary.withValues(alpha: 0.07),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.16),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  Widget _buildPodcastCardTitle({
+    required IconData icon,
+    required String title,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 20, color: AppColors.textSecondary),
+        SizedBox(width: context.appDesign.spaceSm),
+        Flexible(
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPodcastInfoChip(IconData icon, String label) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: context.appDesign.spaceMd,
+        vertical: context.appDesign.spaceSm,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceHighlight.withValues(alpha: 0.84),
+        borderRadius: BorderRadius.circular(context.appDesign.radiusPill),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: AppColors.textSecondary),
+          SizedBox(width: context.appDesign.spaceXs),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPlayerHeader() {
     final design = context.appDesign;
     return SizedBox(
@@ -895,11 +1596,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       },
       child: Theme(
         data: _immersiveTheme(),
-        child: BookCover(
-          coverPath: widget.book.coverPath,
-          iconSize: size * 0.32,
-          borderRadius: borderRadius,
-        ),
+        child: _isPodcast
+            ? PodcastArtwork(
+                imageUrl:
+                    _podcastEpisode?.imageUrl ?? widget.podcast?.show.imageUrl,
+                size: size,
+                borderRadius: borderRadius,
+              )
+            : BookCover(
+                coverPath: widget.book.coverPath,
+                iconSize: size * 0.32,
+                borderRadius: borderRadius,
+              ),
       ),
     );
   }
@@ -907,6 +1615,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Widget _buildChapterMetadata(String chapterTitle) {
     final design = context.appDesign;
     return Row(
+      key: const ValueKey('player-chapter-metadata'),
       children: [
         Expanded(
           child: Column(
@@ -973,12 +1682,31 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             Row(
               children: [
                 Text(
-                  context.tr('同步正文', 'Live text'),
+                  _isPodcast
+                      ? context.tr('同步字幕', 'Live transcript')
+                      : context.tr('同步正文', 'Live text'),
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
                     color: AppColors.textSecondary,
                   ),
                 ),
                 const Spacer(),
+                if (_isPodcast)
+                  IconButton(
+                    tooltip: context.tr('本地转写', 'Local transcription'),
+                    icon: _transcribingPodcast
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(
+                            Icons.auto_awesome_rounded,
+                            size: 20,
+                            color: AppColors.textPrimary,
+                          ),
+                    onPressed: _transcribingPodcast
+                        ? null
+                        : _startPodcastTranscription,
+                  ),
                 IconButton(
                   tooltip: context.tr('全屏正文', 'Full-screen text'),
                   icon: const Icon(
@@ -1022,6 +1750,105 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     required bool focusMode,
     required Key listKey,
   }) {
+    if (_isPodcast) {
+      final data = widget.podcast!;
+      final episode = _podcastEpisode ?? data.episode;
+      final transcript = _podcastTranscript;
+      final paragraphs = transcript?.paragraphs ?? const <drift_db.Paragraph>[];
+      final currentProgress = _transcriptionProgress;
+      if (paragraphs.isEmpty) {
+        final failed = episode.transcriptStatus == 'failed';
+        return Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _transcribingPodcast
+                      ? Icons.graphic_eq_rounded
+                      : Icons.subtitles_outlined,
+                  color: AppColors.lyricsTextSecondary,
+                  size: 34,
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  _transcribingPodcast
+                      ? currentProgress?.message ??
+                            context.tr('正在本地转写', 'Transcribing locally')
+                      : failed
+                      ? context.tr('上次转写未完成', 'Last transcription stopped')
+                      : context.tr('这个单集还没有字幕', 'No transcript yet'),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: AppColors.lyricsTextPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                if (_transcribingPodcast) ...[
+                  const SizedBox(height: 12),
+                  LinearProgressIndicator(value: currentProgress?.progress),
+                ] else ...[
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: _startPodcastTranscription,
+                    icon: const Icon(Icons.auto_awesome_rounded, size: 18),
+                    label: Text(
+                      context.tr('使用本地 Whisper 转写', 'Transcribe on device'),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      }
+
+      final lyrics = SyncedLyricsList(
+        key: listKey,
+        paragraphs: paragraphs,
+        manifest: manifest,
+        handler: handler,
+        playbackEnabled: playbackEnabled,
+        expanded: expanded,
+        focusMode: focusMode,
+        bookTitle: data.show.title,
+        chapterTitle: episode.title,
+        bookId: widget.book.id,
+        chapterId: episode.id,
+        virtualized: true,
+      );
+      if (!_transcribingPodcast) return lyrics;
+      return Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 6),
+            child: Row(
+              children: [
+                Expanded(
+                  child: LinearProgressIndicator(
+                    value: currentProgress?.progress,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  context.tr(
+                    '已缓存 ${transcript?.timingCount ?? 0} 段',
+                    '${transcript?.timingCount ?? 0} cached',
+                  ),
+                  style: const TextStyle(
+                    color: AppColors.lyricsTextSecondary,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(child: lyrics),
+        ],
+      );
+    }
+
     final db = ref.watch(appDatabaseProvider);
     return FutureBuilder<List<drift_db.Paragraph>>(
       future: db.getParagraphs(chapterId),
@@ -1176,11 +2003,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               onPressed: _showSpeedSheet,
             ),
             IconButton(
-              tooltip: context.tr('上一段', 'Previous'),
-              icon: const Icon(Icons.skip_previous_rounded, size: 36),
+              tooltip: _isPodcast
+                  ? context.tr('后退 15 秒', 'Back 15 seconds')
+                  : context.tr('上一段', 'Previous'),
+              icon: Icon(
+                _isPodcast
+                    ? Icons.replay_10_rounded
+                    : Icons.skip_previous_rounded,
+                size: 36,
+              ),
               color: foregroundColor,
               disabledColor: secondaryColor.withValues(alpha: 0.42),
-              onPressed: selectedLoaded ? handler.skipToPrevious : null,
+              onPressed: !selectedLoaded
+                  ? null
+                  : _isPodcast
+                  ? () => handler.seek(
+                      handler.position - const Duration(seconds: 15),
+                    )
+                  : handler.skipToPrevious,
             ),
             Tooltip(
               message: primaryTooltip,
@@ -1223,11 +2063,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ),
             ),
             IconButton(
-              tooltip: context.tr('下一段', 'Next'),
-              icon: const Icon(Icons.skip_next_rounded, size: 36),
+              tooltip: _isPodcast
+                  ? context.tr('前进 30 秒', 'Forward 30 seconds')
+                  : context.tr('下一段', 'Next'),
+              icon: Icon(
+                _isPodcast ? Icons.forward_30_rounded : Icons.skip_next_rounded,
+                size: 36,
+              ),
               color: foregroundColor,
               disabledColor: secondaryColor.withValues(alpha: 0.42),
-              onPressed: selectedLoaded ? handler.skipToNext : null,
+              onPressed: !selectedLoaded
+                  ? null
+                  : _isPodcast
+                  ? () => handler.seek(
+                      handler.position + const Duration(seconds: 30),
+                    )
+                  : handler.skipToNext,
             ),
             StreamBuilder<SleepTimerState>(
               stream: ref.watch(sleepTimerServiceProvider).stream,
@@ -1316,7 +2167,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 children: [
                   Expanded(
                     child: Text(
-                      context.tr('正文预览', 'Text preview'),
+                      _isPodcast
+                          ? context.tr('字幕', 'Transcript')
+                          : context.tr('正文预览', 'Text preview'),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -1327,15 +2180,35 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      IconButton(
-                        icon: const Icon(
-                          Icons.share_outlined,
-                          size: 22,
-                          color: AppColors.lyricsTextPrimary,
+                      if (_isPodcast)
+                        IconButton(
+                          icon: _transcribingPodcast
+                              ? const SizedBox.square(
+                                  dimension: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.auto_awesome_rounded,
+                                  size: 22,
+                                  color: AppColors.lyricsTextPrimary,
+                                ),
+                          tooltip: context.tr('本地转写字幕', 'Transcribe locally'),
+                          onPressed: _transcribingPodcast
+                              ? null
+                              : _startPodcastTranscription,
+                        )
+                      else
+                        IconButton(
+                          icon: const Icon(
+                            Icons.share_outlined,
+                            size: 22,
+                            color: AppColors.lyricsTextPrimary,
+                          ),
+                          tooltip: context.tr('分享正文', 'Share text'),
+                          onPressed: () {},
                         ),
-                        tooltip: context.tr('分享正文', 'Share text'),
-                        onPressed: () {},
-                      ),
                       IconButton(
                         icon: const Icon(
                           Icons.open_in_full_rounded,
@@ -1605,6 +2478,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           coverPath: widget.book.coverPath,
           manifest: manifest,
           playbackEnabled: playbackEnabled,
+          podcast: widget.podcast,
         ),
       ),
     );
@@ -1619,6 +2493,7 @@ class _FullScreenLyricsSheet extends ConsumerStatefulWidget {
   final String? coverPath;
   final ChapterManifest? manifest;
   final bool playbackEnabled;
+  final PodcastPlayerData? podcast;
 
   const _FullScreenLyricsSheet({
     required this.bookId,
@@ -1628,6 +2503,7 @@ class _FullScreenLyricsSheet extends ConsumerStatefulWidget {
     required this.coverPath,
     required this.manifest,
     required this.playbackEnabled,
+    required this.podcast,
   });
 
   @override
@@ -1650,6 +2526,45 @@ class _FullScreenLyricsSheetState
   Widget build(BuildContext context) {
     final db = ref.watch(appDatabaseProvider);
     final handlerAsync = ref.watch(luminaAudioHandlerProvider);
+    Widget buildLyrics(
+      List<drift_db.Paragraph> paragraphs,
+      ChapterManifest? manifest,
+    ) {
+      if (paragraphs.isEmpty) {
+        return Center(
+          child: Text(
+            widget.podcast == null
+                ? context.tr('无正文', 'No text')
+                : context.tr('字幕尚未缓存', 'No cached transcript yet'),
+            style: const TextStyle(color: AppColors.lyricsTextSecondary),
+          ),
+        );
+      }
+      return handlerAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, _) => Center(
+          child: Text(
+            context.tr('播放器不可用：$error', 'Player unavailable: $error'),
+            style: const TextStyle(color: AppColors.lyricsTextSecondary),
+          ),
+        ),
+        data: (handler) => SyncedLyricsList(
+          key: ValueKey(
+            '${widget.chapterId}:${handler.currentChapterId ?? handler.currentPodcastEpisodeId}',
+          ),
+          paragraphs: paragraphs,
+          manifest: manifest,
+          handler: handler,
+          playbackEnabled: widget.playbackEnabled,
+          expanded: true,
+          bookId: widget.bookId,
+          bookTitle: widget.bookTitle,
+          chapterTitle: widget.chapterTitle,
+          virtualized: widget.podcast != null,
+        ),
+      );
+    }
+
     return FutureBuilder<Color?>(
       future: _coverSeed,
       builder: (context, paletteSnapshot) {
@@ -1708,52 +2623,41 @@ class _FullScreenLyricsSheetState
                       ),
                     ),
                     Expanded(
-                      child: FutureBuilder<List<drift_db.Paragraph>>(
-                        future: db.getParagraphs(widget.chapterId),
-                        builder: (context, snapshot) {
-                          final paragraphs =
-                              snapshot.data ?? const <drift_db.Paragraph>[];
-                          if (paragraphs.isEmpty) {
-                            return Center(
-                              child: Text(
-                                context.tr('无正文', 'No text'),
-                                style: const TextStyle(
-                                  color: AppColors.lyricsTextSecondary,
-                                ),
+                      child: widget.podcast == null
+                          ? FutureBuilder<List<drift_db.Paragraph>>(
+                              future: db.getParagraphs(widget.chapterId),
+                              builder: (context, snapshot) => buildLyrics(
+                                snapshot.data ?? const <drift_db.Paragraph>[],
+                                widget.manifest,
                               ),
-                            );
-                          }
-                          return handlerAsync.when(
-                            loading: () => const Center(
-                              child: CircularProgressIndicator(),
+                            )
+                          : StreamBuilder<drift_db.PodcastEpisode?>(
+                              stream: db
+                                  .watchPodcastEpisode(
+                                    widget.podcast!.episode.id,
+                                  )
+                                  .distinct(
+                                    (previous, next) =>
+                                        !podcastEpisodeRequiresPlayerRefresh(
+                                          previous,
+                                          next,
+                                        ),
+                                  ),
+                              initialData: widget.podcast!.episode,
+                              builder: (context, snapshot) {
+                                final episode =
+                                    snapshot.data ?? widget.podcast!.episode;
+                                final transcript =
+                                    _buildPodcastTranscriptContent(
+                                      widget.podcast!,
+                                      episode,
+                                    );
+                                return buildLyrics(
+                                  transcript.paragraphs,
+                                  transcript.manifest,
+                                );
+                              },
                             ),
-                            error: (error, _) => Center(
-                              child: Text(
-                                context.tr(
-                                  '播放器不可用：$error',
-                                  'Player unavailable: $error',
-                                ),
-                                style: const TextStyle(
-                                  color: AppColors.lyricsTextSecondary,
-                                ),
-                              ),
-                            ),
-                            data: (handler) => SyncedLyricsList(
-                              key: ValueKey(
-                                '${widget.chapterId}:${handler.currentChapterId}',
-                              ),
-                              paragraphs: paragraphs,
-                              manifest: widget.manifest,
-                              handler: handler,
-                              playbackEnabled: widget.playbackEnabled,
-                              expanded: true,
-                              bookId: widget.bookId,
-                              bookTitle: widget.bookTitle,
-                              chapterTitle: widget.chapterTitle,
-                            ),
-                          );
-                        },
-                      ),
                     ),
                     if (widget.playbackEnabled)
                       handlerAsync.when(

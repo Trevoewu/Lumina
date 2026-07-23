@@ -5,6 +5,15 @@ import '../domain/models/listening_statistics.dart';
 import 'app_log_service.dart';
 import 'lumina_audio_handler.dart';
 
+bool isPodcastEpisodePlayed({
+  required int positionMs,
+  required int durationMs,
+}) {
+  if (durationMs <= 0 || positionMs <= 0) return false;
+  return (durationMs > 60000 && durationMs - positionMs <= 30000) ||
+      positionMs / durationMs >= 0.95;
+}
+
 /// Persists the active audiobook position while playback continues globally.
 class PlaybackProgressService {
   final AppDatabase database;
@@ -15,6 +24,7 @@ class PlaybackProgressService {
   StreamSubscription? _playerStateSub;
   DateTime? _lastQueuedAt;
   _ProgressSnapshot? _lastQueued;
+  _PodcastProgressSnapshot? _lastPodcastQueued;
   Future<void> _writeQueue = Future.value();
   DateTime? _lastListeningTick;
   String? _pendingListeningDate;
@@ -103,6 +113,43 @@ class PlaybackProgressService {
       return;
     }
 
+    final podcastEpisodeId = audioHandler.currentPodcastEpisodeId;
+    if (podcastEpisodeId != null) {
+      final positionMs = audioHandler.position.inMilliseconds;
+      final durationMs = audioHandler.chapterDuration.inMilliseconds;
+      final isPlayed = isPodcastEpisodePlayed(
+        positionMs: positionMs,
+        durationMs: durationMs,
+      );
+      final snapshot = _PodcastProgressSnapshot(
+        episodeId: podcastEpisodeId,
+        positionMs: positionMs,
+        isPlayed: isPlayed,
+      );
+      if (snapshot == _lastPodcastQueued) return;
+
+      _lastQueuedAt = now;
+      _lastPodcastQueued = snapshot;
+      _writeQueue = _writeQueue.then((_) async {
+        try {
+          await database.updatePodcastProgress(
+            snapshot.episodeId,
+            positionMs: snapshot.positionMs,
+            isPlayed: snapshot.isPlayed,
+          );
+        } catch (error, stackTrace) {
+          AppLogger.warning(
+            'Playback',
+            '保存 Podcast 进度失败 episode=${snapshot.episodeId}',
+            error: error,
+            stackTrace: stackTrace,
+          );
+          if (_lastPodcastQueued == snapshot) _lastPodcastQueued = null;
+        }
+      });
+      return;
+    }
+
     final bookId = audioHandler.currentBookId;
     final chapterId = audioHandler.currentChapterId;
     final paragraphIndex = audioHandler.currentParagraphIndex;
@@ -148,6 +195,28 @@ class PlaybackProgressService {
     await _playerStateSub?.cancel();
     await _writeQueue;
   }
+}
+
+class _PodcastProgressSnapshot {
+  final String episodeId;
+  final int positionMs;
+  final bool isPlayed;
+
+  const _PodcastProgressSnapshot({
+    required this.episodeId,
+    required this.positionMs,
+    required this.isPlayed,
+  });
+
+  @override
+  bool operator ==(Object other) =>
+      other is _PodcastProgressSnapshot &&
+      other.episodeId == episodeId &&
+      other.positionMs == positionMs &&
+      other.isPlayed == isPlayed;
+
+  @override
+  int get hashCode => Object.hash(episodeId, positionMs, isPlayed);
 }
 
 class _ProgressSnapshot {

@@ -6,8 +6,10 @@ import 'package:audio_service/audio_service.dart';
 
 import '../../../core/providers.dart';
 import '../../../services/cover_palette_service.dart';
+import '../screens/podcast/podcast_episode_screen.dart';
 import '../screens/player/player_screen.dart';
 import 'book_cover.dart';
+import 'podcast_artwork.dart';
 
 /// 全局迷你播放器
 class MiniPlayer extends ConsumerWidget {
@@ -38,9 +40,22 @@ class MiniPlayer extends ConsumerWidget {
                 final playing = state.playing;
                 final duration = handler.chapterDuration;
                 final bookId = currentItem.extras?['bookId'] as String?;
+                final podcastEpisodeId =
+                    currentItem.extras?['podcastEpisodeId'] as String?;
+                final imageUrl = currentItem.extras?['imageUrl'] as String?;
+                final isPodcast = currentItem.extras?['mediaType'] == 'podcast';
 
                 return GestureDetector(
                   onTap: () async {
+                    if (isPodcast && podcastEpisodeId != null) {
+                      if (context.mounted) {
+                        await openPodcastEpisodePlayer(
+                          context,
+                          episodeId: podcastEpisodeId,
+                        );
+                      }
+                      return;
+                    }
                     if (bookId == null) return;
 
                     final db = ref.read(appDatabaseProvider);
@@ -55,6 +70,7 @@ class MiniPlayer extends ConsumerWidget {
                   },
                   child: _MiniPlayerSurface(
                     bookId: bookId,
+                    imageUrl: imageUrl,
                     child: (context, coverPath) => Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -65,11 +81,17 @@ class MiniPlayer extends ConsumerWidget {
                               SizedBox(
                                 width: 48,
                                 height: 48,
-                                child: BookCover(
-                                  coverPath: coverPath,
-                                  iconSize: 22,
-                                  borderRadius: 5,
-                                ),
+                                child: isPodcast
+                                    ? PodcastArtwork(
+                                        imageUrl: imageUrl,
+                                        size: 48,
+                                        borderRadius: 5,
+                                      )
+                                    : BookCover(
+                                        coverPath: coverPath,
+                                        iconSize: 22,
+                                        borderRadius: 5,
+                                      ),
                               ),
                               const SizedBox(width: 10),
 
@@ -186,9 +208,14 @@ class MiniPlayer extends ConsumerWidget {
 
 class _MiniPlayerSurface extends ConsumerStatefulWidget {
   final String? bookId;
+  final String? imageUrl;
   final Widget Function(BuildContext context, String? coverPath) child;
 
-  const _MiniPlayerSurface({required this.bookId, required this.child});
+  const _MiniPlayerSurface({
+    required this.bookId,
+    required this.imageUrl,
+    required this.child,
+  });
 
   @override
   ConsumerState<_MiniPlayerSurface> createState() => _MiniPlayerSurfaceState();
@@ -206,7 +233,8 @@ class _MiniPlayerSurfaceState extends ConsumerState<_MiniPlayerSurface> {
   @override
   void didUpdateWidget(covariant _MiniPlayerSurface oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.bookId != widget.bookId) {
+    if (oldWidget.bookId != widget.bookId ||
+        oldWidget.imageUrl != widget.imageUrl) {
       _appearance = _loadAppearance();
     }
   }

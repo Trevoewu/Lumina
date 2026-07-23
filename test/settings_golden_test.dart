@@ -7,6 +7,7 @@ import 'package:lumina/core/service_settings_controllers.dart';
 import 'package:lumina/core/theme.dart';
 import 'package:lumina/data/database/app_database.dart';
 import 'package:lumina/presentation/screens/settings/settings_screen.dart';
+import 'package:lumina/services/podcast_transcription_service.dart';
 
 void main() {
   testWidgets('settings root dark visual regression', (tester) async {
@@ -55,6 +56,7 @@ Future<void> _pumpSettings(
       overrides: [
         appDatabaseProvider.overrideWithValue(database),
         ttsSettingsControllerProvider.overrideWith(_GoldenTtsController.new),
+        asrSettingsControllerProvider.overrideWith(_GoldenAsrController.new),
         llmSettingsControllerProvider.overrideWith(_GoldenLlmController.new),
       ],
       child: MaterialApp(
@@ -96,5 +98,19 @@ class _GoldenLlmController extends LlmSettingsController {
     readiness: ServiceReadiness.ready,
     providers: [],
     configurations: [],
+  );
+}
+
+class _GoldenAsrController extends AsrSettingsController {
+  @override
+  Future<AsrSettingsState> build() async => const AsrSettingsState(
+    readiness: ServiceReadiness.ready,
+    modelInstalled: true,
+    modelPath: '/models/ggml-base.bin',
+    installedBytes: PodcastTranscriptionService.baseModelExpectedBytes,
+    partialBytes: 0,
+    expectedBytes: PodcastTranscriptionService.baseModelExpectedBytes,
+    chunkMinutes: PodcastTranscriptionService.defaultChunkMinutes,
+    languagePreference: PodcastTranscriptionService.podcastLanguagePreference,
   );
 }

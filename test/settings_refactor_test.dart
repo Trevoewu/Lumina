@@ -70,6 +70,10 @@ void main() {
         findsOneWidget,
       );
       expect(
+        find.byKey(const ValueKey('asr-service-settings')),
+        findsOneWidget,
+      );
+      expect(
         find.byKey(const ValueKey('llm-provider-settings')),
         findsOneWidget,
       );

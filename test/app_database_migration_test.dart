@@ -61,7 +61,7 @@ void main() {
     expect(repaired?.coverPath, cover.path);
   });
 
-  test('schema 1 books migrate to schema 9 without data loss', () async {
+  test('schema 1 books migrate to schema 10 without data loss', () async {
     final tempDir = Directory.systemTemp.createTempSync('lumina_migration_');
     final databaseFile = File('${tempDir.path}/lumina.db');
 
@@ -105,7 +105,8 @@ void main() {
         .customSelect('PRAGMA user_version;')
         .getSingle();
 
-    expect(version.read<int>('user_version'), 9);
+    expect(version.read<int>('user_version'), 10);
+    expect(await database.getPodcastShows(), isEmpty);
     expect(books, hasLength(1));
     expect(books.single.title, 'Migration Test');
     expect(books.single.kind, 'book');

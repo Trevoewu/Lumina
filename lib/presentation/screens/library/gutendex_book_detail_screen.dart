@@ -9,6 +9,7 @@ import '../../../core/providers.dart';
 import '../../../data/book_sources/gutendex_repository.dart';
 import '../../../data/database/app_database.dart' as drift_db;
 import '../../widgets/collapsing_page_scaffold.dart';
+import '../../widgets/disk_cached_network_image.dart';
 import '../album/album_screen.dart';
 
 class GutendexBookDetailScreen extends ConsumerStatefulWidget {
@@ -230,16 +231,12 @@ class _RemoteCover extends StatelessWidget {
       borderRadius: BorderRadius.circular(8),
       child: ColoredBox(
         color: context.appSurfaceHighlight,
-        child: imageUrl == null
+        child: imageUrl == null || imageUrl.isEmpty
             ? _placeholder(context)
-            : Image.network(
-                imageUrl,
+            : DiskCachedNetworkImage(
+                url: imageUrl,
+                placeholder: _placeholder(context),
                 fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => _placeholder(context),
-                loadingBuilder: (context, child, progress) {
-                  if (progress == null) return child;
-                  return _placeholder(context);
-                },
               ),
       ),
     );

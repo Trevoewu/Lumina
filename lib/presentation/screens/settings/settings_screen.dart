@@ -10,6 +10,7 @@ import '../../widgets/collapsing_page_scaffold.dart';
 import '../../widgets/design_system/app_section_header.dart';
 import '../../widgets/design_system/settings_components.dart';
 import 'appearance_screen.dart';
+import 'asr_service_screen.dart';
 import 'cache_management_screen.dart';
 import 'dictionary_explanation_service_screen.dart';
 import 'logs_screen.dart';
@@ -48,6 +49,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
     final preferences = ref.watch(appPreferencesProvider);
     final tts = ref.watch(ttsSettingsControllerProvider);
+    final asr = ref.watch(asrSettingsControllerProvider);
     final llm = ref.watch(llmSettingsControllerProvider);
     return CollapsingPageScaffold(
       title: context.tr('设置', 'Settings'),
@@ -95,6 +97,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   selection: state.voiceName ?? context.tr('未选择音色', 'No voice'),
                   readiness: state.readiness,
                   onTap: () => _push(const TtsServiceScreen()),
+                ),
+              ),
+              asr.when(
+                loading: () => _loadingServiceRow(
+                  key: const ValueKey('asr-service-settings'),
+                  icon: Icons.subtitles_outlined,
+                  title: context.tr('语音转文字', 'Speech to Text'),
+                ),
+                error: (error, _) => _errorServiceRow(
+                  key: const ValueKey('asr-service-settings'),
+                  icon: Icons.subtitles_outlined,
+                  title: context.tr('语音转文字', 'Speech to Text'),
+                  onTap: () => ref.invalidate(asrSettingsControllerProvider),
+                ),
+                data: (state) => _serviceRow(
+                  key: const ValueKey('asr-service-settings'),
+                  icon: Icons.subtitles_outlined,
+                  title: context.tr('语音转文字', 'Speech to Text'),
+                  provider: state.providerName,
+                  selection: state.modelName,
+                  readiness: state.readiness,
+                  onTap: () => _push(const AsrServiceScreen()),
                 ),
               ),
               llm.when(
@@ -377,6 +401,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Future<void> _push(Widget page) async {
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
     ref.invalidate(ttsSettingsControllerProvider);
+    ref.invalidate(asrSettingsControllerProvider);
     ref.invalidate(llmSettingsControllerProvider);
   }
 

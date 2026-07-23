@@ -130,6 +130,8 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 500));
 
+    await tester.tap(find.byKey(const ValueKey('home-section-books')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byIcon(Icons.more_horiz));
     await tester.pumpAndSettle();
     expect(find.text('Cache Entire Book'), findsOneWidget);
@@ -160,7 +162,7 @@ void main() {
       ),
     );
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text('Your Library'), findsOneWidget);
+    expect(find.text('Home'), findsWidgets);
 
     await tester.tap(find.byIcon(Icons.person_outline));
     await tester.pump(const Duration(milliseconds: 300));
@@ -208,11 +210,14 @@ void main() {
     await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
 
+    final settingsScrollable = find.byType(Scrollable).last;
     await tester.scrollUntilVisible(
       find.text('Logs'),
       180,
-      scrollable: find.byType(Scrollable).last,
+      scrollable: settingsScrollable,
     );
+    await tester.drag(settingsScrollable, const Offset(0, -120));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Logs'));
     await tester.pumpAndSettle();
 

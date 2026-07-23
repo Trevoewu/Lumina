@@ -147,7 +147,7 @@ class ServiceStatusCard extends StatelessWidget {
   final String provider;
   final String selection;
   final ServiceReadiness readiness;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   const ServiceStatusCard({
     super.key,
@@ -157,7 +157,7 @@ class ServiceStatusCard extends StatelessWidget {
     required this.provider,
     required this.selection,
     required this.readiness,
-    required this.onTap,
+    this.onTap,
   });
 
   @override
@@ -200,7 +200,7 @@ class ServiceStatusCard extends StatelessWidget {
               ],
             ),
           ),
-          const Icon(Icons.chevron_right),
+          if (onTap != null) const Icon(Icons.chevron_right),
         ],
       ),
     );
