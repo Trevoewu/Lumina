@@ -7,6 +7,7 @@ import 'package:lumina/core/theme.dart';
 import 'package:lumina/data/database/app_database.dart';
 import 'package:lumina/data/podcasts/podcast_index_repository.dart';
 import 'package:lumina/presentation/screens/library/library_screen.dart';
+import 'package:lumina/presentation/widgets/book_list_card.dart';
 
 void main() {
   testWidgets('home header stays fixed through full all-page scrolls', (
@@ -50,6 +51,31 @@ void main() {
     expect(find.byIcon(Icons.play_circle_fill_rounded), findsNothing);
     expect(find.byType(NestedScrollView), findsNothing);
     expect(find.byKey(const ValueKey('collapsing-page-title')), findsNothing);
+    expect(find.byType(BookListCard), findsNWidgets(5));
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('home-section-selector')),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Scrollable &&
+              (widget.axisDirection == AxisDirection.left ||
+                  widget.axisDirection == AxisDirection.right),
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('home-section-pages')),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Scrollable &&
+              (widget.axisDirection == AxisDirection.left ||
+                  widget.axisDirection == AxisDirection.right),
+        ),
+      ),
+      findsOneWidget,
+    );
     final fixedTop = tester.getTopLeft(header).dy;
     expect(fixedTop, 44);
 
@@ -81,7 +107,54 @@ void main() {
       scrollable.position.pixels,
       closeTo(scrollable.position.minScrollExtent, 0.5),
     );
+    await tester.tap(find.byKey(const ValueKey('home-section-books')));
+    await tester.pumpAndSettle();
+    expect(find.byType(BookListCard), findsNWidgets(5));
+    expect(find.byType(Card), findsNothing);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('home swipes in order from all to books to podcast', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [appDatabaseProvider.overrideWithValue(database)],
+        child: MaterialApp(
+          theme: AppTheme.darkTheme(),
+          home: const LibraryScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    bool isSelected(String section) => tester
+        .widget<ChoiceChip>(find.byKey(ValueKey('home-section-$section')))
+        .selected;
+
+    final pages = find.byKey(const ValueKey('home-section-pages'));
+    expect(pages, findsOneWidget);
+    expect(isSelected('all'), isTrue);
+
+    await tester.drag(pages, const Offset(-330, 0));
+    await tester.pumpAndSettle();
+    expect(isSelected('books'), isTrue);
+
+    await tester.drag(pages, const Offset(-330, 0));
+    await tester.pumpAndSettle();
+    expect(isSelected('podcasts'), isTrue);
+    expect(find.text('Add your first podcast'), findsOneWidget);
+
+    await tester.drag(pages, const Offset(330, 0));
+    await tester.pumpAndSettle();
+    expect(isSelected('books'), isTrue);
   });
 
   testWidgets('home switches to podcast without adding a bottom tab', (

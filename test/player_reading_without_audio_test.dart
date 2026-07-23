@@ -178,7 +178,16 @@ void main() {
         findsOneWidget,
       );
       expect(find.byKey(const ValueKey('player-artwork')), findsOneWidget);
-      expect(find.text('Text preview'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('book-player-scroll-view')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('book-information-card')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('book-text-card')), findsOneWidget);
+      expect(find.text('Synchronized text'), findsOneWidget);
       expect(find.byIcon(Icons.more_horiz_rounded), findsOneWidget);
       expect(find.byIcon(Icons.timer_outlined), findsOneWidget);
 
@@ -227,10 +236,11 @@ void main() {
 
       expect(
         find.byKey(const ValueKey('player-live-lyrics-stage')),
-        findsOneWidget,
+        findsNothing,
       );
       expect(find.byKey(const ValueKey('lyrics-card')), findsNothing);
-      expect(find.text('Live text'), findsOneWidget);
+      expect(find.byKey(const ValueKey('book-text-card')), findsOneWidget);
+      expect(find.text('Synchronized text'), findsOneWidget);
       expect(
         find.text('The story continues across several visible lines.'),
         findsOneWidget,
@@ -246,20 +256,37 @@ void main() {
       final compactArtwork = tester.getSize(
         find.byKey(const ValueKey('player-artwork')),
       );
-      expect(compactArtwork, const Size.square(80));
-      final viewportHeight =
-          tester.view.physicalSize.height / tester.view.devicePixelRatio;
-      final controlsBottom = tester
-          .getBottomRight(
-            find.byKey(const ValueKey('player-playback-controls')),
-          )
-          .dy;
-      expect(viewportHeight - controlsBottom, inInclusiveRange(12, 20));
+      expect(compactArtwork, const Size.square(320));
 
       await expectLater(
         find.byType(PlayerScreen),
         matchesGoldenFile('goldens/player_spotify_playing_390.png'),
       );
+
+      await tester.drag(
+        find.byKey(const ValueKey('book-player-scroll-view')),
+        const Offset(0, -520),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('book-information-card')).hitTestable(),
+        findsWidgets,
+      );
+      expect(
+        find.byKey(const ValueKey('book-text-card')).hitTestable(),
+        findsOneWidget,
+      );
+      expect(
+        find
+            .text('The current sentence stays bright while it is spoken.')
+            .hitTestable(),
+        findsOneWidget,
+      );
+      await tester.drag(
+        find.byKey(const ValueKey('book-player-scroll-view')),
+        const Offset(0, 700),
+      );
+      await tester.pumpAndSettle();
 
       await tester.tap(
         find.byKey(const ValueKey('player-primary-audio-action')),
@@ -268,11 +295,11 @@ void main() {
       expect(find.byIcon(Icons.play_arrow), findsOneWidget);
       expect(
         find.byKey(const ValueKey('player-live-lyrics-stage')),
-        findsOneWidget,
+        findsNothing,
       );
       expect(
         tester.getSize(find.byKey(const ValueKey('player-artwork'))),
-        const Size.square(80),
+        const Size.square(320),
       );
 
       await tester.pumpWidget(const SizedBox.shrink());
@@ -293,6 +320,199 @@ void main() {
       resolvePlayerPrimaryAudioAction(playing: true, playbackRequested: false),
       PlayerPrimaryAudioAction.pause,
     );
+  });
+
+  test('audiobook chapter position prefers per-chapter progress', () {
+    const manifest = ChapterManifest(
+      chapterId: 'chapter',
+      bookId: 'book',
+      providerId: 'test',
+      voiceId: 'voice',
+      speed: 1,
+      updatedAt: 1,
+      segments: [
+        SegmentEntry(
+          paragraphId: 'p1',
+          audioFile: 'p1.mp3',
+          durationMs: 10000,
+          state: ParagraphAudioState.ready,
+        ),
+        SegmentEntry(
+          paragraphId: 'p2',
+          audioFile: 'p2.mp3',
+          durationMs: 12000,
+          state: ParagraphAudioState.ready,
+        ),
+      ],
+    );
+
+    expect(
+      resolveAudiobookChapterPositionMs(
+        manifest: manifest,
+        savedPositionMs: 17500,
+        legacyParagraphIndex: 0,
+        legacyParagraphOffsetMs: 500,
+      ),
+      17500,
+    );
+    expect(
+      resolveAudiobookChapterPositionMs(
+        manifest: manifest,
+        savedPositionMs: null,
+        legacyParagraphIndex: 1,
+        legacyParagraphOffsetMs: 2500,
+      ),
+      12500,
+    );
+  });
+
+  testWidgets(
+    'audiobook chapters use subtle dividers without rewriting titles',
+    (tester) async {
+      tester.view.physicalSize = const Size(430, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      final temp = Directory.systemTemp.createTempSync('lumina_divider_test_');
+      final manifestStore = ManifestStore(documentsDirectory: () async => temp);
+      addTearDown(database.close);
+      addTearDown(() {
+        if (temp.existsSync()) temp.deleteSync(recursive: true);
+      });
+
+      const book = Book(
+        id: 'divider-book',
+        title: 'Divider Book',
+        format: 'epub',
+        sourcePath: '/tmp/missing-divider-book.epub',
+        chapterCount: 2,
+        paragraphCount: 0,
+        currentParagraphIndex: 0,
+        playbackOffsetMs: 0,
+        importedAt: 1,
+        lastReadAt: 0,
+        kind: 'book',
+        rightsStatus: 'user_uploaded',
+      );
+      const chapters = [
+        Chapter(
+          id: 'free-form-chapter',
+          bookId: 'divider-book',
+          chapterIndex: 0,
+          title: 'Opening — 2026 / Untitled',
+          textOffset: 0,
+          isHidden: false,
+        ),
+        Chapter(
+          id: 'part-title-chapter',
+          bookId: 'divider-book',
+          chapterIndex: 1,
+          title: '第Ⅱ部',
+          textOffset: 0,
+          isHidden: false,
+        ),
+      ];
+      await database.replaceBookData(
+        book: book,
+        chapterEntries: chapters,
+        paragraphEntries: const [],
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            appDatabaseProvider.overrideWithValue(database),
+            manifestStoreProvider.overrideWithValue(manifestStore),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightTheme(),
+            home: const AlbumScreen(book: book),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Opening — 2026 / Untitled'), findsOneWidget);
+      expect(find.text('第Ⅱ部'), findsOneWidget);
+      final divider = tester.widget<Divider>(
+        find.byKey(const ValueKey('book-chapter-divider-free-form-chapter')),
+      );
+      expect(divider.thickness, 0.75);
+      expect(divider.color, const Color(0xFFE3E5E8));
+      expect(
+        find.byKey(const ValueKey('book-chapter-divider-part-title-chapter')),
+        findsNothing,
+      );
+    },
+  );
+
+  testWidgets('book detail lazily loads manifests for visible chapters only', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(430, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final temp = Directory.systemTemp.createTempSync('lumina_lazy_book_test_');
+    final manifestStore = _CountingManifestStore(temp);
+    addTearDown(database.close);
+    addTearDown(() {
+      if (temp.existsSync()) temp.deleteSync(recursive: true);
+    });
+
+    final chapters = List<Chapter>.generate(
+      60,
+      (index) => Chapter(
+        id: 'lazy-chapter-$index',
+        bookId: 'lazy-book',
+        chapterIndex: index,
+        title: 'Chapter ${index + 1}',
+        textOffset: 0,
+        isHidden: false,
+      ),
+    );
+    final book = Book(
+      id: 'lazy-book',
+      title: 'Lazy Book',
+      format: 'epub',
+      sourcePath: '/tmp/missing-lazy-book.epub',
+      chapterCount: chapters.length,
+      paragraphCount: 0,
+      currentParagraphIndex: 0,
+      playbackOffsetMs: 0,
+      importedAt: 1,
+      lastReadAt: 0,
+      kind: 'book',
+      rightsStatus: 'user_uploaded',
+    );
+    await database.replaceBookData(
+      book: book,
+      chapterEntries: chapters,
+      paragraphEntries: const [],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          manifestStoreProvider.overrideWithValue(manifestStore),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.lightTheme(),
+          home: AlbumScreen(book: book),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(manifestStore.loadedChapterIds, isNotEmpty);
+    expect(manifestStore.loadedChapterIds.length, lessThan(20));
+    expect(manifestStore.loadedChapterIds.length, lessThan(chapters.length));
+    expect(find.text('Chapter 60'), findsNothing);
   });
 
   testWidgets('opening a chapter covers the outer app navigation', (
@@ -321,12 +541,15 @@ void main() {
       sourcePath: '/tmp/navigation.epub',
       chapterCount: 1,
       paragraphCount: 1,
+      currentChapterId: 'navigation-chapter',
       currentParagraphIndex: 0,
-      playbackOffsetMs: 0,
+      playbackOffsetMs: 1000,
       importedAt: 1,
       lastReadAt: 0,
       kind: 'book',
       rightsStatus: 'user_uploaded',
+      externalMetadataJson:
+          '{"raw":{"summaries":["A real publisher summary."]}}',
     );
     const chapter = Chapter(
       id: 'navigation-chapter',
@@ -348,6 +571,13 @@ void main() {
           content: 'The player opens before audio is prepared.',
         ),
       ],
+    );
+    await database.updateReadingProgress(
+      book.id,
+      chapterId: chapter.id,
+      paragraphIndex: 0,
+      offsetMs: 1000,
+      chapterPositionMs: 1000,
     );
     manifestStore.manifest = const ChapterManifest(
       chapterId: 'navigation-chapter',
@@ -392,18 +622,55 @@ void main() {
     await tester.pump();
     await tester.pump();
 
+    expect(
+      find.byKey(const ValueKey('book-detail-scroll-view')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('collapsing-page-header')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('book-chapter-navigation-chapter')),
+      findsOneWidget,
+    );
+    expect(find.byType(SliverAppBar), findsNothing);
+    expect(find.text('A real publisher summary.'), findsOneWidget);
+    expect(find.textContaining('Read by'), findsNothing);
+    expect(find.text('1. Open Immediately'), findsNothing);
+    expect(find.text('Open Immediately'), findsOneWidget);
+    final chapterProgress = tester.widget<LinearProgressIndicator>(
+      find.byKey(
+        const ValueKey('book-chapter-playback-progress-navigation-chapter'),
+      ),
+    );
+    expect(chapterProgress.value, 0.5);
     expect(find.byIcon(Icons.arrow_circle_down_outlined), findsNothing);
     expect(find.byIcon(Icons.download_done_rounded), findsNothing);
+    expect(find.byKey(const ValueKey('book-detail-more-menu')), findsOneWidget);
+    expect(find.byIcon(Icons.visibility_off_outlined), findsNothing);
+    await expectLater(
+      find.byType(AlbumScreen),
+      matchesGoldenFile('goldens/book_detail_podcast_style_430.png'),
+    );
+    await tester.tap(find.byKey(const ValueKey('book-detail-more-menu')));
+    await tester.pumpAndSettle();
+    expect(find.text('Hidden chapters'), findsOneWidget);
+    expect(find.byIcon(Icons.visibility_off_outlined), findsOneWidget);
+    await tester.tapAt(const Offset(20, 700));
+    await tester.pumpAndSettle();
+    expect(find.text('Hidden chapters'), findsNothing);
+
     await tester.tap(find.byTooltip('章节操作'));
     await tester.pumpAndSettle();
-    expect(find.text('缓存音频'), findsOneWidget);
-    expect(find.byIcon(Icons.download_for_offline_outlined), findsOneWidget);
+    expect(find.text('清除音频'), findsOneWidget);
+    expect(find.byIcon(Icons.cleaning_services_outlined), findsOneWidget);
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
 
     final chapterTapTarget = find
         .ancestor(
-          of: find.text('1. Open Immediately'),
+          of: find.text('Open Immediately'),
           matching: find.byType(InkWell),
         )
         .first;
@@ -422,6 +689,7 @@ void main() {
       findsOneWidget,
     );
     expect(audioHandler.playCalls, 1);
+    expect(audioHandler.loadedInitialPosition, const Duration(seconds: 1));
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));
@@ -445,6 +713,19 @@ class _TestManifestStore extends ManifestStore {
   }
 }
 
+class _CountingManifestStore extends ManifestStore {
+  final Set<String> loadedChapterIds = <String>{};
+
+  _CountingManifestStore(Directory root)
+    : super(documentsDirectory: () async => root);
+
+  @override
+  Future<ChapterManifest?> load(String bookId, String chapterId) async {
+    loadedChapterIds.add(chapterId);
+    return null;
+  }
+}
+
 class _TestAudioHandler extends BaseAudioHandler implements LuminaAudioHandler {
   final _paragraphController = StreamController<String?>.broadcast();
   final _positionController = StreamController<Duration>.broadcast();
@@ -456,6 +737,7 @@ class _TestAudioHandler extends BaseAudioHandler implements LuminaAudioHandler {
   Duration _chapterDuration = Duration.zero;
   ChapterManifest? _manifest;
   int playCalls = 0;
+  Duration? loadedInitialPosition;
   bool _disposed = false;
 
   void startLoadedChapter({
@@ -471,6 +753,17 @@ class _TestAudioHandler extends BaseAudioHandler implements LuminaAudioHandler {
     _paragraphController.add(paragraphId);
     _positionController.add(_position);
     _chapterPositionController.add(_position);
+    mediaItem.add(
+      MediaItem(
+        id: paragraphId,
+        title: chapterId,
+        extras: {
+          'bookId': bookId,
+          'chapterId': chapterId,
+          'paragraphId': paragraphId,
+        },
+      ),
+    );
     playbackState.add(
       playbackState.value.copyWith(
         controls: const [
@@ -528,6 +821,7 @@ class _TestAudioHandler extends BaseAudioHandler implements LuminaAudioHandler {
     required String audioRoot,
     String? bookTitle,
     String paragraphLabel = 'Paragraph',
+    Duration initialPosition = Duration.zero,
   }) async {
     final selected = chapters.firstWhere(
       (chapter) => chapter.manifest.chapterId == initialChapterId,
@@ -536,7 +830,8 @@ class _TestAudioHandler extends BaseAudioHandler implements LuminaAudioHandler {
     _bookId = selected.manifest.bookId;
     _chapterId = selected.manifest.chapterId;
     _paragraphId = selected.manifest.segments.first.paragraphId;
-    _position = Duration.zero;
+    loadedInitialPosition = initialPosition;
+    _position = initialPosition;
     _chapterDuration = Duration(
       milliseconds: selected.manifest.totalDurationMs,
     );
@@ -555,7 +850,7 @@ class _TestAudioHandler extends BaseAudioHandler implements LuminaAudioHandler {
       playbackState.value.copyWith(
         processingState: AudioProcessingState.ready,
         playing: false,
-        updatePosition: Duration.zero,
+        updatePosition: initialPosition,
         bufferedPosition: _chapterDuration,
       ),
     );

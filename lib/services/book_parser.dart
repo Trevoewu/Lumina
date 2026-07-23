@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:epub_pro/epub_pro.dart';
 import 'package:flutter/foundation.dart';
@@ -209,6 +210,23 @@ class BookParser {
       bookId: bookId,
       appDir: appDir,
     );
+  }
+
+  /// Extracts the publisher-provided EPUB description for existing imports.
+  static Future<String?> extractDescription({
+    required String sourcePath,
+  }) async {
+    if (p.extension(sourcePath).toLowerCase() != '.epub') return null;
+    if (!await File(sourcePath).exists()) return null;
+    try {
+      return Isolate.run(() async {
+        final source = File(sourcePath);
+        final epub = await EpubReader.readBook(await source.readAsBytes());
+        return epub.schema?.package?.metadata?.description;
+      });
+    } catch (_) {
+      return null;
+    }
   }
 
   static Future<String?> _writeCoverImage({

@@ -2,21 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/app_colors.dart';
+import '../../../core/app_design_tokens.dart';
 import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart' as drift_db;
 import '../../../data/settings/provider_selection_repository.dart';
 import '../../../domain/models/chapter_manifest.dart';
 import '../../../services/app_log_service.dart';
-import '../../../services/cover_palette_service.dart';
+import '../../../services/book_introduction_service.dart';
+import '../../../services/book_parser.dart';
 import '../../../services/generation_orchestrator.dart';
 import '../../../services/manifest_store.dart';
 import '../../../tts/models/tts_voice.dart';
 import '../../../tts/provider_registry.dart';
 import '../../../tts/tts_provider.dart';
 import '../../widgets/book_cover.dart';
+import '../../widgets/collapsing_page_scaffold.dart';
 import '../../widgets/half_screen_action_sheet.dart';
-import '../../widgets/narrator_label.dart';
 import '../player/player_screen.dart';
 
 class AlbumScreen extends ConsumerStatefulWidget {
@@ -33,28 +35,47 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   final Map<String, GenerationProgress> _generationProgress = {};
   final Set<String> _generatingChapterIds = {};
   final Set<String> _pausedChapterIds = {};
-  final ScrollController _scrollController = ScrollController();
   bool _didScrollToInitialChapter = false;
-  late Future<Color?> _coverSeed;
+  late Future<String?> _bookIntroductionFuture;
+  late Future<_AlbumChapterData> _chapterDataFuture;
+  _AlbumChapterData? _chapterData;
+  late String? _currentChapterId;
+  late int _currentParagraphIndex;
+  late int _playbackOffsetMs;
 
   @override
   void initState() {
     super.initState();
-    _coverSeed = CoverPaletteService.seedForPath(widget.book.coverPath);
+    _bookIntroductionFuture = _loadBookIntroduction();
+    _chapterDataFuture = _loadChapterData(ref.read(appDatabaseProvider));
+    _currentChapterId = widget.book.currentChapterId;
+    _currentParagraphIndex = widget.book.currentParagraphIndex;
+    _playbackOffsetMs = widget.book.playbackOffsetMs;
   }
 
   @override
   void didUpdateWidget(covariant AlbumScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.book.coverPath != widget.book.coverPath) {
-      _coverSeed = CoverPaletteService.seedForPath(widget.book.coverPath);
+    if (oldWidget.book.id != widget.book.id ||
+        oldWidget.book.sourcePath != widget.book.sourcePath ||
+        oldWidget.book.externalMetadataJson !=
+            widget.book.externalMetadataJson) {
+      _bookIntroductionFuture = _loadBookIntroduction();
     }
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
+    if (oldWidget.book.id != widget.book.id) {
+      _chapterData = null;
+      _chapterDataFuture = _loadChapterData(ref.read(appDatabaseProvider));
+      _didScrollToInitialChapter = false;
+    }
+    if (oldWidget.book.id != widget.book.id ||
+        oldWidget.book.currentChapterId != widget.book.currentChapterId ||
+        oldWidget.book.currentParagraphIndex !=
+            widget.book.currentParagraphIndex ||
+        oldWidget.book.playbackOffsetMs != widget.book.playbackOffsetMs) {
+      _currentChapterId = widget.book.currentChapterId;
+      _currentParagraphIndex = widget.book.currentParagraphIndex;
+      _playbackOffsetMs = widget.book.playbackOffsetMs;
+    }
   }
 
   Future<void> _openChapter(drift_db.Chapter chapter) async {
@@ -67,7 +88,77 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
         ),
       ),
     );
-    if (mounted) setState(() {});
+    final database = ref.read(appDatabaseProvider);
+    final results = await Future.wait<Object?>([
+      database.getBook(widget.book.id),
+      _loadChapterData(database),
+    ]);
+    if (!mounted) return;
+    final latestBook = results[0] as drift_db.Book?;
+    final chapterData = results[1] as _AlbumChapterData;
+    setState(() {
+      _currentChapterId = latestBook?.currentChapterId ?? chapter.id;
+      _currentParagraphIndex = latestBook?.currentParagraphIndex ?? 0;
+      _playbackOffsetMs = latestBook?.playbackOffsetMs ?? 0;
+      _chapterData = chapterData;
+      _chapterDataFuture = Future<_AlbumChapterData>.value(chapterData);
+    });
+  }
+
+  Future<_AlbumChapterData> _loadChapterData(
+    drift_db.AppDatabase database,
+  ) async {
+    final results = await Future.wait<Object>([
+      database.getChapters(widget.book.id),
+      database.getChapterPlaybackProgresses(widget.book.id),
+    ]);
+    final chapters = results[0] as List<drift_db.Chapter>;
+    final progresses = results[1] as List<drift_db.ChapterPlaybackProgress>;
+    return _AlbumChapterData(
+      chapters: chapters,
+      progressByChapterId: {
+        for (final progress in progresses) progress.chapterId: progress,
+      },
+    );
+  }
+
+  Future<void> _refreshChapterData() async {
+    final chapterData = await _loadChapterData(ref.read(appDatabaseProvider));
+    if (!mounted) return;
+    setState(() {
+      _chapterData = chapterData;
+      _chapterDataFuture = Future<_AlbumChapterData>.value(chapterData);
+    });
+  }
+
+  Future<String?> _loadBookIntroduction() async {
+    final stored = bookIntroductionFromMetadataJson(
+      widget.book.externalMetadataJson,
+    );
+    if (stored != null) return stored;
+    final embedded = normalizeBookIntroduction(
+      await BookParser.extractDescription(sourcePath: widget.book.sourcePath),
+    );
+    if (embedded == null) return null;
+    try {
+      await ref
+          .read(appDatabaseProvider)
+          .updateBookExternalMetadata(
+            widget.book.id,
+            metadataJsonWithBookIntroduction(
+              widget.book.externalMetadataJson,
+              embedded,
+            ),
+          );
+    } catch (error, stackTrace) {
+      AppLogger.warning(
+        'Library',
+        '缓存书籍简介失败 book=${widget.book.id}',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+    return embedded;
   }
 
   Future<void> _clearChapterCache(drift_db.Chapter chapter) async {
@@ -383,7 +474,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
         .read(appDatabaseProvider)
         .updateChapterNarrator(chapter.id, voiceId);
     if (!mounted) return;
-    setState(() {});
+    await _refreshChapterData();
+    if (!mounted) return;
     _showSnackBar(
       context.tr(
         '已更新旁白；重新生成后将应用到音频。',
@@ -395,7 +487,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   Future<void> _hideChapter(drift_db.Chapter chapter) async {
     await ref.read(appDatabaseProvider).updateChapterHidden(chapter.id, true);
     if (!mounted) return;
-    setState(() {});
+    await _refreshChapterData();
+    if (!mounted) return;
     _showSnackBar(
       context.tr(
         '已在本书中隐藏“${chapter.title}”。',
@@ -445,7 +538,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                     if (!sheetContext.mounted) return;
                     Navigator.of(sheetContext).pop();
                     if (!mounted) return;
-                    setState(() {});
+                    await _refreshChapterData();
                   },
                   child: Text(context.tr('恢复显示', 'Restore')),
                 ),
@@ -480,170 +573,245 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final db = ref.watch(appDatabaseProvider);
-
-    return FutureBuilder<Color?>(
-      future: _coverSeed,
-      builder: (context, paletteSnapshot) {
-        final seed = paletteSnapshot.data;
-        final topTint = seed == null
-            ? context.appSurfaceHighlight
-            : CoverPaletteService.pageTopForSeed(
-                seed,
-                Theme.of(context).brightness,
-              );
-        return Scaffold(
-          body: FutureBuilder<List<drift_db.Chapter>>(
-            future: db.getChapters(widget.book.id),
-            builder: (context, snapshot) {
-              final chapters = snapshot.data ?? const <drift_db.Chapter>[];
-
-              _scrollToInitialChapter(chapters);
-
-              return CustomScrollView(
-                controller: _scrollController,
-                slivers: [
-                  SliverAppBar(
-                    expandedHeight: 300,
-                    pinned: true,
-                    backgroundColor: context.appBackground,
-                    actions: [
-                      IconButton(
-                        tooltip: context.tr('管理隐藏章节', 'Manage hidden chapters'),
-                        onPressed: _showHiddenChapters,
-                        icon: const Icon(Icons.visibility_off_outlined),
-                      ),
-                    ],
-                    flexibleSpace: FlexibleSpaceBar(
-                      centerTitle: true,
-                      titlePadding: const EdgeInsets.symmetric(
-                        horizontal: 64,
-                        vertical: 16,
-                      ),
-                      title: Text(
-                        widget.book.title,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      background: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          // 背景渐变
-                          Container(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [topTint, context.appBackground],
-                              ),
-                            ),
-                          ),
-                          // 居中的大封面
-                          Center(
-                            child: Container(
-                              width: 180,
-                              height: 180,
-                              margin: const EdgeInsets.only(bottom: 20),
-                              decoration: BoxDecoration(
-                                color: context.appSurface,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.5),
-                                    blurRadius: 20,
-                                    offset: const Offset(0, 10),
-                                  ),
-                                ],
-                              ),
-                              child: BookCover(
-                                coverPath: widget.book.coverPath,
-                                iconSize: 80,
-                                borderRadius: 0,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  const SliverToBoxAdapter(child: SizedBox(height: 8)),
-
-                  // 章节列表
-                  if (chapters.isEmpty)
-                    const SliverToBoxAdapter(
-                      child: Padding(
-                        padding: EdgeInsets.all(32),
-                        child: Center(child: CircularProgressIndicator()),
-                      ),
-                    )
-                  else
-                    SliverList(
-                      delegate: SliverChildBuilderDelegate((context, index) {
-                        final chapter = chapters[index];
-                        final highlighted =
-                            chapter.id == widget.initialChapterId;
-                        final card = _ChapterCard(
-                          index: index + 1,
-                          title: chapter.title,
-                          author: widget.book.author ?? 'Unknown Artist',
-                          bookVoiceId: widget.book.voiceId,
-                          chapterVoiceId: chapter.voiceId,
-                          highlighted: highlighted,
-                          progress: _generationProgress[chapter.id],
-                          bookId: widget.book.id,
-                          chapterId: chapter.id,
-                          onPlay: () => _openChapter(chapter),
-                          onDownload: () => _toggleChapterDownload(chapter),
-                          onCancelDownload: () =>
-                              _cancelChapterDownload(chapter),
-                          paused: _pausedChapterIds.contains(chapter.id),
-                          onClearCache: () => _clearChapterCache(chapter),
-                          onRegenerate: () => _regenerateChapter(chapter),
-                          onChangeNarrator: () =>
-                              _changeChapterNarrator(chapter),
-                          onHideInBook: () => _hideChapter(chapter),
-                        );
-                        if (index == chapters.length - 1) return card;
-                        return Column(
-                          children: [
-                            card,
-                            Divider(
-                              height: 1,
-                              indent: 32,
-                              endIndent: 32,
-                              color: context.appSurfaceHighlight,
-                            ),
-                          ],
-                        );
-                      }, childCount: chapters.length),
-                    ),
-
-                  const SliverToBoxAdapter(child: SizedBox(height: 16)),
+    return CollapsingPageScaffold(
+      title: widget.book.title,
+      showBackButton: true,
+      actions: [
+        PopupMenuButton<String>(
+          key: const ValueKey('book-detail-more-menu'),
+          tooltip: context.tr('更多', 'More'),
+          icon: const Icon(Icons.more_horiz_rounded),
+          onSelected: (value) {
+            if (value == 'hidden_chapters') {
+              _showHiddenChapters();
+            }
+          },
+          itemBuilder: (context) => [
+            PopupMenuItem<String>(
+              value: 'hidden_chapters',
+              child: Row(
+                children: [
+                  const Icon(Icons.visibility_off_outlined, size: 20),
+                  const SizedBox(width: 12),
+                  Text(context.tr('隐藏章节', 'Hidden chapters')),
                 ],
+              ),
+            ),
+          ],
+        ),
+      ],
+      body: FutureBuilder<_AlbumChapterData>(
+        future: _chapterDataFuture,
+        builder: (context, snapshot) {
+          final chapterData = snapshot.data ?? _chapterData;
+          if (chapterData == null &&
+              snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final resolvedChapterData = chapterData ?? const _AlbumChapterData();
+          final chapters = resolvedChapterData.chapters;
+          final design = context.appDesign;
+          final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
+          return Builder(
+            builder: (scrollContext) {
+              _scrollToInitialChapter(chapters, scrollContext);
+              return ListView.builder(
+                key: const ValueKey('book-detail-scroll-view'),
+                padding: EdgeInsets.fromLTRB(inset, design.spaceLg, inset, 120),
+                itemCount: chapters.length + 1,
+                itemBuilder: (context, itemIndex) {
+                  if (itemIndex == 0) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildBookHeader(chapters),
+                        SizedBox(height: design.spaceXl),
+                        _buildBookIntroduction(),
+                        SizedBox(height: design.spaceXxl),
+                        Text(
+                          context.tr('所有章节', 'All chapters'),
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                color: context.appTextPrimary,
+                                fontWeight: FontWeight.w800,
+                              ),
+                        ),
+                        SizedBox(height: design.spaceSm),
+                        if (chapters.isEmpty)
+                          SizedBox(
+                            width: double.infinity,
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(
+                                vertical: design.spaceXxl,
+                              ),
+                              child: Text(
+                                context.tr(
+                                  '这本书没有可阅读章节',
+                                  'No readable chapters',
+                                ),
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: context.appTextSecondary,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  }
+
+                  final chapterIndex = itemIndex - 1;
+                  final chapter = chapters[chapterIndex];
+                  return _ChapterCard(
+                    title: chapter.title,
+                    highlighted:
+                        chapter.id == widget.initialChapterId ||
+                        chapter.id == _currentChapterId,
+                    progress: _generationProgress[chapter.id],
+                    savedPlaybackPositionMs: resolvedChapterData
+                        .progressByChapterId[chapter.id]
+                        ?.positionMs,
+                    legacyParagraphIndex: chapter.id == _currentChapterId
+                        ? _currentParagraphIndex
+                        : null,
+                    legacyParagraphOffsetMs: chapter.id == _currentChapterId
+                        ? _playbackOffsetMs
+                        : 0,
+                    manifestStore: ref.read(manifestStoreProvider),
+                    bookId: widget.book.id,
+                    chapterId: chapter.id,
+                    showDivider: chapterIndex < chapters.length - 1,
+                    onPlay: () => _openChapter(chapter),
+                    onDownload: () => _toggleChapterDownload(chapter),
+                    onCancelDownload: () => _cancelChapterDownload(chapter),
+                    paused: _pausedChapterIds.contains(chapter.id),
+                    onClearCache: () => _clearChapterCache(chapter),
+                    onRegenerate: () => _regenerateChapter(chapter),
+                    onChangeNarrator: () => _changeChapterNarrator(chapter),
+                    onHideInBook: () => _hideChapter(chapter),
+                  );
+                },
               );
             },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildBookHeader(List<drift_db.Chapter> chapters) {
+    final design = context.appDesign;
+    final currentIndex = chapters.indexWhere(
+      (chapter) => chapter.id == _currentChapterId,
+    );
+    final currentChapter = chapters.isEmpty
+        ? null
+        : currentIndex < 0
+        ? chapters.first
+        : chapters[currentIndex];
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 112,
+          height: 150,
+          child: BookCover(
+            coverPath: widget.book.coverPath,
+            iconSize: 48,
+            borderRadius: design.radiusMedium,
+          ),
+        ),
+        SizedBox(width: design.spaceLg),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.book.title,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: context.appTextPrimary,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              SizedBox(height: design.spaceSm),
+              Text(
+                widget.book.author ?? context.tr('未知作者', 'Unknown author'),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: context.appTextSecondary),
+              ),
+              SizedBox(height: design.spaceLg),
+              FilledButton.icon(
+                onPressed: currentChapter == null
+                    ? null
+                    : () => _openChapter(currentChapter),
+                icon: const Icon(Icons.play_arrow_rounded),
+                label: Text(
+                  _currentChapterId == null
+                      ? context.tr('开始阅读', 'Start reading')
+                      : context.tr('继续阅读', 'Continue reading'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBookIntroduction() {
+    return FutureBuilder<String?>(
+      future: _bookIntroductionFuture,
+      builder: (context, snapshot) {
+        final introduction = snapshot.data ?? _fallbackBookIntroduction();
+        return Text(
+          introduction,
+          key: const ValueKey('book-introduction'),
+          maxLines: 5,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+            color: context.appTextSecondary,
+            height: 1.45,
           ),
         );
       },
     );
   }
 
-  void _scrollToInitialChapter(List<drift_db.Chapter> chapters) {
+  String _fallbackBookIntroduction() {
+    final author = widget.book.author?.trim();
+    final format = widget.book.format.toUpperCase();
+    final chapterCount = widget.book.chapterCount;
+    return author == null || author.isEmpty
+        ? context.tr(
+            '《${widget.book.title}》当前以 $format 格式收录，共 $chapterCount 章。',
+            '“${widget.book.title}” is available as a $format edition with '
+                '$chapterCount chapters.',
+          )
+        : context.tr(
+            '《${widget.book.title}》由 $author 创作，当前以 $format 格式收录，共 $chapterCount 章。',
+            '“${widget.book.title}” by $author is available as a $format '
+                'edition with $chapterCount chapters.',
+          );
+  }
+
+  void _scrollToInitialChapter(
+    List<drift_db.Chapter> chapters,
+    BuildContext scrollContext,
+  ) {
     final targetId = widget.initialChapterId;
     if (targetId == null || _didScrollToInitialChapter) return;
     final index = chapters.indexWhere((chapter) => chapter.id == targetId);
     if (index < 0) return;
     _didScrollToInitialChapter = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scrollController.hasClients) return;
-      // 章节卡片按紧凑列表的平均高度定位初始章节。
-      final target = 300.0 + 8.0 + index * 120.0;
-      _scrollController.animateTo(
-        target.clamp(0.0, _scrollController.position.maxScrollExtent),
+      final controller = PrimaryScrollController.maybeOf(scrollContext);
+      if (controller == null || !controller.hasClients) return;
+      final target = 300.0 + index * 76.0;
+      controller.animateTo(
+        target.clamp(0.0, controller.position.maxScrollExtent),
         duration: const Duration(milliseconds: 260),
         curve: Curves.easeOut,
       );
@@ -651,16 +819,28 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   }
 }
 
+class _AlbumChapterData {
+  final List<drift_db.Chapter> chapters;
+  final Map<String, drift_db.ChapterPlaybackProgress> progressByChapterId;
+
+  const _AlbumChapterData({
+    this.chapters = const <drift_db.Chapter>[],
+    this.progressByChapterId =
+        const <String, drift_db.ChapterPlaybackProgress>{},
+  });
+}
+
 class _ChapterCard extends StatelessWidget {
-  final int index;
   final String title;
-  final String author;
-  final String? bookVoiceId;
-  final String? chapterVoiceId;
   final bool highlighted;
   final GenerationProgress? progress;
+  final int? savedPlaybackPositionMs;
+  final int? legacyParagraphIndex;
+  final int legacyParagraphOffsetMs;
+  final ManifestStore manifestStore;
   final String bookId;
   final String chapterId;
+  final bool showDivider;
   final VoidCallback onPlay;
   final VoidCallback onDownload;
   final VoidCallback onCancelDownload;
@@ -671,14 +851,15 @@ class _ChapterCard extends StatelessWidget {
   final VoidCallback onHideInBook;
 
   const _ChapterCard({
-    required this.index,
     required this.title,
-    required this.author,
-    required this.bookVoiceId,
-    required this.chapterVoiceId,
     required this.highlighted,
+    required this.savedPlaybackPositionMs,
+    required this.legacyParagraphIndex,
+    required this.legacyParagraphOffsetMs,
+    required this.manifestStore,
     required this.bookId,
     required this.chapterId,
+    required this.showDivider,
     required this.onPlay,
     required this.onDownload,
     required this.onCancelDownload,
@@ -703,99 +884,128 @@ class _ChapterCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(
-        color: highlighted
-            ? context.appSurface.withValues(alpha: 0.72)
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(20),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(20),
-          onTap: onPlay,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 8, 6),
-            child: FutureBuilder<ChapterManifest?>(
-              future: ManifestStore().load(bookId, chapterId),
-              builder: (context, snapshot) {
-                final manifest = snapshot.data;
-                final durationMs = manifest?.totalDurationMs ?? 0;
-                final metaStyle = TextStyle(
-                  color: context.appTextSecondary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  height: 1.2,
-                );
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '$index. $title',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: context.appTextPrimary,
-                              fontSize: 17,
-                              height: 1.25,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: -0.3,
-                            ),
+    final dividerColor = Theme.of(context).brightness == Brightness.light
+        ? const Color(0xFFE3E5E8)
+        : Colors.white.withValues(alpha: 0.12);
+    return Column(
+      children: [
+        Container(
+          key: ValueKey('book-chapter-$chapterId'),
+          decoration: BoxDecoration(
+            color: highlighted
+                ? context.appSurface.withValues(alpha: 0.72)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: onPlay,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 12,
+                ),
+                child: FutureBuilder<ChapterManifest?>(
+                  future: manifestStore.load(bookId, chapterId),
+                  builder: (context, snapshot) {
+                    final manifest = snapshot.data;
+                    final durationMs = manifest?.totalDurationMs ?? 0;
+                    final playbackPositionMs =
+                        resolveAudiobookChapterPositionMs(
+                          manifest: manifest,
+                          savedPositionMs: savedPlaybackPositionMs,
+                          legacyParagraphIndex: legacyParagraphIndex,
+                          legacyParagraphOffsetMs: legacyParagraphOffsetMs,
+                        );
+                    final playbackProgress =
+                        playbackPositionMs <= 0 || durationMs <= 0
+                        ? null
+                        : (playbackPositionMs / durationMs)
+                              .clamp(0.0, 1.0)
+                              .toDouble();
+                    final metaStyle = TextStyle(
+                      color: context.appTextSecondary,
+                      fontSize: 12,
+                      height: 1.3,
+                    );
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: context.appTextPrimary,
+                                  fontSize: 17,
+                                  height: 1.25,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: -0.3,
+                                ),
+                              ),
+                              if (durationMs > 0) ...[
+                                const SizedBox(height: 5),
+                                Text(
+                                  _formatDuration(durationMs),
+                                  style: metaStyle,
+                                ),
+                              ],
+                              if (playbackProgress != null) ...[
+                                const SizedBox(height: 9),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(2),
+                                  child: LinearProgressIndicator(
+                                    key: ValueKey(
+                                      'book-chapter-playback-progress-$chapterId',
+                                    ),
+                                    value: playbackProgress,
+                                    minHeight: 3,
+                                    backgroundColor:
+                                        context.appSurfaceHighlight,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
-                          const SizedBox(height: 4),
-                          // 作者、朗读者与时长各占一行，避免在窄屏上相互挤压。
-                          Text(
-                            author,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: metaStyle,
-                          ),
-                          const SizedBox(height: 2),
-                          NarratorLabel(
-                            voiceId:
-                                manifest?.voiceId ??
-                                chapterVoiceId ??
-                                bookVoiceId,
-                            compact: true,
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            durationMs > 0
-                                ? 'Audio • ${_formatDuration(durationMs)}'
-                                : 'Audio',
-                            style: metaStyle,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    // 章节缓存统一收纳到更多操作；点击卡片直接进入阅读。
-                    _ChapterActions(
-                      chapterTitle: title,
-                      manifest: manifest,
-                      progress: progress,
-                      onDownload: onDownload,
-                      onCancelDownload: onCancelDownload,
-                      paused: paused,
-                      onClearCache: onClearCache,
-                      onRegenerate: onRegenerate,
-                      onChangeNarrator: onChangeNarrator,
-                      onHideInBook: onHideInBook,
-                    ),
-                  ],
-                );
-              },
+                        ),
+                        const SizedBox(width: 6),
+                        _ChapterActions(
+                          chapterTitle: title,
+                          manifest: manifest,
+                          progress: progress,
+                          onDownload: onDownload,
+                          onCancelDownload: onCancelDownload,
+                          paused: paused,
+                          onClearCache: onClearCache,
+                          onRegenerate: onRegenerate,
+                          onChangeNarrator: onChangeNarrator,
+                          onHideInBook: onHideInBook,
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
             ),
           ),
         ),
-      ),
+        if (showDivider)
+          Divider(
+            key: ValueKey('book-chapter-divider-$chapterId'),
+            height: 1,
+            thickness: 0.75,
+            indent: 8,
+            endIndent: 8,
+            color: dividerColor,
+          ),
+      ],
     );
   }
 }

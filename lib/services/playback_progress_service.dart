@@ -41,7 +41,7 @@ class PlaybackProgressService {
     _paragraphSub = audioHandler.currentParagraphIdStream.listen(
       (_) => _queueCurrent(force: true),
     );
-    _playerStateSub = audioHandler.player.playerStateStream.listen((state) {
+    _playerStateSub = audioHandler.playbackState.listen((state) {
       final now = DateTime.now();
       if (_wasPlaying) _captureListeningTime(now);
       if (state.playing && !_wasPlaying) {
@@ -160,6 +160,7 @@ class PlaybackProgressService {
       chapterId: chapterId,
       paragraphIndex: paragraphIndex,
       offsetMs: audioHandler.position.inMilliseconds,
+      chapterPositionMs: audioHandler.chapterPosition.inMilliseconds,
     );
     if (snapshot == _lastQueued) return;
 
@@ -172,6 +173,7 @@ class PlaybackProgressService {
           chapterId: snapshot.chapterId,
           paragraphIndex: snapshot.paragraphIndex,
           offsetMs: snapshot.offsetMs,
+          chapterPositionMs: snapshot.chapterPositionMs,
         );
       } catch (error, stackTrace) {
         AppLogger.warning(
@@ -224,12 +226,14 @@ class _ProgressSnapshot {
   final String chapterId;
   final int paragraphIndex;
   final int offsetMs;
+  final int chapterPositionMs;
 
   const _ProgressSnapshot({
     required this.bookId,
     required this.chapterId,
     required this.paragraphIndex,
     required this.offsetMs,
+    required this.chapterPositionMs,
   });
 
   @override
@@ -238,8 +242,15 @@ class _ProgressSnapshot {
       other.bookId == bookId &&
       other.chapterId == chapterId &&
       other.paragraphIndex == paragraphIndex &&
-      other.offsetMs == offsetMs;
+      other.offsetMs == offsetMs &&
+      other.chapterPositionMs == chapterPositionMs;
 
   @override
-  int get hashCode => Object.hash(bookId, chapterId, paragraphIndex, offsetMs);
+  int get hashCode => Object.hash(
+    bookId,
+    chapterId,
+    paragraphIndex,
+    offsetMs,
+    chapterPositionMs,
+  );
 }

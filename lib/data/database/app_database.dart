@@ -66,6 +66,23 @@ class Chapters extends Table {
   ];
 }
 
+/// 每章独立的播放位置。
+///
+/// Books 中的进度仍表示“整本书最后播放到哪里”，这里则保留每个播放过
+/// 的章节，供章节列表展示进度并在重新进入该章时续播。
+@DataClassName('ChapterPlaybackProgress')
+class ChapterPlaybackProgresses extends Table {
+  TextColumn get chapterId => text()();
+  TextColumn get bookId => text()();
+  IntColumn get positionMs => integer().withDefault(const Constant(0))();
+  IntColumn get paragraphIndex => integer().withDefault(const Constant(0))();
+  IntColumn get paragraphOffsetMs => integer().withDefault(const Constant(0))();
+  IntColumn get updatedAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {chapterId};
+}
+
 /// 段落表。段落可能很多，用 chapterId + index 建索引。
 class Paragraphs extends Table {
   TextColumn get id => text()();
@@ -267,6 +284,7 @@ class PodcastEpisodes extends Table {
   tables: [
     Books,
     Chapters,
+    ChapterPlaybackProgresses,
     Paragraphs,
     Bookmarks,
     Voices,
@@ -287,7 +305,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e) : _repairPathsOnOpen = false;
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 11;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -353,6 +371,9 @@ class AppDatabase extends _$AppDatabase {
         await m.createTable(podcastShows);
         await m.createTable(podcastEpisodes);
       }
+      if (from < 11) {
+        await m.createTable(chapterPlaybackProgresses);
+      }
     },
     beforeOpen: (_) async {
       if (_repairPathsOnOpen) {
@@ -385,6 +406,15 @@ class AppDatabase extends _$AppDatabase {
   Future<void> updateBookCoverPath(String bookId, String coverPath) async {
     await (update(books)..where((b) => b.id.equals(bookId))).write(
       BooksCompanion(coverPath: Value(coverPath)),
+    );
+  }
+
+  Future<void> updateBookExternalMetadata(
+    String bookId,
+    String metadataJson,
+  ) async {
+    await (update(books)..where((b) => b.id.equals(bookId))).write(
+      BooksCompanion(externalMetadataJson: Value(metadataJson)),
     );
   }
 
@@ -475,6 +505,9 @@ class AppDatabase extends _$AppDatabase {
   Future<void> deleteBookCascade(String id) async {
     await transaction(() async {
       await (delete(bookmarks)..where((b) => b.bookId.equals(id))).go();
+      await (delete(
+        chapterPlaybackProgresses,
+      )..where((p) => p.bookId.equals(id))).go();
       await (delete(paragraphs)..where((p) => p.bookId.equals(id))).go();
       await (delete(chapters)..where((c) => c.bookId.equals(id))).go();
       await (delete(books)..where((b) => b.id.equals(id))).go();
@@ -486,21 +519,37 @@ class AppDatabase extends _$AppDatabase {
     String? chapterId,
     int? paragraphIndex,
     int? offsetMs,
+    int? chapterPositionMs,
   }) async {
-    await (update(books)..where((b) => b.id.equals(bookId))).write(
-      BooksCompanion(
-        currentChapterId: chapterId == null
-            ? const Value.absent()
-            : Value(chapterId),
-        currentParagraphIndex: paragraphIndex == null
-            ? const Value.absent()
-            : Value(paragraphIndex),
-        playbackOffsetMs: offsetMs == null
-            ? const Value.absent()
-            : Value(offsetMs),
-        lastReadAt: Value(DateTime.now().millisecondsSinceEpoch),
-      ),
-    );
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await transaction(() async {
+      await (update(books)..where((b) => b.id.equals(bookId))).write(
+        BooksCompanion(
+          currentChapterId: chapterId == null
+              ? const Value.absent()
+              : Value(chapterId),
+          currentParagraphIndex: paragraphIndex == null
+              ? const Value.absent()
+              : Value(paragraphIndex),
+          playbackOffsetMs: offsetMs == null
+              ? const Value.absent()
+              : Value(offsetMs),
+          lastReadAt: Value(now),
+        ),
+      );
+      if (chapterId != null && chapterPositionMs != null) {
+        await into(chapterPlaybackProgresses).insertOnConflictUpdate(
+          ChapterPlaybackProgress(
+            chapterId: chapterId,
+            bookId: bookId,
+            positionMs: chapterPositionMs,
+            paragraphIndex: paragraphIndex ?? 0,
+            paragraphOffsetMs: offsetMs ?? 0,
+            updatedAt: now,
+          ),
+        );
+      }
+    });
   }
 
   // ── 章节 ──
@@ -530,6 +579,18 @@ class AppDatabase extends _$AppDatabase {
   Future<Chapter?> getChapter(String id) =>
       (select(chapters)..where((c) => c.id.equals(id))).getSingleOrNull();
 
+  Future<ChapterPlaybackProgress?> getChapterPlaybackProgress(
+    String chapterId,
+  ) => (select(
+    chapterPlaybackProgresses,
+  )..where((p) => p.chapterId.equals(chapterId))).getSingleOrNull();
+
+  Future<List<ChapterPlaybackProgress>> getChapterPlaybackProgresses(
+    String bookId,
+  ) => (select(
+    chapterPlaybackProgresses,
+  )..where((p) => p.bookId.equals(bookId))).get();
+
   Future<void> insertChapters(List<Chapter> entries) async {
     await batch((b) => b.insertAll(chapters, entries));
   }
@@ -553,6 +614,9 @@ class AppDatabase extends _$AppDatabase {
   }) async {
     await transaction(() async {
       await (delete(bookmarks)..where((b) => b.bookId.equals(book.id))).go();
+      await (delete(
+        chapterPlaybackProgresses,
+      )..where((p) => p.bookId.equals(book.id))).go();
       await (delete(paragraphs)..where((p) => p.bookId.equals(book.id))).go();
       await (delete(chapters)..where((c) => c.bookId.equals(book.id))).go();
       await into(books).insertOnConflictUpdate(book);

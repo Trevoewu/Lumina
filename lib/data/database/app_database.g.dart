@@ -1791,6 +1791,438 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
   }
 }
 
+class $ChapterPlaybackProgressesTable extends ChapterPlaybackProgresses
+    with TableInfo<$ChapterPlaybackProgressesTable, ChapterPlaybackProgress> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ChapterPlaybackProgressesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _chapterIdMeta = const VerificationMeta(
+    'chapterId',
+  );
+  @override
+  late final GeneratedColumn<String> chapterId = GeneratedColumn<String>(
+    'chapter_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _bookIdMeta = const VerificationMeta('bookId');
+  @override
+  late final GeneratedColumn<String> bookId = GeneratedColumn<String>(
+    'book_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _positionMsMeta = const VerificationMeta(
+    'positionMs',
+  );
+  @override
+  late final GeneratedColumn<int> positionMs = GeneratedColumn<int>(
+    'position_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _paragraphIndexMeta = const VerificationMeta(
+    'paragraphIndex',
+  );
+  @override
+  late final GeneratedColumn<int> paragraphIndex = GeneratedColumn<int>(
+    'paragraph_index',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _paragraphOffsetMsMeta = const VerificationMeta(
+    'paragraphOffsetMs',
+  );
+  @override
+  late final GeneratedColumn<int> paragraphOffsetMs = GeneratedColumn<int>(
+    'paragraph_offset_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    chapterId,
+    bookId,
+    positionMs,
+    paragraphIndex,
+    paragraphOffsetMs,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'chapter_playback_progresses';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ChapterPlaybackProgress> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('chapter_id')) {
+      context.handle(
+        _chapterIdMeta,
+        chapterId.isAcceptableOrUnknown(data['chapter_id']!, _chapterIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_chapterIdMeta);
+    }
+    if (data.containsKey('book_id')) {
+      context.handle(
+        _bookIdMeta,
+        bookId.isAcceptableOrUnknown(data['book_id']!, _bookIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bookIdMeta);
+    }
+    if (data.containsKey('position_ms')) {
+      context.handle(
+        _positionMsMeta,
+        positionMs.isAcceptableOrUnknown(data['position_ms']!, _positionMsMeta),
+      );
+    }
+    if (data.containsKey('paragraph_index')) {
+      context.handle(
+        _paragraphIndexMeta,
+        paragraphIndex.isAcceptableOrUnknown(
+          data['paragraph_index']!,
+          _paragraphIndexMeta,
+        ),
+      );
+    }
+    if (data.containsKey('paragraph_offset_ms')) {
+      context.handle(
+        _paragraphOffsetMsMeta,
+        paragraphOffsetMs.isAcceptableOrUnknown(
+          data['paragraph_offset_ms']!,
+          _paragraphOffsetMsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {chapterId};
+  @override
+  ChapterPlaybackProgress map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ChapterPlaybackProgress(
+      chapterId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}chapter_id'],
+      )!,
+      bookId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}book_id'],
+      )!,
+      positionMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}position_ms'],
+      )!,
+      paragraphIndex: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}paragraph_index'],
+      )!,
+      paragraphOffsetMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}paragraph_offset_ms'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ChapterPlaybackProgressesTable createAlias(String alias) {
+    return $ChapterPlaybackProgressesTable(attachedDatabase, alias);
+  }
+}
+
+class ChapterPlaybackProgress extends DataClass
+    implements Insertable<ChapterPlaybackProgress> {
+  final String chapterId;
+  final String bookId;
+  final int positionMs;
+  final int paragraphIndex;
+  final int paragraphOffsetMs;
+  final int updatedAt;
+  const ChapterPlaybackProgress({
+    required this.chapterId,
+    required this.bookId,
+    required this.positionMs,
+    required this.paragraphIndex,
+    required this.paragraphOffsetMs,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['chapter_id'] = Variable<String>(chapterId);
+    map['book_id'] = Variable<String>(bookId);
+    map['position_ms'] = Variable<int>(positionMs);
+    map['paragraph_index'] = Variable<int>(paragraphIndex);
+    map['paragraph_offset_ms'] = Variable<int>(paragraphOffsetMs);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  ChapterPlaybackProgressesCompanion toCompanion(bool nullToAbsent) {
+    return ChapterPlaybackProgressesCompanion(
+      chapterId: Value(chapterId),
+      bookId: Value(bookId),
+      positionMs: Value(positionMs),
+      paragraphIndex: Value(paragraphIndex),
+      paragraphOffsetMs: Value(paragraphOffsetMs),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory ChapterPlaybackProgress.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ChapterPlaybackProgress(
+      chapterId: serializer.fromJson<String>(json['chapterId']),
+      bookId: serializer.fromJson<String>(json['bookId']),
+      positionMs: serializer.fromJson<int>(json['positionMs']),
+      paragraphIndex: serializer.fromJson<int>(json['paragraphIndex']),
+      paragraphOffsetMs: serializer.fromJson<int>(json['paragraphOffsetMs']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'chapterId': serializer.toJson<String>(chapterId),
+      'bookId': serializer.toJson<String>(bookId),
+      'positionMs': serializer.toJson<int>(positionMs),
+      'paragraphIndex': serializer.toJson<int>(paragraphIndex),
+      'paragraphOffsetMs': serializer.toJson<int>(paragraphOffsetMs),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  ChapterPlaybackProgress copyWith({
+    String? chapterId,
+    String? bookId,
+    int? positionMs,
+    int? paragraphIndex,
+    int? paragraphOffsetMs,
+    int? updatedAt,
+  }) => ChapterPlaybackProgress(
+    chapterId: chapterId ?? this.chapterId,
+    bookId: bookId ?? this.bookId,
+    positionMs: positionMs ?? this.positionMs,
+    paragraphIndex: paragraphIndex ?? this.paragraphIndex,
+    paragraphOffsetMs: paragraphOffsetMs ?? this.paragraphOffsetMs,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  ChapterPlaybackProgress copyWithCompanion(
+    ChapterPlaybackProgressesCompanion data,
+  ) {
+    return ChapterPlaybackProgress(
+      chapterId: data.chapterId.present ? data.chapterId.value : this.chapterId,
+      bookId: data.bookId.present ? data.bookId.value : this.bookId,
+      positionMs: data.positionMs.present
+          ? data.positionMs.value
+          : this.positionMs,
+      paragraphIndex: data.paragraphIndex.present
+          ? data.paragraphIndex.value
+          : this.paragraphIndex,
+      paragraphOffsetMs: data.paragraphOffsetMs.present
+          ? data.paragraphOffsetMs.value
+          : this.paragraphOffsetMs,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ChapterPlaybackProgress(')
+          ..write('chapterId: $chapterId, ')
+          ..write('bookId: $bookId, ')
+          ..write('positionMs: $positionMs, ')
+          ..write('paragraphIndex: $paragraphIndex, ')
+          ..write('paragraphOffsetMs: $paragraphOffsetMs, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    chapterId,
+    bookId,
+    positionMs,
+    paragraphIndex,
+    paragraphOffsetMs,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ChapterPlaybackProgress &&
+          other.chapterId == this.chapterId &&
+          other.bookId == this.bookId &&
+          other.positionMs == this.positionMs &&
+          other.paragraphIndex == this.paragraphIndex &&
+          other.paragraphOffsetMs == this.paragraphOffsetMs &&
+          other.updatedAt == this.updatedAt);
+}
+
+class ChapterPlaybackProgressesCompanion
+    extends UpdateCompanion<ChapterPlaybackProgress> {
+  final Value<String> chapterId;
+  final Value<String> bookId;
+  final Value<int> positionMs;
+  final Value<int> paragraphIndex;
+  final Value<int> paragraphOffsetMs;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const ChapterPlaybackProgressesCompanion({
+    this.chapterId = const Value.absent(),
+    this.bookId = const Value.absent(),
+    this.positionMs = const Value.absent(),
+    this.paragraphIndex = const Value.absent(),
+    this.paragraphOffsetMs = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ChapterPlaybackProgressesCompanion.insert({
+    required String chapterId,
+    required String bookId,
+    this.positionMs = const Value.absent(),
+    this.paragraphIndex = const Value.absent(),
+    this.paragraphOffsetMs = const Value.absent(),
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  }) : chapterId = Value(chapterId),
+       bookId = Value(bookId),
+       updatedAt = Value(updatedAt);
+  static Insertable<ChapterPlaybackProgress> custom({
+    Expression<String>? chapterId,
+    Expression<String>? bookId,
+    Expression<int>? positionMs,
+    Expression<int>? paragraphIndex,
+    Expression<int>? paragraphOffsetMs,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (chapterId != null) 'chapter_id': chapterId,
+      if (bookId != null) 'book_id': bookId,
+      if (positionMs != null) 'position_ms': positionMs,
+      if (paragraphIndex != null) 'paragraph_index': paragraphIndex,
+      if (paragraphOffsetMs != null) 'paragraph_offset_ms': paragraphOffsetMs,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ChapterPlaybackProgressesCompanion copyWith({
+    Value<String>? chapterId,
+    Value<String>? bookId,
+    Value<int>? positionMs,
+    Value<int>? paragraphIndex,
+    Value<int>? paragraphOffsetMs,
+    Value<int>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return ChapterPlaybackProgressesCompanion(
+      chapterId: chapterId ?? this.chapterId,
+      bookId: bookId ?? this.bookId,
+      positionMs: positionMs ?? this.positionMs,
+      paragraphIndex: paragraphIndex ?? this.paragraphIndex,
+      paragraphOffsetMs: paragraphOffsetMs ?? this.paragraphOffsetMs,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (chapterId.present) {
+      map['chapter_id'] = Variable<String>(chapterId.value);
+    }
+    if (bookId.present) {
+      map['book_id'] = Variable<String>(bookId.value);
+    }
+    if (positionMs.present) {
+      map['position_ms'] = Variable<int>(positionMs.value);
+    }
+    if (paragraphIndex.present) {
+      map['paragraph_index'] = Variable<int>(paragraphIndex.value);
+    }
+    if (paragraphOffsetMs.present) {
+      map['paragraph_offset_ms'] = Variable<int>(paragraphOffsetMs.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ChapterPlaybackProgressesCompanion(')
+          ..write('chapterId: $chapterId, ')
+          ..write('bookId: $bookId, ')
+          ..write('positionMs: $positionMs, ')
+          ..write('paragraphIndex: $paragraphIndex, ')
+          ..write('paragraphOffsetMs: $paragraphOffsetMs, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $ParagraphsTable extends Paragraphs
     with TableInfo<$ParagraphsTable, Paragraph> {
   @override
@@ -7994,6 +8426,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $BooksTable books = $BooksTable(this);
   late final $ChaptersTable chapters = $ChaptersTable(this);
+  late final $ChapterPlaybackProgressesTable chapterPlaybackProgresses =
+      $ChapterPlaybackProgressesTable(this);
   late final $ParagraphsTable paragraphs = $ParagraphsTable(this);
   late final $BookmarksTable bookmarks = $BookmarksTable(this);
   late final $VoicesTable voices = $VoicesTable(this);
@@ -8014,6 +8448,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     books,
     chapters,
+    chapterPlaybackProgresses,
     paragraphs,
     bookmarks,
     voices,
@@ -8826,6 +9261,250 @@ typedef $$ChaptersTableProcessedTableManager =
       $$ChaptersTableUpdateCompanionBuilder,
       (Chapter, BaseReferences<_$AppDatabase, $ChaptersTable, Chapter>),
       Chapter,
+      PrefetchHooks Function()
+    >;
+typedef $$ChapterPlaybackProgressesTableCreateCompanionBuilder =
+    ChapterPlaybackProgressesCompanion Function({
+      required String chapterId,
+      required String bookId,
+      Value<int> positionMs,
+      Value<int> paragraphIndex,
+      Value<int> paragraphOffsetMs,
+      required int updatedAt,
+      Value<int> rowid,
+    });
+typedef $$ChapterPlaybackProgressesTableUpdateCompanionBuilder =
+    ChapterPlaybackProgressesCompanion Function({
+      Value<String> chapterId,
+      Value<String> bookId,
+      Value<int> positionMs,
+      Value<int> paragraphIndex,
+      Value<int> paragraphOffsetMs,
+      Value<int> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$ChapterPlaybackProgressesTableFilterComposer
+    extends Composer<_$AppDatabase, $ChapterPlaybackProgressesTable> {
+  $$ChapterPlaybackProgressesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get chapterId => $composableBuilder(
+    column: $table.chapterId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get bookId => $composableBuilder(
+    column: $table.bookId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get positionMs => $composableBuilder(
+    column: $table.positionMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get paragraphIndex => $composableBuilder(
+    column: $table.paragraphIndex,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get paragraphOffsetMs => $composableBuilder(
+    column: $table.paragraphOffsetMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ChapterPlaybackProgressesTableOrderingComposer
+    extends Composer<_$AppDatabase, $ChapterPlaybackProgressesTable> {
+  $$ChapterPlaybackProgressesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get chapterId => $composableBuilder(
+    column: $table.chapterId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get bookId => $composableBuilder(
+    column: $table.bookId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get positionMs => $composableBuilder(
+    column: $table.positionMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get paragraphIndex => $composableBuilder(
+    column: $table.paragraphIndex,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get paragraphOffsetMs => $composableBuilder(
+    column: $table.paragraphOffsetMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ChapterPlaybackProgressesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ChapterPlaybackProgressesTable> {
+  $$ChapterPlaybackProgressesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get chapterId =>
+      $composableBuilder(column: $table.chapterId, builder: (column) => column);
+
+  GeneratedColumn<String> get bookId =>
+      $composableBuilder(column: $table.bookId, builder: (column) => column);
+
+  GeneratedColumn<int> get positionMs => $composableBuilder(
+    column: $table.positionMs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get paragraphIndex => $composableBuilder(
+    column: $table.paragraphIndex,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get paragraphOffsetMs => $composableBuilder(
+    column: $table.paragraphOffsetMs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$ChapterPlaybackProgressesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ChapterPlaybackProgressesTable,
+          ChapterPlaybackProgress,
+          $$ChapterPlaybackProgressesTableFilterComposer,
+          $$ChapterPlaybackProgressesTableOrderingComposer,
+          $$ChapterPlaybackProgressesTableAnnotationComposer,
+          $$ChapterPlaybackProgressesTableCreateCompanionBuilder,
+          $$ChapterPlaybackProgressesTableUpdateCompanionBuilder,
+          (
+            ChapterPlaybackProgress,
+            BaseReferences<
+              _$AppDatabase,
+              $ChapterPlaybackProgressesTable,
+              ChapterPlaybackProgress
+            >,
+          ),
+          ChapterPlaybackProgress,
+          PrefetchHooks Function()
+        > {
+  $$ChapterPlaybackProgressesTableTableManager(
+    _$AppDatabase db,
+    $ChapterPlaybackProgressesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ChapterPlaybackProgressesTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$ChapterPlaybackProgressesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$ChapterPlaybackProgressesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> chapterId = const Value.absent(),
+                Value<String> bookId = const Value.absent(),
+                Value<int> positionMs = const Value.absent(),
+                Value<int> paragraphIndex = const Value.absent(),
+                Value<int> paragraphOffsetMs = const Value.absent(),
+                Value<int> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ChapterPlaybackProgressesCompanion(
+                chapterId: chapterId,
+                bookId: bookId,
+                positionMs: positionMs,
+                paragraphIndex: paragraphIndex,
+                paragraphOffsetMs: paragraphOffsetMs,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String chapterId,
+                required String bookId,
+                Value<int> positionMs = const Value.absent(),
+                Value<int> paragraphIndex = const Value.absent(),
+                Value<int> paragraphOffsetMs = const Value.absent(),
+                required int updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => ChapterPlaybackProgressesCompanion.insert(
+                chapterId: chapterId,
+                bookId: bookId,
+                positionMs: positionMs,
+                paragraphIndex: paragraphIndex,
+                paragraphOffsetMs: paragraphOffsetMs,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ChapterPlaybackProgressesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ChapterPlaybackProgressesTable,
+      ChapterPlaybackProgress,
+      $$ChapterPlaybackProgressesTableFilterComposer,
+      $$ChapterPlaybackProgressesTableOrderingComposer,
+      $$ChapterPlaybackProgressesTableAnnotationComposer,
+      $$ChapterPlaybackProgressesTableCreateCompanionBuilder,
+      $$ChapterPlaybackProgressesTableUpdateCompanionBuilder,
+      (
+        ChapterPlaybackProgress,
+        BaseReferences<
+          _$AppDatabase,
+          $ChapterPlaybackProgressesTable,
+          ChapterPlaybackProgress
+        >,
+      ),
+      ChapterPlaybackProgress,
       PrefetchHooks Function()
     >;
 typedef $$ParagraphsTableCreateCompanionBuilder =
@@ -11823,6 +12502,11 @@ class $AppDatabaseManager {
       $$BooksTableTableManager(_db, _db.books);
   $$ChaptersTableTableManager get chapters =>
       $$ChaptersTableTableManager(_db, _db.chapters);
+  $$ChapterPlaybackProgressesTableTableManager get chapterPlaybackProgresses =>
+      $$ChapterPlaybackProgressesTableTableManager(
+        _db,
+        _db.chapterPlaybackProgresses,
+      );
   $$ParagraphsTableTableManager get paragraphs =>
       $$ParagraphsTableTableManager(_db, _db.paragraphs);
   $$BookmarksTableTableManager get bookmarks =>

@@ -61,7 +61,7 @@ void main() {
     expect(repaired?.coverPath, cover.path);
   });
 
-  test('schema 1 books migrate to schema 10 without data loss', () async {
+  test('schema 1 books migrate to schema 11 without data loss', () async {
     final tempDir = Directory.systemTemp.createTempSync('lumina_migration_');
     final databaseFile = File('${tempDir.path}/lumina.db');
 
@@ -105,7 +105,7 @@ void main() {
         .customSelect('PRAGMA user_version;')
         .getSingle();
 
-    expect(version.read<int>('user_version'), 10);
+    expect(version.read<int>('user_version'), 11);
     expect(await database.getPodcastShows(), isEmpty);
     expect(books, hasLength(1));
     expect(books.single.title, 'Migration Test');
@@ -119,11 +119,18 @@ void main() {
       chapterId: 'chapter-3',
       paragraphIndex: 17,
       offsetMs: 2450,
+      chapterPositionMs: 62450,
     );
     final updated = await database.getBook('book-1');
     expect(updated?.currentChapterId, 'chapter-3');
     expect(updated?.currentParagraphIndex, 17);
     expect(updated?.playbackOffsetMs, 2450);
+    final chapterThreeProgress = await database.getChapterPlaybackProgress(
+      'chapter-3',
+    );
+    expect(chapterThreeProgress?.positionMs, 62450);
+    expect(chapterThreeProgress?.paragraphIndex, 17);
+    expect(chapterThreeProgress?.paragraphOffsetMs, 2450);
 
     await database.insertChapters([
       const Chapter(
@@ -137,6 +144,20 @@ void main() {
     ]);
     await database.updateChapterNarrator('chapter-1', 'narrator-1');
     await database.updateChapterHidden('chapter-1', true);
+    await database.updateReadingProgress(
+      'book-1',
+      chapterId: 'chapter-1',
+      paragraphIndex: 2,
+      offsetMs: 800,
+      chapterPositionMs: 12800,
+    );
+    final allChapterProgress = await database.getChapterPlaybackProgresses(
+      'book-1',
+    );
+    expect(
+      allChapterProgress.map((progress) => progress.chapterId),
+      containsAll(<String>['chapter-3', 'chapter-1']),
+    );
     expect(await database.getChapters('book-1'), isEmpty);
     final hiddenChapters = await database.getChapters(
       'book-1',

@@ -6,7 +6,8 @@ import '../../../core/app_design_tokens.dart';
 import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart';
-import '../../widgets/book_cover.dart';
+import '../../widgets/book_card_metadata.dart';
+import '../../widgets/book_list_card.dart';
 import '../album/album_screen.dart';
 import '../podcast/podcast_episode_screen.dart';
 import '../podcast/podcast_episode_tile.dart';
@@ -157,49 +158,29 @@ class _HomeOverviewContent extends StatelessWidget {
               fontWeight: FontWeight.w800,
             ),
           ),
-          const SizedBox(height: 10),
-          SizedBox(
-            height: 164,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: recentBooks.length,
-              separatorBuilder: (_, _) => SizedBox(width: design.spaceMd),
-              itemBuilder: (context, index) {
-                final book = recentBooks[index];
-                return SizedBox(
-                  width: 112,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(10),
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => AlbumScreen(book: book),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SizedBox(
-                          width: 112,
-                          height: 126,
-                          child: BookCover(
-                            coverPath: book.coverPath,
-                            borderRadius: 9,
-                          ),
-                        ),
-                        const SizedBox(height: 7),
-                        Text(
-                          book.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                      ],
-                    ),
+          const SizedBox(height: 8),
+          for (final book in recentBooks)
+            BookListCard(
+              title: book.title,
+              subtitle: book.author ?? context.tr('未知作者', 'Unknown author'),
+              localCoverPath: book.coverPath,
+              metadata: [
+                BookListCardMeta(
+                  icon: Icons.trending_up_outlined,
+                  label: bookReadingProgressLabel(context, book),
+                ),
+                BookListCardMeta(
+                  icon: Icons.library_books_outlined,
+                  label: context.tr(
+                    '${book.chapterCount} 章',
+                    '${book.chapterCount} chapters',
                   ),
-                );
-              },
+                ),
+              ],
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => AlbumScreen(book: book)),
+              ),
             ),
-          ),
         ],
         if (data.episodes.isNotEmpty) ...[
           SizedBox(height: recentBooks.isEmpty ? 0 : design.spaceXl),

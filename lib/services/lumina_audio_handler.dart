@@ -159,6 +159,7 @@ class LuminaAudioHandler extends BaseAudioHandler
     String? bookTitle,
     String? chapterTitle,
     String paragraphLabel = 'Paragraph',
+    Duration initialPosition = Duration.zero,
   }) async {
     await loadChapters(
       chapters: [
@@ -171,6 +172,7 @@ class LuminaAudioHandler extends BaseAudioHandler
       audioRoot: audioRoot,
       bookTitle: bookTitle,
       paragraphLabel: paragraphLabel,
+      initialPosition: initialPosition,
     );
   }
 
@@ -180,6 +182,7 @@ class LuminaAudioHandler extends BaseAudioHandler
     required String audioRoot,
     String? bookTitle,
     String paragraphLabel = 'Paragraph',
+    Duration initialPosition = Duration.zero,
   }) async {
     if (chapters.isEmpty) {
       throw StateError('没有可播放的章节。');
@@ -268,9 +271,15 @@ class LuminaAudioHandler extends BaseAudioHandler
       throw StateError('音频缓存无法播放，请清除后重新生成。$error');
     }
 
-    _applyCurrentEntry(initialIndex);
-    mediaItem.add(items[initialIndex]);
-    _currentParagraphController.add(items[initialIndex].id);
+    var loadedIndex = initialIndex;
+    _applyCurrentEntry(loadedIndex);
+    if (initialPosition > Duration.zero) {
+      await seekToChapterOffset(initialPosition);
+      loadedIndex = _player.currentIndex ?? loadedIndex;
+      _applyCurrentEntry(loadedIndex);
+    }
+    mediaItem.add(items[loadedIndex]);
+    _currentParagraphController.add(items[loadedIndex].id);
     _broadcastState(_player.playbackEvent);
     AppLogger.info(
       'Playback',

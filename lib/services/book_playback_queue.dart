@@ -11,6 +11,7 @@ Future<void> loadBookPlaybackQueue({
   required String bookTitle,
   required ChapterManifest initialManifest,
   String paragraphLabel = 'Paragraph',
+  Duration initialPosition = Duration.zero,
 }) async {
   final chapters = await database.getChapters(bookId);
   final sources = <ChapterPlaybackSource>[];
@@ -44,5 +45,6 @@ Future<void> loadBookPlaybackQueue({
     audioRoot: audioRoot.path,
     bookTitle: bookTitle,
     paragraphLabel: paragraphLabel,
+    initialPosition: initialPosition,
   );
 }

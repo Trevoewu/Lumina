@@ -100,12 +100,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   _HomeSection _section = _HomeSection.all;
   final Set<String> _coverBackfillStarted = {};
   final Map<String, _BookCacheProgress> _bookCacheProgress = {};
+  final PageController _sectionPageController = PageController();
   final ScrollController _overviewScrollController = ScrollController();
   final ScrollController _booksScrollController = ScrollController();
   final ScrollController _podcastsScrollController = ScrollController();
 
   @override
   void dispose() {
+    _sectionPageController.dispose();
     _overviewScrollController.dispose();
     _booksScrollController.dispose();
     _podcastsScrollController.dispose();
@@ -133,11 +135,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   Expanded(
                     child: _HomeSectionSelector(
                       selected: _section,
-                      onSelected: (section) {
-                        if (section != _section) {
-                          setState(() => _section = section);
-                        }
-                      },
+                      onSelected: _selectSection,
                     ),
                   ),
                   IconButton(
@@ -174,21 +172,32 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               ),
             ),
             Expanded(
-              child: IndexedStack(
-                index: _section.index,
+              child: PageView(
+                key: const ValueKey('home-section-pages'),
+                controller: _sectionPageController,
+                onPageChanged: (index) {
+                  final section = _HomeSection.values[index];
+                  if (section != _section) {
+                    setState(() => _section = section);
+                  }
+                },
                 children: [
-                  HomeOverviewView(
-                    reloadToken: _reloadToken,
-                    scrollController: _overviewScrollController,
-                    onImportBook: () => _importBook(context),
-                    onAddPodcast: _showAddPodcastDialog,
-                    onSearchPodcastIndex: _showPodcastIndexSearch,
+                  _KeepAliveHomeSection(
+                    child: HomeOverviewView(
+                      reloadToken: _reloadToken,
+                      scrollController: _overviewScrollController,
+                      onImportBook: () => _importBook(context),
+                      onAddPodcast: _showAddPodcastDialog,
+                      onSearchPodcastIndex: _showPodcastIndexSearch,
+                    ),
                   ),
-                  _buildBooks(db, inset, design),
-                  PodcastLibraryView(
-                    scrollController: _podcastsScrollController,
-                    onAddPodcast: _showAddPodcastDialog,
-                    onSearchPodcastIndex: _showPodcastIndexSearch,
+                  _KeepAliveHomeSection(child: _buildBooks(db, inset, design)),
+                  _KeepAliveHomeSection(
+                    child: PodcastLibraryView(
+                      scrollController: _podcastsScrollController,
+                      onAddPodcast: _showAddPodcastDialog,
+                      onSearchPodcastIndex: _showPodcastIndexSearch,
+                    ),
                   ),
                 ],
               ),
@@ -196,6 +205,27 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  void _selectSection(_HomeSection section) {
+    if (section == _section) return;
+    setState(() => _section = section);
+    _animateToSection(section);
+  }
+
+  void _animateToSection(_HomeSection section) {
+    if (!_sectionPageController.hasClients) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_sectionPageController.hasClients) return;
+        _sectionPageController.jumpToPage(section.index);
+      });
+      return;
+    }
+    _sectionPageController.animateToPage(
+      section.index,
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
     );
   }
 
@@ -244,7 +274,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           primary: false,
           padding: EdgeInsets.fromLTRB(inset, design.spaceLg, inset, 120),
           itemCount: books.length,
-          separatorBuilder: (_, _) => SizedBox(height: design.spaceMd),
+          separatorBuilder: (_, _) => const SizedBox.shrink(),
           itemBuilder: (context, i) {
             final book = books[i];
             return _BookCard(
@@ -363,10 +393,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           .read(podcastRepositoryProvider)
           .subscribe(feedUrl);
       if (!mounted) return;
-      setState(() {
-        _section = _HomeSection.podcasts;
-        _reloadToken++;
-      });
+      setState(() => _reloadToken++);
+      _selectSection(_HomeSection.podcasts);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -1327,6 +1355,27 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       final cover = File(coverPath);
       if (await cover.exists()) await cover.delete();
     }
+  }
+}
+
+class _KeepAliveHomeSection extends StatefulWidget {
+  final Widget child;
+
+  const _KeepAliveHomeSection({required this.child});
+
+  @override
+  State<_KeepAliveHomeSection> createState() => _KeepAliveHomeSectionState();
+}
+
+class _KeepAliveHomeSectionState extends State<_KeepAliveHomeSection>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
   }
 }
 
