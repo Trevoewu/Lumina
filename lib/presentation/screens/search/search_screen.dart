@@ -112,13 +112,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final db = ref.read(appDatabaseProvider);
     final books = await db.getAllBooks();
     final chapters = await db.getAllChapters();
+    final finishedChapterIndexesByBook = await db
+        .getFinishedChapterIndexesByBook();
     final bookById = {for (final book in books) book.id: book};
     final chapterById = {for (final chapter in chapters) chapter.id: chapter};
 
     if (query.isEmpty) {
       final recent = [...books]
         ..sort((a, b) => b.lastReadAt.compareTo(a.lastReadAt));
-      return _SearchData(recentBooks: recent.take(8).toList());
+      return _SearchData(
+        recentBooks: recent.take(8).toList(),
+        finishedChapterIndexesByBook: finishedChapterIndexesByBook,
+      );
     }
 
     final lower = query.toLowerCase();
@@ -149,6 +154,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       bookHits: bookHits,
       chapterHits: chapterHits,
       paragraphHits: paragraphHits,
+      finishedChapterIndexesByBook: finishedChapterIndexesByBook,
     );
   }
 
@@ -422,7 +428,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         children: [
           _section(context.tr('最近阅读', 'Recently Read')),
           for (final book in data.recentBooks)
-            _BookResultTile(book: book, onTap: () => _openBook(book)),
+            _BookResultTile(
+              book: book,
+              finishedChapterIndexes:
+                  data.finishedChapterIndexesByBook[book.id] ?? const <int>{},
+              onTap: () => _openBook(book),
+            ),
         ],
       );
     }
@@ -446,7 +457,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         if (data.bookHits.isNotEmpty) ...[
           _section(context.tr('书籍', 'Books')),
           for (final book in data.bookHits)
-            _BookResultTile(book: book, onTap: () => _openBook(book)),
+            _BookResultTile(
+              book: book,
+              finishedChapterIndexes:
+                  data.finishedChapterIndexesByBook[book.id] ?? const <int>{},
+              onTap: () => _openBook(book),
+            ),
         ],
         if (data.chapterHits.isNotEmpty) ...[
           _section(context.tr('章节', 'Chapters')),
@@ -487,10 +503,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  void _openBook(drift_db.Book book) {
-    Navigator.of(
+  Future<void> _openBook(drift_db.Book book) async {
+    await Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (_) => AlbumScreen(book: book)));
+    if (!mounted) return;
+    setState(() {
+      _localSearching = true;
+      _future = _startLocalSearch(_controller.text.trim());
+    });
   }
 
   void _openChapter(drift_db.Book book, drift_db.Chapter chapter) {
@@ -570,12 +591,14 @@ class _SearchData {
   final List<drift_db.Book> bookHits;
   final List<_ChapterHit> chapterHits;
   final List<_ParagraphHit> paragraphHits;
+  final Map<String, Set<int>> finishedChapterIndexesByBook;
 
   const _SearchData({
     this.recentBooks = const [],
     this.bookHits = const [],
     this.chapterHits = const [],
     this.paragraphHits = const [],
+    this.finishedChapterIndexesByBook = const <String, Set<int>>{},
   });
 }
 
@@ -646,9 +669,14 @@ class _ParagraphHit {
 
 class _BookResultTile extends StatelessWidget {
   final drift_db.Book book;
+  final Set<int> finishedChapterIndexes;
   final VoidCallback onTap;
 
-  const _BookResultTile({required this.book, required this.onTap});
+  const _BookResultTile({
+    required this.book,
+    required this.finishedChapterIndexes,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -663,7 +691,11 @@ class _BookResultTile extends StatelessWidget {
         ),
         BookListCardMeta(
           icon: Icons.trending_up_outlined,
-          label: bookReadingProgressLabel(context, book),
+          label: bookReadingProgressLabel(
+            context,
+            book,
+            finishedChapterIndexes: finishedChapterIndexes,
+          ),
         ),
         if (bookReadingLevelLabel(context, book) case final level?)
           BookListCardMeta(icon: Icons.school_outlined, label: level),

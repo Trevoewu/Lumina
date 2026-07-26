@@ -69,6 +69,50 @@ void main() {
     expect(lightCard.computeLuminance(), greaterThan(0.72));
   });
 
+  test('cover accent keeps hue and stays readable across themes', () {
+    for (final seed in <Color>[
+      Colors.yellow,
+      Colors.cyanAccent,
+      Colors.pinkAccent,
+      Colors.white,
+      const Color(0xFF222222),
+      const Color(0xFF777777),
+    ]) {
+      final lightAccent = CoverPaletteService.accentForSeed(
+        seed,
+        Brightness.light,
+      );
+      final darkAccent = CoverPaletteService.accentForSeed(
+        seed,
+        Brightness.dark,
+      );
+
+      expect(
+        HSLColor.fromColor(lightAccent).lightness,
+        inInclusiveRange(0.33, 0.49),
+      );
+      expect(
+        HSLColor.fromColor(darkAccent).lightness,
+        inInclusiveRange(0.55, 0.75),
+      );
+      expect(
+        CoverPaletteService.contrastRatio(
+          darkAccent,
+          AppColors.darkColorScheme.surface,
+        ),
+        greaterThanOrEqualTo(3.0),
+      );
+    }
+
+    const seed = Color(0xFF2C6FB2);
+    expect(
+      HSLColor.fromColor(
+        CoverPaletteService.accentForSeed(seed, Brightness.light),
+      ).hue,
+      closeTo(HSLColor.fromColor(seed).hue, 1),
+    );
+  });
+
   test('missing covers have no extracted seed', () async {
     expect(await CoverPaletteService.seedForPath(null), isNull);
     expect(

@@ -189,6 +189,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                       onImportBook: () => _importBook(context),
                       onAddPodcast: _showAddPodcastDialog,
                       onSearchPodcastIndex: _showPodcastIndexSearch,
+                      onBookLongPress: _showBookActions,
+                      onOpenBook: _openBook,
                     ),
                   ),
                   _KeepAliveHomeSection(child: _buildBooks(db, inset, design)),
@@ -259,11 +261,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     double inset,
     AppDesignTokens design,
   ) {
-    return FutureBuilder<List<drift_db.Book>>(
+    return FutureBuilder<_LibraryBooksData>(
       key: ValueKey(_reloadToken),
-      future: db.getAllBooks(),
+      future: _loadLibraryBooksData(db),
       builder: (context, snapshot) {
-        final books = snapshot.data ?? const <drift_db.Book>[];
+        final data = snapshot.data ?? const _LibraryBooksData();
+        final books = data.books;
 
         if (books.isEmpty) return _buildEmptyState();
         _backfillMissingCovers(books);
@@ -280,20 +283,75 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             return _BookCard(
               book: book,
               cacheProgress: _bookCacheProgress[book.id],
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => AlbumScreen(book: book)),
-                );
-              },
-              onEdit: () => _showEditBookSheet(book),
-              onReparse: () => _confirmReparseBook(book),
-              onCacheBook: () => _cacheWholeBook(book),
-              onClearCache: () => _confirmClearBookCache(book),
-              onDelete: () => _confirmDeleteBook(book),
+              finishedChapterIndexes:
+                  data.finishedChapterIndexesByBook[book.id] ?? const <int>{},
+              onTap: () => _openBook(book),
+              onLongPress: () => _showBookActions(book),
             );
           },
         );
       },
+    );
+  }
+
+  Future<_LibraryBooksData> _loadLibraryBooksData(
+    drift_db.AppDatabase database,
+  ) async {
+    final results = await Future.wait<Object>([
+      database.getAllBooks(),
+      database.getFinishedChapterIndexesByBook(),
+    ]);
+    return _LibraryBooksData(
+      books: results[0] as List<drift_db.Book>,
+      finishedChapterIndexesByBook: results[1] as Map<String, Set<int>>,
+    );
+  }
+
+  Future<void> _openBook(drift_db.Book book) async {
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => AlbumScreen(book: book)));
+    if (mounted) setState(() => _reloadToken++);
+  }
+
+  void _showBookActions(drift_db.Book book) {
+    final cacheProgress = _bookCacheProgress[book.id];
+    showHalfScreenActionSheet(
+      context,
+      title: book.title,
+      actions: [
+        HalfScreenActionSheetItem(
+          label: context.tr('编辑', 'Edit'),
+          icon: Icons.edit_outlined,
+          onPressed: () => _showEditBookSheet(book),
+        ),
+        HalfScreenActionSheetItem(
+          label: context.tr('重新解析', 'Reparse'),
+          icon: Icons.auto_fix_high_outlined,
+          onPressed: () => _confirmReparseBook(book),
+        ),
+        HalfScreenActionSheetItem(
+          label: cacheProgress == null
+              ? context.tr('缓存整本书', 'Cache Entire Book')
+              : context.tr(
+                  '缓存中 ${(cacheProgress.percent * 100).round()}%',
+                  'Caching ${(cacheProgress.percent * 100).round()}%',
+                ),
+          icon: Icons.download_for_offline_outlined,
+          onPressed: cacheProgress == null ? () => _cacheWholeBook(book) : null,
+        ),
+        HalfScreenActionSheetItem(
+          label: context.tr('清除音频', 'Clear Audio'),
+          icon: Icons.cleaning_services_outlined,
+          onPressed: () => _confirmClearBookCache(book),
+        ),
+        HalfScreenActionSheetItem(
+          label: context.tr('删除', 'Delete'),
+          icon: Icons.delete_outline,
+          onPressed: () => _confirmDeleteBook(book),
+          destructive: true,
+        ),
+      ],
     );
   }
 
@@ -1398,26 +1456,30 @@ class _BookCacheProgress {
   }
 }
 
+class _LibraryBooksData {
+  final List<drift_db.Book> books;
+  final Map<String, Set<int>> finishedChapterIndexesByBook;
+
+  const _LibraryBooksData({
+    this.books = const <drift_db.Book>[],
+    this.finishedChapterIndexesByBook = const <String, Set<int>>{},
+  });
+}
+
 /// 书籍卡片：圆角封面占位 + 标题 + 作者 + 章节数。
 class _BookCard extends StatelessWidget {
   final drift_db.Book book;
   final _BookCacheProgress? cacheProgress;
+  final Set<int> finishedChapterIndexes;
   final VoidCallback onTap;
-  final VoidCallback onEdit;
-  final VoidCallback onReparse;
-  final VoidCallback onCacheBook;
-  final VoidCallback onClearCache;
-  final VoidCallback onDelete;
+  final VoidCallback onLongPress;
 
   const _BookCard({
     required this.book,
     this.cacheProgress,
+    required this.finishedChapterIndexes,
     required this.onTap,
-    required this.onEdit,
-    required this.onReparse,
-    required this.onCacheBook,
-    required this.onClearCache,
-    required this.onDelete,
+    required this.onLongPress,
   });
 
   @override
@@ -1433,7 +1495,11 @@ class _BookCard extends StatelessWidget {
         ),
         BookListCardMeta(
           icon: Icons.trending_up_outlined,
-          label: bookReadingProgressLabel(context, book),
+          label: bookReadingProgressLabel(
+            context,
+            book,
+            finishedChapterIndexes: finishedChapterIndexes,
+          ),
         ),
         if (bookReadingLevelLabel(context, book) case final level?)
           BookListCardMeta(icon: Icons.school_outlined, label: level),
@@ -1443,88 +1509,8 @@ class _BookCard extends StatelessWidget {
             label: '${(cacheProgress!.percent * 100).round()}%',
           ),
       ],
-      trailing: _BookActionsButton(
-        title: book.title,
-        onEdit: onEdit,
-        onReparse: onReparse,
-        onCacheBook: onCacheBook,
-        onClearCache: onClearCache,
-        cacheProgress: cacheProgress,
-        onDelete: onDelete,
-      ),
       onTap: onTap,
-    );
-  }
-}
-
-class _BookActionsButton extends StatelessWidget {
-  final String title;
-  final VoidCallback onEdit;
-  final VoidCallback onReparse;
-  final VoidCallback onCacheBook;
-  final VoidCallback onClearCache;
-  final VoidCallback onDelete;
-  final _BookCacheProgress? cacheProgress;
-
-  const _BookActionsButton({
-    required this.title,
-    required this.onEdit,
-    required this.onReparse,
-    required this.onCacheBook,
-    required this.onClearCache,
-    required this.onDelete,
-    this.cacheProgress,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 40,
-      height: 40,
-      child: IconButton(
-        tooltip: '书籍操作',
-        padding: EdgeInsets.zero,
-        icon: Icon(Icons.more_horiz, color: context.appTextSecondary),
-        onPressed: () {
-          showHalfScreenActionSheet(
-            context,
-            title: title,
-            actions: [
-              HalfScreenActionSheetItem(
-                label: context.tr('编辑', 'Edit'),
-                icon: Icons.edit_outlined,
-                onPressed: onEdit,
-              ),
-              HalfScreenActionSheetItem(
-                label: context.tr('重新解析', 'Reparse'),
-                icon: Icons.auto_fix_high_outlined,
-                onPressed: onReparse,
-              ),
-              HalfScreenActionSheetItem(
-                label: cacheProgress == null
-                    ? context.tr('缓存整本书', 'Cache Entire Book')
-                    : context.tr(
-                        '缓存中 ${(cacheProgress!.percent * 100).round()}%',
-                        'Caching ${(cacheProgress!.percent * 100).round()}%',
-                      ),
-                icon: Icons.download_for_offline_outlined,
-                onPressed: cacheProgress == null ? onCacheBook : null,
-              ),
-              HalfScreenActionSheetItem(
-                label: context.tr('清除音频', 'Clear Audio'),
-                icon: Icons.cleaning_services_outlined,
-                onPressed: onClearCache,
-              ),
-              HalfScreenActionSheetItem(
-                label: context.tr('删除', 'Delete'),
-                icon: Icons.delete_outline,
-                onPressed: onDelete,
-                destructive: true,
-              ),
-            ],
-          );
-        },
-      ),
+      onLongPress: onLongPress,
     );
   }
 }

@@ -10,10 +10,14 @@ import '../player/player_screen.dart';
 Future<void> openPodcastEpisodePlayer(
   BuildContext context, {
   required String episodeId,
+  bool autoplayOnOpen = false,
 }) {
   return Navigator.of(context, rootNavigator: true).push(
     MaterialPageRoute<void>(
-      builder: (_) => PodcastEpisodeScreen(episodeId: episodeId),
+      builder: (_) => PodcastEpisodeScreen(
+        episodeId: episodeId,
+        autoplayOnOpen: autoplayOnOpen,
+      ),
     ),
   );
 }
@@ -23,8 +27,13 @@ Future<void> openPodcastEpisodePlayer(
 /// are handled by [PlayerScreen]'s Podcast mode.
 class PodcastEpisodeScreen extends ConsumerStatefulWidget {
   final String episodeId;
+  final bool autoplayOnOpen;
 
-  const PodcastEpisodeScreen({super.key, required this.episodeId});
+  const PodcastEpisodeScreen({
+    super.key,
+    required this.episodeId,
+    this.autoplayOnOpen = false,
+  });
 
   @override
   ConsumerState<PodcastEpisodeScreen> createState() =>
@@ -88,7 +97,10 @@ class _PodcastEpisodeScreenState extends ConsumerState<PodcastEpisodeScreen> {
             body: Center(child: Text(context.tr('单集不存在', 'Episode not found'))),
           );
         }
-        return PlayerScreen.podcast(podcast: data);
+        return PlayerScreen.podcast(
+          podcast: data,
+          autoplayOnOpen: widget.autoplayOnOpen,
+        );
       },
     );
   }

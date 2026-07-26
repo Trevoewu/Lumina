@@ -1,11 +1,18 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/app_colors.dart';
+import '../../../core/app_localizations.dart';
+import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart';
+import '../../widgets/animated_pressable_card.dart';
+import '../../widgets/half_screen_action_sheet.dart';
 import '../../widgets/podcast_artwork.dart';
 import 'podcast_formatters.dart';
 
-class PodcastEpisodeTile extends StatelessWidget {
+class PodcastEpisodeTile extends ConsumerStatefulWidget {
   final PodcastEpisode episode;
   final String? showTitle;
   final VoidCallback onTap;
@@ -18,36 +25,64 @@ class PodcastEpisodeTile extends StatelessWidget {
   });
 
   @override
+  ConsumerState<PodcastEpisodeTile> createState() => _PodcastEpisodeTileState();
+}
+
+class _PodcastEpisodeTileState extends ConsumerState<PodcastEpisodeTile> {
+  late PodcastEpisode _resolvedEpisode;
+  bool _downloading = false;
+  double? _downloadProgress;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolvedEpisode = widget.episode;
+  }
+
+  @override
+  void didUpdateWidget(covariant PodcastEpisodeTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.episode.id != widget.episode.id ||
+        widget.episode.isPlayed ||
+        !_resolvedEpisode.isPlayed) {
+      _resolvedEpisode = widget.episode;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final date = formatPodcastDate(episode.publishedAt);
-    final duration = formatPodcastDuration(episode.durationMs);
+    final resolvedEpisode = _resolvedEpisode;
+    final date = formatPodcastDate(resolvedEpisode.publishedAt);
+    final duration = formatPodcastDuration(resolvedEpisode.durationMs);
     final metadata = [
-      if (showTitle != null && showTitle!.isNotEmpty) showTitle!,
+      if (widget.showTitle != null && widget.showTitle!.isNotEmpty)
+        widget.showTitle!,
       if (date.isNotEmpty) date,
       if (duration.isNotEmpty) duration,
     ].join(' · ');
-    final progress = episode.durationMs <= 0
+    final progress = resolvedEpisode.durationMs <= 0
         ? 0.0
-        : (episode.playbackPositionMs / episode.durationMs)
+        : (resolvedEpisode.playbackPositionMs / resolvedEpisode.durationMs)
               .clamp(0.0, 1.0)
               .toDouble();
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+    return AnimatedPressableCard(
+      key: ValueKey('podcast-episode-${resolvedEpisode.id}'),
+      onTap: widget.onTap,
+      onLongPress: () => _showActions(context, resolvedEpisode),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            PodcastArtwork(imageUrl: episode.imageUrl, size: 76),
+            PodcastArtwork(imageUrl: resolvedEpisode.imageUrl, size: 76),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    episode.title,
+                    resolvedEpisode.title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -66,7 +101,8 @@ class PodcastEpisodeTile extends StatelessWidget {
                       ),
                     ),
                   ],
-                  if (episode.playbackPositionMs > 0) ...[
+                  if (resolvedEpisode.playbackPositionMs > 0 &&
+                      !resolvedEpisode.isPlayed) ...[
                     const SizedBox(height: 9),
                     ClipRRect(
                       borderRadius: BorderRadius.circular(2),
@@ -80,17 +116,144 @@ class PodcastEpisodeTile extends StatelessWidget {
                 ],
               ),
             ),
-            if (episode.isPlayed) ...[
+            if (resolvedEpisode.isPlayed) ...[
               const SizedBox(width: 6),
               Icon(
-                Icons.check_circle,
+                Icons.check_circle_rounded,
                 color: context.appTextSecondary,
                 size: 32,
+              ),
+            ],
+            if (_downloading) ...[
+              const SizedBox(width: 10),
+              SizedBox.square(
+                dimension: 22,
+                child: CircularProgressIndicator(
+                  value: _downloadProgress,
+                  strokeWidth: 2.5,
+                ),
               ),
             ],
           ],
         ),
       ),
     );
+  }
+
+  void _showActions(BuildContext context, PodcastEpisode resolvedEpisode) {
+    final downloaded = _hasDownloadedAudio(resolvedEpisode);
+    final progress = _downloadProgress;
+    showHalfScreenActionSheet(
+      context,
+      title: resolvedEpisode.title,
+      actions: [
+        HalfScreenActionSheetItem(
+          label: context.tr('标记为已听完', 'Mark as finished'),
+          icon: Icons.check_circle_outline_rounded,
+          onPressed: resolvedEpisode.isPlayed
+              ? null
+              : () => _markAsFinished(resolvedEpisode),
+        ),
+        HalfScreenActionSheetItem(
+          label: downloaded
+              ? context.tr('单集已下载', 'Episode downloaded')
+              : _downloading
+              ? progress == null
+                    ? context.tr('正在下载单集', 'Downloading episode')
+                    : context.tr(
+                        '正在下载 ${(progress * 100).round()}%',
+                        'Downloading ${(progress * 100).round()}%',
+                      )
+              : context.tr('下载单集', 'Download episode'),
+          icon: downloaded
+              ? Icons.download_done_rounded
+              : Icons.download_for_offline_outlined,
+          onPressed: downloaded || _downloading
+              ? null
+              : () => _downloadEpisode(resolvedEpisode),
+        ),
+      ],
+    );
+  }
+
+  bool _hasDownloadedAudio(PodcastEpisode episode) {
+    final path = episode.localAudioPath;
+    return path != null && path.isNotEmpty && File(path).existsSync();
+  }
+
+  Future<void> _downloadEpisode(PodcastEpisode resolvedEpisode) async {
+    setState(() {
+      _downloading = true;
+      _downloadProgress = null;
+    });
+    try {
+      await ref
+          .read(podcastTranscriptionServiceProvider)
+          .downloadEpisodeAudio(
+            resolvedEpisode,
+            onProgress: (received, total) {
+              if (!mounted) return;
+              setState(() {
+                _downloadProgress = total <= 0
+                    ? null
+                    : (received / total).clamp(0.0, 1.0).toDouble();
+              });
+            },
+          );
+      final updated = await ref
+          .read(appDatabaseProvider)
+          .getPodcastEpisode(resolvedEpisode.id);
+      if (!mounted) return;
+      if (updated != null) {
+        setState(() => _resolvedEpisode = updated);
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.tr('单集已下载', 'Episode downloaded'))),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.tr('无法下载单集', 'Unable to download episode')),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _downloading = false;
+          _downloadProgress = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _markAsFinished(PodcastEpisode resolvedEpisode) async {
+    final finishedPositionMs = resolvedEpisode.durationMs > 0
+        ? resolvedEpisode.durationMs
+        : resolvedEpisode.playbackPositionMs;
+    try {
+      await ref
+          .read(appDatabaseProvider)
+          .updatePodcastProgress(
+            resolvedEpisode.id,
+            positionMs: finishedPositionMs,
+            isPlayed: true,
+          );
+      if (!mounted) return;
+      setState(() {
+        _resolvedEpisode = resolvedEpisode.copyWith(
+          playbackPositionMs: finishedPositionMs,
+          lastPlayedAt: DateTime.now().millisecondsSinceEpoch,
+          isPlayed: true,
+        );
+      });
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.tr('无法标记为已听完', 'Unable to mark as finished')),
+        ),
+      );
+    }
   }
 }

@@ -22,9 +22,9 @@ void main() {
     expect(theme.textTheme.bodyLarge?.fontFamily, isNot('Inter'));
     expect(tokens.readingFontFamily, 'Georgia');
     expect(tokens.readingFontFamilyFallback, ['Literata']);
-    expect(tokens.pageGutter, 24);
+    expect(tokens.pageGutter, 16);
     expect(tokens.pageInsetFor(360), 16);
-    expect(tokens.pageInsetFor(390), 24);
+    expect(tokens.pageInsetFor(390), 16);
     expect(tokens.toolbarHeight, 56);
     expect(cardShape.borderRadius, BorderRadius.circular(tokens.radiusMedium));
     expect(

@@ -427,6 +427,9 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
   String? _pressedLineId;
   bool _manuallyScrolling = false;
 
+  bool get _selectionActive =>
+      _wordSelectionLineId != null || _selectedText.isNotEmpty;
+
   @override
   void initState() {
     super.initState();
@@ -501,7 +504,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
     }
     final paragraphLines = _linesByParagraph[_paragraphId] ?? const [];
     final active = _activeLineAt(paragraphLines, position.inMilliseconds);
-    if (_wordSelectionLineId != null) return;
+    if (_selectionActive) return;
     if (!forceScroll && active?.id == _activeLineId) return;
     setState(() => _activeLineId = active?.id);
     if (active != null && !_manuallyScrolling) {
@@ -527,11 +530,12 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
   }
 
   void _scrollTo(String lineId, {bool force = false}) {
+    if (_selectionActive || _manuallyScrolling) return;
     _pendingScrollLineId = lineId;
     _pendingForceScroll = _pendingForceScroll || force;
     _scrollDebounce?.cancel();
     _scrollDebounce = Timer(const Duration(milliseconds: 70), () {
-      if (!mounted) return;
+      if (!mounted || _selectionActive || _manuallyScrolling) return;
       final pendingLineId = _pendingScrollLineId;
       final pendingForce = _pendingForceScroll;
       _pendingScrollLineId = null;
@@ -539,7 +543,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
       if (pendingLineId == null) return;
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
+        if (!mounted || _selectionActive || _manuallyScrolling) return;
         _animateToLine(pendingLineId, force: pendingForce);
       });
       WidgetsBinding.instance.scheduleFrame();
@@ -547,7 +551,11 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
   }
 
   void _animateToLine(String lineId, {required bool force}) {
-    if (!_scrollController.hasClients) return;
+    if (_selectionActive ||
+        _manuallyScrolling ||
+        !_scrollController.hasClients) {
+      return;
+    }
     if (widget.virtualized) {
       _animateToVirtualizedLine(lineId, force: force);
       return;
@@ -672,13 +680,23 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
     _virtualMetricsTextScaler = textScaler;
   }
 
+  void _stopAutomaticScroll({bool stopCurrentMotion = false}) {
+    _scrollDebounce?.cancel();
+    _scrollDebounce = null;
+    _pendingScrollLineId = null;
+    _pendingForceScroll = false;
+    if (!stopCurrentMotion || !_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    _scrollController.jumpTo(
+      position.pixels.clamp(position.minScrollExtent, position.maxScrollExtent),
+    );
+  }
+
   bool _handleScrollNotification(ScrollNotification notification) {
     if (notification is ScrollStartNotification &&
         notification.dragDetails != null) {
       _manualScrollResume?.cancel();
-      _scrollDebounce?.cancel();
-      _pendingScrollLineId = null;
-      _pendingForceScroll = false;
+      _stopAutomaticScroll();
       _manuallyScrolling = true;
     } else if (notification is ScrollEndNotification && _manuallyScrolling) {
       _manualScrollResume?.cancel();
@@ -791,6 +809,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
     if (tokens.isEmpty) return;
     unawaited(widget.handler.pause());
     unawaited(HapticFeedback.mediumImpact());
+    _stopAutomaticScroll(stopCurrentMotion: true);
     _clearSelection();
     setState(() {
       _pressedLineId = null;
@@ -812,6 +831,15 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
       _resetSelectionPointer();
     });
     _sync(widget.handler.position);
+  }
+
+  void _handleSelectionChanged(SelectedContent? content) {
+    final selectedText = content?.plainText.trim() ?? '';
+    if (selectedText.isNotEmpty && _selectedText.isEmpty) {
+      _stopAutomaticScroll(stopCurrentMotion: true);
+    }
+    _selectedText = selectedText;
+    if (content == null) _selectionLineId = null;
   }
 
   void _onTokenPointerDown(PointerDownEvent event) {
@@ -945,21 +973,15 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
           _buildLineSlot(line, wordSelectionActive: wordSelectionActive),
       ],
     );
-    final content = wordSelectionActive
-        ? lines
-        : SelectionArea(
-            key: _selectionAreaKey,
-            onSelectionChanged: (content) {
-              _selectedText = content?.plainText.trim() ?? '';
-              if (content == null) _selectionLineId = null;
-            },
-            contextMenuBuilder: _buildSelectionMenu,
-            child: lines,
-          );
     return SingleChildScrollView(
       controller: _scrollController,
       padding: _lyricsPadding(),
-      child: content,
+      child: SelectionArea(
+        key: _selectionAreaKey,
+        onSelectionChanged: _handleSelectionChanged,
+        contextMenuBuilder: _buildSelectionMenu,
+        child: lines,
+      ),
     );
   }
 
@@ -970,36 +992,29 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
         final contentWidth = constraints.maxWidth - padding.horizontal;
         _virtualTopPadding = padding.top;
         _ensureVirtualMetrics(contentWidth);
-        Widget list = ListView.builder(
-          key: const ValueKey('synced-lyrics-virtualized-list'),
-          controller: _scrollController,
-          padding: padding,
-          itemCount: _lines.length,
-          itemExtentBuilder: (index, _) {
-            if (index >= _virtualLineExtents.length) return null;
-            final selectionExtra = _lines[index].id == _wordSelectionLineId
-                ? 70.0
-                : 0.0;
-            return _virtualLineExtents[index] + selectionExtra;
-          },
-          addAutomaticKeepAlives: false,
-          itemBuilder: (context, index) => _buildLineSlot(
-            _lines[index],
-            wordSelectionActive: wordSelectionActive,
+        return SelectionArea(
+          key: _selectionAreaKey,
+          onSelectionChanged: _handleSelectionChanged,
+          contextMenuBuilder: _buildSelectionMenu,
+          child: ListView.builder(
+            key: const ValueKey('synced-lyrics-virtualized-list'),
+            controller: _scrollController,
+            padding: padding,
+            itemCount: _lines.length,
+            itemExtentBuilder: (index, _) {
+              if (index >= _virtualLineExtents.length) return null;
+              final selectionExtra = _lines[index].id == _wordSelectionLineId
+                  ? 70.0
+                  : 0.0;
+              return _virtualLineExtents[index] + selectionExtra;
+            },
+            addAutomaticKeepAlives: false,
+            itemBuilder: (context, index) => _buildLineSlot(
+              _lines[index],
+              wordSelectionActive: wordSelectionActive,
+            ),
           ),
         );
-        if (!wordSelectionActive) {
-          list = SelectionArea(
-            key: _selectionAreaKey,
-            onSelectionChanged: (content) {
-              _selectedText = content?.plainText.trim() ?? '';
-              if (content == null) _selectionLineId = null;
-            },
-            contextMenuBuilder: _buildSelectionMenu,
-            child: list,
-          );
-        }
-        return list;
       },
     );
   }
@@ -1018,7 +1033,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
             key: ValueKey('lyric-line-${line.id}'),
             child: _buildLyricLine(line, enabled: !wordSelectionActive),
           );
-    return KeyedSubtree(
+    final slot = KeyedSubtree(
       key: _lineKeys.putIfAbsent(line.id, GlobalKey.new),
       child: widget.virtualized
           ? child
@@ -1042,6 +1057,9 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
               child: child,
             ),
     );
+    return wordSelectionActive
+        ? SelectionContainer.disabled(child: slot)
+        : slot;
   }
 
   Widget _buildLyricLine(SyncedLyricLine line, {required bool enabled}) {

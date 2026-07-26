@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
+import 'package:html/dom.dart' as html_dom;
 import 'package:html/parser.dart' as html_parser;
 import 'package:xml/xml.dart';
 
@@ -36,14 +37,38 @@ class PodcastRepository {
             ),
           );
 
-  Future<PodcastImportResult> subscribe(String input) async {
+  Future<PodcastImportResult> subscribe(
+    String input, {
+    Iterable<String> categories = const [],
+  }) async {
     final feedUrl = normalizePodcastFeedUrl(input);
     final existing = await database.getPodcastShowByFeedUrl(feedUrl);
-    return _fetchAndStore(feedUrl, existing: existing);
+    return _fetchAndStore(
+      feedUrl,
+      existing: existing,
+      directoryCategories: categories,
+      markSubscribed: true,
+    );
   }
 
-  Future<PodcastImportResult> refresh(PodcastShow show) =>
-      _fetchAndStore(show.feedUrl, existing: show);
+  Future<PodcastImportResult> refresh(PodcastShow show) => _fetchAndStore(
+    show.feedUrl,
+    existing: show,
+    markSubscribed: show.subscribedAt > 0,
+  );
+
+  Future<ParsedPodcastFeed> preview(String input) async {
+    final feedUrl = normalizePodcastFeedUrl(input);
+    final response = await _dio.get<String>(
+      feedUrl,
+      options: Options(responseType: ResponseType.plain),
+    );
+    final source = response.data?.trim();
+    if (source == null || source.isEmpty) {
+      throw const FormatException('RSS 地址没有返回内容。');
+    }
+    return parsePodcastFeed(source, feedUrl: response.realUri.toString());
+  }
 
   Future<void> refreshAll() async {
     for (final show in await database.getPodcastShows()) {
@@ -51,9 +76,27 @@ class PodcastRepository {
     }
   }
 
+  Future<PodcastImportResult> storePreview(
+    String input,
+    ParsedPodcastFeed parsed, {
+    Iterable<String> categories = const [],
+  }) async {
+    final feedUrl = normalizePodcastFeedUrl(input);
+    final existing = await database.getPodcastShowByFeedUrl(feedUrl);
+    return _storeParsedFeed(
+      feedUrl,
+      parsed,
+      existing: existing,
+      directoryCategories: categories,
+      markSubscribed: false,
+    );
+  }
+
   Future<PodcastImportResult> _fetchAndStore(
     String feedUrl, {
     PodcastShow? existing,
+    Iterable<String> directoryCategories = const [],
+    required bool markSubscribed,
   }) async {
     final response = await _dio.get<String>(
       feedUrl,
@@ -70,8 +113,29 @@ class PodcastRepository {
       source,
       feedUrl: response.realUri.toString(),
     );
+    return _storeParsedFeed(
+      feedUrl,
+      parsed,
+      existing: existing,
+      directoryCategories: directoryCategories,
+      markSubscribed: markSubscribed,
+    );
+  }
+
+  Future<PodcastImportResult> _storeParsedFeed(
+    String feedUrl,
+    ParsedPodcastFeed parsed, {
+    required PodcastShow? existing,
+    required Iterable<String> directoryCategories,
+    required bool markSubscribed,
+  }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     final showId = existing?.id ?? _stableId('show:$feedUrl');
+    final categories = _mergePodcastCategories([
+      ...parsed.categories,
+      ...directoryCategories,
+      ...decodePodcastCategories(existing?.categoriesJson),
+    ]);
     final show = PodcastShow(
       id: showId,
       feedUrl: feedUrl,
@@ -81,7 +145,12 @@ class PodcastRepository {
       imageUrl: parsed.imageUrl,
       language: parsed.language,
       websiteUrl: parsed.websiteUrl,
-      subscribedAt: existing?.subscribedAt ?? now,
+      categoriesJson: jsonEncode(categories),
+      subscribedAt: markSubscribed
+          ? (existing?.subscribedAt ?? 0) > 0
+                ? existing!.subscribedAt
+                : now
+          : existing?.subscribedAt ?? 0,
       lastRefreshedAt: now,
     );
 
@@ -141,6 +210,7 @@ class ParsedPodcastFeed {
   final String? imageUrl;
   final String? language;
   final String? websiteUrl;
+  final List<String> categories;
   final List<ParsedPodcastEpisode> episodes;
 
   const ParsedPodcastFeed({
@@ -150,6 +220,7 @@ class ParsedPodcastFeed {
     required this.imageUrl,
     required this.language,
     required this.websiteUrl,
+    this.categories = const [],
     required this.episodes,
   });
 }
@@ -226,6 +297,7 @@ ParsedPodcastFeed parsePodcastFeed(String source, {required String feedUrl}) {
           _childText(item, 'description') ??
           _childText(item, 'summary') ??
           '',
+      baseUrl: feedUrl,
     );
 
     episodes.add(
@@ -246,16 +318,59 @@ ParsedPodcastFeed parsePodcastFeed(String source, {required String feedUrl}) {
     );
   }
 
+  final categories = _children(channel, 'category')
+      .expand(
+        (category) => [
+          category,
+          ...category.descendantElements.where(
+            (element) => element.name.local == 'category',
+          ),
+        ],
+      )
+      .map((element) => _attribute(element, 'text') ?? element.innerText.trim())
+      .where((category) => category.isNotEmpty)
+      .toList(growable: false);
+
   return ParsedPodcastFeed(
     title: title,
     author:
         _childText(channel, 'author') ?? _childText(channel, 'managingEditor'),
-    description: _plainText(_childText(channel, 'description') ?? ''),
+    description: _plainText(
+      _childText(channel, 'description') ?? '',
+      baseUrl: feedUrl,
+    ),
     imageUrl: channelImage == null ? null : _resolveUrl(feedUrl, channelImage),
     language: _childText(channel, 'language'),
     websiteUrl: _childText(channel, 'link'),
+    categories: _mergePodcastCategories(categories),
     episodes: episodes,
   );
+}
+
+List<String> decodePodcastCategories(String? source) {
+  if (source == null || source.trim().isEmpty) return const [];
+  try {
+    final decoded = jsonDecode(source);
+    if (decoded is! List) return const [];
+    return _mergePodcastCategories(decoded.whereType<String>());
+  } catch (_) {
+    return const [];
+  }
+}
+
+List<String> _mergePodcastCategories(
+  Iterable<String> primary, [
+  Iterable<String> secondary = const [],
+]) {
+  final categories = <String>[];
+  final normalized = <String>{};
+  for (final value in [...primary, ...secondary]) {
+    final category = value.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (category.isEmpty || !normalized.add(category.toLowerCase())) continue;
+    categories.add(category);
+    if (categories.length == 8) break;
+  }
+  return categories;
 }
 
 Iterable<XmlElement> _children(XmlElement parent, String localName) =>
@@ -280,13 +395,29 @@ String? _attribute(XmlElement? element, String localName) {
   return null;
 }
 
-String _plainText(String markup) =>
-    html_parser
-        .parseFragment(markup)
-        .text
-        ?.replaceAll(RegExp(r'\s+'), ' ')
-        .trim() ??
-    '';
+String _plainText(String markup, {String? baseUrl}) {
+  final fragment = html_parser.parseFragment(markup);
+  for (final anchor in fragment.querySelectorAll('a[href]')) {
+    final rawHref = anchor.attributes['href']?.trim();
+    if (rawHref == null || rawHref.isEmpty) continue;
+    final href = baseUrl == null ? rawHref : _resolveUrl(baseUrl, rawHref);
+    final uri = Uri.tryParse(href);
+    if (uri == null ||
+        !uri.hasAuthority ||
+        (uri.scheme != 'https' && uri.scheme != 'http')) {
+      continue;
+    }
+
+    final label = anchor.text.trim();
+    final replacement = label.isEmpty
+        ? href
+        : label.contains(href)
+        ? label
+        : '$label ($href)';
+    anchor.replaceWith(html_dom.Text(replacement));
+  }
+  return fragment.text?.replaceAll(RegExp(r'\s+'), ' ').trim() ?? '';
+}
 
 String _resolveUrl(String base, String value) {
   final uri = Uri.tryParse(value.trim());

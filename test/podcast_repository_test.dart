@@ -20,6 +20,10 @@ void main() {
           <itunes:author>Example Author</itunes:author>
           <description><![CDATA[<p>A <b>great</b> show.</p>]]></description>
           <itunes:image href="/cover.jpg" />
+          <itunes:category text="Education">
+            <itunes:category text="Language Learning" />
+          </itunes:category>
+          <category>News</category>
           <language>en</language>
           <link>https://example.com/show</link>
           <item>
@@ -39,6 +43,7 @@ void main() {
       expect(feed.author, 'Example Author');
       expect(feed.description, 'A great show.');
       expect(feed.imageUrl, 'https://example.com/cover.jpg');
+      expect(feed.categories, ['Education', 'Language Learning', 'News']);
       expect(feed.episodes, hasLength(1));
       final episode = feed.episodes.single;
       expect(episode.guid, 'episode-1');
@@ -55,6 +60,36 @@ void main() {
     },
   );
 
+  test('preserves HTTPS destinations from RSS description links', () {
+    final feed = parsePodcastFeed('''
+      <rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+        <channel>
+          <title>Linked Show</title>
+          <description><![CDATA[
+            Read the <a href="/about">show website</a>.
+          ]]></description>
+          <item>
+            <guid>linked-episode</guid>
+            <title>Linked Episode</title>
+            <content:encoded><![CDATA[
+              Resources: <a href="https://example.org/notes">episode notes</a>.
+            ]]></content:encoded>
+            <enclosure url="https://cdn.example.com/linked.mp3" type="audio/mpeg" />
+          </item>
+        </channel>
+      </rss>
+    ''', feedUrl: 'https://example.com/feed.xml');
+
+    expect(
+      feed.description,
+      'Read the show website (https://example.com/about).',
+    );
+    expect(
+      feed.episodes.single.description,
+      'Resources: episode notes (https://example.org/notes).',
+    );
+  });
+
   test('normalizes feed URLs and rejects unsupported schemes', () {
     expect(
       normalizePodcastFeedUrl('example.com/feed.xml'),
@@ -65,6 +100,64 @@ void main() {
       throwsFormatException,
     );
   });
+
+  test('decodes persisted podcast categories defensively', () {
+    expect(decodePodcastCategories('["Comedy", "News", "comedy"]'), [
+      'Comedy',
+      'News',
+    ]);
+    expect(decodePodcastCategories('not-json'), isEmpty);
+    expect(decodePodcastCategories(null), isEmpty);
+  });
+
+  test(
+    'preview playback data stays outside the subscription library',
+    () async {
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(database.close);
+      final repository = PodcastRepository(database);
+      const preview = ParsedPodcastFeed(
+        title: 'Preview Show',
+        author: 'Preview Host',
+        description: 'Listen before following.',
+        imageUrl: null,
+        language: 'en',
+        websiteUrl: null,
+        categories: ['Comedy'],
+        episodes: [
+          ParsedPodcastEpisode(
+            guid: 'preview-guid',
+            title: 'Preview Episode',
+            description: '',
+            audioUrl: 'https://example.com/preview.mp3',
+            imageUrl: null,
+            publishedAt: 10,
+            durationMs: 60000,
+            sourceTranscriptUrl: null,
+          ),
+        ],
+      );
+
+      final result = await repository.storePreview(
+        'https://example.com/preview.xml',
+        preview,
+        categories: const ['News'],
+      );
+
+      expect(result.show.subscribedAt, 0);
+      expect(await database.getPodcastShows(), isEmpty);
+      expect(await database.getRecentPodcastEpisodes(), isEmpty);
+      expect(await database.getAllPodcastShows(), hasLength(1));
+      expect(
+        await database.getRecentPodcastEpisodes(subscribedOnly: false),
+        hasLength(1),
+      );
+      expect(decodePodcastCategories(result.show.categoriesJson), [
+        'Comedy',
+        'News',
+      ]);
+    },
+  );
 
   test('parses and deduplicates Podcast Index directory results', () {
     final results = parsePodcastIndexSearchResponse({
@@ -91,6 +184,62 @@ void main() {
     expect(results.single.genres, ['Technology', 'Education']);
     expect(results.single.episodeCount, 12);
   });
+
+  test('parses Podcast Index trending feeds and their discovery metadata', () {
+    final results = parsePodcastIndexTrendingResponse({
+      'feeds': [
+        {
+          'id': 73,
+          'title': 'Trending Show',
+          'author': 'Host',
+          'url': 'https://example.com/trending.xml',
+          'image': 'https://example.com/trending.jpg',
+          'language': 'en-US',
+          'episodeCount': 42,
+          'newestItemPublishTime': 1234,
+          'categories': {'77': 'Education', '78': 'Technology'},
+        },
+      ],
+    });
+
+    expect(results, hasLength(1));
+    expect(results.single.title, 'Trending Show');
+    expect(results.single.language, 'en-US');
+    expect(results.single.genres, ['Education', 'Technology']);
+    expect(results.single.newestEpisodeAt, 1234);
+  });
+
+  test(
+    'discovery excludes subscriptions and explains related results',
+    () async {
+      final repository = _DiscoveryPodcastIndexRepository();
+      final recommendations = await repository.discover(
+        seeds: const [
+          PodcastDiscoverySeed(
+            title: 'Example Show',
+            feedUrl: 'https://example.com/feed.xml',
+            language: 'en',
+            engagement: 0.9,
+          ),
+        ],
+        subscribedFeedUrls: const {'https://example.com/feed.xml'},
+        preferredLanguage: 'en',
+      );
+
+      expect(
+        recommendations.map((recommendation) => recommendation.podcast.feedUrl),
+        isNot(contains('https://example.com/feed.xml')),
+      );
+      expect(
+        recommendations
+            .firstWhere(
+              (recommendation) => recommendation.podcast.id == 'related',
+            )
+            .reason,
+        PodcastRecommendationReason.becauseYouListen,
+      );
+    },
+  );
 
   test('decodes persisted timestamped Whisper segments', () {
     final segments = PodcastTranscriptionService.decodeTranscript(
@@ -202,4 +351,48 @@ void main() {
       expect(await database.getPodcastEpisode(episode.id), isNull);
     },
   );
+}
+
+class _DiscoveryPodcastIndexRepository extends PodcastIndexRepository {
+  _DiscoveryPodcastIndexRepository() : super(apiKey: '', apiSecret: '');
+
+  @override
+  Future<List<PodcastIndexPodcast>> search(String query) async {
+    if (query == 'Example Show') {
+      return const [
+        PodcastIndexPodcast(
+          id: 'subscribed',
+          title: 'Example Show',
+          author: 'Example',
+          feedUrl: 'https://example.com/feed.xml',
+          imageUrl: null,
+          genres: ['Education'],
+          episodeCount: 20,
+          language: 'en',
+        ),
+        PodcastIndexPodcast(
+          id: 'related',
+          title: 'Related Learning Show',
+          author: 'Teacher',
+          feedUrl: 'https://example.com/related.xml',
+          imageUrl: null,
+          genres: ['Education'],
+          episodeCount: 30,
+          language: 'en',
+        ),
+      ];
+    }
+    return const [
+      PodcastIndexPodcast(
+        id: 'explore',
+        title: 'Explore More',
+        author: 'Explorer',
+        feedUrl: 'https://example.com/explore.xml',
+        imageUrl: null,
+        genres: ['Education'],
+        episodeCount: 18,
+        language: 'en',
+      ),
+    ];
+  }
 }

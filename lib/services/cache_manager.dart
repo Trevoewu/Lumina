@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../data/database/app_database.dart';
 import '../domain/models/chapter_manifest.dart';
 import 'manifest_store.dart';
 import 'generation_orchestrator.dart';
@@ -26,8 +27,9 @@ class CacheUsage {
 class CacheManager {
   final ManifestStore manifestStore;
   final GenerationOrchestrator generationOrchestrator;
+  final AppDatabase database;
 
-  CacheManager(this.manifestStore, this.generationOrchestrator);
+  CacheManager(this.manifestStore, this.generationOrchestrator, this.database);
 
   Future<CacheUsage> usageForBook(String bookId) async {
     return CacheUsage(await manifestStore.bookCacheSizeBytes(bookId));
@@ -40,12 +42,42 @@ class CacheManager {
   }
 
   Future<CacheUsage> totalUsage() async {
+    final book = await bookAudioUsage();
+    final podcast = await podcastAudioUsage();
+    return CacheUsage(book.bytes + podcast.bytes);
+  }
+
+  Future<CacheUsage> bookAudioUsage() async {
     final dir = await getApplicationDocumentsDirectory();
     final audioRoot = Directory(p.join(dir.path, 'audio'));
     if (!await audioRoot.exists()) return const CacheUsage(0);
     int total = 0;
     await for (final entity in audioRoot.list(recursive: true)) {
       if (entity is File) total += await entity.length();
+    }
+    return CacheUsage(total);
+  }
+
+  Future<CacheUsage> podcastAudioUsage() async {
+    var total = 0;
+    for (final episode in await database.getAllPodcastEpisodes()) {
+      total += (await usageForPodcastEpisode(episode)).bytes;
+    }
+    return CacheUsage(total);
+  }
+
+  Future<CacheUsage> usageForPodcastEpisode(PodcastEpisode episode) async {
+    final path = episode.localAudioPath;
+    if (path == null || path.isEmpty) return const CacheUsage(0);
+    final file = File(path);
+    if (!await file.exists()) return const CacheUsage(0);
+    return CacheUsage(await file.length());
+  }
+
+  Future<CacheUsage> usageForPodcastShow(String showId) async {
+    var total = 0;
+    for (final episode in await database.getPodcastEpisodes(showId)) {
+      total += (await usageForPodcastEpisode(episode)).bytes;
     }
     return CacheUsage(total);
   }
@@ -75,6 +107,51 @@ class CacheManager {
     await generationOrchestrator.runAllExclusive(
       () => _deleteDirectoryContents(audioRoot, removeRoot: true),
     );
+    await clearAllPodcastAudio();
+  }
+
+  Future<void> clearPodcastEpisodeAudio(String episodeId) async {
+    final episode = await database.getPodcastEpisode(episodeId);
+    if (episode == null) return;
+    final path = episode.localAudioPath;
+    if (path != null && path.isNotEmpty) {
+      for (final candidate in <String>{path, '$path.partial', '$path.wav'}) {
+        final file = File(candidate);
+        if (await file.exists()) await file.delete();
+      }
+    }
+    await database.updatePodcastLocalAudioPath(episodeId, null);
+  }
+
+  Future<void> clearPodcastEpisodeTranscript(String episodeId) =>
+      database.clearPodcastTranscript(episodeId);
+
+  Future<void> clearPodcastEpisodeData(String episodeId) async {
+    await clearPodcastEpisodeAudio(episodeId);
+    await clearPodcastEpisodeTranscript(episodeId);
+  }
+
+  Future<void> clearPodcastShowAudio(String showId) async {
+    for (final episode in await database.getPodcastEpisodes(showId)) {
+      await clearPodcastEpisodeAudio(episode.id);
+    }
+  }
+
+  Future<void> clearPodcastShowTranscripts(String showId) async {
+    for (final episode in await database.getPodcastEpisodes(showId)) {
+      await clearPodcastEpisodeTranscript(episode.id);
+    }
+  }
+
+  Future<void> clearPodcastShowData(String showId) async {
+    await clearPodcastShowAudio(showId);
+    await clearPodcastShowTranscripts(showId);
+  }
+
+  Future<void> clearAllPodcastAudio() async {
+    for (final episode in await database.getAllPodcastEpisodes()) {
+      await clearPodcastEpisodeAudio(episode.id);
+    }
   }
 
   /// 清理某书中除最近 N 章以外的音频。

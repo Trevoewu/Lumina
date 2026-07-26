@@ -123,7 +123,10 @@ class _CollapsingPageHeaderDelegate extends SliverPersistentHeaderDelegate {
 
     return Material(
       key: const ValueKey('collapsing-page-header'),
-      color: Colors.transparent,
+      // Opaque so body content scrolling under the pinned header never
+      // ghosts through the collapsing title. At rest this matches the
+      // scaffold background, so the expanded header looks unchanged.
+      color: context.appBackground,
       child: Stack(
         fit: StackFit.expand,
         children: [

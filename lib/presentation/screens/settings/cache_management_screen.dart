@@ -57,7 +57,12 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                       context.tr('总音频缓存', 'Total audio cache'),
                       style: TextStyle(color: context.appTextPrimary),
                     ),
-                    subtitle: Text(data.total.humanReadable),
+                    subtitle: Text(
+                      '${data.total.humanReadable} · '
+                      '${context.tr('书籍', 'Books')} '
+                      '${data.bookAudio.humanReadable} · Podcast '
+                      '${data.podcastAudio.humanReadable}',
+                    ),
                     trailing: IconButton(
                       tooltip: context.tr('清空', 'Clear all'),
                       onPressed: _clearing || data.total.bytes == 0
@@ -77,7 +82,7 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                 Padding(
                   padding: EdgeInsets.only(left: 4, bottom: 8),
                   child: Text(
-                    context.tr('按书籍清理', 'Clear by book'),
+                    context.tr('书籍', 'Books'),
                     style: TextStyle(
                       color: context.appTextSecondary,
                       fontWeight: FontWeight.w700,
@@ -181,6 +186,98 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                         ],
                       ),
                     ),
+                const SizedBox(height: 16),
+                Padding(
+                  padding: const EdgeInsets.only(left: 4, bottom: 8),
+                  child: Text(
+                    'Podcast',
+                    style: TextStyle(
+                      color: context.appTextSecondary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (data.podcasts.isEmpty)
+                  _SurfaceTile(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        context.tr(
+                          '暂无 Podcast 音频或字幕缓存',
+                          'No cached podcast audio or transcripts',
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  for (final row in data.podcasts)
+                    _SurfaceTile(
+                      child: ExpansionTile(
+                        key: ValueKey('podcast-cache-${row.show.id}'),
+                        collapsedIconColor: context.appTextSecondary,
+                        iconColor: context.appTextSecondary,
+                        leading: Icon(
+                          Icons.podcasts_rounded,
+                          color: context.appTextSecondary,
+                        ),
+                        title: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                row.show.title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(color: context.appTextPrimary),
+                              ),
+                            ),
+                            _podcastClearMenu(
+                              hasAudio: row.usage.bytes > 0,
+                              hasTranscript: row.transcriptCount > 0,
+                              onSelected: (action) =>
+                                  _clearPodcastShow(cache, row, action),
+                            ),
+                          ],
+                        ),
+                        subtitle: Text(
+                          _podcastSummary(row.usage, row.transcriptCount),
+                          style: TextStyle(color: context.appTextSecondary),
+                        ),
+                        children: [
+                          for (final episode in row.episodes)
+                            ListTile(
+                              dense: true,
+                              key: ValueKey(
+                                'podcast-cache-episode-${episode.episode.id}',
+                              ),
+                              title: Text(
+                                episode.episode.title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(color: context.appTextPrimary),
+                              ),
+                              subtitle: Text(
+                                _podcastSummary(
+                                  episode.usage,
+                                  episode.hasTranscript ? 1 : 0,
+                                ),
+                                style: TextStyle(
+                                  color: context.appTextSecondary,
+                                ),
+                              ),
+                              trailing: _podcastClearMenu(
+                                hasAudio: episode.usage.bytes > 0,
+                                hasTranscript: episode.hasTranscript,
+                                onSelected: (action) => _clearPodcastEpisode(
+                                  cache,
+                                  episode,
+                                  action,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
               ],
             ),
           );
@@ -194,13 +291,102 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
     CacheManager cache,
   ) async {
     final books = await db.getAllBooks();
-    final rows = <_BookCacheRow>[];
+    final bookRows = <_BookCacheRow>[];
     for (final book in books) {
-      rows.add(
+      bookRows.add(
         _BookCacheRow(book: book, usage: await cache.usageForBook(book.id)),
       );
     }
-    return _CachePageData(total: await cache.totalUsage(), books: rows);
+
+    final podcastRows = <_PodcastCacheRow>[];
+    for (final show in await db.getAllPodcastShows()) {
+      final episodeRows = <_PodcastEpisodeCacheRow>[];
+      var showBytes = 0;
+      var transcriptCount = 0;
+      for (final episode in await db.getPodcastEpisodes(show.id)) {
+        final usage = await cache.usageForPodcastEpisode(episode);
+        final hasTranscript =
+            episode.transcriptJson?.trim().isNotEmpty ?? false;
+        if (usage.bytes == 0 && !hasTranscript) continue;
+        showBytes += usage.bytes;
+        if (hasTranscript) transcriptCount++;
+        episodeRows.add(
+          _PodcastEpisodeCacheRow(
+            episode: episode,
+            usage: usage,
+            hasTranscript: hasTranscript,
+          ),
+        );
+      }
+      if (episodeRows.isEmpty) continue;
+      podcastRows.add(
+        _PodcastCacheRow(
+          show: show,
+          usage: CacheUsage(showBytes),
+          transcriptCount: transcriptCount,
+          episodes: episodeRows,
+        ),
+      );
+    }
+
+    final bookAudio = await cache.bookAudioUsage();
+    final podcastAudio = await cache.podcastAudioUsage();
+    return _CachePageData(
+      total: CacheUsage(bookAudio.bytes + podcastAudio.bytes),
+      bookAudio: bookAudio,
+      podcastAudio: podcastAudio,
+      books: bookRows,
+      podcasts: podcastRows,
+    );
+  }
+
+  String _podcastSummary(CacheUsage usage, int transcriptCount) {
+    final parts = <String>[];
+    if (usage.bytes > 0) {
+      parts.add(
+        context.tr('音频 ${usage.humanReadable}', 'Audio ${usage.humanReadable}'),
+      );
+    }
+    if (transcriptCount > 0) {
+      parts.add(
+        context.tr(
+          '$transcriptCount 份字幕',
+          '$transcriptCount transcript${transcriptCount == 1 ? '' : 's'}',
+        ),
+      );
+    }
+    return parts.join(' · ');
+  }
+
+  Widget _podcastClearMenu({
+    required bool hasAudio,
+    required bool hasTranscript,
+    required ValueChanged<_PodcastClearAction> onSelected,
+  }) {
+    return PopupMenuButton<_PodcastClearAction>(
+      tooltip: context.tr('清理缓存', 'Clear cache'),
+      enabled: !_clearing,
+      onSelected: onSelected,
+      itemBuilder: (context) => [
+        if (hasAudio)
+          PopupMenuItem(
+            value: _PodcastClearAction.audio,
+            child: Text(context.tr('删除音频', 'Delete audio')),
+          ),
+        if (hasTranscript)
+          PopupMenuItem(
+            value: _PodcastClearAction.transcript,
+            child: Text(context.tr('删除 Transcript', 'Delete transcript')),
+          ),
+        if (hasAudio && hasTranscript)
+          PopupMenuItem(
+            value: _PodcastClearAction.all,
+            child: Text(
+              context.tr('删除音频和 Transcript', 'Delete audio and transcript'),
+            ),
+          ),
+      ],
+    );
   }
 
   Future<List<_ChapterCacheRow>> _loadChapterRows(
@@ -293,6 +479,91 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
     }
   }
 
+  Future<void> _clearPodcastShow(
+    CacheManager cache,
+    _PodcastCacheRow row,
+    _PodcastClearAction action,
+  ) {
+    return _runPodcastClear(
+      _podcastClearConfirmation(row.show.title, action),
+      () async {
+        switch (action) {
+          case _PodcastClearAction.audio:
+            await cache.clearPodcastShowAudio(row.show.id);
+            break;
+          case _PodcastClearAction.transcript:
+            await cache.clearPodcastShowTranscripts(row.show.id);
+            break;
+          case _PodcastClearAction.all:
+            await cache.clearPodcastShowData(row.show.id);
+            break;
+        }
+      },
+    );
+  }
+
+  Future<void> _clearPodcastEpisode(
+    CacheManager cache,
+    _PodcastEpisodeCacheRow row,
+    _PodcastClearAction action,
+  ) {
+    return _runPodcastClear(
+      _podcastClearConfirmation(row.episode.title, action),
+      () async {
+        switch (action) {
+          case _PodcastClearAction.audio:
+            await cache.clearPodcastEpisodeAudio(row.episode.id);
+            break;
+          case _PodcastClearAction.transcript:
+            await cache.clearPodcastEpisodeTranscript(row.episode.id);
+            break;
+          case _PodcastClearAction.all:
+            await cache.clearPodcastEpisodeData(row.episode.id);
+            break;
+        }
+      },
+    );
+  }
+
+  String _podcastClearConfirmation(String title, _PodcastClearAction action) {
+    return switch (action) {
+      _PodcastClearAction.audio => context.tr(
+        '清理“$title”的本地音频？字幕会保留。',
+        'Clear local audio for "$title"? Transcripts will be kept.',
+      ),
+      _PodcastClearAction.transcript => context.tr(
+        '清理“$title”的字幕？本地音频会保留。',
+        'Clear transcripts for "$title"? Local audio will be kept.',
+      ),
+      _PodcastClearAction.all => context.tr(
+        '清理“$title”的本地音频和字幕？',
+        'Clear local audio and transcripts for "$title"?',
+      ),
+    };
+  }
+
+  Future<void> _runPodcastClear(
+    String confirmation,
+    Future<void> Function() action,
+  ) async {
+    if (!await _confirm(confirmation)) return;
+    setState(() => _clearing = true);
+    try {
+      await action();
+      if (mounted) setState(() {});
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        'Cache',
+        '清理 Podcast 缓存失败',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      _showError(error);
+    } finally {
+      if (mounted) setState(() => _clearing = false);
+    }
+  }
+
   void _showError(Object error) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -332,9 +603,18 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
 
 class _CachePageData {
   final CacheUsage total;
+  final CacheUsage bookAudio;
+  final CacheUsage podcastAudio;
   final List<_BookCacheRow> books;
+  final List<_PodcastCacheRow> podcasts;
 
-  const _CachePageData({required this.total, required this.books});
+  const _CachePageData({
+    required this.total,
+    required this.bookAudio,
+    required this.podcastAudio,
+    required this.books,
+    required this.podcasts,
+  });
 }
 
 class _BookCacheRow {
@@ -349,6 +629,34 @@ class _ChapterCacheRow {
   final CacheUsage usage;
 
   const _ChapterCacheRow({required this.chapter, required this.usage});
+}
+
+enum _PodcastClearAction { audio, transcript, all }
+
+class _PodcastCacheRow {
+  final drift_db.PodcastShow show;
+  final CacheUsage usage;
+  final int transcriptCount;
+  final List<_PodcastEpisodeCacheRow> episodes;
+
+  const _PodcastCacheRow({
+    required this.show,
+    required this.usage,
+    required this.transcriptCount,
+    required this.episodes,
+  });
+}
+
+class _PodcastEpisodeCacheRow {
+  final drift_db.PodcastEpisode episode;
+  final CacheUsage usage;
+  final bool hasTranscript;
+
+  const _PodcastEpisodeCacheRow({
+    required this.episode,
+    required this.usage,
+    required this.hasTranscript,
+  });
 }
 
 class _SurfaceTile extends StatelessWidget {

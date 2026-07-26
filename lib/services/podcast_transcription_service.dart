@@ -68,6 +68,7 @@ class PodcastTranscriptionService {
   final AppDatabase database;
   final Dio _dio;
   final WhisperController _controller;
+  final Map<String, Future<String>> _audioDownloads = {};
   bool _busy = false;
   bool _installingModel = false;
 
@@ -161,7 +162,7 @@ class PodcastTranscriptionService {
       emit(PodcastTranscriptionStage.preparing, '正在准备本地转写');
       await _ensureModel(onProgress: emit);
 
-      final cachedAudioPath = await _ensureEpisodeAudio(
+      final cachedAudioPath = await downloadEpisodeAudio(
         episode,
         onProgress: (received, total) {
           emit(
@@ -239,6 +240,27 @@ class PodcastTranscriptionService {
       rethrow;
     } finally {
       _busy = false;
+    }
+  }
+
+  Future<String> downloadEpisodeAudio(
+    PodcastEpisode episode, {
+    void Function(int received, int total)? onProgress,
+  }) async {
+    final activeDownload = _audioDownloads[episode.id];
+    if (activeDownload != null) return activeDownload;
+
+    final download = _ensureEpisodeAudio(
+      episode,
+      onProgress: onProgress ?? (_, _) {},
+    );
+    _audioDownloads[episode.id] = download;
+    try {
+      return await download;
+    } finally {
+      if (identical(_audioDownloads[episode.id], download)) {
+        _audioDownloads.remove(episode.id);
+      }
     }
   }
 

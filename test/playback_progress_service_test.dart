@@ -9,6 +9,56 @@ import 'package:lumina/services/lumina_audio_handler.dart';
 import 'package:lumina/services/playback_progress_service.dart';
 
 void main() {
+  test('manually finished audiobook chapters stay finished', () async {
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+
+    await database.upsertBook(
+      const Book(
+        id: 'book',
+        title: 'Book',
+        format: 'epub',
+        sourcePath: '/book.epub',
+        chapterCount: 4,
+        paragraphCount: 100,
+        currentParagraphIndex: 0,
+        playbackOffsetMs: 0,
+        importedAt: 1,
+        lastReadAt: 0,
+        kind: 'book',
+        rightsStatus: 'user_uploaded',
+      ),
+    );
+    await database.insertChapters([
+      const Chapter(
+        id: 'chapter',
+        bookId: 'book',
+        chapterIndex: 2,
+        title: 'Chapter 3',
+        textOffset: 0,
+        isHidden: false,
+      ),
+    ]);
+    await database.markChapterFinished('book', 'chapter');
+    var progress = await database.getChapterPlaybackProgress('chapter');
+    expect(progress?.isFinished, isTrue);
+    expect(progress?.positionMs, 0);
+    expect(await database.getFinishedChapterIndexesByBook(), {
+      'book': {2},
+    });
+
+    await database.updateReadingProgress(
+      'book',
+      chapterId: 'chapter',
+      paragraphIndex: 1,
+      offsetMs: 2500,
+      chapterPositionMs: 12500,
+    );
+    progress = await database.getChapterPlaybackProgress('chapter');
+    expect(progress?.isFinished, isTrue);
+    expect(progress?.positionMs, 12500);
+  });
+
   test(
     'audiobook progress stores both paragraph and chapter positions',
     () async {

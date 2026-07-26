@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -8,8 +9,11 @@ import '../../../core/app_design_tokens.dart';
 import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart';
+import '../../../data/podcasts/podcast_repository.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
 import '../../widgets/podcast_artwork.dart';
+import '../../widgets/podcast_category_chips.dart';
+import '../../widgets/podcast_expandable_description.dart';
 import 'podcast_episode_screen.dart';
 import 'podcast_episode_tile.dart';
 
@@ -29,7 +33,32 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
   @override
   void initState() {
     super.initState();
-    _showFuture = ref.read(appDatabaseProvider).getPodcastShow(widget.showId);
+    _showFuture = _loadShow();
+  }
+
+  Future<PodcastShow?> _loadShow() async {
+    final show = await ref
+        .read(appDatabaseProvider)
+        .getPodcastShow(widget.showId);
+    if (show != null && show.categoriesJson == null) {
+      unawaited(_enrichLegacyShow(show));
+    }
+    return show;
+  }
+
+  Future<void> _enrichLegacyShow(PodcastShow show) async {
+    try {
+      await ref.read(podcastRepositoryProvider).refresh(show);
+      if (!mounted) return;
+      setState(() {
+        _showFuture = ref
+            .read(appDatabaseProvider)
+            .getPodcastShow(widget.showId);
+      });
+    } catch (_) {
+      // Metadata enrichment is best effort. Existing local content remains
+      // usable when the publisher feed cannot be reached.
+    }
   }
 
   @override
@@ -87,6 +116,7 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
     final database = ref.watch(appDatabaseProvider);
     final design = context.appDesign;
     final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
+    final categories = decodePodcastCategories(show.categoriesJson);
     return StreamBuilder<List<PodcastEpisode>>(
       stream: database.watchPodcastEpisodes(show.id),
       builder: (context, snapshot) {
@@ -131,14 +161,13 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
                 ),
               ],
             ),
+            if (categories.isNotEmpty) ...[
+              SizedBox(height: design.spaceMd),
+              PodcastCategoryChips(categories: categories),
+            ],
             if (show.description.isNotEmpty) ...[
               SizedBox(height: design.spaceLg),
-              Text(
-                show.description,
-                maxLines: 5,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: context.appTextSecondary, height: 1.45),
-              ),
+              PodcastExpandableDescription(text: show.description),
             ],
             SizedBox(height: design.spaceXl),
             Text(

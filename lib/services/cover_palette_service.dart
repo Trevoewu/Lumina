@@ -78,6 +78,23 @@ class CoverPaletteService {
         .toColor();
   }
 
+  /// A readable accent derived from the cover for badges, progress bars, and
+  /// current-state markers on regular page surfaces. Unlike the ambient
+  /// surfaces above, this stays saturated enough to read as "the book's
+  /// color" while keeping contrast against both light and dark backgrounds.
+  static Color accentForSeed(Color seed, Brightness brightness) {
+    final hsl = HSLColor.fromColor(seed);
+    final isDark = brightness == Brightness.dark;
+    return hsl
+        .withSaturation(hsl.saturation.clamp(0.42, 0.82))
+        .withLightness(
+          isDark
+              ? hsl.lightness.clamp(0.56, 0.74)
+              : hsl.lightness.clamp(0.34, 0.48),
+        )
+        .toColor();
+  }
+
   /// A near-black version that keeps the artwork hue for immersive screens.
   static Color darkPageBottomForSeed(Color seed) {
     final hsl = HSLColor.fromColor(seed);

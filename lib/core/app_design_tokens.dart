@@ -31,7 +31,7 @@ class AppDesignTokens extends ThemeExtension<AppDesignTokens> {
     this.spaceLg = 16,
     this.spaceXl = 24,
     this.spaceXxl = 32,
-    this.pageGutter = 24,
+    this.pageGutter = 16,
     this.compactPageGutter = 16,
     this.radiusSmall = 8,
     this.radiusMedium = 12,

@@ -181,8 +181,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 icon: Icons.cleaning_services_outlined,
                 title: context.tr('音频缓存', 'Audio cache'),
                 subtitle: context.tr(
-                  '按书、章节或全部清理',
-                  'Clear by book, chapter, or all',
+                  '管理书籍、Podcast 音频与字幕',
+                  'Manage books, podcast audio, and transcripts',
                 ),
                 onTap: () => _push(const CacheManagementScreen()),
               ),

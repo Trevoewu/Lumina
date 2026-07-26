@@ -77,6 +77,7 @@ class ChapterPlaybackProgresses extends Table {
   IntColumn get positionMs => integer().withDefault(const Constant(0))();
   IntColumn get paragraphIndex => integer().withDefault(const Constant(0))();
   IntColumn get paragraphOffsetMs => integer().withDefault(const Constant(0))();
+  BoolColumn get isFinished => boolean().withDefault(const Constant(false))();
   IntColumn get updatedAt => integer()();
 
   @override
@@ -232,6 +233,7 @@ class PodcastShows extends Table {
   TextColumn get imageUrl => text().nullable()();
   TextColumn get language => text().nullable()();
   TextColumn get websiteUrl => text().nullable()();
+  TextColumn get categoriesJson => text().nullable()();
   IntColumn get subscribedAt => integer()();
   IntColumn get lastRefreshedAt => integer()();
 
@@ -305,7 +307,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e) : _repairPathsOnOpen = false;
 
   @override
-  int get schemaVersion => 11;
+  int get schemaVersion => 13;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -373,6 +375,15 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 11) {
         await m.createTable(chapterPlaybackProgresses);
+      }
+      if (from >= 10 && from < 12) {
+        await m.addColumn(podcastShows, podcastShows.categoriesJson);
+      }
+      if (from >= 11 && from < 13) {
+        await m.addColumn(
+          chapterPlaybackProgresses,
+          chapterPlaybackProgresses.isFinished,
+        );
       }
     },
     beforeOpen: (_) async {
@@ -538,6 +549,7 @@ class AppDatabase extends _$AppDatabase {
         ),
       );
       if (chapterId != null && chapterPositionMs != null) {
+        final existing = await getChapterPlaybackProgress(chapterId);
         await into(chapterPlaybackProgresses).insertOnConflictUpdate(
           ChapterPlaybackProgress(
             chapterId: chapterId,
@@ -545,6 +557,7 @@ class AppDatabase extends _$AppDatabase {
             positionMs: chapterPositionMs,
             paragraphIndex: paragraphIndex ?? 0,
             paragraphOffsetMs: offsetMs ?? 0,
+            isFinished: existing?.isFinished ?? false,
             updatedAt: now,
           ),
         );
@@ -590,6 +603,38 @@ class AppDatabase extends _$AppDatabase {
   ) => (select(
     chapterPlaybackProgresses,
   )..where((p) => p.bookId.equals(bookId))).get();
+
+  Future<Map<String, Set<int>>> getFinishedChapterIndexesByBook() async {
+    final query = select(chapterPlaybackProgresses).join([
+      innerJoin(
+        chapters,
+        chapters.id.equalsExp(chapterPlaybackProgresses.chapterId),
+      ),
+    ])..where(chapterPlaybackProgresses.isFinished.equals(true));
+    final result = <String, Set<int>>{};
+    for (final row in await query.get()) {
+      final chapter = row.readTable(chapters);
+      result
+          .putIfAbsent(chapter.bookId, () => <int>{})
+          .add(chapter.chapterIndex);
+    }
+    return result;
+  }
+
+  Future<void> markChapterFinished(String bookId, String chapterId) async {
+    final existing = await getChapterPlaybackProgress(chapterId);
+    await into(chapterPlaybackProgresses).insertOnConflictUpdate(
+      ChapterPlaybackProgress(
+        chapterId: chapterId,
+        bookId: bookId,
+        positionMs: existing?.positionMs ?? 0,
+        paragraphIndex: existing?.paragraphIndex ?? 0,
+        paragraphOffsetMs: existing?.paragraphOffsetMs ?? 0,
+        isFinished: true,
+        updatedAt: DateTime.now().millisecondsSinceEpoch,
+      ),
+    );
+  }
 
   Future<void> insertChapters(List<Chapter> entries) async {
     await batch((b) => b.insertAll(chapters, entries));
@@ -807,11 +852,19 @@ class AppDatabase extends _$AppDatabase {
 
   // ── Podcast ──
 
-  Stream<List<PodcastShow>> watchPodcastShows() => (select(
-    podcastShows,
-  )..orderBy([(show) => OrderingTerm.desc(show.lastRefreshedAt)])).watch();
+  Stream<List<PodcastShow>> watchPodcastShows() =>
+      (select(podcastShows)
+            ..where((show) => show.subscribedAt.isBiggerThanValue(0))
+            ..orderBy([(show) => OrderingTerm.desc(show.lastRefreshedAt)]))
+          .watch();
 
-  Future<List<PodcastShow>> getPodcastShows() => (select(
+  Future<List<PodcastShow>> getPodcastShows() =>
+      (select(podcastShows)
+            ..where((show) => show.subscribedAt.isBiggerThanValue(0))
+            ..orderBy([(show) => OrderingTerm.desc(show.lastRefreshedAt)]))
+          .get();
+
+  Future<List<PodcastShow>> getAllPodcastShows() => (select(
     podcastShows,
   )..orderBy([(show) => OrderingTerm.desc(show.lastRefreshedAt)])).get();
 
@@ -838,11 +891,35 @@ class AppDatabase extends _$AppDatabase {
             ..orderBy([(episode) => OrderingTerm.desc(episode.publishedAt)]))
           .get();
 
-  Future<List<PodcastEpisode>> getRecentPodcastEpisodes({int limit = 30}) =>
-      (select(podcastEpisodes)
-            ..orderBy([(episode) => OrderingTerm.desc(episode.publishedAt)])
-            ..limit(limit))
-          .get();
+  Future<List<PodcastEpisode>> getAllPodcastEpisodes() =>
+      select(podcastEpisodes).get();
+
+  Future<List<PodcastEpisode>> getRecentPodcastEpisodes({
+    int? limit,
+    bool subscribedOnly = true,
+  }) async {
+    if (!subscribedOnly) {
+      final query = select(podcastEpisodes)
+        ..orderBy([(episode) => OrderingTerm.desc(episode.publishedAt)]);
+      if (limit != null) query.limit(limit);
+      return query.get();
+    }
+
+    final query =
+        select(podcastEpisodes).join([
+            innerJoin(
+              podcastShows,
+              podcastShows.id.equalsExp(podcastEpisodes.showId),
+              useColumns: false,
+            ),
+          ])
+          ..where(podcastShows.subscribedAt.isBiggerThanValue(0))
+          ..orderBy([OrderingTerm.desc(podcastEpisodes.publishedAt)]);
+    if (limit != null) query.limit(limit);
+    return [
+      for (final row in await query.get()) row.readTable(podcastEpisodes),
+    ];
+  }
 
   Future<PodcastEpisode?> getPodcastEpisode(String id) => (select(
     podcastEpisodes,
@@ -893,11 +970,24 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> updatePodcastLocalAudioPath(
     String episodeId,
-    String localAudioPath,
+    String? localAudioPath,
   ) async {
     await (update(podcastEpisodes)
           ..where((episode) => episode.id.equals(episodeId)))
         .write(PodcastEpisodesCompanion(localAudioPath: Value(localAudioPath)));
+  }
+
+  Future<void> clearPodcastTranscript(String episodeId) async {
+    await (update(
+      podcastEpisodes,
+    )..where((episode) => episode.id.equals(episodeId))).write(
+      const PodcastEpisodesCompanion(
+        transcriptJson: Value(null),
+        transcriptLanguage: Value(null),
+        transcriptStatus: Value('none'),
+        transcriptError: Value(null),
+      ),
+    );
   }
 
   Future<void> updatePodcastTranscript(

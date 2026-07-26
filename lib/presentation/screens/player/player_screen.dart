@@ -26,6 +26,7 @@ import '../../../tts/tts_provider.dart';
 import '../../widgets/book_card_metadata.dart';
 import '../../widgets/book_cover.dart';
 import '../../widgets/podcast_artwork.dart';
+import '../../widgets/podcast_link_text.dart';
 import '../../widgets/synced_lyrics_list.dart';
 import '../podcast/podcast_formatters.dart';
 
@@ -77,13 +78,18 @@ class PlayerScreen extends ConsumerStatefulWidget {
     this.autoplayOnOpen = false,
   });
 
-  factory PlayerScreen.podcast({Key? key, required PodcastPlayerData podcast}) {
+  factory PlayerScreen.podcast({
+    Key? key,
+    required PodcastPlayerData podcast,
+    bool autoplayOnOpen = false,
+  }) {
     final episode = podcast.episode;
     final show = podcast.show;
     final bookId = 'podcast:${show.id}';
     return PlayerScreen(
       key: key,
       podcast: podcast,
+      autoplayOnOpen: autoplayOnOpen,
       book: drift_db.Book(
         id: bookId,
         title: show.title,
@@ -254,6 +260,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       unawaited(_loadPlaybackSpeed());
       if (_isPodcast) {
         _watchPodcastEpisode();
+        unawaited(_autoplayIfRequested());
       } else {
         unawaited(_loadSelectedChapterState());
       }
@@ -1453,7 +1460,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             duration: const Duration(milliseconds: 240),
             curve: Curves.easeOutCubic,
             alignment: Alignment.topCenter,
-            child: Text(
+            child: PodcastLinkText(
               notes.isEmpty
                   ? context.tr('该单集没有附带节目笔记。', 'No shownotes provided.')
                   : notes,

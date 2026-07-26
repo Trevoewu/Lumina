@@ -366,87 +366,86 @@ void main() {
     );
   });
 
-  testWidgets(
-    'audiobook chapters use subtle dividers without rewriting titles',
-    (tester) async {
-      tester.view.physicalSize = const Size(430, 1000);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+  testWidgets('audiobook chapters show index badges without rewriting titles', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(430, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
-      final database = AppDatabase.forTesting(NativeDatabase.memory());
-      final temp = Directory.systemTemp.createTempSync('lumina_divider_test_');
-      final manifestStore = ManifestStore(documentsDirectory: () async => temp);
-      addTearDown(database.close);
-      addTearDown(() {
-        if (temp.existsSync()) temp.deleteSync(recursive: true);
-      });
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final temp = Directory.systemTemp.createTempSync('lumina_divider_test_');
+    final manifestStore = ManifestStore(documentsDirectory: () async => temp);
+    addTearDown(database.close);
+    addTearDown(() {
+      if (temp.existsSync()) temp.deleteSync(recursive: true);
+    });
 
-      const book = Book(
-        id: 'divider-book',
-        title: 'Divider Book',
-        format: 'epub',
-        sourcePath: '/tmp/missing-divider-book.epub',
-        chapterCount: 2,
-        paragraphCount: 0,
-        currentParagraphIndex: 0,
-        playbackOffsetMs: 0,
-        importedAt: 1,
-        lastReadAt: 0,
-        kind: 'book',
-        rightsStatus: 'user_uploaded',
-      );
-      const chapters = [
-        Chapter(
-          id: 'free-form-chapter',
-          bookId: 'divider-book',
-          chapterIndex: 0,
-          title: 'Opening — 2026 / Untitled',
-          textOffset: 0,
-          isHidden: false,
+    const book = Book(
+      id: 'divider-book',
+      title: 'Divider Book',
+      format: 'epub',
+      sourcePath: '/tmp/missing-divider-book.epub',
+      chapterCount: 2,
+      paragraphCount: 0,
+      currentParagraphIndex: 0,
+      playbackOffsetMs: 0,
+      importedAt: 1,
+      lastReadAt: 0,
+      kind: 'book',
+      rightsStatus: 'user_uploaded',
+    );
+    const chapters = [
+      Chapter(
+        id: 'free-form-chapter',
+        bookId: 'divider-book',
+        chapterIndex: 0,
+        title: 'Opening — 2026 / Untitled',
+        textOffset: 0,
+        isHidden: false,
+      ),
+      Chapter(
+        id: 'part-title-chapter',
+        bookId: 'divider-book',
+        chapterIndex: 1,
+        title: '第Ⅱ部',
+        textOffset: 0,
+        isHidden: false,
+      ),
+    ];
+    await database.replaceBookData(
+      book: book,
+      chapterEntries: chapters,
+      paragraphEntries: const [],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          manifestStoreProvider.overrideWithValue(manifestStore),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.lightTheme(),
+          home: const AlbumScreen(book: book),
         ),
-        Chapter(
-          id: 'part-title-chapter',
-          bookId: 'divider-book',
-          chapterIndex: 1,
-          title: '第Ⅱ部',
-          textOffset: 0,
-          isHidden: false,
-        ),
-      ];
-      await database.replaceBookData(
-        book: book,
-        chapterEntries: chapters,
-        paragraphEntries: const [],
-      );
+      ),
+    );
+    await tester.pumpAndSettle();
 
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            appDatabaseProvider.overrideWithValue(database),
-            manifestStoreProvider.overrideWithValue(manifestStore),
-          ],
-          child: MaterialApp(
-            theme: AppTheme.lightTheme(),
-            home: const AlbumScreen(book: book),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
+    expect(find.text('Opening — 2026 / Untitled'), findsOneWidget);
+    expect(find.text('第Ⅱ部'), findsOneWidget);
+    expect(find.text('1'), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
+    expect(find.byType(Divider), findsNothing);
 
-      expect(find.text('Opening — 2026 / Untitled'), findsOneWidget);
-      expect(find.text('第Ⅱ部'), findsOneWidget);
-      final divider = tester.widget<Divider>(
-        find.byKey(const ValueKey('book-chapter-divider-free-form-chapter')),
-      );
-      expect(divider.thickness, 0.75);
-      expect(divider.color, const Color(0xFFE3E5E8));
-      expect(
-        find.byKey(const ValueKey('book-chapter-divider-part-title-chapter')),
-        findsNothing,
-      );
-    },
-  );
+    await tester.longPress(find.text('第Ⅱ部'));
+    await tester.pumpAndSettle();
+    expect(find.text('Change narrator'), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+  });
 
   testWidgets('book detail lazily loads manifests for visible chapters only', (
     tester,
@@ -661,10 +660,26 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Hidden chapters'), findsNothing);
 
-    await tester.tap(find.byTooltip('章节操作'));
+    expect(find.byTooltip('章节操作'), findsNothing);
+    await tester.longPress(
+      find.byKey(const ValueKey('book-chapter-navigation-chapter')),
+    );
     await tester.pumpAndSettle();
     expect(find.text('清除音频'), findsOneWidget);
     expect(find.byIcon(Icons.cleaning_services_outlined), findsOneWidget);
+    expect(find.text('Mark as finished'), findsOneWidget);
+    await tester.tap(find.text('Mark as finished'));
+    await tester.pumpAndSettle();
+    final finishedProgress = await database.getChapterPlaybackProgress(
+      'navigation-chapter',
+    );
+    expect(finishedProgress?.isFinished, isTrue);
+
+    await tester.longPress(
+      find.byKey(const ValueKey('book-chapter-navigation-chapter')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('清除音频'), findsOneWidget);
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
 

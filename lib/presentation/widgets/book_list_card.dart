@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../../core/app_colors.dart';
+import 'animated_pressable_card.dart';
 import 'disk_cached_network_image.dart';
 
 class BookListCard extends StatelessWidget {
@@ -12,7 +13,7 @@ class BookListCard extends StatelessWidget {
   final String? remoteCoverUrl;
   final List<BookListCardMeta> metadata;
   final VoidCallback onTap;
-  final Widget? trailing;
+  final VoidCallback? onLongPress;
 
   const BookListCard({
     super.key,
@@ -22,7 +23,7 @@ class BookListCard extends StatelessWidget {
     this.localCoverPath,
     this.remoteCoverUrl,
     this.metadata = const [],
-    this.trailing,
+    this.onLongPress,
   });
 
   @override
@@ -32,9 +33,9 @@ class BookListCard extends StatelessWidget {
       for (final item in metadata) item.label,
     ].where((value) => value.trim().isNotEmpty).join(' · ');
 
-    return InkWell(
+    return AnimatedPressableCard(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      onLongPress: onLongPress,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Row(
@@ -77,7 +78,6 @@ class BookListCard extends StatelessWidget {
                 ],
               ),
             ),
-            if (trailing != null) ...[const SizedBox(width: 6), trailing!],
           ],
         ),
       ),

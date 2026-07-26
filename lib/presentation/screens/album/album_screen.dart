@@ -11,11 +11,13 @@ import '../../../domain/models/chapter_manifest.dart';
 import '../../../services/app_log_service.dart';
 import '../../../services/book_introduction_service.dart';
 import '../../../services/book_parser.dart';
+import '../../../services/cover_palette_service.dart';
 import '../../../services/generation_orchestrator.dart';
 import '../../../services/manifest_store.dart';
 import '../../../tts/models/tts_voice.dart';
 import '../../../tts/provider_registry.dart';
 import '../../../tts/tts_provider.dart';
+import '../../widgets/animated_pressable_card.dart';
 import '../../widgets/book_cover.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
 import '../../widgets/half_screen_action_sheet.dart';
@@ -38,6 +40,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   bool _didScrollToInitialChapter = false;
   late Future<String?> _bookIntroductionFuture;
   late Future<_AlbumChapterData> _chapterDataFuture;
+  late Future<Color?> _coverSeedFuture;
   _AlbumChapterData? _chapterData;
   late String? _currentChapterId;
   late int _currentParagraphIndex;
@@ -48,6 +51,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     super.initState();
     _bookIntroductionFuture = _loadBookIntroduction();
     _chapterDataFuture = _loadChapterData(ref.read(appDatabaseProvider));
+    _coverSeedFuture = CoverPaletteService.seedForPath(widget.book.coverPath);
     _currentChapterId = widget.book.currentChapterId;
     _currentParagraphIndex = widget.book.currentParagraphIndex;
     _playbackOffsetMs = widget.book.playbackOffsetMs;
@@ -66,6 +70,9 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       _chapterData = null;
       _chapterDataFuture = _loadChapterData(ref.read(appDatabaseProvider));
       _didScrollToInitialChapter = false;
+    }
+    if (oldWidget.book.coverPath != widget.book.coverPath) {
+      _coverSeedFuture = CoverPaletteService.seedForPath(widget.book.coverPath);
     }
     if (oldWidget.book.id != widget.book.id ||
         oldWidget.book.currentChapterId != widget.book.currentChapterId ||
@@ -129,6 +136,15 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       _chapterData = chapterData;
       _chapterDataFuture = Future<_AlbumChapterData>.value(chapterData);
     });
+  }
+
+  Future<void> _markChapterFinished(drift_db.Chapter chapter) async {
+    await ref
+        .read(appDatabaseProvider)
+        .markChapterFinished(widget.book.id, chapter.id);
+    await _refreshChapterData();
+    if (!mounted) return;
+    _showSnackBar(context.tr('已标记为已听完', 'Marked as finished'));
   }
 
   Future<String?> _loadBookIntroduction() async {
@@ -603,7 +619,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       body: FutureBuilder<_AlbumChapterData>(
         future: _chapterDataFuture,
         builder: (context, snapshot) {
-          final chapterData = snapshot.data ?? _chapterData;
+          final chapterData = _chapterData ?? snapshot.data;
           if (chapterData == null &&
               snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -612,83 +628,101 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
           final chapters = resolvedChapterData.chapters;
           final design = context.appDesign;
           final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
-          return Builder(
-            builder: (scrollContext) {
-              _scrollToInitialChapter(chapters, scrollContext);
-              return ListView.builder(
-                key: const ValueKey('book-detail-scroll-view'),
-                padding: EdgeInsets.fromLTRB(inset, design.spaceLg, inset, 120),
-                itemCount: chapters.length + 1,
-                itemBuilder: (context, itemIndex) {
-                  if (itemIndex == 0) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildBookHeader(chapters),
-                        SizedBox(height: design.spaceXl),
-                        _buildBookIntroduction(),
-                        SizedBox(height: design.spaceXxl),
-                        Text(
-                          context.tr('所有章节', 'All chapters'),
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(
-                                color: context.appTextPrimary,
-                                fontWeight: FontWeight.w800,
-                              ),
-                        ),
-                        SizedBox(height: design.spaceSm),
-                        if (chapters.isEmpty)
-                          SizedBox(
-                            width: double.infinity,
-                            child: Padding(
-                              padding: EdgeInsets.symmetric(
-                                vertical: design.spaceXxl,
-                              ),
-                              child: Text(
-                                context.tr(
-                                  '这本书没有可阅读章节',
-                                  'No readable chapters',
-                                ),
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: context.appTextSecondary,
-                                ),
-                              ),
+          return FutureBuilder<Color?>(
+            future: _coverSeedFuture,
+            builder: (context, seedSnapshot) {
+              final coverSeed = seedSnapshot.data;
+              return Builder(
+                builder: (scrollContext) {
+                  _scrollToInitialChapter(chapters, scrollContext);
+                  return ListView.builder(
+                    key: const ValueKey('book-detail-scroll-view'),
+                    padding: EdgeInsets.fromLTRB(
+                      inset,
+                      design.spaceLg,
+                      inset,
+                      120,
+                    ),
+                    itemCount: chapters.length + 1,
+                    itemBuilder: (context, itemIndex) {
+                      if (itemIndex == 0) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildBookHeader(chapters),
+                            SizedBox(height: design.spaceXl),
+                            _buildBookIntroduction(),
+                            SizedBox(height: design.spaceXxl),
+                            Text(
+                              context.tr('所有章节', 'All chapters'),
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(
+                                    color: context.appTextPrimary,
+                                    fontWeight: FontWeight.w800,
+                                  ),
                             ),
-                          ),
-                      ],
-                    );
-                  }
+                            SizedBox(height: design.spaceSm),
+                            if (chapters.isEmpty)
+                              SizedBox(
+                                width: double.infinity,
+                                child: Padding(
+                                  padding: EdgeInsets.symmetric(
+                                    vertical: design.spaceXxl,
+                                  ),
+                                  child: Text(
+                                    context.tr(
+                                      '这本书没有可阅读章节',
+                                      'No readable chapters',
+                                    ),
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: context.appTextSecondary,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        );
+                      }
 
-                  final chapterIndex = itemIndex - 1;
-                  final chapter = chapters[chapterIndex];
-                  return _ChapterCard(
-                    title: chapter.title,
-                    highlighted:
-                        chapter.id == widget.initialChapterId ||
-                        chapter.id == _currentChapterId,
-                    progress: _generationProgress[chapter.id],
-                    savedPlaybackPositionMs: resolvedChapterData
-                        .progressByChapterId[chapter.id]
-                        ?.positionMs,
-                    legacyParagraphIndex: chapter.id == _currentChapterId
-                        ? _currentParagraphIndex
-                        : null,
-                    legacyParagraphOffsetMs: chapter.id == _currentChapterId
-                        ? _playbackOffsetMs
-                        : 0,
-                    manifestStore: ref.read(manifestStoreProvider),
-                    bookId: widget.book.id,
-                    chapterId: chapter.id,
-                    showDivider: chapterIndex < chapters.length - 1,
-                    onPlay: () => _openChapter(chapter),
-                    onDownload: () => _toggleChapterDownload(chapter),
-                    onCancelDownload: () => _cancelChapterDownload(chapter),
-                    paused: _pausedChapterIds.contains(chapter.id),
-                    onClearCache: () => _clearChapterCache(chapter),
-                    onRegenerate: () => _regenerateChapter(chapter),
-                    onChangeNarrator: () => _changeChapterNarrator(chapter),
-                    onHideInBook: () => _hideChapter(chapter),
+                      final chapterIndex = itemIndex - 1;
+                      final chapter = chapters[chapterIndex];
+                      return _ChapterCard(
+                        title: chapter.title,
+                        chapterNumber: chapter.chapterIndex + 1,
+                        highlighted:
+                            chapter.id == widget.initialChapterId ||
+                            chapter.id == _currentChapterId,
+                        coverSeed: coverSeed,
+                        progress: _generationProgress[chapter.id],
+                        savedPlaybackPositionMs: resolvedChapterData
+                            .progressByChapterId[chapter.id]
+                            ?.positionMs,
+                        savedIsFinished:
+                            resolvedChapterData
+                                .progressByChapterId[chapter.id]
+                                ?.isFinished ??
+                            false,
+                        legacyParagraphIndex: chapter.id == _currentChapterId
+                            ? _currentParagraphIndex
+                            : null,
+                        legacyParagraphOffsetMs: chapter.id == _currentChapterId
+                            ? _playbackOffsetMs
+                            : 0,
+                        manifestStore: ref.read(manifestStoreProvider),
+                        bookId: widget.book.id,
+                        chapterId: chapter.id,
+                        onPlay: () => _openChapter(chapter),
+                        onDownload: () => _toggleChapterDownload(chapter),
+                        onCancelDownload: () => _cancelChapterDownload(chapter),
+                        paused: _pausedChapterIds.contains(chapter.id),
+                        onClearCache: () => _clearChapterCache(chapter),
+                        onRegenerate: () => _regenerateChapter(chapter),
+                        onMarkAsFinished: () => _markChapterFinished(chapter),
+                        onChangeNarrator: () => _changeChapterNarrator(chapter),
+                        onHideInBook: () => _hideChapter(chapter),
+                      );
+                    },
                   );
                 },
               );
@@ -809,7 +843,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final controller = PrimaryScrollController.maybeOf(scrollContext);
       if (controller == null || !controller.hasClients) return;
-      final target = 300.0 + index * 76.0;
+      final target = 300.0 + index * 68.0;
       controller.animateTo(
         target.clamp(0.0, controller.position.maxScrollExtent),
         duration: const Duration(milliseconds: 260),
@@ -832,40 +866,46 @@ class _AlbumChapterData {
 
 class _ChapterCard extends StatelessWidget {
   final String title;
+  final int chapterNumber;
   final bool highlighted;
+  final Color? coverSeed;
   final GenerationProgress? progress;
   final int? savedPlaybackPositionMs;
+  final bool savedIsFinished;
   final int? legacyParagraphIndex;
   final int legacyParagraphOffsetMs;
   final ManifestStore manifestStore;
   final String bookId;
   final String chapterId;
-  final bool showDivider;
   final VoidCallback onPlay;
   final VoidCallback onDownload;
   final VoidCallback onCancelDownload;
   final bool paused;
   final VoidCallback onClearCache;
   final VoidCallback onRegenerate;
+  final VoidCallback onMarkAsFinished;
   final VoidCallback onChangeNarrator;
   final VoidCallback onHideInBook;
 
   const _ChapterCard({
     required this.title,
+    required this.chapterNumber,
     required this.highlighted,
+    required this.coverSeed,
     required this.savedPlaybackPositionMs,
+    required this.savedIsFinished,
     required this.legacyParagraphIndex,
     required this.legacyParagraphOffsetMs,
     required this.manifestStore,
     required this.bookId,
     required this.chapterId,
-    required this.showDivider,
     required this.onPlay,
     required this.onDownload,
     required this.onCancelDownload,
     required this.paused,
     required this.onClearCache,
     required this.onRegenerate,
+    required this.onMarkAsFinished,
     required this.onChangeNarrator,
     required this.onHideInBook,
     this.progress,
@@ -884,215 +924,218 @@ class _ChapterCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dividerColor = Theme.of(context).brightness == Brightness.light
-        ? const Color(0xFFE3E5E8)
-        : Colors.white.withValues(alpha: 0.12);
-    return Column(
-      children: [
-        Container(
+    final brightness = Theme.of(context).brightness;
+    final accent = coverSeed != null
+        ? CoverPaletteService.accentForSeed(coverSeed!, brightness)
+        : Theme.of(context).colorScheme.primary;
+    return FutureBuilder<ChapterManifest?>(
+      future: manifestStore.load(bookId, chapterId),
+      builder: (context, snapshot) {
+        final manifest = snapshot.data;
+        final durationMs = manifest?.totalDurationMs ?? 0;
+        final playbackPositionMs = resolveAudiobookChapterPositionMs(
+          manifest: manifest,
+          savedPositionMs: savedPlaybackPositionMs,
+          legacyParagraphIndex: legacyParagraphIndex,
+          legacyParagraphOffsetMs: legacyParagraphOffsetMs,
+        );
+        final playbackProgress = playbackPositionMs <= 0 || durationMs <= 0
+            ? null
+            : (playbackPositionMs / durationMs).clamp(0.0, 1.0).toDouble();
+        final finished =
+            savedIsFinished ||
+            (playbackProgress != null && playbackProgress >= 0.97);
+        final inProgress = playbackProgress != null && !finished;
+        final remainingMs = durationMs - playbackPositionMs;
+        final remainingText = _formatDuration(
+          remainingMs < 0 ? 0 : remainingMs,
+        );
+        final metadata = <String>[
+          if (durationMs > 0) _formatDuration(durationMs),
+          if (finished)
+            context.tr('已听完', 'Finished')
+          else if (inProgress)
+            context.tr('剩 $remainingText', '$remainingText left'),
+        ].join(' · ');
+        final metaStyle = TextStyle(
+          color: context.appTextSecondary,
+          fontSize: 12,
+          height: 1.3,
+        );
+        return AnimatedPressableCard(
           key: ValueKey('book-chapter-$chapterId'),
-          decoration: BoxDecoration(
-            color: highlighted
-                ? context.appSurface.withValues(alpha: 0.72)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Material(
-            color: Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: onPlay,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 12,
+          onTap: onPlay,
+          onLongPress: () => _showActions(context, manifest, finished),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                _ChapterBadge(
+                  number: chapterNumber,
+                  current: highlighted,
+                  accent: accent,
                 ),
-                child: FutureBuilder<ChapterManifest?>(
-                  future: manifestStore.load(bookId, chapterId),
-                  builder: (context, snapshot) {
-                    final manifest = snapshot.data;
-                    final durationMs = manifest?.totalDurationMs ?? 0;
-                    final playbackPositionMs =
-                        resolveAudiobookChapterPositionMs(
-                          manifest: manifest,
-                          savedPositionMs: savedPlaybackPositionMs,
-                          legacyParagraphIndex: legacyParagraphIndex,
-                          legacyParagraphOffsetMs: legacyParagraphOffsetMs,
-                        );
-                    final playbackProgress =
-                        playbackPositionMs <= 0 || durationMs <= 0
-                        ? null
-                        : (playbackPositionMs / durationMs)
-                              .clamp(0.0, 1.0)
-                              .toDouble();
-                    final metaStyle = TextStyle(
-                      color: context.appTextSecondary,
-                      fontSize: 12,
-                      height: 1.3,
-                    );
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                title,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: context.appTextPrimary,
-                                  fontSize: 17,
-                                  height: 1.25,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: -0.3,
-                                ),
-                              ),
-                              if (durationMs > 0) ...[
-                                const SizedBox(height: 5),
-                                Text(
-                                  _formatDuration(durationMs),
-                                  style: metaStyle,
-                                ),
-                              ],
-                              if (playbackProgress != null) ...[
-                                const SizedBox(height: 9),
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(2),
-                                  child: LinearProgressIndicator(
-                                    key: ValueKey(
-                                      'book-chapter-playback-progress-$chapterId',
-                                    ),
-                                    value: playbackProgress,
-                                    minHeight: 3,
-                                    backgroundColor:
-                                        context.appSurfaceHighlight,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: highlighted ? accent : context.appTextPrimary,
+                          fontSize: 17,
+                          height: 1.25,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.3,
                         ),
-                        const SizedBox(width: 6),
-                        _ChapterActions(
-                          chapterTitle: title,
-                          manifest: manifest,
-                          progress: progress,
-                          onDownload: onDownload,
-                          onCancelDownload: onCancelDownload,
-                          paused: paused,
-                          onClearCache: onClearCache,
-                          onRegenerate: onRegenerate,
-                          onChangeNarrator: onChangeNarrator,
-                          onHideInBook: onHideInBook,
+                      ),
+                      if (metadata.isNotEmpty) ...[
+                        const SizedBox(height: 5),
+                        Text(
+                          metadata,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: metaStyle,
                         ),
                       ],
-                    );
-                  },
+                      if (inProgress) ...[
+                        const SizedBox(height: 9),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(2),
+                          child: LinearProgressIndicator(
+                            key: ValueKey(
+                              'book-chapter-playback-progress-$chapterId',
+                            ),
+                            value: playbackProgress,
+                            minHeight: 3,
+                            backgroundColor: context.appSurfaceHighlight,
+                            valueColor: AlwaysStoppedAnimation<Color>(accent),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
-              ),
+                if (finished) ...[
+                  const SizedBox(width: 8),
+                  Icon(
+                    Icons.check_circle_rounded,
+                    size: 18,
+                    color: context.appTextSecondary.withValues(alpha: 0.65),
+                  ),
+                ],
+              ],
             ),
           ),
-        ),
-        if (showDivider)
-          Divider(
-            key: ValueKey('book-chapter-divider-$chapterId'),
-            height: 1,
-            thickness: 0.75,
-            indent: 8,
-            endIndent: 8,
-            color: dividerColor,
+        );
+      },
+    );
+  }
+
+  void _showActions(
+    BuildContext context,
+    ChapterManifest? manifest,
+    bool finished,
+  ) {
+    final isGenerating = progress != null;
+    final hasCache = (manifest?.readyCount ?? 0) > 0;
+    final isFullyCached = manifest?.isReady ?? false;
+    showHalfScreenActionSheet(
+      context,
+      title: title,
+      actions: [
+        if (isGenerating)
+          HalfScreenActionSheetItem(
+            label: paused ? '继续缓存' : '暂停缓存',
+            icon: paused ? Icons.play_arrow_rounded : Icons.pause_rounded,
+            onPressed: onDownload,
+          )
+        else if (!isFullyCached)
+          HalfScreenActionSheetItem(
+            label: hasCache ? '继续缓存音频' : '缓存音频',
+            icon: Icons.download_for_offline_outlined,
+            onPressed: onDownload,
           ),
+        if (isGenerating)
+          HalfScreenActionSheetItem(
+            label: '取消缓存',
+            icon: Icons.cancel_outlined,
+            onPressed: onCancelDownload,
+          ),
+        if (!isGenerating && hasCache)
+          HalfScreenActionSheetItem(
+            label: '清除音频',
+            icon: Icons.cleaning_services_outlined,
+            onPressed: onClearCache,
+          ),
+        if (!isGenerating && hasCache)
+          HalfScreenActionSheetItem(
+            label: '重新生成',
+            icon: Icons.refresh_rounded,
+            onPressed: onRegenerate,
+          ),
+        HalfScreenActionSheetItem(
+          label: context.tr('标记为已听完', 'Mark as finished'),
+          icon: Icons.check_circle_outline_rounded,
+          onPressed: finished ? null : onMarkAsFinished,
+        ),
+        HalfScreenActionSheetItem(
+          label: context.tr('修改旁白', 'Change narrator'),
+          icon: Icons.record_voice_over_outlined,
+          onPressed: onChangeNarrator,
+        ),
+        HalfScreenActionSheetItem(
+          label: context.tr('在本书中隐藏', 'Hide in this book'),
+          icon: Icons.visibility_off_outlined,
+          onPressed: onHideInBook,
+        ),
       ],
     );
   }
 }
 
-class _ChapterActions extends StatelessWidget {
-  final String chapterTitle;
-  final ChapterManifest? manifest;
-  final GenerationProgress? progress;
-  final VoidCallback onDownload;
-  final VoidCallback onCancelDownload;
-  final bool paused;
-  final VoidCallback onClearCache;
-  final VoidCallback onRegenerate;
-  final VoidCallback onChangeNarrator;
-  final VoidCallback onHideInBook;
+class _ChapterBadge extends StatelessWidget {
+  final int number;
+  final bool current;
+  final Color accent;
 
-  const _ChapterActions({
-    required this.chapterTitle,
-    required this.manifest,
-    required this.onDownload,
-    required this.onCancelDownload,
-    required this.paused,
-    required this.onClearCache,
-    required this.onRegenerate,
-    required this.onChangeNarrator,
-    required this.onHideInBook,
-    this.progress,
+  const _ChapterBadge({
+    required this.number,
+    required this.current,
+    required this.accent,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isGenerating = progress != null;
-    final hasCache = (manifest?.readyCount ?? 0) > 0;
-    final isFullyCached = manifest?.isReady ?? false;
-    return IconButton(
-      tooltip: '章节操作',
-      icon: Icon(Icons.more_horiz, color: context.appTextPrimary),
-      constraints: const BoxConstraints.tightFor(width: 40, height: 40),
-      padding: EdgeInsets.zero,
-      onPressed: () {
-        showHalfScreenActionSheet(
-          context,
-          title: chapterTitle,
-          actions: [
-            if (isGenerating)
-              HalfScreenActionSheetItem(
-                label: paused ? '继续缓存' : '暂停缓存',
-                icon: paused ? Icons.play_arrow_rounded : Icons.pause_rounded,
-                onPressed: onDownload,
-              )
-            else if (!isFullyCached)
-              HalfScreenActionSheetItem(
-                label: hasCache ? '继续缓存音频' : '缓存音频',
-                icon: Icons.download_for_offline_outlined,
-                onPressed: onDownload,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        color: current
+            ? accent
+            : accent.withValues(alpha: isDark ? 0.16 : 0.12),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      alignment: Alignment.center,
+      child: current
+          ? Icon(
+              Icons.graphic_eq_rounded,
+              size: 20,
+              color: CoverPaletteService.foregroundFor(accent),
+            )
+          : Text(
+              '$number',
+              style: TextStyle(
+                color: accent,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
               ),
-            if (isGenerating)
-              HalfScreenActionSheetItem(
-                label: '取消缓存',
-                icon: Icons.cancel_outlined,
-                onPressed: onCancelDownload,
-              ),
-            if (!isGenerating && hasCache)
-              HalfScreenActionSheetItem(
-                label: '清除音频',
-                icon: Icons.cleaning_services_outlined,
-                onPressed: onClearCache,
-              ),
-            if (!isGenerating && hasCache)
-              HalfScreenActionSheetItem(
-                label: '重新生成',
-                icon: Icons.refresh_rounded,
-                onPressed: onRegenerate,
-              ),
-            HalfScreenActionSheetItem(
-              label: context.tr('修改旁白', 'Change narrator'),
-              icon: Icons.record_voice_over_outlined,
-              onPressed: onChangeNarrator,
             ),
-            HalfScreenActionSheetItem(
-              label: context.tr('在本书中隐藏', 'Hide in this book'),
-              icon: Icons.visibility_off_outlined,
-              onPressed: onHideInBook,
-            ),
-          ],
-        );
-      },
     );
   }
 }

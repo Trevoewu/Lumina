@@ -34,8 +34,15 @@ String bookLanguageLabel(BuildContext context, drift_db.Book book) {
       context.tr('未知语言', 'Unknown language');
 }
 
-String bookReadingProgressLabel(BuildContext context, drift_db.Book book) {
-  final percent = estimatedBookReadingProgress(book);
+String bookReadingProgressLabel(
+  BuildContext context,
+  drift_db.Book book, {
+  Iterable<int> finishedChapterIndexes = const <int>[],
+}) {
+  final percent = estimatedBookReadingProgress(
+    book,
+    finishedChapterIndexes: finishedChapterIndexes,
+  );
   return context.tr('进度 $percent%', '$percent% read');
 }
 
@@ -59,17 +66,35 @@ String? normalizeCefrReadingLevel(String? value) {
   };
 }
 
-int estimatedBookReadingProgress(drift_db.Book book) {
+int estimatedBookReadingProgress(
+  drift_db.Book book, {
+  Iterable<int> finishedChapterIndexes = const <int>[],
+}) {
   final totalParagraphs = book.paragraphCount;
   if (totalParagraphs <= 0) return 0;
 
   final chapterIndex = _chapterIndexFromId(book.currentChapterId);
-  if (chapterIndex == null) return 0;
-
   final totalChapters = book.chapterCount <= 0 ? 1 : book.chapterCount;
   final averageParagraphsPerChapter = totalParagraphs / totalChapters;
-  final estimatedPosition =
-      (chapterIndex * averageParagraphsPerChapter) + book.currentParagraphIndex;
+  final finishedIndexes = finishedChapterIndexes
+      .where((index) => index >= 0 && index < totalChapters)
+      .toSet();
+  var estimatedPosition = chapterIndex == null
+      ? 0.0
+      : (chapterIndex * averageParagraphsPerChapter) +
+            book.currentParagraphIndex;
+
+  for (final finishedIndex in finishedIndexes) {
+    if (chapterIndex == null || finishedIndex > chapterIndex) {
+      estimatedPosition += averageParagraphsPerChapter;
+    } else if (finishedIndex == chapterIndex) {
+      final partialChapterPosition = book.currentParagraphIndex.clamp(
+        0,
+        averageParagraphsPerChapter,
+      );
+      estimatedPosition += averageParagraphsPerChapter - partialChapterPosition;
+    }
+  }
   return ((estimatedPosition / totalParagraphs) * 100).clamp(0, 100).round();
 }
 

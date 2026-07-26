@@ -1853,6 +1853,21 @@ class $ChapterPlaybackProgressesTable extends ChapterPlaybackProgresses
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _isFinishedMeta = const VerificationMeta(
+    'isFinished',
+  );
+  @override
+  late final GeneratedColumn<bool> isFinished = GeneratedColumn<bool>(
+    'is_finished',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_finished" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _updatedAtMeta = const VerificationMeta(
     'updatedAt',
   );
@@ -1871,6 +1886,7 @@ class $ChapterPlaybackProgressesTable extends ChapterPlaybackProgresses
     positionMs,
     paragraphIndex,
     paragraphOffsetMs,
+    isFinished,
     updatedAt,
   ];
   @override
@@ -1925,6 +1941,12 @@ class $ChapterPlaybackProgressesTable extends ChapterPlaybackProgresses
         ),
       );
     }
+    if (data.containsKey('is_finished')) {
+      context.handle(
+        _isFinishedMeta,
+        isFinished.isAcceptableOrUnknown(data['is_finished']!, _isFinishedMeta),
+      );
+    }
     if (data.containsKey('updated_at')) {
       context.handle(
         _updatedAtMeta,
@@ -1965,6 +1987,10 @@ class $ChapterPlaybackProgressesTable extends ChapterPlaybackProgresses
         DriftSqlType.int,
         data['${effectivePrefix}paragraph_offset_ms'],
       )!,
+      isFinished: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_finished'],
+      )!,
       updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}updated_at'],
@@ -1985,6 +2011,7 @@ class ChapterPlaybackProgress extends DataClass
   final int positionMs;
   final int paragraphIndex;
   final int paragraphOffsetMs;
+  final bool isFinished;
   final int updatedAt;
   const ChapterPlaybackProgress({
     required this.chapterId,
@@ -1992,6 +2019,7 @@ class ChapterPlaybackProgress extends DataClass
     required this.positionMs,
     required this.paragraphIndex,
     required this.paragraphOffsetMs,
+    required this.isFinished,
     required this.updatedAt,
   });
   @override
@@ -2002,6 +2030,7 @@ class ChapterPlaybackProgress extends DataClass
     map['position_ms'] = Variable<int>(positionMs);
     map['paragraph_index'] = Variable<int>(paragraphIndex);
     map['paragraph_offset_ms'] = Variable<int>(paragraphOffsetMs);
+    map['is_finished'] = Variable<bool>(isFinished);
     map['updated_at'] = Variable<int>(updatedAt);
     return map;
   }
@@ -2013,6 +2042,7 @@ class ChapterPlaybackProgress extends DataClass
       positionMs: Value(positionMs),
       paragraphIndex: Value(paragraphIndex),
       paragraphOffsetMs: Value(paragraphOffsetMs),
+      isFinished: Value(isFinished),
       updatedAt: Value(updatedAt),
     );
   }
@@ -2028,6 +2058,7 @@ class ChapterPlaybackProgress extends DataClass
       positionMs: serializer.fromJson<int>(json['positionMs']),
       paragraphIndex: serializer.fromJson<int>(json['paragraphIndex']),
       paragraphOffsetMs: serializer.fromJson<int>(json['paragraphOffsetMs']),
+      isFinished: serializer.fromJson<bool>(json['isFinished']),
       updatedAt: serializer.fromJson<int>(json['updatedAt']),
     );
   }
@@ -2040,6 +2071,7 @@ class ChapterPlaybackProgress extends DataClass
       'positionMs': serializer.toJson<int>(positionMs),
       'paragraphIndex': serializer.toJson<int>(paragraphIndex),
       'paragraphOffsetMs': serializer.toJson<int>(paragraphOffsetMs),
+      'isFinished': serializer.toJson<bool>(isFinished),
       'updatedAt': serializer.toJson<int>(updatedAt),
     };
   }
@@ -2050,6 +2082,7 @@ class ChapterPlaybackProgress extends DataClass
     int? positionMs,
     int? paragraphIndex,
     int? paragraphOffsetMs,
+    bool? isFinished,
     int? updatedAt,
   }) => ChapterPlaybackProgress(
     chapterId: chapterId ?? this.chapterId,
@@ -2057,6 +2090,7 @@ class ChapterPlaybackProgress extends DataClass
     positionMs: positionMs ?? this.positionMs,
     paragraphIndex: paragraphIndex ?? this.paragraphIndex,
     paragraphOffsetMs: paragraphOffsetMs ?? this.paragraphOffsetMs,
+    isFinished: isFinished ?? this.isFinished,
     updatedAt: updatedAt ?? this.updatedAt,
   );
   ChapterPlaybackProgress copyWithCompanion(
@@ -2074,6 +2108,9 @@ class ChapterPlaybackProgress extends DataClass
       paragraphOffsetMs: data.paragraphOffsetMs.present
           ? data.paragraphOffsetMs.value
           : this.paragraphOffsetMs,
+      isFinished: data.isFinished.present
+          ? data.isFinished.value
+          : this.isFinished,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
@@ -2086,6 +2123,7 @@ class ChapterPlaybackProgress extends DataClass
           ..write('positionMs: $positionMs, ')
           ..write('paragraphIndex: $paragraphIndex, ')
           ..write('paragraphOffsetMs: $paragraphOffsetMs, ')
+          ..write('isFinished: $isFinished, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -2098,6 +2136,7 @@ class ChapterPlaybackProgress extends DataClass
     positionMs,
     paragraphIndex,
     paragraphOffsetMs,
+    isFinished,
     updatedAt,
   );
   @override
@@ -2109,6 +2148,7 @@ class ChapterPlaybackProgress extends DataClass
           other.positionMs == this.positionMs &&
           other.paragraphIndex == this.paragraphIndex &&
           other.paragraphOffsetMs == this.paragraphOffsetMs &&
+          other.isFinished == this.isFinished &&
           other.updatedAt == this.updatedAt);
 }
 
@@ -2119,6 +2159,7 @@ class ChapterPlaybackProgressesCompanion
   final Value<int> positionMs;
   final Value<int> paragraphIndex;
   final Value<int> paragraphOffsetMs;
+  final Value<bool> isFinished;
   final Value<int> updatedAt;
   final Value<int> rowid;
   const ChapterPlaybackProgressesCompanion({
@@ -2127,6 +2168,7 @@ class ChapterPlaybackProgressesCompanion
     this.positionMs = const Value.absent(),
     this.paragraphIndex = const Value.absent(),
     this.paragraphOffsetMs = const Value.absent(),
+    this.isFinished = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -2136,6 +2178,7 @@ class ChapterPlaybackProgressesCompanion
     this.positionMs = const Value.absent(),
     this.paragraphIndex = const Value.absent(),
     this.paragraphOffsetMs = const Value.absent(),
+    this.isFinished = const Value.absent(),
     required int updatedAt,
     this.rowid = const Value.absent(),
   }) : chapterId = Value(chapterId),
@@ -2147,6 +2190,7 @@ class ChapterPlaybackProgressesCompanion
     Expression<int>? positionMs,
     Expression<int>? paragraphIndex,
     Expression<int>? paragraphOffsetMs,
+    Expression<bool>? isFinished,
     Expression<int>? updatedAt,
     Expression<int>? rowid,
   }) {
@@ -2156,6 +2200,7 @@ class ChapterPlaybackProgressesCompanion
       if (positionMs != null) 'position_ms': positionMs,
       if (paragraphIndex != null) 'paragraph_index': paragraphIndex,
       if (paragraphOffsetMs != null) 'paragraph_offset_ms': paragraphOffsetMs,
+      if (isFinished != null) 'is_finished': isFinished,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
     });
@@ -2167,6 +2212,7 @@ class ChapterPlaybackProgressesCompanion
     Value<int>? positionMs,
     Value<int>? paragraphIndex,
     Value<int>? paragraphOffsetMs,
+    Value<bool>? isFinished,
     Value<int>? updatedAt,
     Value<int>? rowid,
   }) {
@@ -2176,6 +2222,7 @@ class ChapterPlaybackProgressesCompanion
       positionMs: positionMs ?? this.positionMs,
       paragraphIndex: paragraphIndex ?? this.paragraphIndex,
       paragraphOffsetMs: paragraphOffsetMs ?? this.paragraphOffsetMs,
+      isFinished: isFinished ?? this.isFinished,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
     );
@@ -2199,6 +2246,9 @@ class ChapterPlaybackProgressesCompanion
     if (paragraphOffsetMs.present) {
       map['paragraph_offset_ms'] = Variable<int>(paragraphOffsetMs.value);
     }
+    if (isFinished.present) {
+      map['is_finished'] = Variable<bool>(isFinished.value);
+    }
     if (updatedAt.present) {
       map['updated_at'] = Variable<int>(updatedAt.value);
     }
@@ -2216,6 +2266,7 @@ class ChapterPlaybackProgressesCompanion
           ..write('positionMs: $positionMs, ')
           ..write('paragraphIndex: $paragraphIndex, ')
           ..write('paragraphOffsetMs: $paragraphOffsetMs, ')
+          ..write('isFinished: $isFinished, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -6829,6 +6880,17 @@ class $PodcastShowsTable extends PodcastShows
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _categoriesJsonMeta = const VerificationMeta(
+    'categoriesJson',
+  );
+  @override
+  late final GeneratedColumn<String> categoriesJson = GeneratedColumn<String>(
+    'categories_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _subscribedAtMeta = const VerificationMeta(
     'subscribedAt',
   );
@@ -6861,6 +6923,7 @@ class $PodcastShowsTable extends PodcastShows
     imageUrl,
     language,
     websiteUrl,
+    categoriesJson,
     subscribedAt,
     lastRefreshedAt,
   ];
@@ -6930,6 +6993,15 @@ class $PodcastShowsTable extends PodcastShows
         websiteUrl.isAcceptableOrUnknown(data['website_url']!, _websiteUrlMeta),
       );
     }
+    if (data.containsKey('categories_json')) {
+      context.handle(
+        _categoriesJsonMeta,
+        categoriesJson.isAcceptableOrUnknown(
+          data['categories_json']!,
+          _categoriesJsonMeta,
+        ),
+      );
+    }
     if (data.containsKey('subscribed_at')) {
       context.handle(
         _subscribedAtMeta,
@@ -6997,6 +7069,10 @@ class $PodcastShowsTable extends PodcastShows
         DriftSqlType.string,
         data['${effectivePrefix}website_url'],
       ),
+      categoriesJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}categories_json'],
+      ),
       subscribedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}subscribed_at'],
@@ -7023,6 +7099,7 @@ class PodcastShow extends DataClass implements Insertable<PodcastShow> {
   final String? imageUrl;
   final String? language;
   final String? websiteUrl;
+  final String? categoriesJson;
   final int subscribedAt;
   final int lastRefreshedAt;
   const PodcastShow({
@@ -7034,6 +7111,7 @@ class PodcastShow extends DataClass implements Insertable<PodcastShow> {
     this.imageUrl,
     this.language,
     this.websiteUrl,
+    this.categoriesJson,
     required this.subscribedAt,
     required this.lastRefreshedAt,
   });
@@ -7055,6 +7133,9 @@ class PodcastShow extends DataClass implements Insertable<PodcastShow> {
     }
     if (!nullToAbsent || websiteUrl != null) {
       map['website_url'] = Variable<String>(websiteUrl);
+    }
+    if (!nullToAbsent || categoriesJson != null) {
+      map['categories_json'] = Variable<String>(categoriesJson);
     }
     map['subscribed_at'] = Variable<int>(subscribedAt);
     map['last_refreshed_at'] = Variable<int>(lastRefreshedAt);
@@ -7079,6 +7160,9 @@ class PodcastShow extends DataClass implements Insertable<PodcastShow> {
       websiteUrl: websiteUrl == null && nullToAbsent
           ? const Value.absent()
           : Value(websiteUrl),
+      categoriesJson: categoriesJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(categoriesJson),
       subscribedAt: Value(subscribedAt),
       lastRefreshedAt: Value(lastRefreshedAt),
     );
@@ -7098,6 +7182,7 @@ class PodcastShow extends DataClass implements Insertable<PodcastShow> {
       imageUrl: serializer.fromJson<String?>(json['imageUrl']),
       language: serializer.fromJson<String?>(json['language']),
       websiteUrl: serializer.fromJson<String?>(json['websiteUrl']),
+      categoriesJson: serializer.fromJson<String?>(json['categoriesJson']),
       subscribedAt: serializer.fromJson<int>(json['subscribedAt']),
       lastRefreshedAt: serializer.fromJson<int>(json['lastRefreshedAt']),
     );
@@ -7114,6 +7199,7 @@ class PodcastShow extends DataClass implements Insertable<PodcastShow> {
       'imageUrl': serializer.toJson<String?>(imageUrl),
       'language': serializer.toJson<String?>(language),
       'websiteUrl': serializer.toJson<String?>(websiteUrl),
+      'categoriesJson': serializer.toJson<String?>(categoriesJson),
       'subscribedAt': serializer.toJson<int>(subscribedAt),
       'lastRefreshedAt': serializer.toJson<int>(lastRefreshedAt),
     };
@@ -7128,6 +7214,7 @@ class PodcastShow extends DataClass implements Insertable<PodcastShow> {
     Value<String?> imageUrl = const Value.absent(),
     Value<String?> language = const Value.absent(),
     Value<String?> websiteUrl = const Value.absent(),
+    Value<String?> categoriesJson = const Value.absent(),
     int? subscribedAt,
     int? lastRefreshedAt,
   }) => PodcastShow(
@@ -7139,6 +7226,9 @@ class PodcastShow extends DataClass implements Insertable<PodcastShow> {
     imageUrl: imageUrl.present ? imageUrl.value : this.imageUrl,
     language: language.present ? language.value : this.language,
     websiteUrl: websiteUrl.present ? websiteUrl.value : this.websiteUrl,
+    categoriesJson: categoriesJson.present
+        ? categoriesJson.value
+        : this.categoriesJson,
     subscribedAt: subscribedAt ?? this.subscribedAt,
     lastRefreshedAt: lastRefreshedAt ?? this.lastRefreshedAt,
   );
@@ -7156,6 +7246,9 @@ class PodcastShow extends DataClass implements Insertable<PodcastShow> {
       websiteUrl: data.websiteUrl.present
           ? data.websiteUrl.value
           : this.websiteUrl,
+      categoriesJson: data.categoriesJson.present
+          ? data.categoriesJson.value
+          : this.categoriesJson,
       subscribedAt: data.subscribedAt.present
           ? data.subscribedAt.value
           : this.subscribedAt,
@@ -7176,6 +7269,7 @@ class PodcastShow extends DataClass implements Insertable<PodcastShow> {
           ..write('imageUrl: $imageUrl, ')
           ..write('language: $language, ')
           ..write('websiteUrl: $websiteUrl, ')
+          ..write('categoriesJson: $categoriesJson, ')
           ..write('subscribedAt: $subscribedAt, ')
           ..write('lastRefreshedAt: $lastRefreshedAt')
           ..write(')'))
@@ -7192,6 +7286,7 @@ class PodcastShow extends DataClass implements Insertable<PodcastShow> {
     imageUrl,
     language,
     websiteUrl,
+    categoriesJson,
     subscribedAt,
     lastRefreshedAt,
   );
@@ -7207,6 +7302,7 @@ class PodcastShow extends DataClass implements Insertable<PodcastShow> {
           other.imageUrl == this.imageUrl &&
           other.language == this.language &&
           other.websiteUrl == this.websiteUrl &&
+          other.categoriesJson == this.categoriesJson &&
           other.subscribedAt == this.subscribedAt &&
           other.lastRefreshedAt == this.lastRefreshedAt);
 }
@@ -7220,6 +7316,7 @@ class PodcastShowsCompanion extends UpdateCompanion<PodcastShow> {
   final Value<String?> imageUrl;
   final Value<String?> language;
   final Value<String?> websiteUrl;
+  final Value<String?> categoriesJson;
   final Value<int> subscribedAt;
   final Value<int> lastRefreshedAt;
   final Value<int> rowid;
@@ -7232,6 +7329,7 @@ class PodcastShowsCompanion extends UpdateCompanion<PodcastShow> {
     this.imageUrl = const Value.absent(),
     this.language = const Value.absent(),
     this.websiteUrl = const Value.absent(),
+    this.categoriesJson = const Value.absent(),
     this.subscribedAt = const Value.absent(),
     this.lastRefreshedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -7245,6 +7343,7 @@ class PodcastShowsCompanion extends UpdateCompanion<PodcastShow> {
     this.imageUrl = const Value.absent(),
     this.language = const Value.absent(),
     this.websiteUrl = const Value.absent(),
+    this.categoriesJson = const Value.absent(),
     required int subscribedAt,
     required int lastRefreshedAt,
     this.rowid = const Value.absent(),
@@ -7262,6 +7361,7 @@ class PodcastShowsCompanion extends UpdateCompanion<PodcastShow> {
     Expression<String>? imageUrl,
     Expression<String>? language,
     Expression<String>? websiteUrl,
+    Expression<String>? categoriesJson,
     Expression<int>? subscribedAt,
     Expression<int>? lastRefreshedAt,
     Expression<int>? rowid,
@@ -7275,6 +7375,7 @@ class PodcastShowsCompanion extends UpdateCompanion<PodcastShow> {
       if (imageUrl != null) 'image_url': imageUrl,
       if (language != null) 'language': language,
       if (websiteUrl != null) 'website_url': websiteUrl,
+      if (categoriesJson != null) 'categories_json': categoriesJson,
       if (subscribedAt != null) 'subscribed_at': subscribedAt,
       if (lastRefreshedAt != null) 'last_refreshed_at': lastRefreshedAt,
       if (rowid != null) 'rowid': rowid,
@@ -7290,6 +7391,7 @@ class PodcastShowsCompanion extends UpdateCompanion<PodcastShow> {
     Value<String?>? imageUrl,
     Value<String?>? language,
     Value<String?>? websiteUrl,
+    Value<String?>? categoriesJson,
     Value<int>? subscribedAt,
     Value<int>? lastRefreshedAt,
     Value<int>? rowid,
@@ -7303,6 +7405,7 @@ class PodcastShowsCompanion extends UpdateCompanion<PodcastShow> {
       imageUrl: imageUrl ?? this.imageUrl,
       language: language ?? this.language,
       websiteUrl: websiteUrl ?? this.websiteUrl,
+      categoriesJson: categoriesJson ?? this.categoriesJson,
       subscribedAt: subscribedAt ?? this.subscribedAt,
       lastRefreshedAt: lastRefreshedAt ?? this.lastRefreshedAt,
       rowid: rowid ?? this.rowid,
@@ -7336,6 +7439,9 @@ class PodcastShowsCompanion extends UpdateCompanion<PodcastShow> {
     if (websiteUrl.present) {
       map['website_url'] = Variable<String>(websiteUrl.value);
     }
+    if (categoriesJson.present) {
+      map['categories_json'] = Variable<String>(categoriesJson.value);
+    }
     if (subscribedAt.present) {
       map['subscribed_at'] = Variable<int>(subscribedAt.value);
     }
@@ -7359,6 +7465,7 @@ class PodcastShowsCompanion extends UpdateCompanion<PodcastShow> {
           ..write('imageUrl: $imageUrl, ')
           ..write('language: $language, ')
           ..write('websiteUrl: $websiteUrl, ')
+          ..write('categoriesJson: $categoriesJson, ')
           ..write('subscribedAt: $subscribedAt, ')
           ..write('lastRefreshedAt: $lastRefreshedAt, ')
           ..write('rowid: $rowid')
@@ -9270,6 +9377,7 @@ typedef $$ChapterPlaybackProgressesTableCreateCompanionBuilder =
       Value<int> positionMs,
       Value<int> paragraphIndex,
       Value<int> paragraphOffsetMs,
+      Value<bool> isFinished,
       required int updatedAt,
       Value<int> rowid,
     });
@@ -9280,6 +9388,7 @@ typedef $$ChapterPlaybackProgressesTableUpdateCompanionBuilder =
       Value<int> positionMs,
       Value<int> paragraphIndex,
       Value<int> paragraphOffsetMs,
+      Value<bool> isFinished,
       Value<int> updatedAt,
       Value<int> rowid,
     });
@@ -9315,6 +9424,11 @@ class $$ChapterPlaybackProgressesTableFilterComposer
 
   ColumnFilters<int> get paragraphOffsetMs => $composableBuilder(
     column: $table.paragraphOffsetMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isFinished => $composableBuilder(
+    column: $table.isFinished,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -9358,6 +9472,11 @@ class $$ChapterPlaybackProgressesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get isFinished => $composableBuilder(
+    column: $table.isFinished,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
@@ -9391,6 +9510,11 @@ class $$ChapterPlaybackProgressesTableAnnotationComposer
 
   GeneratedColumn<int> get paragraphOffsetMs => $composableBuilder(
     column: $table.paragraphOffsetMs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isFinished => $composableBuilder(
+    column: $table.isFinished,
     builder: (column) => column,
   );
 
@@ -9449,6 +9573,7 @@ class $$ChapterPlaybackProgressesTableTableManager
                 Value<int> positionMs = const Value.absent(),
                 Value<int> paragraphIndex = const Value.absent(),
                 Value<int> paragraphOffsetMs = const Value.absent(),
+                Value<bool> isFinished = const Value.absent(),
                 Value<int> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ChapterPlaybackProgressesCompanion(
@@ -9457,6 +9582,7 @@ class $$ChapterPlaybackProgressesTableTableManager
                 positionMs: positionMs,
                 paragraphIndex: paragraphIndex,
                 paragraphOffsetMs: paragraphOffsetMs,
+                isFinished: isFinished,
                 updatedAt: updatedAt,
                 rowid: rowid,
               ),
@@ -9467,6 +9593,7 @@ class $$ChapterPlaybackProgressesTableTableManager
                 Value<int> positionMs = const Value.absent(),
                 Value<int> paragraphIndex = const Value.absent(),
                 Value<int> paragraphOffsetMs = const Value.absent(),
+                Value<bool> isFinished = const Value.absent(),
                 required int updatedAt,
                 Value<int> rowid = const Value.absent(),
               }) => ChapterPlaybackProgressesCompanion.insert(
@@ -9475,6 +9602,7 @@ class $$ChapterPlaybackProgressesTableTableManager
                 positionMs: positionMs,
                 paragraphIndex: paragraphIndex,
                 paragraphOffsetMs: paragraphOffsetMs,
+                isFinished: isFinished,
                 updatedAt: updatedAt,
                 rowid: rowid,
               ),
@@ -11726,6 +11854,7 @@ typedef $$PodcastShowsTableCreateCompanionBuilder =
       Value<String?> imageUrl,
       Value<String?> language,
       Value<String?> websiteUrl,
+      Value<String?> categoriesJson,
       required int subscribedAt,
       required int lastRefreshedAt,
       Value<int> rowid,
@@ -11740,6 +11869,7 @@ typedef $$PodcastShowsTableUpdateCompanionBuilder =
       Value<String?> imageUrl,
       Value<String?> language,
       Value<String?> websiteUrl,
+      Value<String?> categoriesJson,
       Value<int> subscribedAt,
       Value<int> lastRefreshedAt,
       Value<int> rowid,
@@ -11791,6 +11921,11 @@ class $$PodcastShowsTableFilterComposer
 
   ColumnFilters<String> get websiteUrl => $composableBuilder(
     column: $table.websiteUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get categoriesJson => $composableBuilder(
+    column: $table.categoriesJson,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -11854,6 +11989,11 @@ class $$PodcastShowsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get categoriesJson => $composableBuilder(
+    column: $table.categoriesJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get subscribedAt => $composableBuilder(
     column: $table.subscribedAt,
     builder: (column) => ColumnOrderings(column),
@@ -11899,6 +12039,11 @@ class $$PodcastShowsTableAnnotationComposer
 
   GeneratedColumn<String> get websiteUrl => $composableBuilder(
     column: $table.websiteUrl,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get categoriesJson => $composableBuilder(
+    column: $table.categoriesJson,
     builder: (column) => column,
   );
 
@@ -11952,6 +12097,7 @@ class $$PodcastShowsTableTableManager
                 Value<String?> imageUrl = const Value.absent(),
                 Value<String?> language = const Value.absent(),
                 Value<String?> websiteUrl = const Value.absent(),
+                Value<String?> categoriesJson = const Value.absent(),
                 Value<int> subscribedAt = const Value.absent(),
                 Value<int> lastRefreshedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -11964,6 +12110,7 @@ class $$PodcastShowsTableTableManager
                 imageUrl: imageUrl,
                 language: language,
                 websiteUrl: websiteUrl,
+                categoriesJson: categoriesJson,
                 subscribedAt: subscribedAt,
                 lastRefreshedAt: lastRefreshedAt,
                 rowid: rowid,
@@ -11978,6 +12125,7 @@ class $$PodcastShowsTableTableManager
                 Value<String?> imageUrl = const Value.absent(),
                 Value<String?> language = const Value.absent(),
                 Value<String?> websiteUrl = const Value.absent(),
+                Value<String?> categoriesJson = const Value.absent(),
                 required int subscribedAt,
                 required int lastRefreshedAt,
                 Value<int> rowid = const Value.absent(),
@@ -11990,6 +12138,7 @@ class $$PodcastShowsTableTableManager
                 imageUrl: imageUrl,
                 language: language,
                 websiteUrl: websiteUrl,
+                categoriesJson: categoriesJson,
                 subscribedAt: subscribedAt,
                 lastRefreshedAt: lastRefreshedAt,
                 rowid: rowid,

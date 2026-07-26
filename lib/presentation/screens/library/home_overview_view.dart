@@ -8,7 +8,6 @@ import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart';
 import '../../widgets/book_card_metadata.dart';
 import '../../widgets/book_list_card.dart';
-import '../album/album_screen.dart';
 import '../podcast/podcast_episode_screen.dart';
 import '../podcast/podcast_episode_tile.dart';
 
@@ -18,6 +17,8 @@ class HomeOverviewView extends ConsumerStatefulWidget {
   final VoidCallback onImportBook;
   final VoidCallback onAddPodcast;
   final VoidCallback onSearchPodcastIndex;
+  final ValueChanged<Book> onBookLongPress;
+  final ValueChanged<Book> onOpenBook;
 
   const HomeOverviewView({
     super.key,
@@ -26,6 +27,8 @@ class HomeOverviewView extends ConsumerStatefulWidget {
     required this.onImportBook,
     required this.onAddPodcast,
     required this.onSearchPodcastIndex,
+    required this.onBookLongPress,
+    required this.onOpenBook,
   });
 
   @override
@@ -63,15 +66,23 @@ class _HomeOverviewViewState extends ConsumerState<HomeOverviewView> {
           onImportBook: widget.onImportBook,
           onAddPodcast: widget.onAddPodcast,
           onSearchPodcastIndex: widget.onSearchPodcastIndex,
+          onBookLongPress: widget.onBookLongPress,
+          onOpenBook: widget.onOpenBook,
         );
       },
     );
   }
 
   Future<_HomeOverviewData> _load(AppDatabase database) async {
-    final books = await database.getAllBooks();
-    final shows = await database.getPodcastShows();
-    final episodes = await database.getRecentPodcastEpisodes(limit: 8);
+    final results = await Future.wait<Object>([
+      database.getAllBooks(),
+      database.getPodcastShows(),
+      database.getRecentPodcastEpisodes(limit: 8),
+      database.getFinishedChapterIndexesByBook(),
+    ]);
+    final books = results[0] as List<Book>;
+    final shows = results[1] as List<PodcastShow>;
+    final episodes = results[2] as List<PodcastEpisode>;
     books.sort((left, right) {
       final leftTime = left.lastReadAt > 0 ? left.lastReadAt : left.importedAt;
       final rightTime = right.lastReadAt > 0
@@ -83,6 +94,7 @@ class _HomeOverviewViewState extends ConsumerState<HomeOverviewView> {
       books: books,
       episodes: episodes,
       showsById: {for (final show in shows) show.id: show},
+      finishedChapterIndexesByBook: results[3] as Map<String, Set<int>>,
     );
   }
 }
@@ -93,6 +105,8 @@ class _HomeOverviewContent extends StatelessWidget {
   final VoidCallback onImportBook;
   final VoidCallback onAddPodcast;
   final VoidCallback onSearchPodcastIndex;
+  final ValueChanged<Book> onBookLongPress;
+  final ValueChanged<Book> onOpenBook;
 
   const _HomeOverviewContent({
     required this.data,
@@ -100,6 +114,8 @@ class _HomeOverviewContent extends StatelessWidget {
     required this.onImportBook,
     required this.onAddPodcast,
     required this.onSearchPodcastIndex,
+    required this.onBookLongPress,
+    required this.onOpenBook,
   });
 
   @override
@@ -167,7 +183,13 @@ class _HomeOverviewContent extends StatelessWidget {
               metadata: [
                 BookListCardMeta(
                   icon: Icons.trending_up_outlined,
-                  label: bookReadingProgressLabel(context, book),
+                  label: bookReadingProgressLabel(
+                    context,
+                    book,
+                    finishedChapterIndexes:
+                        data.finishedChapterIndexesByBook[book.id] ??
+                        const <int>{},
+                  ),
                 ),
                 BookListCardMeta(
                   icon: Icons.library_books_outlined,
@@ -177,9 +199,8 @@ class _HomeOverviewContent extends StatelessWidget {
                   ),
                 ),
               ],
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => AlbumScreen(book: book)),
-              ),
+              onTap: () => onOpenBook(book),
+              onLongPress: () => onBookLongPress(book),
             ),
         ],
         if (data.episodes.isNotEmpty) ...[
@@ -267,10 +288,12 @@ class _HomeOverviewData {
   final List<Book> books;
   final List<PodcastEpisode> episodes;
   final Map<String, PodcastShow> showsById;
+  final Map<String, Set<int>> finishedChapterIndexesByBook;
 
   const _HomeOverviewData({
     required this.books,
     required this.episodes,
     required this.showsById,
+    required this.finishedChapterIndexesByBook,
   });
 }

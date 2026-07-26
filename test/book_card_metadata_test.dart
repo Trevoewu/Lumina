@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:drift/drift.dart' as drift;
 import 'package:lumina/data/database/app_database.dart';
 import 'package:lumina/domain/models/book_language.dart';
 import 'package:lumina/presentation/widgets/book_card_metadata.dart';
@@ -48,6 +49,42 @@ void main() {
     );
 
     expect(estimatedBookReadingProgress(book), 0);
+  });
+
+  test('finished chapters contribute to estimated reading progress', () {
+    const unreadBook = Book(
+      id: 'book-1',
+      title: 'Finished Chapter Test',
+      format: 'txt',
+      sourcePath: '/tmp/finished.txt',
+      chapterCount: 4,
+      paragraphCount: 100,
+      currentParagraphIndex: 0,
+      playbackOffsetMs: 0,
+      importedAt: 1,
+      lastReadAt: 1,
+      kind: 'book',
+      rightsStatus: 'user_uploaded',
+    );
+    expect(
+      estimatedBookReadingProgress(
+        unreadBook,
+        finishedChapterIndexes: const {2},
+      ),
+      25,
+    );
+
+    final partiallyRead = unreadBook.copyWith(
+      currentChapterId: const drift.Value('book-1_ch_1'),
+      currentParagraphIndex: 10,
+    );
+    expect(
+      estimatedBookReadingProgress(
+        partiallyRead,
+        finishedChapterIndexes: const {1, 3},
+      ),
+      75,
+    );
   });
 
   testWidgets('reading level label marks estimated CEFR values', (

@@ -12,6 +12,7 @@ import 'package:lumina/data/database/app_database.dart';
 import 'package:lumina/domain/models/chapter_manifest.dart';
 import 'package:lumina/presentation/screens/player/player_screen.dart';
 import 'package:lumina/presentation/screens/podcast/podcast_episode_screen.dart';
+import 'package:lumina/presentation/widgets/podcast_link_text.dart';
 import 'package:lumina/services/lumina_audio_handler.dart';
 import 'package:lumina/services/sleep_timer_service.dart';
 
@@ -138,6 +139,13 @@ void main() {
         find.descendant(
           of: find.byKey(const ValueKey('podcast-shownotes-card')),
           matching: find.byKey(const ValueKey('podcast-episode-description')),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('podcast-shownotes-card')),
+          matching: find.byType(PodcastLinkText),
         ),
         findsOneWidget,
       );

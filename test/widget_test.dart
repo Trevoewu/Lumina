@@ -10,6 +10,7 @@ import 'package:lumina/presentation/widgets/narrator_label.dart';
 import 'package:lumina/presentation/screens/settings/settings_screen.dart';
 import 'package:lumina/presentation/screens/settings/voice_library_screen.dart';
 import 'package:lumina/presentation/widgets/mini_player.dart';
+import 'package:lumina/presentation/widgets/book_list_card.dart';
 
 void main() {
   testWidgets('narrator label shows the selected voice', (tester) async {
@@ -94,7 +95,9 @@ void main() {
     );
   });
 
-  testWidgets('book menu exposes whole-book caching', (tester) async {
+  testWidgets('book menus expose actions and refresh finished progress', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(430, 760);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -109,8 +112,8 @@ void main() {
         format: 'epub',
         sourcePath: '/tmp/cache-test.epub',
         coverPath: null,
-        chapterCount: 0,
-        paragraphCount: 0,
+        chapterCount: 4,
+        paragraphCount: 100,
         currentChapterId: null,
         currentParagraphIndex: 0,
         playbackOffsetMs: 0,
@@ -121,6 +124,16 @@ void main() {
         rightsStatus: 'user_uploaded',
       ),
     );
+    await database.insertChapters([
+      const Chapter(
+        id: 'book-cache-test_ch_2',
+        bookId: 'book-cache-test',
+        chapterIndex: 2,
+        title: 'Chapter 3',
+        textOffset: 0,
+        isHidden: false,
+      ),
+    ]);
 
     await tester.pumpWidget(
       ProviderScope(
@@ -130,16 +143,36 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 500));
 
-    await tester.tap(find.byKey(const ValueKey('home-section-books')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.more_horiz));
+    var bookCard = find.byType(BookListCard);
+    expect(bookCard, findsOneWidget);
+    expect(find.textContaining('0% read'), findsOneWidget);
+    await tester.longPress(bookCard);
     await tester.pumpAndSettle();
     expect(find.text('Cache Entire Book'), findsOneWidget);
-
-    await tester.tap(find.text('Cache Entire Book'));
+    await tester.tap(find.byIcon(Icons.close_rounded));
     await tester.pumpAndSettle();
-    expect(find.text('Unable to cache'), findsOneWidget);
-    expect(find.byType(SnackBar), findsNothing);
+
+    await tester.tap(bookCard);
+    await tester.pumpAndSettle();
+    expect(find.byType(BackButton), findsOneWidget);
+    await database.markChapterFinished(
+      'book-cache-test',
+      'book-cache-test_ch_2',
+    );
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('25% read'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('home-section-books')));
+    await tester.pumpAndSettle();
+    bookCard = find.byType(BookListCard);
+    expect(
+      find.descendant(of: bookCard, matching: find.byIcon(Icons.more_horiz)),
+      findsNothing,
+    );
+    await tester.longPress(bookCard);
+    await tester.pumpAndSettle();
+    expect(find.text('Cache Entire Book'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));

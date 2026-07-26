@@ -314,6 +314,129 @@ void main() {
     expect(find.text('Transcript segment 499.'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'long-press word selection preserves virtualized transcript position',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 500);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final handler = _VirtualLyricsAudioHandler();
+      addTearDown(handler.dispose);
+      final transcriptLines = [
+        for (var index = 0; index < 400; index++) 'Transcript segment $index.',
+      ];
+      final timings = [
+        for (var index = 0; index < transcriptLines.length; index++)
+          AudioTextTiming(
+            text: transcriptLines[index],
+            startMs: index * 1000,
+            endMs: (index + 1) * 1000,
+          ),
+      ];
+      final manifest = ChapterManifest(
+        chapterId: 'long-transcript',
+        bookId: 'podcast:long-show',
+        providerId: 'whisper-local',
+        voiceId: '',
+        speed: 1,
+        updatedAt: 1,
+        segments: [
+          SegmentEntry(
+            paragraphId: 'long-transcript',
+            audioFile: 'https://example.com/episode.mp3',
+            durationMs: 400000,
+            state: ParagraphAudioState.ready,
+            format: 'podcast',
+            timings: timings,
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.darkTheme(),
+          home: Scaffold(
+            body: SizedBox(
+              width: 390,
+              height: 500,
+              child: SyncedLyricsList(
+                paragraphs: [
+                  Paragraph(
+                    id: 'long-transcript',
+                    chapterId: 'long-transcript',
+                    bookId: 'podcast:long-show',
+                    paragraphIndex: 0,
+                    content: transcriptLines.join('\n'),
+                  ),
+                ],
+                manifest: manifest,
+                handler: handler,
+                playbackEnabled: false,
+                expanded: true,
+                virtualized: true,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final virtualList = find.byKey(
+        const ValueKey('synced-lyrics-virtualized-list'),
+      );
+      final scrollable = find.descendant(
+        of: virtualList,
+        matching: find.byType(Scrollable),
+      );
+      final scrollableState = tester.state<ScrollableState>(scrollable);
+      scrollableState.position.jumpTo(
+        scrollableState.position.maxScrollExtent * 0.65,
+      );
+      await tester.pump();
+      final before = tester.state<ScrollableState>(scrollable).position.pixels;
+      expect(before, greaterThan(1000));
+      final visibleTargetElement = find
+          .descendant(of: virtualList, matching: find.byType(Text))
+          .evaluate()
+          .where((element) {
+            final text = element.widget as Text;
+            if (!(text.data ?? '').startsWith('Transcript segment ')) {
+              return false;
+            }
+            final renderObject = element.renderObject;
+            if (renderObject is! RenderBox || !renderObject.attached) {
+              return false;
+            }
+            final rect =
+                renderObject.localToGlobal(Offset.zero) & renderObject.size;
+            return rect.top >= 80 && rect.bottom <= 420;
+          })
+          .first;
+      final targetText = (visibleTargetElement.widget as Text).data!;
+      final targetIndex = int.parse(
+        RegExp(r'\d+').firstMatch(targetText)!.group(0)!,
+      );
+      final target = find.byElementPredicate(
+        (element) => identical(element, visibleTargetElement),
+      );
+
+      final targetInkWell = tester.widget<InkWell>(
+        find.ancestor(of: target, matching: find.byType(InkWell)).first,
+      );
+      targetInkWell.onLongPress!();
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(ValueKey('word-selection-long-transcript:$targetIndex')),
+        findsOneWidget,
+      );
+      final after = tester.state<ScrollableState>(scrollable).position.pixels;
+      expect(after, closeTo(before, 1));
+      expect(find.text('Transcript segment 0.'), findsNothing);
+    },
+  );
 }
 
 class _VirtualLyricsAudioHandler extends BaseAudioHandler

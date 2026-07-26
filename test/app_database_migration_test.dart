@@ -61,7 +61,7 @@ void main() {
     expect(repaired?.coverPath, cover.path);
   });
 
-  test('schema 1 books migrate to schema 11 without data loss', () async {
+  test('schema 1 books migrate to schema 13 without data loss', () async {
     final tempDir = Directory.systemTemp.createTempSync('lumina_migration_');
     final databaseFile = File('${tempDir.path}/lumina.db');
 
@@ -105,7 +105,7 @@ void main() {
         .customSelect('PRAGMA user_version;')
         .getSingle();
 
-    expect(version.read<int>('user_version'), 11);
+    expect(version.read<int>('user_version'), 13);
     expect(await database.getPodcastShows(), isEmpty);
     expect(books, hasLength(1));
     expect(books.single.title, 'Migration Test');
@@ -131,6 +131,7 @@ void main() {
     expect(chapterThreeProgress?.positionMs, 62450);
     expect(chapterThreeProgress?.paragraphIndex, 17);
     expect(chapterThreeProgress?.paragraphOffsetMs, 2450);
+    expect(chapterThreeProgress?.isFinished, isFalse);
 
     await database.insertChapters([
       const Chapter(
@@ -172,4 +173,70 @@ void main() {
     expect(listeningDays.single.listenedMs, 120000);
     expect(listeningDays.single.sessions, 1);
   });
+
+  test(
+    'schema 11 data gains podcast categories and chapter completion',
+    () async {
+      final tempDir = Directory.systemTemp.createTempSync(
+        'lumina_podcast_migration_',
+      );
+      final databaseFile = File('${tempDir.path}/lumina.db');
+      final oldDatabase = sqlite3.open(databaseFile.path);
+      oldDatabase.execute('''
+      CREATE TABLE podcast_shows (
+        id TEXT NOT NULL PRIMARY KEY,
+        feed_url TEXT NOT NULL UNIQUE,
+        title TEXT NOT NULL,
+        author TEXT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        image_url TEXT NULL,
+        language TEXT NULL,
+        website_url TEXT NULL,
+        subscribed_at INTEGER NOT NULL,
+        last_refreshed_at INTEGER NOT NULL
+      );
+    ''');
+      oldDatabase.execute('''
+      INSERT INTO podcast_shows (
+        id, feed_url, title, description, subscribed_at, last_refreshed_at
+      ) VALUES (
+        'show-1', 'https://example.com/feed.xml', 'Legacy Show', '', 1, 1
+      );
+    ''');
+      oldDatabase.execute('''
+      CREATE TABLE chapter_playback_progresses (
+        chapter_id TEXT NOT NULL PRIMARY KEY,
+        book_id TEXT NOT NULL,
+        position_ms INTEGER NOT NULL DEFAULT 0,
+        paragraph_index INTEGER NOT NULL DEFAULT 0,
+        paragraph_offset_ms INTEGER NOT NULL DEFAULT 0,
+        updated_at INTEGER NOT NULL
+      );
+    ''');
+      oldDatabase.execute('''
+      INSERT INTO chapter_playback_progresses (
+        chapter_id, book_id, position_ms, updated_at
+      ) VALUES ('chapter-1', 'book-1', 1200, 1);
+    ''');
+      oldDatabase.execute('PRAGMA user_version = 11;');
+      oldDatabase.close();
+
+      final database = AppDatabase.forTesting(NativeDatabase(databaseFile));
+      addTearDown(() async {
+        await database.close();
+        if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
+      });
+
+      final show = await database.getPodcastShow('show-1');
+      final version = await database
+          .customSelect('PRAGMA user_version;')
+          .getSingle();
+      expect(version.read<int>('user_version'), 13);
+      expect(show?.title, 'Legacy Show');
+      expect(show?.categoriesJson, equals(null));
+      final progress = await database.getChapterPlaybackProgress('chapter-1');
+      expect(progress?.positionMs, 1200);
+      expect(progress?.isFinished, isFalse);
+    },
+  );
 }

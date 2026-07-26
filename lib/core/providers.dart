@@ -74,6 +74,7 @@ final cacheManagerProvider = Provider<CacheManager>((ref) {
   return CacheManager(
     ref.watch(manifestStoreProvider),
     ref.watch(generationOrchestratorProvider),
+    ref.watch(appDatabaseProvider),
   );
 });
 

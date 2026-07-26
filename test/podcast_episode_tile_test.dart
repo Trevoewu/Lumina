@@ -1,0 +1,103 @@
+import 'package:drift/native.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:lumina/core/providers.dart';
+import 'package:lumina/core/theme.dart';
+import 'package:lumina/data/database/app_database.dart';
+import 'package:lumina/presentation/screens/podcast/podcast_episode_tile.dart';
+
+void main() {
+  testWidgets('episode actions can mark an episode as finished', (
+    tester,
+  ) async {
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+    final hapticCalls = <MethodCall>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'HapticFeedback.vibrate') {
+          hapticCalls.add(call);
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    const episode = PodcastEpisode(
+      id: 'finishable-episode',
+      showId: 'show-1',
+      guid: 'finishable-guid',
+      title: 'A finishable episode',
+      description: '',
+      audioUrl: 'https://example.com/episode.mp3',
+      publishedAt: 1,
+      durationMs: 60000,
+      playbackPositionMs: 12000,
+      lastPlayedAt: 0,
+      isPlayed: false,
+      transcriptStatus: 'none',
+    );
+    await database.upsertPodcastEpisode(episode);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [appDatabaseProvider.overrideWithValue(database)],
+        child: MaterialApp(
+          theme: AppTheme.lightTheme(),
+          home: Scaffold(
+            body: PodcastEpisodeTile(episode: episode, onTap: () {}),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final card = find.byKey(
+      const ValueKey('podcast-episode-finishable-episode'),
+    );
+    final scale = find.descendant(
+      of: card,
+      matching: find.byType(AnimatedScale),
+    );
+    expect(tester.widget<AnimatedScale>(scale).scale, 1);
+    final inkWell = tester.widget<InkWell>(
+      find.descendant(of: card, matching: find.byType(InkWell)),
+    );
+    inkWell.onHighlightChanged!(true);
+    await tester.pump();
+    expect(tester.widget<AnimatedScale>(scale).scale, lessThan(1));
+    await tester.pump(const Duration(milliseconds: 75));
+    inkWell.onHighlightChanged!(false);
+    await tester.pump();
+    expect(tester.widget<AnimatedScale>(scale).scale, 1);
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.more_horiz), findsNothing);
+    await tester.longPress(card);
+    await tester.pumpAndSettle();
+    expect(
+      hapticCalls.any(
+        (call) => call.arguments == 'HapticFeedbackType.mediumImpact',
+      ),
+      isTrue,
+    );
+    expect(find.text('Mark as finished'), findsOneWidget);
+    expect(find.text('Download episode'), findsOneWidget);
+
+    await tester.tap(find.text('Mark as finished'));
+    await tester.pumpAndSettle();
+
+    final updated = await database.getPodcastEpisode(episode.id);
+    expect(updated?.isPlayed, isTrue);
+    expect(updated?.playbackPositionMs, episode.durationMs);
+    expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+  });
+}

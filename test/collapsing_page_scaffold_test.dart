@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lumina/core/app_colors.dart';
 import 'package:lumina/core/theme.dart';
 import 'package:lumina/presentation/widgets/collapsing_page_scaffold.dart';
 
@@ -29,7 +30,9 @@ void main() {
     final header = tester.widget<Material>(
       find.byKey(const ValueKey('collapsing-page-header')),
     );
-    expect(header.color, Colors.transparent);
+    // Opaque background keeps scrolling body content from ghosting through
+    // the pinned header while matching the scaffold color at rest.
+    expect(header.color, AppColors.darkColorScheme.surface);
     expect(
       tester
           .widget<Text>(find.byKey(const ValueKey('collapsing-page-title')))
@@ -46,7 +49,7 @@ void main() {
     );
     expect(
       tester.getTopLeft(find.byKey(const ValueKey('collapsing-page-title'))).dx,
-      closeTo(24, 0.1),
+      closeTo(16, 0.1),
     );
 
     await tester.drag(find.byType(ListView), const Offset(0, -320));

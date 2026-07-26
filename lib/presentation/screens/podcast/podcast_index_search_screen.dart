@@ -11,6 +11,7 @@ import '../../../core/providers.dart';
 import '../../../data/podcasts/podcast_index_repository.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
 import '../../widgets/podcast_artwork.dart';
+import 'podcast_discovery_detail_screen.dart';
 
 class PodcastIndexSearchScreen extends ConsumerStatefulWidget {
   const PodcastIndexSearchScreen({super.key});
@@ -24,7 +25,6 @@ class _PodcastIndexSearchScreenState
     extends ConsumerState<PodcastIndexSearchScreen> {
   final _controller = TextEditingController();
   final _subscribedFeedUrls = <String>{};
-  final _subscribingFeedUrls = <String>{};
   Timer? _debounce;
   Future<List<PodcastIndexPodcast>>? _searchFuture;
   String _activeQuery = '';
@@ -46,6 +46,7 @@ class _PodcastIndexSearchScreenState
     final shows = await ref.read(appDatabaseProvider).getPodcastShows();
     if (!mounted) return;
     setState(() {
+      _subscribedFeedUrls.clear();
       _subscribedFeedUrls.addAll(shows.map((show) => show.feedUrl));
     });
   }
@@ -183,8 +184,7 @@ class _PodcastIndexSearchScreenState
             return _PodcastIndexResultTile(
               podcast: podcast,
               subscribed: _subscribedFeedUrls.contains(podcast.feedUrl),
-              subscribing: _subscribingFeedUrls.contains(podcast.feedUrl),
-              onSubscribe: () => _subscribe(podcast),
+              onTap: () => _openDetails(podcast),
             );
           },
         );
@@ -192,43 +192,13 @@ class _PodcastIndexSearchScreenState
     );
   }
 
-  Future<void> _subscribe(PodcastIndexPodcast podcast) async {
-    if (_subscribedFeedUrls.contains(podcast.feedUrl) ||
-        _subscribingFeedUrls.contains(podcast.feedUrl)) {
-      return;
-    }
-    setState(() => _subscribingFeedUrls.add(podcast.feedUrl));
-    try {
-      final result = await ref
-          .read(podcastRepositoryProvider)
-          .subscribe(podcast.feedUrl);
-      if (!mounted) return;
-      setState(() {
-        _subscribedFeedUrls
-          ..add(podcast.feedUrl)
-          ..add(result.show.feedUrl);
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            context.tr(
-              '已订阅 ${result.show.title}',
-              'Subscribed to ${result.show.title}',
-            ),
-          ),
-        ),
-      );
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('订阅失败：$error')));
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _subscribingFeedUrls.remove(podcast.feedUrl));
-      }
-    }
+  Future<void> _openDetails(PodcastIndexPodcast podcast) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PodcastDiscoveryDetailScreen(podcast: podcast),
+      ),
+    );
+    await _loadSubscriptions();
   }
 }
 
@@ -318,14 +288,12 @@ class _PodcastIndexError extends StatelessWidget {
 class _PodcastIndexResultTile extends StatelessWidget {
   final PodcastIndexPodcast podcast;
   final bool subscribed;
-  final bool subscribing;
-  final VoidCallback onSubscribe;
+  final VoidCallback onTap;
 
   const _PodcastIndexResultTile({
     required this.podcast,
     required this.subscribed,
-    required this.subscribing,
-    required this.onSubscribe,
+    required this.onTap,
   });
 
   @override
@@ -341,62 +309,54 @@ class _PodcastIndexResultTile extends StatelessWidget {
     ].join(' · ');
     return Card(
       margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            PodcastArtwork(imageUrl: podcast.imageUrl, size: 72),
-            const SizedBox(width: 13),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    podcast.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                  if (metadata.isNotEmpty) ...[
-                    const SizedBox(height: 5),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              PodcastArtwork(imageUrl: podcast.imageUrl, size: 72),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      metadata,
+                      podcast.title,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: context.appTextSecondary,
-                        fontSize: 12,
-                      ),
+                      style: const TextStyle(fontWeight: FontWeight.w800),
                     ),
+                    if (metadata.isNotEmpty) ...[
+                      const SizedBox(height: 5),
+                      Text(
+                        metadata,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: context.appTextSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ],
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            if (subscribing)
-              const SizedBox.square(
-                dimension: 28,
-                child: CircularProgressIndicator(strokeWidth: 2.5),
-              )
-            else if (subscribed)
-              Tooltip(
-                message: context.tr('已订阅', 'Subscribed'),
-                child: Icon(
-                  Icons.check_circle,
-                  color: Theme.of(context).colorScheme.primary,
-                  size: 30,
                 ),
-              )
-            else
-              FilledButton(
-                onPressed: onSubscribe,
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(0, 38),
-                  padding: const EdgeInsets.symmetric(horizontal: 13),
-                ),
-                child: Text(context.tr('订阅', 'Follow')),
               ),
-          ],
+              const SizedBox(width: 8),
+              if (subscribed)
+                Tooltip(
+                  message: context.tr('已订阅', 'Subscribed'),
+                  child: Icon(
+                    Icons.check_circle,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 30,
+                  ),
+                )
+              else
+                const Icon(Icons.chevron_right_rounded),
+            ],
+          ),
         ),
       ),
     );
