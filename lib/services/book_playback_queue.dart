@@ -9,6 +9,7 @@ Future<void> loadBookPlaybackQueue({
   required ManifestStore manifestStore,
   required String bookId,
   required String bookTitle,
+  String? coverPath,
   required ChapterManifest initialManifest,
   String paragraphLabel = 'Paragraph',
   Duration initialPosition = Duration.zero,
@@ -22,7 +23,11 @@ Future<void> loadBookPlaybackQueue({
         : await manifestStore.load(bookId, chapter.id);
     if (manifest == null) continue;
     sources.add(
-      ChapterPlaybackSource(manifest: manifest, chapterTitle: chapter.title),
+      ChapterPlaybackSource(
+        manifest: manifest,
+        chapterTitle: chapter.title,
+        coverPath: coverPath,
+      ),
     );
   }
 
@@ -34,6 +39,7 @@ Future<void> loadBookPlaybackQueue({
       ChapterPlaybackSource(
         manifest: initialManifest,
         chapterTitle: chapter?.title ?? '',
+        coverPath: coverPath,
       ),
     );
   }

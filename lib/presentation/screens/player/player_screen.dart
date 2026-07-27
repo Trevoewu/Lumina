@@ -851,6 +851,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             manifestStore: ref.read(manifestStoreProvider),
             bookId: widget.book.id,
             bookTitle: widget.book.title,
+            coverPath: widget.book.coverPath,
             initialManifest: playable,
             paragraphLabel: paragraphLabel,
             initialPosition: initialPosition,
@@ -864,6 +865,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             audioRoot: audioRoot.path,
             bookTitle: widget.book.title,
             chapterTitle: chapter.title,
+            coverPath: widget.book.coverPath,
             paragraphLabel: paragraphLabel,
             initialPosition: initialPosition,
           );

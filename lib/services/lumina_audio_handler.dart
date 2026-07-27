@@ -11,10 +11,12 @@ import 'app_log_service.dart';
 class ChapterPlaybackSource {
   final ChapterManifest manifest;
   final String chapterTitle;
+  final String? coverPath;
 
   const ChapterPlaybackSource({
     required this.manifest,
     required this.chapterTitle,
+    this.coverPath,
   });
 }
 
@@ -100,6 +102,7 @@ class LuminaAudioHandler extends BaseAudioHandler
         _chapterDurationMs = _podcastEntries[index].durationMs;
         mediaItem.add(queue.value[index]);
         _currentParagraphController.add(_podcastEntries[index].episodeId);
+        _broadcastState(_player.playbackEvent);
         return;
       }
       if (index >= _queueEntries.length) return;
@@ -107,6 +110,7 @@ class LuminaAudioHandler extends BaseAudioHandler
       final item = queue.value[index];
       mediaItem.add(item);
       _currentParagraphController.add(_queueEntries[index].segment.paragraphId);
+      _broadcastState(_player.playbackEvent);
     });
     _durationSub = _player.durationStream.listen((duration) {
       if (_podcastEntries.isEmpty || duration == null) return;
@@ -158,6 +162,7 @@ class LuminaAudioHandler extends BaseAudioHandler
     required String audioRoot,
     String? bookTitle,
     String? chapterTitle,
+    String? coverPath,
     String paragraphLabel = 'Paragraph',
     Duration initialPosition = Duration.zero,
   }) async {
@@ -166,6 +171,7 @@ class LuminaAudioHandler extends BaseAudioHandler
         ChapterPlaybackSource(
           manifest: manifest,
           chapterTitle: chapterTitle ?? '',
+          coverPath: coverPath,
         ),
       ],
       initialChapterId: manifest.chapterId,
@@ -197,6 +203,7 @@ class LuminaAudioHandler extends BaseAudioHandler
     final items = <MediaItem>[];
     final sources = <AudioSource>[];
     final entries = <_QueueEntry>[];
+    final artworkUris = <String, Uri?>{};
     var initialIndex = -1;
     for (final chapter in chapters) {
       final playable = <SegmentEntry>[];
@@ -211,6 +218,14 @@ class LuminaAudioHandler extends BaseAudioHandler
         0,
         (total, segment) => total + segment.durationMs,
       );
+      final coverPath = chapter.coverPath;
+      Uri? artUri;
+      if (coverPath != null) {
+        if (!artworkUris.containsKey(coverPath)) {
+          artworkUris[coverPath] = await _localArtworkUri(coverPath);
+        }
+        artUri = artworkUris[coverPath];
+      }
       var chapterOffsetMs = 0;
       for (var i = 0; i < playable.length; i++) {
         final segment = playable[i];
@@ -225,6 +240,8 @@ class LuminaAudioHandler extends BaseAudioHandler
           bookTitle: bookTitle,
           chapterTitle: chapter.chapterTitle,
           paragraphLabel: paragraphLabel,
+          chapterDurationMs: chapterDurationMs,
+          artUri: artUri,
         );
         entries.add(
           _QueueEntry(
@@ -402,6 +419,11 @@ class LuminaAudioHandler extends BaseAudioHandler
     }
 
     final additions = playable.skip(existing.length).toList(growable: false);
+    final chapterDurationMs = playable.fold<int>(
+      0,
+      (total, segment) => total + segment.durationMs,
+    );
+    final currentArtUri = mediaItem.valueOrNull?.artUri;
     final wasWaitingAtCacheBoundary =
         _player.processingState == ProcessingState.completed;
     final additionSources = additions
@@ -415,16 +437,14 @@ class LuminaAudioHandler extends BaseAudioHandler
               bookTitle: bookTitle,
               chapterTitle: chapterTitle,
               paragraphLabel: paragraphLabel,
+              chapterDurationMs: chapterDurationMs,
+              artUri: currentArtUri,
             ),
           ),
         )
         .toList(growable: false);
     await _player.insertAudioSources(chapterEnd, additionSources);
 
-    final chapterDurationMs = playable.fold<int>(
-      0,
-      (total, segment) => total + segment.durationMs,
-    );
     var chapterOffsetMs = 0;
     final chapterEntries = <_QueueEntry>[];
     final chapterItems = <MediaItem>[];
@@ -446,6 +466,8 @@ class LuminaAudioHandler extends BaseAudioHandler
           bookTitle: bookTitle,
           chapterTitle: chapterTitle,
           paragraphLabel: paragraphLabel,
+          chapterDurationMs: chapterDurationMs,
+          artUri: currentArtUri,
         ),
       );
       chapterOffsetMs += segment.durationMs;
@@ -489,6 +511,8 @@ class LuminaAudioHandler extends BaseAudioHandler
     required int paragraphNumber,
     required String chapterTitle,
     required String paragraphLabel,
+    required int chapterDurationMs,
+    Uri? artUri,
     String? bookTitle,
   }) {
     return MediaItem(
@@ -497,7 +521,10 @@ class LuminaAudioHandler extends BaseAudioHandler
       title: chapterTitle.isEmpty
           ? '$paragraphLabel $paragraphNumber'
           : '$chapterTitle · $paragraphLabel $paragraphNumber',
-      duration: Duration(milliseconds: segment.durationMs),
+      artUri: artUri,
+      // Playback remains split into paragraph-sized audio sources for
+      // highlighting, while system media surfaces expose a chapter timeline.
+      duration: Duration(milliseconds: chapterDurationMs),
       extras: {
         'bookId': manifest.bookId,
         'chapterId': manifest.chapterId,
@@ -769,8 +796,10 @@ class LuminaAudioHandler extends BaseAudioHandler
         androidCompactActionIndices: const [0, 1, 2],
         processingState: _mapProcessingState(_player.processingState),
         playing: isPlaying,
-        updatePosition: _player.position,
-        bufferedPosition: _player.bufferedPosition,
+        updatePosition: chapterPosition,
+        bufferedPosition: _chapterBufferedPositionFrom(
+          _player.bufferedPosition,
+        ),
         speed: _player.speed,
         queueIndex: event.currentIndex,
       ),
@@ -798,6 +827,22 @@ class LuminaAudioHandler extends BaseAudioHandler
     return Duration(milliseconds: positionMs.clamp(0, _chapterDurationMs));
   }
 
+  Duration _chapterBufferedPositionFrom(Duration paragraphBufferedPosition) {
+    if (_podcastEntries.isNotEmpty) return paragraphBufferedPosition;
+    if (_queueEntries.isEmpty || _chapterDurationMs <= 0) {
+      return paragraphBufferedPosition;
+    }
+
+    final index = _player.currentIndex ?? 0;
+    if (index < 0 || index >= _queueEntries.length) {
+      return chapterPosition;
+    }
+    final bufferedMs =
+        _queueEntries[index].chapterOffsetMs +
+        paragraphBufferedPosition.inMilliseconds;
+    return Duration(milliseconds: bufferedMs.clamp(0, _chapterDurationMs));
+  }
+
   void _applyCurrentEntry(int index) {
     if (index < 0 || index >= _queueEntries.length) return;
     final entry = _queueEntries[index];
@@ -814,6 +859,13 @@ class LuminaAudioHandler extends BaseAudioHandler
       ProcessingState.completed => AudioProcessingState.completed,
     };
   }
+}
+
+Future<Uri?> _localArtworkUri(String path) async {
+  if (path.trim().isEmpty) return null;
+  final file = File(path);
+  if (!await file.exists()) return null;
+  return file.uri;
 }
 
 Future<LuminaAudioHandler> initLuminaAudioHandler() async {

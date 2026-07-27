@@ -544,6 +544,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           manifestStore: manifestStore,
           bookId: book.id,
           bookTitle: book.title,
+          coverPath: book.coverPath,
           initialManifest: manifest,
           paragraphLabel: paragraphLabel,
         );
