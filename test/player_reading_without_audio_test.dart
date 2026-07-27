@@ -12,12 +12,103 @@ import 'package:lumina/data/database/app_database.dart';
 import 'package:lumina/domain/models/chapter_manifest.dart';
 import 'package:lumina/presentation/screens/album/album_screen.dart';
 import 'package:lumina/presentation/screens/player/player_screen.dart';
+import 'package:lumina/presentation/widgets/mini_player.dart';
 import 'package:lumina/services/lumina_audio_handler.dart';
 import 'package:lumina/services/manifest_store.dart';
 import 'package:lumina/services/sleep_timer_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets('mini player reopens the active audiobook chapter', (
+    tester,
+  ) async {
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final audioHandler = _TestAudioHandler();
+    addTearDown(database.close);
+    addTearDown(audioHandler.dispose);
+
+    const book = Book(
+      id: 'mini-player-book',
+      title: 'Mini Player Book',
+      author: 'Reader',
+      format: 'epub',
+      sourcePath: '/tmp/mini-player.epub',
+      chapterCount: 1,
+      paragraphCount: 2,
+      currentChapterId: 'mini-player-chapter',
+      currentParagraphIndex: 1,
+      playbackOffsetMs: 0,
+      importedAt: 1,
+      lastReadAt: 1,
+      kind: 'book',
+      rightsStatus: 'user_uploaded',
+    );
+    const chapter = Chapter(
+      id: 'mini-player-chapter',
+      bookId: 'mini-player-book',
+      chapterIndex: 0,
+      title: 'Chapter 1',
+      textOffset: 0,
+      isHidden: false,
+    );
+    await database.replaceBookData(
+      book: book,
+      chapterEntries: const [chapter],
+      paragraphEntries: const [
+        Paragraph(
+          id: 'mini-player-paragraph-1',
+          chapterId: 'mini-player-chapter',
+          bookId: 'mini-player-book',
+          paragraphIndex: 0,
+          content: 'First paragraph.',
+        ),
+        Paragraph(
+          id: 'mini-player-paragraph-2',
+          chapterId: 'mini-player-chapter',
+          bookId: 'mini-player-book',
+          paragraphIndex: 1,
+          content: 'Second paragraph.',
+        ),
+      ],
+    );
+    audioHandler.startLoadedChapter(
+      bookId: book.id,
+      chapterId: chapter.id,
+      paragraphId: 'mini-player-paragraph-2',
+    );
+    audioHandler.mediaItem.add(
+      const MediaItem(
+        id: 'mini-player-paragraph-2',
+        title: 'Chapter 1 · Paragraph 2',
+        album: 'Mini Player Book',
+        extras: {
+          'bookId': 'mini-player-book',
+          'chapterId': 'mini-player-chapter',
+          'paragraphId': 'mini-player-paragraph-2',
+        },
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          luminaAudioHandlerProvider.overrideWith((ref) async => audioHandler),
+        ],
+        child: const MaterialApp(home: Scaffold(body: MiniPlayer())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Chapter 1 · Paragraph 2'), findsOneWidget);
+    await tester.tap(find.text('Chapter 1 · Paragraph 2'));
+    await tester.pumpAndSettle();
+
+    final player = tester.widget<PlayerScreen>(find.byType(PlayerScreen));
+    expect(player.initialChapter?.id, chapter.id);
+    expect(find.byKey(const ValueKey('ai-summary-generate')), findsOneWidget);
+  });
 
   testWidgets(
     'an uncached chapter remains readable and offers streaming playback',

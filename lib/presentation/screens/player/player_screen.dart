@@ -1242,6 +1242,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final podcast = widget.podcast;
     final episode = _podcastEpisode ?? podcast?.episode;
     final chapter = widget.initialChapter;
+    final activeChapterId =
+        chapter?.id ??
+        handler.currentChapterId ??
+        widget.book.currentChapterId ??
+        widget.book.id;
     final scope = podcast != null && episode != null
         ? AiContentScope(
             type: AiScopeType.episode,
@@ -1254,7 +1259,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           )
         : AiContentScope(
             type: AiScopeType.chapter,
-            id: chapter?.id ?? widget.book.id,
+            id: activeChapterId,
             parentId: widget.book.id,
             title: chapter?.title ?? widget.book.title,
             parentTitle: widget.book.title,

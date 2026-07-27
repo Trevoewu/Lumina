@@ -60,10 +60,17 @@ class MiniPlayer extends ConsumerWidget {
 
                     final db = ref.read(appDatabaseProvider);
                     final book = await db.getBook(bookId);
+                    final chapterId =
+                        currentItem.extras?['chapterId'] as String? ??
+                        book?.currentChapterId;
+                    final chapter = chapterId == null
+                        ? null
+                        : await db.getChapter(chapterId);
                     if (book != null && context.mounted) {
                       Navigator.of(context, rootNavigator: true).push(
                         MaterialPageRoute(
-                          builder: (_) => PlayerScreen(book: book),
+                          builder: (_) =>
+                              PlayerScreen(book: book, initialChapter: chapter),
                         ),
                       );
                     }
