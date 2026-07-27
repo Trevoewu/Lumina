@@ -182,11 +182,15 @@ void main() {
         find.byKey(const ValueKey('book-player-scroll-view')),
         findsOneWidget,
       );
-      expect(
-        find.byKey(const ValueKey('book-information-card')),
-        findsOneWidget,
-      );
+      expect(find.byKey(const ValueKey('book-information-card')), findsNothing);
+      expect(find.byKey(const ValueKey('ai-summary-card')), findsOneWidget);
       expect(find.byKey(const ValueKey('book-text-card')), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.byKey(const ValueKey('ai-summary-card'))).dy,
+        lessThan(
+          tester.getTopLeft(find.byKey(const ValueKey('book-text-card'))).dy,
+        ),
+      );
       expect(find.text('Synchronized text'), findsOneWidget);
       expect(find.byIcon(Icons.more_horiz_rounded), findsOneWidget);
       expect(find.byIcon(Icons.timer_outlined), findsOneWidget);
@@ -269,7 +273,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(
-        find.byKey(const ValueKey('book-information-card')).hitTestable(),
+        find.byKey(const ValueKey('ai-summary-card')).hitTestable(),
         findsWidgets,
       );
       expect(

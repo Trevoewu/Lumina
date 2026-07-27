@@ -278,6 +278,44 @@ class PodcastEpisodes extends Table {
   ];
 }
 
+/// One durable AI conversation per audiobook chapter or podcast episode.
+class AiThreads extends Table {
+  TextColumn get id => text()();
+  TextColumn get scopeType => text()(); // 'chapter' | 'episode'
+  TextColumn get scopeId => text()();
+  TextColumn get scopeParentId => text()(); // book id | show id
+  TextColumn get contentFingerprint => text()();
+  TextColumn get summaryText => text().nullable()();
+  TextColumn get remoteConversationId => text().nullable()();
+  TextColumn get lastResponseId => text().nullable()();
+  TextColumn get modelId => text().nullable()();
+  IntColumn get createdAt => integer()();
+  IntColumn get updatedAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+    {scopeType, scopeId},
+  ];
+}
+
+/// Locally persisted user-visible messages for an AI thread.
+class AiMessages extends Table {
+  TextColumn get id => text()();
+  TextColumn get threadId => text()();
+  TextColumn get role => text()(); // 'user' | 'assistant'
+  TextColumn get kind => text().withDefault(const Constant('chat'))();
+  TextColumn get content => text()();
+  TextColumn get citationsJson => text().nullable()();
+  TextColumn get responseId => text().nullable()();
+  IntColumn get createdAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 // ─────────────────────────────────────────────
 // 数据库
 // ─────────────────────────────────────────────
@@ -297,6 +335,8 @@ class PodcastEpisodes extends Table {
     FavoriteWords,
     PodcastShows,
     PodcastEpisodes,
+    AiThreads,
+    AiMessages,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -307,7 +347,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e) : _repairPathsOnOpen = false;
 
   @override
-  int get schemaVersion => 13;
+  int get schemaVersion => 14;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -384,6 +424,10 @@ class AppDatabase extends _$AppDatabase {
           chapterPlaybackProgresses,
           chapterPlaybackProgresses.isFinished,
         );
+      }
+      if (from < 14) {
+        await m.createTable(aiThreads);
+        await m.createTable(aiMessages);
       }
     },
     beforeOpen: (_) async {
@@ -515,6 +559,7 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> deleteBookCascade(String id) async {
     await transaction(() async {
+      await _deleteAiThreadsForParent('chapter', id);
       await (delete(bookmarks)..where((b) => b.bookId.equals(id))).go();
       await (delete(
         chapterPlaybackProgresses,
@@ -658,6 +703,7 @@ class AppDatabase extends _$AppDatabase {
     required List<Paragraph> paragraphEntries,
   }) async {
     await transaction(() async {
+      await _deleteAiThreadsForParent('chapter', book.id);
       await (delete(bookmarks)..where((b) => b.bookId.equals(book.id))).go();
       await (delete(
         chapterPlaybackProgresses,
@@ -941,6 +987,7 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> deletePodcastShowCascade(String showId) async {
     await transaction(() async {
+      await _deleteAiThreadsForParent('episode', showId);
       await (delete(
         podcastEpisodes,
       )..where((episode) => episode.showId.equals(showId))).go();
@@ -1013,6 +1060,82 @@ class AppDatabase extends _$AppDatabase {
         transcriptError: Value(error),
       ),
     );
+  }
+
+  // ── AI threads ──
+
+  Future<AiThread?> getAiThread(String scopeType, String scopeId) =>
+      (select(aiThreads)..where(
+            (thread) =>
+                thread.scopeType.equals(scopeType) &
+                thread.scopeId.equals(scopeId),
+          ))
+          .getSingleOrNull();
+
+  Stream<AiThread?> watchAiThread(String scopeType, String scopeId) =>
+      (select(aiThreads)..where(
+            (thread) =>
+                thread.scopeType.equals(scopeType) &
+                thread.scopeId.equals(scopeId),
+          ))
+          .watchSingleOrNull();
+
+  Future<void> upsertAiThread(AiThread thread) =>
+      into(aiThreads).insertOnConflictUpdate(thread);
+
+  Future<List<AiMessage>> getAiMessages(String threadId) =>
+      (select(aiMessages)
+            ..where((message) => message.threadId.equals(threadId))
+            ..orderBy([(message) => OrderingTerm.asc(message.createdAt)]))
+          .get();
+
+  Stream<List<AiMessage>> watchAiMessages(String threadId) =>
+      (select(aiMessages)
+            ..where((message) => message.threadId.equals(threadId))
+            ..orderBy([(message) => OrderingTerm.asc(message.createdAt)]))
+          .watch();
+
+  Future<void> insertAiMessage(AiMessage message) =>
+      into(aiMessages).insert(message);
+
+  Future<void> deleteAiMessages(String threadId, {String? kind}) async {
+    final query = delete(aiMessages)
+      ..where((message) => message.threadId.equals(threadId));
+    if (kind != null) {
+      query.where((message) => message.kind.equals(kind));
+    }
+    await query.go();
+  }
+
+  Future<void> deleteAiThread(String threadId) async {
+    await transaction(() async {
+      await deleteAiMessages(threadId);
+      await (delete(
+        aiThreads,
+      )..where((thread) => thread.id.equals(threadId))).go();
+    });
+  }
+
+  Future<void> _deleteAiThreadsForParent(
+    String scopeType,
+    String parentId,
+  ) async {
+    final threads =
+        await (select(aiThreads)..where(
+              (thread) =>
+                  thread.scopeType.equals(scopeType) &
+                  thread.scopeParentId.equals(parentId),
+            ))
+            .get();
+    for (final thread in threads) {
+      await deleteAiMessages(thread.id);
+    }
+    await (delete(aiThreads)..where(
+          (thread) =>
+              thread.scopeType.equals(scopeType) &
+              thread.scopeParentId.equals(parentId),
+        ))
+        .go();
   }
 }
 

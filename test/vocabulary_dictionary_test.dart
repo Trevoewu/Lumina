@@ -300,6 +300,30 @@ void main() {
     },
   );
 
+  test(
+    'OpenAI provider starts with the Responses-capable default model',
+    () async {
+      final settings = <String, String>{};
+      final service = OpenAiCompatibleExplanationProvider(
+        apiKeyStore: _MemoryApiKeyStore(),
+        settingReader: (key) async => settings[key],
+        settingWriter: (key, value) async => settings[key] = value,
+      );
+
+      final provider = await service.addProvider(
+        kind: LlmProviderKind.openAi,
+        apiKey: 'openai-key',
+      );
+
+      expect(provider.baseUrl, 'https://api.openai.com/v1');
+      expect((await service.activeProvider)?.id, provider.id);
+      expect(
+        await service.model,
+        OpenAiCompatibleExplanationProvider.openAiDefaultModel,
+      );
+    },
+  );
+
   test('missing LLM active id does not guess a replacement provider', () async {
     final settings = <String, String>{};
     final service = OpenAiCompatibleExplanationProvider(

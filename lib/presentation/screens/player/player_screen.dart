@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 
+import '../../../ai/ai_models.dart';
+import '../../../ai/transcript_tool.dart';
 import '../../../core/app_colors.dart';
 import '../../../core/app_design_tokens.dart';
 import '../../../core/app_localizations.dart';
@@ -23,12 +25,11 @@ import '../../../services/sleep_timer_service.dart';
 import '../../../tts/models/tts_voice.dart';
 import '../../../tts/provider_registry.dart';
 import '../../../tts/tts_provider.dart';
-import '../../widgets/book_card_metadata.dart';
+import '../../widgets/ai_summary_panel.dart';
 import '../../widgets/book_cover.dart';
 import '../../widgets/podcast_artwork.dart';
 import '../../widgets/podcast_link_text.dart';
 import '../../widgets/synced_lyrics_list.dart';
-import '../podcast/podcast_formatters.dart';
 
 enum PlayerPrimaryAudioAction { play, pause }
 
@@ -1080,7 +1081,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               padding: EdgeInsets.symmetric(horizontal: pageInset),
               child: Column(
                 children: [
-                  _buildBookInformationCard(manifest),
+                  _buildAiSummaryCard(handler: handler, manifest: manifest),
                   SizedBox(height: design.spaceMd),
                   _buildBookTextCard(
                     handler: handler,
@@ -1093,81 +1094,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildBookInformationCard(ChapterManifest? manifest) {
-    final cached = manifest?.readyCount ?? 0;
-    final total = math.max(manifest?.segments.length ?? 0, _paragraphCount);
-    return _buildPlayerSectionCard(
-      key: const ValueKey('book-information-card'),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildPlayerCardTitle(
-            icon: Icons.info_outline_rounded,
-            title: context.tr('书籍信息', 'Book information'),
-          ),
-          SizedBox(height: context.appDesign.spaceMd),
-          Text(
-            widget.book.title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          SizedBox(height: context.appDesign.spaceXs),
-          Text(
-            widget.book.author ?? context.tr('未知作者', 'Unknown author'),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
-          ),
-          SizedBox(height: context.appDesign.spaceMd),
-          Wrap(
-            spacing: context.appDesign.spaceSm,
-            runSpacing: context.appDesign.spaceSm,
-            children: [
-              _buildPlayerInfoChip(
-                Icons.description_outlined,
-                widget.book.format.toUpperCase(),
-              ),
-              _buildPlayerInfoChip(
-                Icons.library_books_outlined,
-                context.tr(
-                  '${widget.book.chapterCount} 章',
-                  '${widget.book.chapterCount} chapters',
-                ),
-              ),
-              _buildPlayerInfoChip(
-                Icons.trending_up_rounded,
-                bookReadingProgressLabel(context, widget.book),
-              ),
-              if (widget.book.language?.trim().isNotEmpty ?? false)
-                _buildPlayerInfoChip(
-                  Icons.language_rounded,
-                  widget.book.language!.trim(),
-                ),
-              if (cached > 0)
-                _buildPlayerInfoChip(
-                  manifest?.isReady ?? false
-                      ? Icons.download_done_rounded
-                      : Icons.downloading_rounded,
-                  manifest?.isReady ?? false
-                      ? context.tr('音频已缓存', 'Audio cached')
-                      : context.tr(
-                          '已缓存 $cached/$total',
-                          '$cached/$total cached',
-                        ),
-                ),
-            ],
-          ),
-        ],
       ),
     );
   }
@@ -1289,7 +1215,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               padding: EdgeInsets.symmetric(horizontal: pageInset),
               child: Column(
                 children: [
-                  _buildPodcastInformationCard(episode, data.show),
+                  _buildPodcastShownotesCard(episode),
+                  SizedBox(height: design.spaceMd),
+                  _buildAiSummaryCard(handler: handler, manifest: manifest),
                   SizedBox(height: design.spaceMd),
                   _buildPodcastTranscriptCard(
                     episode: episode,
@@ -1298,8 +1226,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     chapterId: chapterId,
                     playbackEnabled: selectedLoaded,
                   ),
-                  SizedBox(height: design.spaceMd),
-                  _buildPodcastShownotesCard(episode),
                 ],
               ),
             ),
@@ -1309,65 +1235,171 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
-  Widget _buildPodcastInformationCard(
-    drift_db.PodcastEpisode episode,
-    drift_db.PodcastShow show,
-  ) {
-    final date = formatPodcastDate(episode.publishedAt);
-    final duration = formatPodcastDuration(episode.durationMs);
-    final language = show.language?.trim();
-    final localPath = episode.localAudioPath;
-    final audioCached =
-        localPath != null &&
-        localPath.isNotEmpty &&
-        File(localPath).existsSync();
-    final transcriptCached = (_podcastTranscript?.timingCount ?? 0) > 0;
-
+  Widget _buildAiSummaryCard({
+    required LuminaAudioHandler handler,
+    required ChapterManifest? manifest,
+  }) {
+    final podcast = widget.podcast;
+    final episode = _podcastEpisode ?? podcast?.episode;
+    final chapter = widget.initialChapter;
+    final scope = podcast != null && episode != null
+        ? AiContentScope(
+            type: AiScopeType.episode,
+            id: episode.id,
+            parentId: podcast.show.id,
+            title: episode.title,
+            parentTitle: podcast.show.title,
+            language: episode.transcriptLanguage ?? podcast.show.language,
+            contentRevision: episode.transcriptJson,
+          )
+        : AiContentScope(
+            type: AiScopeType.chapter,
+            id: chapter?.id ?? widget.book.id,
+            parentId: widget.book.id,
+            title: chapter?.title ?? widget.book.title,
+            parentTitle: widget.book.title,
+            language: widget.book.language,
+            contentRevision: chapter?.textOffset,
+          );
     return _buildPlayerSectionCard(
-      key: const ValueKey('podcast-information-card'),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildPlayerCardTitle(
-            icon: Icons.info_outline_rounded,
-            title: context.tr('单集信息', 'Episode information'),
-          ),
-          SizedBox(height: context.appDesign.spaceMd),
-          Text(
-            show.title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          SizedBox(height: context.appDesign.spaceMd),
-          Wrap(
-            spacing: context.appDesign.spaceSm,
-            runSpacing: context.appDesign.spaceSm,
-            children: [
-              if (date.isNotEmpty)
-                _buildPlayerInfoChip(Icons.calendar_today_outlined, date),
-              if (duration.isNotEmpty)
-                _buildPlayerInfoChip(Icons.schedule_rounded, duration),
-              if (language != null && language.isNotEmpty)
-                _buildPlayerInfoChip(Icons.language_rounded, language),
-              if (audioCached)
-                _buildPlayerInfoChip(
-                  Icons.download_done_rounded,
-                  context.tr('音频已缓存', 'Audio cached'),
-                ),
-              if (transcriptCached)
-                _buildPlayerInfoChip(
-                  Icons.subtitles_rounded,
-                  context.tr('字幕已缓存', 'Transcript cached'),
-                ),
-            ],
-          ),
-        ],
+      key: const ValueKey('ai-summary-card'),
+      child: AiSummaryPanel(
+        scope: scope,
+        transcriptAvailable: podcast == null
+            ? null
+            : (_podcastTranscript?.timingCount ?? 0) > 0,
+        onCitationTap: (citation) =>
+            _handleAiCitation(citation, scope, handler, manifest),
+        onTranscriptRequired: _isPodcast ? _startPodcastTranscription : null,
       ),
     );
+  }
+
+  Future<void> _handleAiCitation(
+    AiCitation citation,
+    AiContentScope scope,
+    LuminaAudioHandler handler,
+    ChapterManifest? manifest,
+  ) async {
+    final snapshot = await ref.read(aiTranscriptToolsProvider).load(scope);
+    AiTranscriptLine? citedLine;
+    for (final line in snapshot.lines) {
+      if (line.reference == citation.label) {
+        citedLine = line;
+        break;
+      }
+    }
+    if (!mounted) return;
+    if (citedLine == null) {
+      _showSnackBar(
+        context.tr('找不到这条 Transcript 引用。', 'Transcript reference not found.'),
+      );
+      return;
+    }
+
+    final canPlay =
+        _isPodcast || (manifest != null && _isSelectedChapterLoaded(handler));
+    final playFromCitation = await showModalBottomSheet<bool>(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: AppColors.surface,
+      builder: (sheetContext) => Theme(
+        data: _immersiveTheme(),
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            sheetContext.appDesign.spaceLg,
+            sheetContext.appDesign.spaceSm,
+            sheetContext.appDesign.spaceLg,
+            sheetContext.appDesign.spaceXl,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.format_quote_rounded,
+                    color: Theme.of(sheetContext).colorScheme.primary,
+                  ),
+                  SizedBox(width: sheetContext.appDesign.spaceSm),
+                  Expanded(
+                    child: Text(
+                      context.tr(
+                        'Transcript 引用 ${citation.label}',
+                        'Transcript reference ${citation.label}',
+                      ),
+                      style: Theme.of(sheetContext).textTheme.titleMedium
+                          ?.copyWith(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: sheetContext.appDesign.spaceLg),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: SelectableText(
+                    citedLine!.text,
+                    style: Theme.of(sheetContext).textTheme.bodyLarge?.copyWith(
+                      color: AppColors.textPrimary,
+                      height: 1.55,
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(height: sheetContext.appDesign.spaceXl),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(sheetContext).pop(false),
+                      child: Text(context.tr('关闭', 'Close')),
+                    ),
+                  ),
+                  if (canPlay) ...[
+                    SizedBox(width: sheetContext.appDesign.spaceSm),
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: () => Navigator.of(sheetContext).pop(true),
+                        icon: const Icon(Icons.play_arrow_rounded),
+                        label: Text(context.tr('从这里播放', 'Play from here')),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (playFromCitation != true || !mounted) return;
+
+    final positionMs = citation.positionMs;
+    if (positionMs != null && _isPodcast) {
+      if (!_isSelectedChapterLoaded(handler)) {
+        await _loadPodcastPlayback(handler);
+      }
+      await handler.seek(Duration(milliseconds: positionMs));
+      return;
+    }
+
+    final paragraphIndex = citation.paragraphIndex;
+    final chapter = widget.initialChapter;
+    if (paragraphIndex == null || chapter == null || manifest == null) return;
+    final paragraphs = await ref
+        .read(appDatabaseProvider)
+        .getParagraphs(chapter.id);
+    final zeroBasedIndex = paragraphIndex - 1;
+    if (zeroBasedIndex < 0 || zeroBasedIndex >= paragraphs.length) return;
+    final offsetMs = manifest.offsetOf(paragraphs[zeroBasedIndex].id);
+    await handler.seek(Duration(milliseconds: offsetMs));
   }
 
   Widget _buildPodcastTranscriptCard({
@@ -1545,40 +1577,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
               color: AppColors.textPrimary,
               fontWeight: FontWeight.w800,
             ),
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildPlayerInfoChip(IconData icon, String label) {
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: context.appDesign.spaceMd,
-        vertical: context.appDesign.spaceSm,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceHighlight.withValues(alpha: 0.84),
-        borderRadius: BorderRadius.circular(context.appDesign.radiusPill),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: AppColors.textSecondary),
-          SizedBox(width: context.appDesign.spaceXs),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppColors.textSecondary,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
     );
   }
 

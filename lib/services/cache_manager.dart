@@ -67,10 +67,8 @@ class CacheManager {
   }
 
   Future<CacheUsage> usageForPodcastEpisode(PodcastEpisode episode) async {
-    final path = episode.localAudioPath;
-    if (path == null || path.isEmpty) return const CacheUsage(0);
-    final file = File(path);
-    if (!await file.exists()) return const CacheUsage(0);
+    final file = await _resolvePodcastAudioFile(episode);
+    if (file == null) return const CacheUsage(0);
     return CacheUsage(await file.length());
   }
 
@@ -113,14 +111,46 @@ class CacheManager {
   Future<void> clearPodcastEpisodeAudio(String episodeId) async {
     final episode = await database.getPodcastEpisode(episodeId);
     if (episode == null) return;
-    final path = episode.localAudioPath;
-    if (path != null && path.isNotEmpty) {
+    final resolvedFile = await _resolvePodcastAudioFile(episode);
+    final paths = <String>{
+      if (episode.localAudioPath case final path? when path.isNotEmpty) path,
+      if (resolvedFile != null) resolvedFile.path,
+    };
+    for (final path in paths) {
       for (final candidate in <String>{path, '$path.partial', '$path.wav'}) {
         final file = File(candidate);
         if (await file.exists()) await file.delete();
       }
     }
     await database.updatePodcastLocalAudioPath(episodeId, null);
+  }
+
+  Future<File?> _resolvePodcastAudioFile(PodcastEpisode episode) async {
+    final persistedPath = episode.localAudioPath;
+    if (persistedPath == null || persistedPath.isEmpty) return null;
+
+    final persisted = File(persistedPath);
+    if (await persisted.exists() && await persisted.length() > 0) {
+      return persisted;
+    }
+
+    final support = await getApplicationSupportDirectory();
+    final audioDirectory = Directory(p.join(support.path, 'podcasts', 'audio'));
+    if (!await audioDirectory.exists()) return null;
+    await for (final entity in audioDirectory.list(followLinks: false)) {
+      if (entity is! File) continue;
+      final fileName = p.basename(entity.path);
+      if (fileName.endsWith('.partial') ||
+          !fileName.startsWith('${episode.id}.') ||
+          await entity.length() == 0) {
+        continue;
+      }
+      if (entity.path != persistedPath) {
+        await database.updatePodcastLocalAudioPath(episode.id, entity.path);
+      }
+      return entity;
+    }
+    return null;
   }
 
   Future<void> clearPodcastEpisodeTranscript(String episodeId) =>

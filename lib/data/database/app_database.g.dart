@@ -8528,6 +8528,1223 @@ class PodcastEpisodesCompanion extends UpdateCompanion<PodcastEpisode> {
   }
 }
 
+class $AiThreadsTable extends AiThreads
+    with TableInfo<$AiThreadsTable, AiThread> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AiThreadsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _scopeTypeMeta = const VerificationMeta(
+    'scopeType',
+  );
+  @override
+  late final GeneratedColumn<String> scopeType = GeneratedColumn<String>(
+    'scope_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _scopeIdMeta = const VerificationMeta(
+    'scopeId',
+  );
+  @override
+  late final GeneratedColumn<String> scopeId = GeneratedColumn<String>(
+    'scope_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _scopeParentIdMeta = const VerificationMeta(
+    'scopeParentId',
+  );
+  @override
+  late final GeneratedColumn<String> scopeParentId = GeneratedColumn<String>(
+    'scope_parent_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _contentFingerprintMeta =
+      const VerificationMeta('contentFingerprint');
+  @override
+  late final GeneratedColumn<String> contentFingerprint =
+      GeneratedColumn<String>(
+        'content_fingerprint',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _summaryTextMeta = const VerificationMeta(
+    'summaryText',
+  );
+  @override
+  late final GeneratedColumn<String> summaryText = GeneratedColumn<String>(
+    'summary_text',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _remoteConversationIdMeta =
+      const VerificationMeta('remoteConversationId');
+  @override
+  late final GeneratedColumn<String> remoteConversationId =
+      GeneratedColumn<String>(
+        'remote_conversation_id',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _lastResponseIdMeta = const VerificationMeta(
+    'lastResponseId',
+  );
+  @override
+  late final GeneratedColumn<String> lastResponseId = GeneratedColumn<String>(
+    'last_response_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _modelIdMeta = const VerificationMeta(
+    'modelId',
+  );
+  @override
+  late final GeneratedColumn<String> modelId = GeneratedColumn<String>(
+    'model_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    scopeType,
+    scopeId,
+    scopeParentId,
+    contentFingerprint,
+    summaryText,
+    remoteConversationId,
+    lastResponseId,
+    modelId,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'ai_threads';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AiThread> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('scope_type')) {
+      context.handle(
+        _scopeTypeMeta,
+        scopeType.isAcceptableOrUnknown(data['scope_type']!, _scopeTypeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_scopeTypeMeta);
+    }
+    if (data.containsKey('scope_id')) {
+      context.handle(
+        _scopeIdMeta,
+        scopeId.isAcceptableOrUnknown(data['scope_id']!, _scopeIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_scopeIdMeta);
+    }
+    if (data.containsKey('scope_parent_id')) {
+      context.handle(
+        _scopeParentIdMeta,
+        scopeParentId.isAcceptableOrUnknown(
+          data['scope_parent_id']!,
+          _scopeParentIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_scopeParentIdMeta);
+    }
+    if (data.containsKey('content_fingerprint')) {
+      context.handle(
+        _contentFingerprintMeta,
+        contentFingerprint.isAcceptableOrUnknown(
+          data['content_fingerprint']!,
+          _contentFingerprintMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_contentFingerprintMeta);
+    }
+    if (data.containsKey('summary_text')) {
+      context.handle(
+        _summaryTextMeta,
+        summaryText.isAcceptableOrUnknown(
+          data['summary_text']!,
+          _summaryTextMeta,
+        ),
+      );
+    }
+    if (data.containsKey('remote_conversation_id')) {
+      context.handle(
+        _remoteConversationIdMeta,
+        remoteConversationId.isAcceptableOrUnknown(
+          data['remote_conversation_id']!,
+          _remoteConversationIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_response_id')) {
+      context.handle(
+        _lastResponseIdMeta,
+        lastResponseId.isAcceptableOrUnknown(
+          data['last_response_id']!,
+          _lastResponseIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('model_id')) {
+      context.handle(
+        _modelIdMeta,
+        modelId.isAcceptableOrUnknown(data['model_id']!, _modelIdMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {scopeType, scopeId},
+  ];
+  @override
+  AiThread map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AiThread(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      scopeType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scope_type'],
+      )!,
+      scopeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scope_id'],
+      )!,
+      scopeParentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scope_parent_id'],
+      )!,
+      contentFingerprint: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content_fingerprint'],
+      )!,
+      summaryText: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}summary_text'],
+      ),
+      remoteConversationId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}remote_conversation_id'],
+      ),
+      lastResponseId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_response_id'],
+      ),
+      modelId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}model_id'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $AiThreadsTable createAlias(String alias) {
+    return $AiThreadsTable(attachedDatabase, alias);
+  }
+}
+
+class AiThread extends DataClass implements Insertable<AiThread> {
+  final String id;
+  final String scopeType;
+  final String scopeId;
+  final String scopeParentId;
+  final String contentFingerprint;
+  final String? summaryText;
+  final String? remoteConversationId;
+  final String? lastResponseId;
+  final String? modelId;
+  final int createdAt;
+  final int updatedAt;
+  const AiThread({
+    required this.id,
+    required this.scopeType,
+    required this.scopeId,
+    required this.scopeParentId,
+    required this.contentFingerprint,
+    this.summaryText,
+    this.remoteConversationId,
+    this.lastResponseId,
+    this.modelId,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['scope_type'] = Variable<String>(scopeType);
+    map['scope_id'] = Variable<String>(scopeId);
+    map['scope_parent_id'] = Variable<String>(scopeParentId);
+    map['content_fingerprint'] = Variable<String>(contentFingerprint);
+    if (!nullToAbsent || summaryText != null) {
+      map['summary_text'] = Variable<String>(summaryText);
+    }
+    if (!nullToAbsent || remoteConversationId != null) {
+      map['remote_conversation_id'] = Variable<String>(remoteConversationId);
+    }
+    if (!nullToAbsent || lastResponseId != null) {
+      map['last_response_id'] = Variable<String>(lastResponseId);
+    }
+    if (!nullToAbsent || modelId != null) {
+      map['model_id'] = Variable<String>(modelId);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  AiThreadsCompanion toCompanion(bool nullToAbsent) {
+    return AiThreadsCompanion(
+      id: Value(id),
+      scopeType: Value(scopeType),
+      scopeId: Value(scopeId),
+      scopeParentId: Value(scopeParentId),
+      contentFingerprint: Value(contentFingerprint),
+      summaryText: summaryText == null && nullToAbsent
+          ? const Value.absent()
+          : Value(summaryText),
+      remoteConversationId: remoteConversationId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(remoteConversationId),
+      lastResponseId: lastResponseId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastResponseId),
+      modelId: modelId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(modelId),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory AiThread.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AiThread(
+      id: serializer.fromJson<String>(json['id']),
+      scopeType: serializer.fromJson<String>(json['scopeType']),
+      scopeId: serializer.fromJson<String>(json['scopeId']),
+      scopeParentId: serializer.fromJson<String>(json['scopeParentId']),
+      contentFingerprint: serializer.fromJson<String>(
+        json['contentFingerprint'],
+      ),
+      summaryText: serializer.fromJson<String?>(json['summaryText']),
+      remoteConversationId: serializer.fromJson<String?>(
+        json['remoteConversationId'],
+      ),
+      lastResponseId: serializer.fromJson<String?>(json['lastResponseId']),
+      modelId: serializer.fromJson<String?>(json['modelId']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'scopeType': serializer.toJson<String>(scopeType),
+      'scopeId': serializer.toJson<String>(scopeId),
+      'scopeParentId': serializer.toJson<String>(scopeParentId),
+      'contentFingerprint': serializer.toJson<String>(contentFingerprint),
+      'summaryText': serializer.toJson<String?>(summaryText),
+      'remoteConversationId': serializer.toJson<String?>(remoteConversationId),
+      'lastResponseId': serializer.toJson<String?>(lastResponseId),
+      'modelId': serializer.toJson<String?>(modelId),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  AiThread copyWith({
+    String? id,
+    String? scopeType,
+    String? scopeId,
+    String? scopeParentId,
+    String? contentFingerprint,
+    Value<String?> summaryText = const Value.absent(),
+    Value<String?> remoteConversationId = const Value.absent(),
+    Value<String?> lastResponseId = const Value.absent(),
+    Value<String?> modelId = const Value.absent(),
+    int? createdAt,
+    int? updatedAt,
+  }) => AiThread(
+    id: id ?? this.id,
+    scopeType: scopeType ?? this.scopeType,
+    scopeId: scopeId ?? this.scopeId,
+    scopeParentId: scopeParentId ?? this.scopeParentId,
+    contentFingerprint: contentFingerprint ?? this.contentFingerprint,
+    summaryText: summaryText.present ? summaryText.value : this.summaryText,
+    remoteConversationId: remoteConversationId.present
+        ? remoteConversationId.value
+        : this.remoteConversationId,
+    lastResponseId: lastResponseId.present
+        ? lastResponseId.value
+        : this.lastResponseId,
+    modelId: modelId.present ? modelId.value : this.modelId,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  AiThread copyWithCompanion(AiThreadsCompanion data) {
+    return AiThread(
+      id: data.id.present ? data.id.value : this.id,
+      scopeType: data.scopeType.present ? data.scopeType.value : this.scopeType,
+      scopeId: data.scopeId.present ? data.scopeId.value : this.scopeId,
+      scopeParentId: data.scopeParentId.present
+          ? data.scopeParentId.value
+          : this.scopeParentId,
+      contentFingerprint: data.contentFingerprint.present
+          ? data.contentFingerprint.value
+          : this.contentFingerprint,
+      summaryText: data.summaryText.present
+          ? data.summaryText.value
+          : this.summaryText,
+      remoteConversationId: data.remoteConversationId.present
+          ? data.remoteConversationId.value
+          : this.remoteConversationId,
+      lastResponseId: data.lastResponseId.present
+          ? data.lastResponseId.value
+          : this.lastResponseId,
+      modelId: data.modelId.present ? data.modelId.value : this.modelId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AiThread(')
+          ..write('id: $id, ')
+          ..write('scopeType: $scopeType, ')
+          ..write('scopeId: $scopeId, ')
+          ..write('scopeParentId: $scopeParentId, ')
+          ..write('contentFingerprint: $contentFingerprint, ')
+          ..write('summaryText: $summaryText, ')
+          ..write('remoteConversationId: $remoteConversationId, ')
+          ..write('lastResponseId: $lastResponseId, ')
+          ..write('modelId: $modelId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    scopeType,
+    scopeId,
+    scopeParentId,
+    contentFingerprint,
+    summaryText,
+    remoteConversationId,
+    lastResponseId,
+    modelId,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AiThread &&
+          other.id == this.id &&
+          other.scopeType == this.scopeType &&
+          other.scopeId == this.scopeId &&
+          other.scopeParentId == this.scopeParentId &&
+          other.contentFingerprint == this.contentFingerprint &&
+          other.summaryText == this.summaryText &&
+          other.remoteConversationId == this.remoteConversationId &&
+          other.lastResponseId == this.lastResponseId &&
+          other.modelId == this.modelId &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class AiThreadsCompanion extends UpdateCompanion<AiThread> {
+  final Value<String> id;
+  final Value<String> scopeType;
+  final Value<String> scopeId;
+  final Value<String> scopeParentId;
+  final Value<String> contentFingerprint;
+  final Value<String?> summaryText;
+  final Value<String?> remoteConversationId;
+  final Value<String?> lastResponseId;
+  final Value<String?> modelId;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const AiThreadsCompanion({
+    this.id = const Value.absent(),
+    this.scopeType = const Value.absent(),
+    this.scopeId = const Value.absent(),
+    this.scopeParentId = const Value.absent(),
+    this.contentFingerprint = const Value.absent(),
+    this.summaryText = const Value.absent(),
+    this.remoteConversationId = const Value.absent(),
+    this.lastResponseId = const Value.absent(),
+    this.modelId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AiThreadsCompanion.insert({
+    required String id,
+    required String scopeType,
+    required String scopeId,
+    required String scopeParentId,
+    required String contentFingerprint,
+    this.summaryText = const Value.absent(),
+    this.remoteConversationId = const Value.absent(),
+    this.lastResponseId = const Value.absent(),
+    this.modelId = const Value.absent(),
+    required int createdAt,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       scopeType = Value(scopeType),
+       scopeId = Value(scopeId),
+       scopeParentId = Value(scopeParentId),
+       contentFingerprint = Value(contentFingerprint),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<AiThread> custom({
+    Expression<String>? id,
+    Expression<String>? scopeType,
+    Expression<String>? scopeId,
+    Expression<String>? scopeParentId,
+    Expression<String>? contentFingerprint,
+    Expression<String>? summaryText,
+    Expression<String>? remoteConversationId,
+    Expression<String>? lastResponseId,
+    Expression<String>? modelId,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (scopeType != null) 'scope_type': scopeType,
+      if (scopeId != null) 'scope_id': scopeId,
+      if (scopeParentId != null) 'scope_parent_id': scopeParentId,
+      if (contentFingerprint != null) 'content_fingerprint': contentFingerprint,
+      if (summaryText != null) 'summary_text': summaryText,
+      if (remoteConversationId != null)
+        'remote_conversation_id': remoteConversationId,
+      if (lastResponseId != null) 'last_response_id': lastResponseId,
+      if (modelId != null) 'model_id': modelId,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AiThreadsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? scopeType,
+    Value<String>? scopeId,
+    Value<String>? scopeParentId,
+    Value<String>? contentFingerprint,
+    Value<String?>? summaryText,
+    Value<String?>? remoteConversationId,
+    Value<String?>? lastResponseId,
+    Value<String?>? modelId,
+    Value<int>? createdAt,
+    Value<int>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return AiThreadsCompanion(
+      id: id ?? this.id,
+      scopeType: scopeType ?? this.scopeType,
+      scopeId: scopeId ?? this.scopeId,
+      scopeParentId: scopeParentId ?? this.scopeParentId,
+      contentFingerprint: contentFingerprint ?? this.contentFingerprint,
+      summaryText: summaryText ?? this.summaryText,
+      remoteConversationId: remoteConversationId ?? this.remoteConversationId,
+      lastResponseId: lastResponseId ?? this.lastResponseId,
+      modelId: modelId ?? this.modelId,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (scopeType.present) {
+      map['scope_type'] = Variable<String>(scopeType.value);
+    }
+    if (scopeId.present) {
+      map['scope_id'] = Variable<String>(scopeId.value);
+    }
+    if (scopeParentId.present) {
+      map['scope_parent_id'] = Variable<String>(scopeParentId.value);
+    }
+    if (contentFingerprint.present) {
+      map['content_fingerprint'] = Variable<String>(contentFingerprint.value);
+    }
+    if (summaryText.present) {
+      map['summary_text'] = Variable<String>(summaryText.value);
+    }
+    if (remoteConversationId.present) {
+      map['remote_conversation_id'] = Variable<String>(
+        remoteConversationId.value,
+      );
+    }
+    if (lastResponseId.present) {
+      map['last_response_id'] = Variable<String>(lastResponseId.value);
+    }
+    if (modelId.present) {
+      map['model_id'] = Variable<String>(modelId.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AiThreadsCompanion(')
+          ..write('id: $id, ')
+          ..write('scopeType: $scopeType, ')
+          ..write('scopeId: $scopeId, ')
+          ..write('scopeParentId: $scopeParentId, ')
+          ..write('contentFingerprint: $contentFingerprint, ')
+          ..write('summaryText: $summaryText, ')
+          ..write('remoteConversationId: $remoteConversationId, ')
+          ..write('lastResponseId: $lastResponseId, ')
+          ..write('modelId: $modelId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $AiMessagesTable extends AiMessages
+    with TableInfo<$AiMessagesTable, AiMessage> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AiMessagesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _threadIdMeta = const VerificationMeta(
+    'threadId',
+  );
+  @override
+  late final GeneratedColumn<String> threadId = GeneratedColumn<String>(
+    'thread_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _roleMeta = const VerificationMeta('role');
+  @override
+  late final GeneratedColumn<String> role = GeneratedColumn<String>(
+    'role',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('chat'),
+  );
+  static const VerificationMeta _contentMeta = const VerificationMeta(
+    'content',
+  );
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+    'content',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _citationsJsonMeta = const VerificationMeta(
+    'citationsJson',
+  );
+  @override
+  late final GeneratedColumn<String> citationsJson = GeneratedColumn<String>(
+    'citations_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _responseIdMeta = const VerificationMeta(
+    'responseId',
+  );
+  @override
+  late final GeneratedColumn<String> responseId = GeneratedColumn<String>(
+    'response_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    threadId,
+    role,
+    kind,
+    content,
+    citationsJson,
+    responseId,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'ai_messages';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AiMessage> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('thread_id')) {
+      context.handle(
+        _threadIdMeta,
+        threadId.isAcceptableOrUnknown(data['thread_id']!, _threadIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_threadIdMeta);
+    }
+    if (data.containsKey('role')) {
+      context.handle(
+        _roleMeta,
+        role.isAcceptableOrUnknown(data['role']!, _roleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_roleMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    }
+    if (data.containsKey('content')) {
+      context.handle(
+        _contentMeta,
+        content.isAcceptableOrUnknown(data['content']!, _contentMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_contentMeta);
+    }
+    if (data.containsKey('citations_json')) {
+      context.handle(
+        _citationsJsonMeta,
+        citationsJson.isAcceptableOrUnknown(
+          data['citations_json']!,
+          _citationsJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('response_id')) {
+      context.handle(
+        _responseIdMeta,
+        responseId.isAcceptableOrUnknown(data['response_id']!, _responseIdMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AiMessage map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AiMessage(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      threadId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}thread_id'],
+      )!,
+      role: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}role'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      content: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content'],
+      )!,
+      citationsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}citations_json'],
+      ),
+      responseId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}response_id'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $AiMessagesTable createAlias(String alias) {
+    return $AiMessagesTable(attachedDatabase, alias);
+  }
+}
+
+class AiMessage extends DataClass implements Insertable<AiMessage> {
+  final String id;
+  final String threadId;
+  final String role;
+  final String kind;
+  final String content;
+  final String? citationsJson;
+  final String? responseId;
+  final int createdAt;
+  const AiMessage({
+    required this.id,
+    required this.threadId,
+    required this.role,
+    required this.kind,
+    required this.content,
+    this.citationsJson,
+    this.responseId,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['thread_id'] = Variable<String>(threadId);
+    map['role'] = Variable<String>(role);
+    map['kind'] = Variable<String>(kind);
+    map['content'] = Variable<String>(content);
+    if (!nullToAbsent || citationsJson != null) {
+      map['citations_json'] = Variable<String>(citationsJson);
+    }
+    if (!nullToAbsent || responseId != null) {
+      map['response_id'] = Variable<String>(responseId);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  AiMessagesCompanion toCompanion(bool nullToAbsent) {
+    return AiMessagesCompanion(
+      id: Value(id),
+      threadId: Value(threadId),
+      role: Value(role),
+      kind: Value(kind),
+      content: Value(content),
+      citationsJson: citationsJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(citationsJson),
+      responseId: responseId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(responseId),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory AiMessage.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AiMessage(
+      id: serializer.fromJson<String>(json['id']),
+      threadId: serializer.fromJson<String>(json['threadId']),
+      role: serializer.fromJson<String>(json['role']),
+      kind: serializer.fromJson<String>(json['kind']),
+      content: serializer.fromJson<String>(json['content']),
+      citationsJson: serializer.fromJson<String?>(json['citationsJson']),
+      responseId: serializer.fromJson<String?>(json['responseId']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'threadId': serializer.toJson<String>(threadId),
+      'role': serializer.toJson<String>(role),
+      'kind': serializer.toJson<String>(kind),
+      'content': serializer.toJson<String>(content),
+      'citationsJson': serializer.toJson<String?>(citationsJson),
+      'responseId': serializer.toJson<String?>(responseId),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  AiMessage copyWith({
+    String? id,
+    String? threadId,
+    String? role,
+    String? kind,
+    String? content,
+    Value<String?> citationsJson = const Value.absent(),
+    Value<String?> responseId = const Value.absent(),
+    int? createdAt,
+  }) => AiMessage(
+    id: id ?? this.id,
+    threadId: threadId ?? this.threadId,
+    role: role ?? this.role,
+    kind: kind ?? this.kind,
+    content: content ?? this.content,
+    citationsJson: citationsJson.present
+        ? citationsJson.value
+        : this.citationsJson,
+    responseId: responseId.present ? responseId.value : this.responseId,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  AiMessage copyWithCompanion(AiMessagesCompanion data) {
+    return AiMessage(
+      id: data.id.present ? data.id.value : this.id,
+      threadId: data.threadId.present ? data.threadId.value : this.threadId,
+      role: data.role.present ? data.role.value : this.role,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      content: data.content.present ? data.content.value : this.content,
+      citationsJson: data.citationsJson.present
+          ? data.citationsJson.value
+          : this.citationsJson,
+      responseId: data.responseId.present
+          ? data.responseId.value
+          : this.responseId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AiMessage(')
+          ..write('id: $id, ')
+          ..write('threadId: $threadId, ')
+          ..write('role: $role, ')
+          ..write('kind: $kind, ')
+          ..write('content: $content, ')
+          ..write('citationsJson: $citationsJson, ')
+          ..write('responseId: $responseId, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    threadId,
+    role,
+    kind,
+    content,
+    citationsJson,
+    responseId,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AiMessage &&
+          other.id == this.id &&
+          other.threadId == this.threadId &&
+          other.role == this.role &&
+          other.kind == this.kind &&
+          other.content == this.content &&
+          other.citationsJson == this.citationsJson &&
+          other.responseId == this.responseId &&
+          other.createdAt == this.createdAt);
+}
+
+class AiMessagesCompanion extends UpdateCompanion<AiMessage> {
+  final Value<String> id;
+  final Value<String> threadId;
+  final Value<String> role;
+  final Value<String> kind;
+  final Value<String> content;
+  final Value<String?> citationsJson;
+  final Value<String?> responseId;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const AiMessagesCompanion({
+    this.id = const Value.absent(),
+    this.threadId = const Value.absent(),
+    this.role = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.content = const Value.absent(),
+    this.citationsJson = const Value.absent(),
+    this.responseId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AiMessagesCompanion.insert({
+    required String id,
+    required String threadId,
+    required String role,
+    this.kind = const Value.absent(),
+    required String content,
+    this.citationsJson = const Value.absent(),
+    this.responseId = const Value.absent(),
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       threadId = Value(threadId),
+       role = Value(role),
+       content = Value(content),
+       createdAt = Value(createdAt);
+  static Insertable<AiMessage> custom({
+    Expression<String>? id,
+    Expression<String>? threadId,
+    Expression<String>? role,
+    Expression<String>? kind,
+    Expression<String>? content,
+    Expression<String>? citationsJson,
+    Expression<String>? responseId,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (threadId != null) 'thread_id': threadId,
+      if (role != null) 'role': role,
+      if (kind != null) 'kind': kind,
+      if (content != null) 'content': content,
+      if (citationsJson != null) 'citations_json': citationsJson,
+      if (responseId != null) 'response_id': responseId,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AiMessagesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? threadId,
+    Value<String>? role,
+    Value<String>? kind,
+    Value<String>? content,
+    Value<String?>? citationsJson,
+    Value<String?>? responseId,
+    Value<int>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return AiMessagesCompanion(
+      id: id ?? this.id,
+      threadId: threadId ?? this.threadId,
+      role: role ?? this.role,
+      kind: kind ?? this.kind,
+      content: content ?? this.content,
+      citationsJson: citationsJson ?? this.citationsJson,
+      responseId: responseId ?? this.responseId,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (threadId.present) {
+      map['thread_id'] = Variable<String>(threadId.value);
+    }
+    if (role.present) {
+      map['role'] = Variable<String>(role.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (citationsJson.present) {
+      map['citations_json'] = Variable<String>(citationsJson.value);
+    }
+    if (responseId.present) {
+      map['response_id'] = Variable<String>(responseId.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AiMessagesCompanion(')
+          ..write('id: $id, ')
+          ..write('threadId: $threadId, ')
+          ..write('role: $role, ')
+          ..write('kind: $kind, ')
+          ..write('content: $content, ')
+          ..write('citationsJson: $citationsJson, ')
+          ..write('responseId: $responseId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -8548,6 +9765,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $PodcastEpisodesTable podcastEpisodes = $PodcastEpisodesTable(
     this,
   );
+  late final $AiThreadsTable aiThreads = $AiThreadsTable(this);
+  late final $AiMessagesTable aiMessages = $AiMessagesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -8566,6 +9785,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     favoriteWords,
     podcastShows,
     podcastEpisodes,
+    aiThreads,
+    aiMessages,
   ];
 }
 
@@ -12643,6 +13864,582 @@ typedef $$PodcastEpisodesTableProcessedTableManager =
       PodcastEpisode,
       PrefetchHooks Function()
     >;
+typedef $$AiThreadsTableCreateCompanionBuilder =
+    AiThreadsCompanion Function({
+      required String id,
+      required String scopeType,
+      required String scopeId,
+      required String scopeParentId,
+      required String contentFingerprint,
+      Value<String?> summaryText,
+      Value<String?> remoteConversationId,
+      Value<String?> lastResponseId,
+      Value<String?> modelId,
+      required int createdAt,
+      required int updatedAt,
+      Value<int> rowid,
+    });
+typedef $$AiThreadsTableUpdateCompanionBuilder =
+    AiThreadsCompanion Function({
+      Value<String> id,
+      Value<String> scopeType,
+      Value<String> scopeId,
+      Value<String> scopeParentId,
+      Value<String> contentFingerprint,
+      Value<String?> summaryText,
+      Value<String?> remoteConversationId,
+      Value<String?> lastResponseId,
+      Value<String?> modelId,
+      Value<int> createdAt,
+      Value<int> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$AiThreadsTableFilterComposer
+    extends Composer<_$AppDatabase, $AiThreadsTable> {
+  $$AiThreadsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scopeType => $composableBuilder(
+    column: $table.scopeType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scopeId => $composableBuilder(
+    column: $table.scopeId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scopeParentId => $composableBuilder(
+    column: $table.scopeParentId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contentFingerprint => $composableBuilder(
+    column: $table.contentFingerprint,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get summaryText => $composableBuilder(
+    column: $table.summaryText,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get remoteConversationId => $composableBuilder(
+    column: $table.remoteConversationId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastResponseId => $composableBuilder(
+    column: $table.lastResponseId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get modelId => $composableBuilder(
+    column: $table.modelId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AiThreadsTableOrderingComposer
+    extends Composer<_$AppDatabase, $AiThreadsTable> {
+  $$AiThreadsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scopeType => $composableBuilder(
+    column: $table.scopeType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scopeId => $composableBuilder(
+    column: $table.scopeId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scopeParentId => $composableBuilder(
+    column: $table.scopeParentId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get contentFingerprint => $composableBuilder(
+    column: $table.contentFingerprint,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get summaryText => $composableBuilder(
+    column: $table.summaryText,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get remoteConversationId => $composableBuilder(
+    column: $table.remoteConversationId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastResponseId => $composableBuilder(
+    column: $table.lastResponseId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get modelId => $composableBuilder(
+    column: $table.modelId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AiThreadsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AiThreadsTable> {
+  $$AiThreadsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get scopeType =>
+      $composableBuilder(column: $table.scopeType, builder: (column) => column);
+
+  GeneratedColumn<String> get scopeId =>
+      $composableBuilder(column: $table.scopeId, builder: (column) => column);
+
+  GeneratedColumn<String> get scopeParentId => $composableBuilder(
+    column: $table.scopeParentId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get contentFingerprint => $composableBuilder(
+    column: $table.contentFingerprint,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get summaryText => $composableBuilder(
+    column: $table.summaryText,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get remoteConversationId => $composableBuilder(
+    column: $table.remoteConversationId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastResponseId => $composableBuilder(
+    column: $table.lastResponseId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get modelId =>
+      $composableBuilder(column: $table.modelId, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$AiThreadsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AiThreadsTable,
+          AiThread,
+          $$AiThreadsTableFilterComposer,
+          $$AiThreadsTableOrderingComposer,
+          $$AiThreadsTableAnnotationComposer,
+          $$AiThreadsTableCreateCompanionBuilder,
+          $$AiThreadsTableUpdateCompanionBuilder,
+          (AiThread, BaseReferences<_$AppDatabase, $AiThreadsTable, AiThread>),
+          AiThread,
+          PrefetchHooks Function()
+        > {
+  $$AiThreadsTableTableManager(_$AppDatabase db, $AiThreadsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AiThreadsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AiThreadsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AiThreadsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> scopeType = const Value.absent(),
+                Value<String> scopeId = const Value.absent(),
+                Value<String> scopeParentId = const Value.absent(),
+                Value<String> contentFingerprint = const Value.absent(),
+                Value<String?> summaryText = const Value.absent(),
+                Value<String?> remoteConversationId = const Value.absent(),
+                Value<String?> lastResponseId = const Value.absent(),
+                Value<String?> modelId = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AiThreadsCompanion(
+                id: id,
+                scopeType: scopeType,
+                scopeId: scopeId,
+                scopeParentId: scopeParentId,
+                contentFingerprint: contentFingerprint,
+                summaryText: summaryText,
+                remoteConversationId: remoteConversationId,
+                lastResponseId: lastResponseId,
+                modelId: modelId,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String scopeType,
+                required String scopeId,
+                required String scopeParentId,
+                required String contentFingerprint,
+                Value<String?> summaryText = const Value.absent(),
+                Value<String?> remoteConversationId = const Value.absent(),
+                Value<String?> lastResponseId = const Value.absent(),
+                Value<String?> modelId = const Value.absent(),
+                required int createdAt,
+                required int updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => AiThreadsCompanion.insert(
+                id: id,
+                scopeType: scopeType,
+                scopeId: scopeId,
+                scopeParentId: scopeParentId,
+                contentFingerprint: contentFingerprint,
+                summaryText: summaryText,
+                remoteConversationId: remoteConversationId,
+                lastResponseId: lastResponseId,
+                modelId: modelId,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AiThreadsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AiThreadsTable,
+      AiThread,
+      $$AiThreadsTableFilterComposer,
+      $$AiThreadsTableOrderingComposer,
+      $$AiThreadsTableAnnotationComposer,
+      $$AiThreadsTableCreateCompanionBuilder,
+      $$AiThreadsTableUpdateCompanionBuilder,
+      (AiThread, BaseReferences<_$AppDatabase, $AiThreadsTable, AiThread>),
+      AiThread,
+      PrefetchHooks Function()
+    >;
+typedef $$AiMessagesTableCreateCompanionBuilder =
+    AiMessagesCompanion Function({
+      required String id,
+      required String threadId,
+      required String role,
+      Value<String> kind,
+      required String content,
+      Value<String?> citationsJson,
+      Value<String?> responseId,
+      required int createdAt,
+      Value<int> rowid,
+    });
+typedef $$AiMessagesTableUpdateCompanionBuilder =
+    AiMessagesCompanion Function({
+      Value<String> id,
+      Value<String> threadId,
+      Value<String> role,
+      Value<String> kind,
+      Value<String> content,
+      Value<String?> citationsJson,
+      Value<String?> responseId,
+      Value<int> createdAt,
+      Value<int> rowid,
+    });
+
+class $$AiMessagesTableFilterComposer
+    extends Composer<_$AppDatabase, $AiMessagesTable> {
+  $$AiMessagesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get threadId => $composableBuilder(
+    column: $table.threadId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get role => $composableBuilder(
+    column: $table.role,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get citationsJson => $composableBuilder(
+    column: $table.citationsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get responseId => $composableBuilder(
+    column: $table.responseId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AiMessagesTableOrderingComposer
+    extends Composer<_$AppDatabase, $AiMessagesTable> {
+  $$AiMessagesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get threadId => $composableBuilder(
+    column: $table.threadId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get role => $composableBuilder(
+    column: $table.role,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get citationsJson => $composableBuilder(
+    column: $table.citationsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get responseId => $composableBuilder(
+    column: $table.responseId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AiMessagesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AiMessagesTable> {
+  $$AiMessagesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get threadId =>
+      $composableBuilder(column: $table.threadId, builder: (column) => column);
+
+  GeneratedColumn<String> get role =>
+      $composableBuilder(column: $table.role, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<String> get citationsJson => $composableBuilder(
+    column: $table.citationsJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get responseId => $composableBuilder(
+    column: $table.responseId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$AiMessagesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AiMessagesTable,
+          AiMessage,
+          $$AiMessagesTableFilterComposer,
+          $$AiMessagesTableOrderingComposer,
+          $$AiMessagesTableAnnotationComposer,
+          $$AiMessagesTableCreateCompanionBuilder,
+          $$AiMessagesTableUpdateCompanionBuilder,
+          (
+            AiMessage,
+            BaseReferences<_$AppDatabase, $AiMessagesTable, AiMessage>,
+          ),
+          AiMessage,
+          PrefetchHooks Function()
+        > {
+  $$AiMessagesTableTableManager(_$AppDatabase db, $AiMessagesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AiMessagesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AiMessagesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AiMessagesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> threadId = const Value.absent(),
+                Value<String> role = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<String> content = const Value.absent(),
+                Value<String?> citationsJson = const Value.absent(),
+                Value<String?> responseId = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AiMessagesCompanion(
+                id: id,
+                threadId: threadId,
+                role: role,
+                kind: kind,
+                content: content,
+                citationsJson: citationsJson,
+                responseId: responseId,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String threadId,
+                required String role,
+                Value<String> kind = const Value.absent(),
+                required String content,
+                Value<String?> citationsJson = const Value.absent(),
+                Value<String?> responseId = const Value.absent(),
+                required int createdAt,
+                Value<int> rowid = const Value.absent(),
+              }) => AiMessagesCompanion.insert(
+                id: id,
+                threadId: threadId,
+                role: role,
+                kind: kind,
+                content: content,
+                citationsJson: citationsJson,
+                responseId: responseId,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AiMessagesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AiMessagesTable,
+      AiMessage,
+      $$AiMessagesTableFilterComposer,
+      $$AiMessagesTableOrderingComposer,
+      $$AiMessagesTableAnnotationComposer,
+      $$AiMessagesTableCreateCompanionBuilder,
+      $$AiMessagesTableUpdateCompanionBuilder,
+      (AiMessage, BaseReferences<_$AppDatabase, $AiMessagesTable, AiMessage>),
+      AiMessage,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -12676,4 +14473,8 @@ class $AppDatabaseManager {
       $$PodcastShowsTableTableManager(_db, _db.podcastShows);
   $$PodcastEpisodesTableTableManager get podcastEpisodes =>
       $$PodcastEpisodesTableTableManager(_db, _db.podcastEpisodes);
+  $$AiThreadsTableTableManager get aiThreads =>
+      $$AiThreadsTableTableManager(_db, _db.aiThreads);
+  $$AiMessagesTableTableManager get aiMessages =>
+      $$AiMessagesTableTableManager(_db, _db.aiMessages);
 }

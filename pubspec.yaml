@@ -61,6 +61,9 @@ dependencies:
   xml: ^6.6.1
   ffmpeg_kit_flutter_new_min: ^2.1.0
   whisper_ggml: ^2.4.0
+  flutter_markdown_plus: ^1.0.12
+  flutter_chat_core: ^2.9.0
+  flutter_chat_ui: ^2.11.1
 
 dev_dependencies:
   flutter_test:

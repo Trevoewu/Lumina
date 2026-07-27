@@ -151,8 +151,9 @@ void main() {
       );
       expect(
         find.byKey(const ValueKey('podcast-information-card')),
-        findsOneWidget,
+        findsNothing,
       );
+      expect(find.byKey(const ValueKey('ai-summary-card')), findsOneWidget);
       expect(
         find.byKey(const ValueKey('podcast-transcript-card')),
         findsOneWidget,
@@ -161,6 +162,17 @@ void main() {
         find.byKey(const ValueKey('podcast-shownotes-card')),
         findsOneWidget,
       );
+      final shownotesTop = tester.getTopLeft(
+        find.byKey(const ValueKey('podcast-shownotes-card')),
+      );
+      final summaryTop = tester.getTopLeft(
+        find.byKey(const ValueKey('ai-summary-card')),
+      );
+      final transcriptTop = tester.getTopLeft(
+        find.byKey(const ValueKey('podcast-transcript-card')),
+      );
+      expect(shownotesTop.dy, lessThan(summaryTop.dy));
+      expect(summaryTop.dy, lessThan(transcriptTop.dy));
       expect(find.text('Transcript'), findsOneWidget);
       expect(find.text('First cached chunk.'), findsOneWidget);
 

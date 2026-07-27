@@ -9,6 +9,10 @@ import '../../../services/app_log_service.dart';
 import '../../../services/cache_manager.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
 
+const _cacheExpansionShape = RoundedRectangleBorder(
+  borderRadius: BorderRadius.all(Radius.circular(8)),
+);
+
 class CacheManagementScreen extends ConsumerStatefulWidget {
   const CacheManagementScreen({super.key});
 
@@ -101,6 +105,8 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                   for (final row in data.books)
                     _SurfaceTile(
                       child: ExpansionTile(
+                        shape: _cacheExpansionShape,
+                        collapsedShape: _cacheExpansionShape,
                         collapsedIconColor: context.appTextSecondary,
                         iconColor: context.appTextSecondary,
                         leading: Icon(
@@ -215,6 +221,8 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                     _SurfaceTile(
                       child: ExpansionTile(
                         key: ValueKey('podcast-cache-${row.show.id}'),
+                        shape: _cacheExpansionShape,
+                        collapsedShape: _cacheExpansionShape,
                         collapsedIconColor: context.appTextSecondary,
                         iconColor: context.appTextSecondary,
                         leading: Icon(
@@ -231,10 +239,13 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                                 style: TextStyle(color: context.appTextPrimary),
                               ),
                             ),
-                            _podcastClearMenu(
+                            _podcastDeleteButton(
+                              key: ValueKey(
+                                'podcast-delete-show-${row.show.id}',
+                              ),
                               hasAudio: row.usage.bytes > 0,
                               hasTranscript: row.transcriptCount > 0,
-                              onSelected: (action) =>
+                              onDelete: (action) =>
                                   _clearPodcastShow(cache, row, action),
                             ),
                           ],
@@ -265,10 +276,14 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                                   color: context.appTextSecondary,
                                 ),
                               ),
-                              trailing: _podcastClearMenu(
+                              trailing: _podcastDeleteButton(
+                                key: ValueKey(
+                                  'podcast-delete-episode-'
+                                  '${episode.episode.id}',
+                                ),
                                 hasAudio: episode.usage.bytes > 0,
                                 hasTranscript: episode.hasTranscript,
-                                onSelected: (action) => _clearPodcastEpisode(
+                                onDelete: (action) => _clearPodcastEpisode(
                                   cache,
                                   episode,
                                   action,
@@ -341,51 +356,96 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
   }
 
   String _podcastSummary(CacheUsage usage, int transcriptCount) {
-    final parts = <String>[];
-    if (usage.bytes > 0) {
-      parts.add(
-        context.tr('音频 ${usage.humanReadable}', 'Audio ${usage.humanReadable}'),
-      );
-    }
-    if (transcriptCount > 0) {
-      parts.add(
-        context.tr(
-          '$transcriptCount 份字幕',
-          '$transcriptCount transcript${transcriptCount == 1 ? '' : 's'}',
-        ),
-      );
-    }
-    return parts.join(' · ');
+    return [
+      context.tr('音频 ${usage.humanReadable}', 'Audio ${usage.humanReadable}'),
+      context.tr(
+        '$transcriptCount 份 Transcript',
+        '$transcriptCount transcript${transcriptCount == 1 ? '' : 's'}',
+      ),
+    ].join(' · ');
   }
 
-  Widget _podcastClearMenu({
+  Widget _podcastDeleteButton({
+    required Key key,
     required bool hasAudio,
     required bool hasTranscript,
-    required ValueChanged<_PodcastClearAction> onSelected,
+    required Future<void> Function(_PodcastClearAction action) onDelete,
   }) {
-    return PopupMenuButton<_PodcastClearAction>(
-      tooltip: context.tr('清理缓存', 'Clear cache'),
-      enabled: !_clearing,
-      onSelected: onSelected,
-      itemBuilder: (context) => [
-        if (hasAudio)
-          PopupMenuItem(
-            value: _PodcastClearAction.audio,
-            child: Text(context.tr('删除音频', 'Delete audio')),
-          ),
-        if (hasTranscript)
-          PopupMenuItem(
-            value: _PodcastClearAction.transcript,
-            child: Text(context.tr('删除 Transcript', 'Delete transcript')),
-          ),
-        if (hasAudio && hasTranscript)
-          PopupMenuItem(
-            value: _PodcastClearAction.all,
-            child: Text(
-              context.tr('删除音频和 Transcript', 'Delete audio and transcript'),
+    return IconButton(
+      key: key,
+      tooltip: context.tr('删除缓存', 'Delete cache'),
+      onPressed: _clearing
+          ? null
+          : () async {
+              final action = await _selectPodcastDeleteAction(
+                hasAudio: hasAudio,
+                hasTranscript: hasTranscript,
+              );
+              if (action != null) await onDelete(action);
+            },
+      icon: const Icon(Icons.delete_outline_rounded),
+    );
+  }
+
+  Future<_PodcastClearAction?> _selectPodcastDeleteAction({
+    required bool hasAudio,
+    required bool hasTranscript,
+  }) async {
+    if (hasAudio && !hasTranscript) return _PodcastClearAction.audio;
+    if (!hasAudio && hasTranscript) return _PodcastClearAction.transcript;
+    if (!hasAudio && !hasTranscript) return null;
+
+    return showDialog<_PodcastClearAction>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: Text(context.tr('删除哪些缓存？', 'Delete which cache?')),
+        children: [
+          SimpleDialogOption(
+            key: const ValueKey('podcast-delete-choice-audio'),
+            onPressed: () =>
+                Navigator.of(context).pop(_PodcastClearAction.audio),
+            child: Row(
+              children: [
+                const Icon(Icons.audio_file_outlined),
+                const SizedBox(width: 12),
+                Expanded(child: Text(context.tr('删除音频', 'Delete audio'))),
+              ],
             ),
           ),
-      ],
+          SimpleDialogOption(
+            key: const ValueKey('podcast-delete-choice-transcript'),
+            onPressed: () =>
+                Navigator.of(context).pop(_PodcastClearAction.transcript),
+            child: Row(
+              children: [
+                const Icon(Icons.subtitles_off_outlined),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(context.tr('删除 Transcript', 'Delete transcript')),
+                ),
+              ],
+            ),
+          ),
+          SimpleDialogOption(
+            key: const ValueKey('podcast-delete-choice-all'),
+            onPressed: () => Navigator.of(context).pop(_PodcastClearAction.all),
+            child: Row(
+              children: [
+                const Icon(Icons.delete_sweep_outlined),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    context.tr(
+                      '删除音频和 Transcript',
+                      'Delete audio and transcript',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

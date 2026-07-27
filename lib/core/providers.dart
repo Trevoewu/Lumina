@@ -2,6 +2,10 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../ai/ai_assistant_service.dart';
+import '../ai/ai_models.dart';
+import '../ai/ai_thread_repository.dart';
+import '../ai/transcript_tool.dart';
 import '../services/cache_manager.dart';
 import '../data/book_sources/gutendex_repository.dart';
 import '../data/dictionary/dictionary_repository.dart';
@@ -49,6 +53,60 @@ final openAiCompatibleExplanationProvider =
         modelWriter: selections.setSelectedLlmModel,
       );
     });
+
+final aiTranscriptToolsProvider = Provider<AiTranscriptTools>((ref) {
+  return AiTranscriptTools(ref.watch(appDatabaseProvider));
+});
+
+final aiThreadRepositoryProvider = Provider<AiThreadRepository>((ref) {
+  return AiThreadRepository(ref.watch(appDatabaseProvider));
+});
+
+final aiAssistantServiceProvider = Provider<AiAssistantService>((ref) {
+  final providerService = ref.watch(openAiCompatibleExplanationProvider);
+  final selections = ref.watch(providerSelectionRepositoryProvider);
+  return AiAssistantService(
+    transcriptTools: ref.watch(aiTranscriptToolsProvider),
+    threads: ref.watch(aiThreadRepositoryProvider),
+    configurationLoader: () async {
+      final provider = await providerService.activeProvider;
+      if (provider == null) {
+        throw const AiAssistantConfigurationException(
+          'Configure and select an LLM provider in Settings first.',
+        );
+      }
+      final apiKey = await providerService.apiKeyFor(provider.id);
+      if (apiKey == null || apiKey.isEmpty) {
+        throw AiAssistantConfigurationException(
+          'The selected ${provider.displayName} provider has no API key.',
+        );
+      }
+      final selectedModel = await selections.selectedLlmModel(provider.id);
+      final defaultModel = switch (provider.kind) {
+        LlmProviderKind.openAi =>
+          OpenAiCompatibleExplanationProvider.openAiDefaultModel,
+        LlmProviderKind.deepSeek =>
+          OpenAiCompatibleExplanationProvider.defaultModel,
+        _ => null,
+      };
+      final modelId = selectedModel ?? defaultModel;
+      if (modelId == null || modelId.isEmpty) {
+        throw AiAssistantConfigurationException(
+          'Select a model for ${provider.displayName} in Settings first.',
+        );
+      }
+      return AiServiceConfiguration(
+        baseUrl: provider.baseUrl,
+        apiKey: apiKey,
+        modelId: modelId,
+        protocol: provider.kind == LlmProviderKind.openAi
+            ? AiApiProtocol.responses
+            : AiApiProtocol.chatCompletions,
+        disableThinking: provider.kind == LlmProviderKind.deepSeek,
+      );
+    },
+  );
+});
 
 final providerSelectionRepositoryProvider =
     Provider<ProviderSelectionRepository>((ref) {

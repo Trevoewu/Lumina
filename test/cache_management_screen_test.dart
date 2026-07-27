@@ -48,6 +48,33 @@ void main() {
         transcriptStatus: 'complete',
       ),
     );
+    await database.upsertPodcastShow(
+      const PodcastShow(
+        id: 'transcript-show',
+        feedUrl: 'https://example.com/transcript.xml',
+        title: 'Transcript-only Podcast',
+        description: '',
+        subscribedAt: 2,
+        lastRefreshedAt: 2,
+      ),
+    );
+    await database.upsertPodcastEpisode(
+      const PodcastEpisode(
+        id: 'transcript-episode',
+        showId: 'transcript-show',
+        guid: 'transcript-guid',
+        title: 'Transcript-only Episode',
+        description: '',
+        audioUrl: 'https://example.com/transcript.mp3',
+        publishedAt: 2,
+        durationMs: 60000,
+        playbackPositionMs: 0,
+        lastPlayedAt: 0,
+        isPlayed: false,
+        transcriptJson: '[{"text":"cached","startMs":0,"endMs":1}]',
+        transcriptStatus: 'complete',
+      ),
+    );
     final cache = _FakeCacheManager(database);
 
     await tester.pumpWidget(
@@ -67,7 +94,21 @@ void main() {
     expect(find.text('Books'), findsOneWidget);
     expect(find.text('Podcast'), findsOneWidget);
     expect(find.text('Cached Podcast'), findsOneWidget);
+    expect(find.text('Transcript-only Podcast'), findsOneWidget);
     expect(find.textContaining('Podcast 12.0 MB'), findsOneWidget);
+    expect(find.text('Audio 0 B · 1 transcript'), findsWidgets);
+    expect(find.byType(PopupMenuButton), findsNothing);
+    expect(find.byIcon(Icons.more_vert), findsNothing);
+    expect(find.byIcon(Icons.more_horiz), findsNothing);
+
+    final showTile = tester.widget<ExpansionTile>(
+      find.byKey(const ValueKey('podcast-cache-cached-show')),
+    );
+    expect((showTile.shape! as RoundedRectangleBorder).side, BorderSide.none);
+    expect(
+      (showTile.collapsedShape! as RoundedRectangleBorder).side,
+      BorderSide.none,
+    );
 
     await tester.tap(find.byKey(const ValueKey('podcast-cache-cached-show')));
     await tester.pumpAndSettle();
@@ -77,9 +118,14 @@ void main() {
     final episodeTile = find.byKey(
       const ValueKey('podcast-cache-episode-cached-episode'),
     );
-    await tester.tap(
-      find.descendant(of: episodeTile, matching: find.byTooltip('Clear cache')),
+    final deleteButton = find.descendant(
+      of: episodeTile,
+      matching: find.byKey(
+        const ValueKey('podcast-delete-episode-cached-episode'),
+      ),
     );
+    await tester.ensureVisible(deleteButton);
+    await tester.tap(deleteButton);
     await tester.pumpAndSettle();
     expect(find.text('Delete audio'), findsOneWidget);
     expect(find.text('Delete transcript'), findsOneWidget);
@@ -111,6 +157,8 @@ class _FakeCacheManager extends CacheManager {
       const CacheUsage(12 * 1024 * 1024);
 
   @override
-  Future<CacheUsage> usageForPodcastEpisode(PodcastEpisode episode) async =>
-      const CacheUsage(12 * 1024 * 1024);
+  Future<CacheUsage> usageForPodcastEpisode(PodcastEpisode episode) async {
+    if (episode.localAudioPath == null) return const CacheUsage(0);
+    return const CacheUsage(12 * 1024 * 1024);
+  }
 }

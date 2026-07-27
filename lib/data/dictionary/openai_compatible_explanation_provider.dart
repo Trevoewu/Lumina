@@ -22,6 +22,7 @@ class OpenAiCompatibleConfigurationException implements Exception {
 }
 
 enum LlmProviderKind {
+  openAi('openai', 'OpenAI', 'https://api.openai.com/v1'),
   deepSeek('deepseek', 'DeepSeek', 'https://api.deepseek.com'),
   zai('zai', 'Z.AI', 'https://api.z.ai/api/paas/v4'),
   custom('custom', 'Custom', '');
@@ -104,6 +105,7 @@ class OpenAiCompatibleExplanationProvider {
       'openai_compatible_dictionary_active_provider';
   static const defaultBaseUrl = 'https://api.deepseek.com';
   static const defaultModel = 'deepseek-v4-flash';
+  static const openAiDefaultModel = 'gpt-5.6-sol';
 
   final Dio _dio;
   final ApiKeyStore _apiKeyStore;
@@ -204,9 +206,14 @@ class OpenAiCompatibleExplanationProvider {
       _providerApiKeyStorageKey(provider.id),
       normalizedKey,
     );
+    if (kind == LlmProviderKind.openAi) {
+      await _writeModel(provider.id, openAiDefaultModel);
+    }
     if (existing.isEmpty) {
       await settingWriter(activeProviderSettingKey, provider.id);
-      await _writeModel(provider.id, null);
+      if (kind != LlmProviderKind.openAi) {
+        await _writeModel(provider.id, null);
+      }
     }
     return provider;
   }
@@ -483,7 +490,9 @@ not apply. Use concise English and no markdown.
     final legacyBaseUrl = _normalizeBaseUrl(
       storedBaseUrl?.trim().isNotEmpty == true ? storedBaseUrl : defaultBaseUrl,
     );
-    final kind = legacyBaseUrl == LlmProviderKind.deepSeek.defaultBaseUrl
+    final kind = legacyBaseUrl == LlmProviderKind.openAi.defaultBaseUrl
+        ? LlmProviderKind.openAi
+        : legacyBaseUrl == LlmProviderKind.deepSeek.defaultBaseUrl
         ? LlmProviderKind.deepSeek
         : legacyBaseUrl == LlmProviderKind.zai.defaultBaseUrl
         ? LlmProviderKind.zai
@@ -504,6 +513,8 @@ not apply. Use concise English and no markdown.
             ? defaultModel
             : kind == LlmProviderKind.zai
             ? 'glm-5.1'
+            : kind == LlmProviderKind.openAi
+            ? openAiDefaultModel
             : '',
       );
     }
