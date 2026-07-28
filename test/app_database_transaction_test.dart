@@ -20,6 +20,7 @@ void main() {
         playbackOffsetMs: 0,
         importedAt: 1,
         lastReadAt: 0,
+        isRead: false,
         kind: 'book',
         rightsStatus: 'user_uploaded',
       );

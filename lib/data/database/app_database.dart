@@ -28,6 +28,7 @@ class Books extends Table {
   TextColumn get voiceId => text().nullable()();
   IntColumn get importedAt => integer()();
   IntColumn get lastReadAt => integer().withDefault(const Constant(0))();
+  BoolColumn get isRead => boolean().withDefault(const Constant(false))();
   TextColumn get kind => text().withDefault(const Constant('book'))();
   TextColumn get externalSource => text().nullable()();
   TextColumn get externalId => text().nullable()();
@@ -347,7 +348,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e) : _repairPathsOnOpen = false;
 
   @override
-  int get schemaVersion => 14;
+  int get schemaVersion => 15;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -429,6 +430,21 @@ class AppDatabase extends _$AppDatabase {
         await m.createTable(aiThreads);
         await m.createTable(aiMessages);
       }
+      if (from < 15) {
+        final booksTableExists =
+            await m.database
+                .customSelect(
+                  "SELECT 1 FROM sqlite_master WHERE type = 'table' "
+                  "AND name = 'books'",
+                )
+                .getSingleOrNull() !=
+            null;
+        if (booksTableExists) {
+          await m.addColumn(books, books.isRead);
+        } else {
+          await m.createTable(books);
+        }
+      }
     },
     beforeOpen: (_) async {
       if (_repairPathsOnOpen) {
@@ -461,6 +477,12 @@ class AppDatabase extends _$AppDatabase {
   Future<void> updateBookCoverPath(String bookId, String coverPath) async {
     await (update(books)..where((b) => b.id.equals(bookId))).write(
       BooksCompanion(coverPath: Value(coverPath)),
+    );
+  }
+
+  Future<void> updateBookReadStatus(String bookId, bool isRead) async {
+    await (update(books)..where((book) => book.id.equals(bookId))).write(
+      BooksCompanion(isRead: Value(isRead)),
     );
   }
 

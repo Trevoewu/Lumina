@@ -25,6 +25,7 @@ void main() {
       playbackOffsetMs: 0,
       importedAt: 1,
       lastReadAt: 2,
+      isRead: false,
       kind: 'book',
       rightsStatus: 'user_uploaded',
     );
@@ -44,11 +45,13 @@ void main() {
       playbackOffsetMs: 0,
       importedAt: 1,
       lastReadAt: 1,
+      isRead: false,
       kind: 'book',
       rightsStatus: 'user_uploaded',
     );
 
     expect(estimatedBookReadingProgress(book), 0);
+    expect(estimatedBookReadingProgress(book.copyWith(isRead: true)), 100);
   });
 
   test('finished chapters contribute to estimated reading progress', () {
@@ -63,6 +66,7 @@ void main() {
       playbackOffsetMs: 0,
       importedAt: 1,
       lastReadAt: 1,
+      isRead: false,
       kind: 'book',
       rightsStatus: 'user_uploaded',
     );
@@ -101,6 +105,7 @@ void main() {
       playbackOffsetMs: 0,
       importedAt: 1,
       lastReadAt: 1,
+      isRead: false,
       kind: 'book',
       rightsStatus: 'user_uploaded',
       readingLevelSystem: 'cefr_j',

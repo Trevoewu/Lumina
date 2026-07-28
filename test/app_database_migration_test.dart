@@ -61,7 +61,7 @@ void main() {
     expect(repaired?.coverPath, cover.path);
   });
 
-  test('schema 1 books migrate to schema 14 without data loss', () async {
+  test('schema 1 books migrate to schema 15 without data loss', () async {
     final tempDir = Directory.systemTemp.createTempSync('lumina_migration_');
     final databaseFile = File('${tempDir.path}/lumina.db');
 
@@ -105,7 +105,7 @@ void main() {
         .customSelect('PRAGMA user_version;')
         .getSingle();
 
-    expect(version.read<int>('user_version'), 14);
+    expect(version.read<int>('user_version'), 15);
     expect(await database.getPodcastShows(), isEmpty);
     expect(await database.select(database.aiThreads).get(), isEmpty);
     expect(await database.select(database.aiMessages).get(), isEmpty);
@@ -115,6 +115,12 @@ void main() {
     expect(books.single.rightsStatus, 'user_uploaded');
     expect(books.single.language, equals(null));
     expect(books.single.readingLevelCode, equals(null));
+    expect(books.single.isRead, isFalse);
+
+    await database.updateBookReadStatus('book-1', true);
+    expect((await database.getBook('book-1'))?.isRead, isTrue);
+    await database.updateBookReadStatus('book-1', false);
+    expect((await database.getBook('book-1'))?.isRead, isFalse);
 
     await database.updateReadingProgress(
       'book-1',
@@ -233,7 +239,7 @@ void main() {
       final version = await database
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(version.read<int>('user_version'), 14);
+      expect(version.read<int>('user_version'), 15);
       expect(show?.title, 'Legacy Show');
       expect(show?.categoriesJson, equals(null));
       final progress = await database.getChapterPlaybackProgress('chapter-1');

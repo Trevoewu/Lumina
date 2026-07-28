@@ -321,6 +321,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       title: book.title,
       actions: [
         HalfScreenActionSheetItem(
+          label: book.isRead
+              ? context.tr('标记为未读', 'Mark as unread')
+              : context.tr('标记为已读', 'Mark as read'),
+          icon: book.isRead
+              ? Icons.remove_done_outlined
+              : Icons.done_all_rounded,
+          onPressed: () => _setBookReadStatus(book, !book.isRead),
+        ),
+        HalfScreenActionSheetItem(
           label: context.tr('编辑', 'Edit'),
           icon: Icons.edit_outlined,
           onPressed: () => _showEditBookSheet(book),
@@ -352,6 +361,27 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           destructive: true,
         ),
       ],
+    );
+  }
+
+  Future<void> _setBookReadStatus(drift_db.Book book, bool isRead) async {
+    await ref.read(appDatabaseProvider).updateBookReadStatus(book.id, isRead);
+    if (!mounted) return;
+    setState(() => _reloadToken++);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          isRead
+              ? context.tr(
+                  '已标记《${book.title}》为已读',
+                  'Marked “${book.title}” as read',
+                )
+              : context.tr(
+                  '已标记《${book.title}》为未读',
+                  'Marked “${book.title}” as unread',
+                ),
+        ),
+      ),
     );
   }
 
@@ -644,6 +674,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           voiceId: parsed.book.voiceId,
           importedAt: parsed.book.importedAt,
           lastReadAt: parsed.book.lastReadAt,
+          isRead: false,
           kind: 'book',
           rightsStatus: userUploadedRightsStatus,
           readingLevelSystem: readingLevel?.system,
@@ -1104,6 +1135,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 voiceId: book.voiceId,
                 importedAt: book.importedAt,
                 lastReadAt: DateTime.now().millisecondsSinceEpoch,
+                isRead: book.isRead,
                 kind: book.kind,
                 externalSource: book.externalSource,
                 externalId: book.externalId,

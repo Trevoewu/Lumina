@@ -21,6 +21,46 @@ import 'package:lumina/services/lumina_audio_handler.dart';
 import 'package:lumina/services/sleep_timer_service.dart';
 
 void main() {
+  testWidgets('home section animation colors follow the active accent', (
+    tester,
+  ) async {
+    const accent = Color(0xFFFF6B6B);
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [appDatabaseProvider.overrideWithValue(database)],
+        child: MaterialApp(
+          theme: AppTheme.darkTheme(accentColor: accent),
+          home: const LibraryScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final allChip = tester.widget<ChoiceChip>(
+      find.byKey(const ValueKey('home-section-all')),
+    );
+    final chipContext = tester.element(
+      find.byKey(const ValueKey('home-section-all')),
+    );
+    final colors = Theme.of(chipContext).colorScheme;
+
+    expect(allChip.selectedColor, accent);
+    expect(colors.surfaceTint, accent);
+    expect(colors.secondaryContainer, isNot(const Color(0xFF1DB954)));
+
+    await tester.tap(find.byKey(const ValueKey('home-section-books')));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<ChoiceChip>(find.byKey(const ValueKey('home-section-books')))
+          .selectedColor,
+      accent,
+    );
+  });
+
   testWidgets('home header stays fixed through full all-page scrolls', (
     tester,
   ) async {
@@ -430,6 +470,7 @@ Future<void> _seedScrollableHome(AppDatabase database) async {
         voiceId: null,
         importedAt: index + 1,
         lastReadAt: index + 1,
+        isRead: false,
         kind: 'book',
         rightsStatus: 'user_uploaded',
       ),

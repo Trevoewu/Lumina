@@ -158,6 +158,19 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _isReadMeta = const VerificationMeta('isRead');
+  @override
+  late final GeneratedColumn<bool> isRead = GeneratedColumn<bool>(
+    'is_read',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_read" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _kindMeta = const VerificationMeta('kind');
   @override
   late final GeneratedColumn<String> kind = GeneratedColumn<String>(
@@ -273,6 +286,7 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
     voiceId,
     importedAt,
     lastReadAt,
+    isRead,
     kind,
     externalSource,
     externalId,
@@ -402,6 +416,12 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
           data['last_read_at']!,
           _lastReadAtMeta,
         ),
+      );
+    }
+    if (data.containsKey('is_read')) {
+      context.handle(
+        _isReadMeta,
+        isRead.isAcceptableOrUnknown(data['is_read']!, _isReadMeta),
       );
     }
     if (data.containsKey('kind')) {
@@ -541,6 +561,10 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
         DriftSqlType.int,
         data['${effectivePrefix}last_read_at'],
       )!,
+      isRead: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_read'],
+      )!,
       kind: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}kind'],
@@ -601,6 +625,7 @@ class Book extends DataClass implements Insertable<Book> {
   final String? voiceId;
   final int importedAt;
   final int lastReadAt;
+  final bool isRead;
   final String kind;
   final String? externalSource;
   final String? externalId;
@@ -625,6 +650,7 @@ class Book extends DataClass implements Insertable<Book> {
     this.voiceId,
     required this.importedAt,
     required this.lastReadAt,
+    required this.isRead,
     required this.kind,
     this.externalSource,
     this.externalId,
@@ -660,6 +686,7 @@ class Book extends DataClass implements Insertable<Book> {
     }
     map['imported_at'] = Variable<int>(importedAt);
     map['last_read_at'] = Variable<int>(lastReadAt);
+    map['is_read'] = Variable<bool>(isRead);
     map['kind'] = Variable<String>(kind);
     if (!nullToAbsent || externalSource != null) {
       map['external_source'] = Variable<String>(externalSource);
@@ -710,6 +737,7 @@ class Book extends DataClass implements Insertable<Book> {
           : Value(voiceId),
       importedAt: Value(importedAt),
       lastReadAt: Value(lastReadAt),
+      isRead: Value(isRead),
       kind: Value(kind),
       externalSource: externalSource == null && nullToAbsent
           ? const Value.absent()
@@ -758,6 +786,7 @@ class Book extends DataClass implements Insertable<Book> {
       voiceId: serializer.fromJson<String?>(json['voiceId']),
       importedAt: serializer.fromJson<int>(json['importedAt']),
       lastReadAt: serializer.fromJson<int>(json['lastReadAt']),
+      isRead: serializer.fromJson<bool>(json['isRead']),
       kind: serializer.fromJson<String>(json['kind']),
       externalSource: serializer.fromJson<String?>(json['externalSource']),
       externalId: serializer.fromJson<String?>(json['externalId']),
@@ -793,6 +822,7 @@ class Book extends DataClass implements Insertable<Book> {
       'voiceId': serializer.toJson<String?>(voiceId),
       'importedAt': serializer.toJson<int>(importedAt),
       'lastReadAt': serializer.toJson<int>(lastReadAt),
+      'isRead': serializer.toJson<bool>(isRead),
       'kind': serializer.toJson<String>(kind),
       'externalSource': serializer.toJson<String?>(externalSource),
       'externalId': serializer.toJson<String?>(externalId),
@@ -820,6 +850,7 @@ class Book extends DataClass implements Insertable<Book> {
     Value<String?> voiceId = const Value.absent(),
     int? importedAt,
     int? lastReadAt,
+    bool? isRead,
     String? kind,
     Value<String?> externalSource = const Value.absent(),
     Value<String?> externalId = const Value.absent(),
@@ -846,6 +877,7 @@ class Book extends DataClass implements Insertable<Book> {
     voiceId: voiceId.present ? voiceId.value : this.voiceId,
     importedAt: importedAt ?? this.importedAt,
     lastReadAt: lastReadAt ?? this.lastReadAt,
+    isRead: isRead ?? this.isRead,
     kind: kind ?? this.kind,
     externalSource: externalSource.present
         ? externalSource.value
@@ -898,6 +930,7 @@ class Book extends DataClass implements Insertable<Book> {
       lastReadAt: data.lastReadAt.present
           ? data.lastReadAt.value
           : this.lastReadAt,
+      isRead: data.isRead.present ? data.isRead.value : this.isRead,
       kind: data.kind.present ? data.kind.value : this.kind,
       externalSource: data.externalSource.present
           ? data.externalSource.value
@@ -941,6 +974,7 @@ class Book extends DataClass implements Insertable<Book> {
           ..write('voiceId: $voiceId, ')
           ..write('importedAt: $importedAt, ')
           ..write('lastReadAt: $lastReadAt, ')
+          ..write('isRead: $isRead, ')
           ..write('kind: $kind, ')
           ..write('externalSource: $externalSource, ')
           ..write('externalId: $externalId, ')
@@ -970,6 +1004,7 @@ class Book extends DataClass implements Insertable<Book> {
     voiceId,
     importedAt,
     lastReadAt,
+    isRead,
     kind,
     externalSource,
     externalId,
@@ -998,6 +1033,7 @@ class Book extends DataClass implements Insertable<Book> {
           other.voiceId == this.voiceId &&
           other.importedAt == this.importedAt &&
           other.lastReadAt == this.lastReadAt &&
+          other.isRead == this.isRead &&
           other.kind == this.kind &&
           other.externalSource == this.externalSource &&
           other.externalId == this.externalId &&
@@ -1024,6 +1060,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
   final Value<String?> voiceId;
   final Value<int> importedAt;
   final Value<int> lastReadAt;
+  final Value<bool> isRead;
   final Value<String> kind;
   final Value<String?> externalSource;
   final Value<String?> externalId;
@@ -1049,6 +1086,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
     this.voiceId = const Value.absent(),
     this.importedAt = const Value.absent(),
     this.lastReadAt = const Value.absent(),
+    this.isRead = const Value.absent(),
     this.kind = const Value.absent(),
     this.externalSource = const Value.absent(),
     this.externalId = const Value.absent(),
@@ -1075,6 +1113,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
     this.voiceId = const Value.absent(),
     required int importedAt,
     this.lastReadAt = const Value.absent(),
+    this.isRead = const Value.absent(),
     this.kind = const Value.absent(),
     this.externalSource = const Value.absent(),
     this.externalId = const Value.absent(),
@@ -1105,6 +1144,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
     Expression<String>? voiceId,
     Expression<int>? importedAt,
     Expression<int>? lastReadAt,
+    Expression<bool>? isRead,
     Expression<String>? kind,
     Expression<String>? externalSource,
     Expression<String>? externalId,
@@ -1132,6 +1172,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
       if (voiceId != null) 'voice_id': voiceId,
       if (importedAt != null) 'imported_at': importedAt,
       if (lastReadAt != null) 'last_read_at': lastReadAt,
+      if (isRead != null) 'is_read': isRead,
       if (kind != null) 'kind': kind,
       if (externalSource != null) 'external_source': externalSource,
       if (externalId != null) 'external_id': externalId,
@@ -1163,6 +1204,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
     Value<String?>? voiceId,
     Value<int>? importedAt,
     Value<int>? lastReadAt,
+    Value<bool>? isRead,
     Value<String>? kind,
     Value<String?>? externalSource,
     Value<String?>? externalId,
@@ -1190,6 +1232,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
       voiceId: voiceId ?? this.voiceId,
       importedAt: importedAt ?? this.importedAt,
       lastReadAt: lastReadAt ?? this.lastReadAt,
+      isRead: isRead ?? this.isRead,
       kind: kind ?? this.kind,
       externalSource: externalSource ?? this.externalSource,
       externalId: externalId ?? this.externalId,
@@ -1250,6 +1293,9 @@ class BooksCompanion extends UpdateCompanion<Book> {
     if (lastReadAt.present) {
       map['last_read_at'] = Variable<int>(lastReadAt.value);
     }
+    if (isRead.present) {
+      map['is_read'] = Variable<bool>(isRead.value);
+    }
     if (kind.present) {
       map['kind'] = Variable<String>(kind.value);
     }
@@ -1302,6 +1348,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
           ..write('voiceId: $voiceId, ')
           ..write('importedAt: $importedAt, ')
           ..write('lastReadAt: $lastReadAt, ')
+          ..write('isRead: $isRead, ')
           ..write('kind: $kind, ')
           ..write('externalSource: $externalSource, ')
           ..write('externalId: $externalId, ')
@@ -9806,6 +9853,7 @@ typedef $$BooksTableCreateCompanionBuilder =
       Value<String?> voiceId,
       required int importedAt,
       Value<int> lastReadAt,
+      Value<bool> isRead,
       Value<String> kind,
       Value<String?> externalSource,
       Value<String?> externalId,
@@ -9833,6 +9881,7 @@ typedef $$BooksTableUpdateCompanionBuilder =
       Value<String?> voiceId,
       Value<int> importedAt,
       Value<int> lastReadAt,
+      Value<bool> isRead,
       Value<String> kind,
       Value<String?> externalSource,
       Value<String?> externalId,
@@ -9920,6 +9969,11 @@ class $$BooksTableFilterComposer extends Composer<_$AppDatabase, $BooksTable> {
 
   ColumnFilters<int> get lastReadAt => $composableBuilder(
     column: $table.lastReadAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isRead => $composableBuilder(
+    column: $table.isRead,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -10048,6 +10102,11 @@ class $$BooksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get isRead => $composableBuilder(
+    column: $table.isRead,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get kind => $composableBuilder(
     column: $table.kind,
     builder: (column) => ColumnOrderings(column),
@@ -10161,6 +10220,9 @@ class $$BooksTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get isRead =>
+      $composableBuilder(column: $table.isRead, builder: (column) => column);
+
   GeneratedColumn<String> get kind =>
       $composableBuilder(column: $table.kind, builder: (column) => column);
 
@@ -10245,6 +10307,7 @@ class $$BooksTableTableManager
                 Value<String?> voiceId = const Value.absent(),
                 Value<int> importedAt = const Value.absent(),
                 Value<int> lastReadAt = const Value.absent(),
+                Value<bool> isRead = const Value.absent(),
                 Value<String> kind = const Value.absent(),
                 Value<String?> externalSource = const Value.absent(),
                 Value<String?> externalId = const Value.absent(),
@@ -10270,6 +10333,7 @@ class $$BooksTableTableManager
                 voiceId: voiceId,
                 importedAt: importedAt,
                 lastReadAt: lastReadAt,
+                isRead: isRead,
                 kind: kind,
                 externalSource: externalSource,
                 externalId: externalId,
@@ -10297,6 +10361,7 @@ class $$BooksTableTableManager
                 Value<String?> voiceId = const Value.absent(),
                 required int importedAt,
                 Value<int> lastReadAt = const Value.absent(),
+                Value<bool> isRead = const Value.absent(),
                 Value<String> kind = const Value.absent(),
                 Value<String?> externalSource = const Value.absent(),
                 Value<String?> externalId = const Value.absent(),
@@ -10322,6 +10387,7 @@ class $$BooksTableTableManager
                 voiceId: voiceId,
                 importedAt: importedAt,
                 lastReadAt: lastReadAt,
+                isRead: isRead,
                 kind: kind,
                 externalSource: externalSource,
                 externalId: externalId,

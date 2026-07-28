@@ -70,6 +70,7 @@ int estimatedBookReadingProgress(
   drift_db.Book book, {
   Iterable<int> finishedChapterIndexes = const <int>[],
 }) {
+  if (book.isRead) return 100;
   final totalParagraphs = book.paragraphCount;
   if (totalParagraphs <= 0) return 0;
 

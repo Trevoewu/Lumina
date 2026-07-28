@@ -194,19 +194,6 @@ class _AiSummaryPanelState extends ConsumerState<AiSummaryPanel> {
             ),
             if (hasSummary && !_running)
               IconButton(
-                key: const ValueKey('ai-summary-expand-toggle'),
-                tooltip: _expanded
-                    ? context.tr('收起摘要', 'Collapse summary')
-                    : context.tr('展开摘要', 'Expand summary'),
-                onPressed: () => setState(() => _expanded = !_expanded),
-                icon: AnimatedRotation(
-                  turns: _expanded ? 0.5 : 0,
-                  duration: const Duration(milliseconds: 180),
-                  child: const Icon(Icons.expand_more_rounded, size: 24),
-                ),
-              ),
-            if (hasSummary && !_running)
-              IconButton(
                 key: const ValueKey('ai-summary-regenerate'),
                 tooltip: context.tr('重新生成', 'Generate again'),
                 onPressed: _generate,
@@ -233,28 +220,26 @@ class _AiSummaryPanelState extends ConsumerState<AiSummaryPanel> {
               ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
             ),
         ] else if (hasSummary) ...[
-          if (_expanded) ...[
-            AiAnswerText(text: _summary!, onCitationTap: widget.onCitationTap),
-            SizedBox(height: design.spaceSm),
-            TextButton.icon(
-              key: const ValueKey('ai-summary-collapse-bottom'),
-              onPressed: () => setState(() => _expanded = false),
-              iconAlignment: IconAlignment.end,
-              icon: const Icon(Icons.keyboard_arrow_up_rounded),
-              label: Text(context.tr('收起', 'Show less')),
-            ),
-          ],
-          if (!_expanded)
-            Text(
-              _summaryPreview(_summary!),
-              key: const ValueKey('ai-summary-collapsed-preview'),
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppColors.textSecondary,
-                height: 1.45,
-              ),
-            ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 240),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: _expanded
+                ? AiAnswerText(
+                    text: _summary!,
+                    onCitationTap: widget.onCitationTap,
+                  )
+                : Text(
+                    _summaryPreview(_summary!),
+                    key: const ValueKey('ai-summary-collapsed-preview'),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.textSecondary,
+                      height: 1.45,
+                    ),
+                  ),
+          ),
           if (_error != null) ...[
             SizedBox(height: design.spaceMd),
             Text(
@@ -265,6 +250,22 @@ class _AiSummaryPanelState extends ConsumerState<AiSummaryPanel> {
               ).textTheme.bodySmall?.copyWith(color: Colors.redAccent),
             ),
           ],
+          SizedBox(height: design.spaceSm),
+          TextButton.icon(
+            key: const ValueKey('ai-summary-toggle'),
+            onPressed: () => setState(() => _expanded = !_expanded),
+            iconAlignment: IconAlignment.end,
+            icon: Icon(
+              _expanded
+                  ? Icons.keyboard_arrow_up_rounded
+                  : Icons.keyboard_arrow_down_rounded,
+            ),
+            label: Text(
+              _expanded
+                  ? context.tr('收起', 'Show less')
+                  : context.tr('查看完整摘要', 'Show full summary'),
+            ),
+          ),
         ] else ...[
           Text(
             context.tr(
@@ -357,6 +358,7 @@ class AiAnswerText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = context.appAccent;
     final baseTextStyle = Theme.of(
       context,
     ).textTheme.bodyLarge?.copyWith(color: AppColors.textPrimary, height: 1.5);
@@ -380,12 +382,12 @@ class AiAnswerText extends StatelessWidget {
         strong: baseTextStyle?.copyWith(fontWeight: FontWeight.w800),
         del: baseTextStyle?.copyWith(decoration: TextDecoration.lineThrough),
         blockquote: baseTextStyle,
-        checkbox: baseTextStyle?.copyWith(color: AppColors.primary),
+        checkbox: baseTextStyle?.copyWith(color: accent),
         listBullet: baseTextStyle?.copyWith(color: AppColors.textSecondary),
         tableHead: baseTextStyle?.copyWith(fontWeight: FontWeight.w700),
         tableBody: baseTextStyle,
         a: baseTextStyle?.copyWith(
-          color: AppColors.primary,
+          color: accent,
           fontWeight: FontWeight.w700,
           decoration: TextDecoration.none,
         ),
@@ -401,7 +403,7 @@ class AiAnswerText extends StatelessWidget {
         ),
         blockquoteDecoration: BoxDecoration(
           color: AppColors.surfaceHighlight,
-          border: Border(left: BorderSide(color: AppColors.primary, width: 3)),
+          border: Border(left: BorderSide(color: accent, width: 3)),
         ),
       ),
       onTapLink: (label, href, title) async {
@@ -629,8 +631,8 @@ class _AiConversationSheetState extends ConsumerState<AiConversationSheet> {
 
   chat.ChatTheme _chatTheme(BuildContext context) {
     return chat.ChatTheme(
-      colors: const chat.ChatColors(
-        primary: AppColors.primary,
+      colors: chat.ChatColors(
+        primary: context.appAccent,
         onPrimary: Colors.black,
         surface: AppColors.background,
         onSurface: AppColors.textPrimary,
@@ -719,7 +721,7 @@ class _AiConversationSheetState extends ConsumerState<AiConversationSheet> {
                   sendButtonDisabled: _running,
                   sendButtonVisibilityMode:
                       chat_ui.SendButtonVisibilityMode.disabled,
-                  sendIconColor: AppColors.primary,
+                  sendIconColor: context.appAccent,
                   emptyFieldSendIconColor: AppColors.textSecondary,
                   sendIcon: const Icon(
                     Icons.arrow_upward_rounded,
@@ -823,7 +825,7 @@ class _ChatTextMessage extends StatelessWidget {
                   dimension: 16,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: failed ? Colors.redAccent : AppColors.primary,
+                    color: failed ? Colors.redAccent : context.appAccent,
                   ),
                 ),
                 SizedBox(width: design.spaceSm),

@@ -104,6 +104,7 @@ class PlayerScreen extends ConsumerStatefulWidget {
         playbackOffsetMs: episode.playbackPositionMs,
         importedAt: episode.publishedAt,
         lastReadAt: episode.lastPlayedAt,
+        isRead: false,
         kind: 'podcast',
         externalSource: 'podcast',
         externalId: show.id,
@@ -223,7 +224,10 @@ _PodcastTranscriptContent _buildPodcastTranscriptContent(
 class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   static const _playerTransitionDuration = Duration(milliseconds: 480);
 
+  final ScrollController _playerScrollController = ScrollController();
   double _speed = 1.0;
+  double _stickyMiniPlayerTriggerOffset = 360;
+  bool _showStickyMiniPlayer = false;
   ChapterManifest? _selectedManifest;
   GenerationProgress? _generationProgress;
   StreamSubscription<GenerationProgress>? _generationSubscription;
@@ -247,6 +251,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   void initState() {
     super.initState();
+    _playerScrollController.addListener(_handlePlayerScroll);
     _podcastEpisode = widget.podcast?.episode;
     if (_isPodcast) {
       final transcript = _buildPodcastTranscriptContent(
@@ -272,8 +277,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void dispose() {
     unawaited(_generationSubscription?.cancel());
     unawaited(_podcastEpisodeSubscription?.cancel());
+    _playerScrollController
+      ..removeListener(_handlePlayerScroll)
+      ..dispose();
     _controlStateRevision.dispose();
     super.dispose();
+  }
+
+  void _handlePlayerScroll() {
+    if (!_playerScrollController.hasClients) return;
+    final offset = _playerScrollController.offset;
+    final shouldShow = _showStickyMiniPlayer
+        ? offset >= _stickyMiniPlayerTriggerOffset - 24
+        : offset >= _stickyMiniPlayerTriggerOffset;
+    if (shouldShow == _showStickyMiniPlayer || !mounted) return;
+    setState(() => _showStickyMiniPlayer = shouldShow);
   }
 
   void _setStreamPlaybackRequested(bool value) {
@@ -927,7 +945,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           child: SafeArea(
             child: Column(
               children: [
-                _buildPlayerHeader(),
+                _buildPlayerHeader(handlerAsync),
                 Expanded(
                   child: handlerAsync.when(
                     loading: () => const Center(
@@ -1050,9 +1068,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       0.0,
       constraints.maxHeight - design.spaceLg,
     );
+    _stickyMiniPlayerTriggerOffset =
+        artworkSize + (compact ? design.spaceSm : design.spaceLg);
 
     return SingleChildScrollView(
       key: const ValueKey('book-player-scroll-view'),
+      controller: _playerScrollController,
       physics: const BouncingScrollPhysics(),
       padding: EdgeInsets.only(bottom: design.spaceXxl),
       child: ConstrainedBox(
@@ -1184,9 +1205,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       0.0,
       constraints.maxHeight - design.spaceLg,
     );
+    _stickyMiniPlayerTriggerOffset =
+        artworkSize + (compact ? design.spaceSm : design.spaceLg);
 
     return SingleChildScrollView(
       key: const ValueKey('podcast-player-scroll-view'),
+      controller: _playerScrollController,
       physics: const BouncingScrollPhysics(),
       padding: EdgeInsets.only(bottom: design.spaceXxl),
       child: ConstrainedBox(
@@ -1215,7 +1239,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               padding: EdgeInsets.symmetric(horizontal: pageInset),
               child: Column(
                 children: [
-                  _buildPodcastShownotesCard(episode),
+                  _buildPodcastShownotesCard(
+                    episode: episode,
+                    handler: handler,
+                  ),
                   SizedBox(height: design.spaceMd),
                   _buildAiSummaryCard(handler: handler, manifest: manifest),
                   SizedBox(height: design.spaceMd),
@@ -1482,7 +1509,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
-  Widget _buildPodcastShownotesCard(drift_db.PodcastEpisode episode) {
+  Future<void> _seekToPodcastShownoteTimestamp(
+    LuminaAudioHandler handler,
+    Duration position,
+  ) async {
+    if (!_isSelectedChapterLoaded(handler)) {
+      await _loadPodcastPlayback(handler);
+    }
+    if (!mounted) return;
+    await handler.seek(position);
+  }
+
+  Widget _buildPodcastShownotesCard({
+    required drift_db.PodcastEpisode episode,
+    required LuminaAudioHandler handler,
+  }) {
     final notes = episode.description.trim();
     final canExpand = notes.length > 180;
     return _buildPlayerSectionCard(
@@ -1504,6 +1545,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   ? context.tr('该单集没有附带节目笔记。', 'No shownotes provided.')
                   : notes,
               key: const ValueKey('podcast-episode-description'),
+              onSeekTimestamp: (position) =>
+                  _seekToPodcastShownoteTimestamp(handler, position),
               maxLines: _showFullPodcastNotes ? null : 5,
               overflow: _showFullPodcastNotes
                   ? TextOverflow.visible
@@ -1592,46 +1635,222 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
-  Widget _buildPlayerHeader() {
+  Widget _buildPlayerHeader(AsyncValue<LuminaAudioHandler> handlerAsync) {
     final design = context.appDesign;
     return SizedBox(
       height: design.toolbarHeight,
-      child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: design.spaceSm),
-        child: Row(
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 220),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        transitionBuilder: (child, animation) => FadeTransition(
+          opacity: animation,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, -0.08),
+              end: Offset.zero,
+            ).animate(animation),
+            child: child,
+          ),
+        ),
+        child: _showStickyMiniPlayer
+            ? handlerAsync.maybeWhen(
+                data: (handler) => _buildStickyMiniPlayerHeader(handler),
+                orElse: _buildDefaultPlayerHeader,
+              )
+            : _buildDefaultPlayerHeader(),
+      ),
+    );
+  }
+
+  Widget _buildDefaultPlayerHeader() {
+    final design = context.appDesign;
+    return Padding(
+      key: const ValueKey('player-default-header'),
+      padding: EdgeInsets.symmetric(horizontal: design.spaceSm),
+      child: Row(
+        children: [
+          IconButton(
+            tooltip: context.tr('收起播放器', 'Close player'),
+            icon: const Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 32,
+              color: AppColors.textPrimary,
+            ),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          Expanded(
+            child: Text(
+              widget.book.title,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                color: AppColors.textPrimary,
+                letterSpacing: 0.4,
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: context.tr('更多选项', 'More options'),
+            icon: const Icon(
+              Icons.more_horiz_rounded,
+              color: AppColors.textPrimary,
+            ),
+            onPressed: () {},
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStickyMiniPlayerHeader(LuminaAudioHandler handler) {
+    final design = context.appDesign;
+    final chapterTitle =
+        _podcastEpisode?.title ??
+        widget.initialChapter?.title ??
+        handler.mediaItem.valueOrNull?.title ??
+        widget.book.title;
+    final sourceTitle = _isPodcast
+        ? widget.podcast!.show.title
+        : widget.book.title;
+    return StreamBuilder(
+      key: const ValueKey('player-sticky-mini-player'),
+      stream: handler.playbackState,
+      initialData: handler.playbackState.value,
+      builder: (context, playbackSnapshot) {
+        final selectedLoaded = _isSelectedChapterLoaded(handler);
+        final playing =
+            selectedLoaded && (playbackSnapshot.data?.playing ?? false);
+        final duration = selectedLoaded
+            ? handler.chapterDuration
+            : Duration(
+                milliseconds: _effectiveManifest(handler)?.totalDurationMs ?? 0,
+              );
+        return Stack(
           children: [
-            IconButton(
-              tooltip: context.tr('收起播放器', 'Close player'),
-              icon: const Icon(
-                Icons.keyboard_arrow_down_rounded,
-                size: 32,
-                color: AppColors.textPrimary,
+            Padding(
+              padding: const EdgeInsets.only(bottom: 3),
+              child: Row(
+                children: [
+                  IconButton(
+                    tooltip: context.tr('收起播放器', 'Close player'),
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      size: 28,
+                      color: AppColors.textPrimary,
+                    ),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                  SizedBox.square(
+                    dimension: 40,
+                    child: _isPodcast
+                        ? PodcastArtwork(
+                            imageUrl:
+                                _podcastEpisode?.imageUrl ??
+                                widget.podcast?.show.imageUrl,
+                            size: 40,
+                            borderRadius: design.radiusSmall,
+                          )
+                        : BookCover(
+                            coverPath: widget.book.coverPath,
+                            iconSize: 18,
+                            borderRadius: design.radiusSmall,
+                          ),
+                  ),
+                  SizedBox(width: design.spaceSm),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          chapterTitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: AppColors.textPrimary,
+                                fontWeight: FontWeight.w800,
+                              ),
+                        ),
+                        Text(
+                          sourceTitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                  ValueListenableBuilder<int>(
+                    valueListenable: _controlStateRevision,
+                    builder: (context, _, _) {
+                      final action = resolvePlayerPrimaryAudioAction(
+                        playing: playing,
+                        playbackRequested:
+                            _streamPlaybackRequested || _startingPlayback,
+                      );
+                      final tooltip = switch (action) {
+                        PlayerPrimaryAudioAction.play => context.tr(
+                          '播放',
+                          'Play',
+                        ),
+                        PlayerPrimaryAudioAction.pause => context.tr(
+                          '暂停',
+                          'Pause',
+                        ),
+                      };
+                      return IconButton(
+                        key: const ValueKey('player-sticky-mini-player-action'),
+                        tooltip: tooltip,
+                        icon: _buildPrimaryAudioGlyph(
+                          action: action,
+                          color: AppColors.textPrimary,
+                        ),
+                        onPressed: () => unawaited(
+                          _handlePrimaryAudioAction(handler, playing),
+                        ),
+                      );
+                    },
+                  ),
+                  SizedBox(width: design.spaceXs),
+                ],
               ),
-              onPressed: () => Navigator.of(context).pop(),
             ),
-            Expanded(
-              child: Text(
-                widget.book.title,
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: AppColors.textPrimary,
-                  letterSpacing: 0.4,
-                ),
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: StreamBuilder<Duration>(
+                stream: handler.chapterPositionStream,
+                initialData: handler.chapterPosition,
+                builder: (context, positionSnapshot) {
+                  final position = selectedLoaded
+                      ? positionSnapshot.data ?? Duration.zero
+                      : Duration.zero;
+                  final progress = duration.inMilliseconds <= 0
+                      ? 0.0
+                      : (position.inMilliseconds / duration.inMilliseconds)
+                            .clamp(0.0, 1.0)
+                            .toDouble();
+                  return LinearProgressIndicator(
+                    key: const ValueKey('player-sticky-mini-player-progress'),
+                    value: progress,
+                    minHeight: 2,
+                    backgroundColor: AppColors.textPrimary.withValues(
+                      alpha: 0.12,
+                    ),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Theme.of(context).colorScheme.primary,
+                    ),
+                  );
+                },
               ),
-            ),
-            IconButton(
-              tooltip: context.tr('更多选项', 'More options'),
-              icon: const Icon(
-                Icons.more_horiz_rounded,
-                color: AppColors.textPrimary,
-              ),
-              onPressed: () {},
             ),
           ],
-        ),
-      ),
+        );
+      },
     );
   }
 

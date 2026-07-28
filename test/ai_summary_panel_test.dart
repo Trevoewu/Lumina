@@ -103,13 +103,18 @@ void main() {
         find.byKey(const ValueKey('ai-summary-collapsed-preview')),
         findsOneWidget,
       );
+      expect(
+        find.byKey(const ValueKey('ai-summary-expand-toggle')),
+        findsNothing,
+      );
+      expect(find.byKey(const ValueKey('ai-summary-toggle')), findsOneWidget);
       expect(find.byType(ActionChip), findsNothing);
       await expectLater(
         find.byType(Scaffold).first,
         matchesGoldenFile('goldens/ai_summary_collapsed_390.png'),
       );
 
-      await tester.tap(find.byKey(const ValueKey('ai-summary-expand-toggle')));
+      await tester.tap(find.byKey(const ValueKey('ai-summary-toggle')));
       await tester.pumpAndSettle();
 
       expect(find.text('**Summary**'), findsNothing);
@@ -120,18 +125,13 @@ void main() {
       (citationSpan.recognizer! as TapGestureRecognizer).onTap!();
       await tester.pump();
       expect(tappedCitation?.label, 'P1');
-      expect(
-        find.byKey(const ValueKey('ai-summary-collapse-bottom')),
-        findsOneWidget,
-      );
+      expect(find.byKey(const ValueKey('ai-summary-toggle')), findsOneWidget);
       await expectLater(
         find.byType(Scaffold).first,
         matchesGoldenFile('goldens/ai_summary_expanded_390.png'),
       );
 
-      await tester.tap(
-        find.byKey(const ValueKey('ai-summary-collapse-bottom')),
-      );
+      await tester.tap(find.byKey(const ValueKey('ai-summary-toggle')));
       await tester.pumpAndSettle();
       expect(
         find.byKey(const ValueKey('ai-summary-collapsed-preview')),

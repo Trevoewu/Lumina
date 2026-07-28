@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 
 /// Lumina Editorial Listening 视觉系统的全局语义颜色。
 class AppColors {
-  /// 主色调 - 绿色
-  static const Color primary = Color(0xFF1DB954);
+  /// Default accent used before appearance settings load.
+  ///
+  /// UI code must read `Theme.of(context).colorScheme.primary` instead so
+  /// user-selected accent colors are respected.
+  static const Color defaultAccent = Color(0xFF1DB954);
 
   /// 深色背景 - 纯黑/深灰
   static const Color background = Color(0xFF121212);
@@ -26,9 +29,9 @@ class AppColors {
 
   /// 根据这些颜色生成 ColorScheme
   static const ColorScheme darkColorScheme = ColorScheme.dark(
-    primary: primary,
+    primary: defaultAccent,
     onPrimary: Colors.black,
-    secondary: primary,
+    secondary: defaultAccent,
     onSecondary: Colors.black,
     surface: background, // Scaffold background
     surfaceContainer: surface, // Cards, bottom sheets
@@ -40,9 +43,9 @@ class AppColors {
   );
 
   static const ColorScheme lightColorScheme = ColorScheme.light(
-    primary: primary,
+    primary: defaultAccent,
     onPrimary: Colors.black,
-    secondary: primary,
+    secondary: defaultAccent,
     onSecondary: Colors.black,
     surface: Color(0xFFF7F7F7),
     surfaceContainer: Colors.white,
@@ -55,6 +58,7 @@ class AppColors {
 }
 
 extension AppColorContext on BuildContext {
+  Color get appAccent => Theme.of(this).colorScheme.primary;
   Color get appBackground => Theme.of(this).colorScheme.surface;
   Color get appSurface => Theme.of(this).colorScheme.surfaceContainer;
   Color get appSurfaceHighlight =>

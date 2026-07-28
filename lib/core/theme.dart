@@ -8,7 +8,7 @@ import 'app_text_styles.dart';
 /// 全局应用主题
 class AppTheme {
   static ThemeData darkTheme({
-    Color accentColor = AppColors.primary,
+    Color accentColor = AppColors.defaultAccent,
     String? readingFontFamily,
     List<String>? readingFontFamilyFallback,
   }) => _buildTheme(
@@ -19,7 +19,7 @@ class AppTheme {
   );
 
   static ThemeData lightTheme({
-    Color accentColor = AppColors.primary,
+    Color accentColor = AppColors.defaultAccent,
     String? readingFontFamily,
     List<String>? readingFontFamilyFallback,
   }) => _buildTheme(
@@ -39,11 +39,29 @@ class AppTheme {
       readingFontFamily: readingFontFamily,
       readingFontFamilyFallback: readingFontFamilyFallback,
     );
+    final accentContainer = Color.alphaBlend(
+      accentColor.withValues(alpha: 0.16),
+      baseScheme.surface,
+    );
     final colorScheme = baseScheme.copyWith(
       primary: accentColor,
       secondary: accentColor,
       onPrimary: Colors.black,
       onSecondary: Colors.black,
+      primaryContainer: accentContainer,
+      onPrimaryContainer: baseScheme.onSurface,
+      primaryFixed: accentColor,
+      primaryFixedDim: accentColor,
+      onPrimaryFixed: Colors.black,
+      onPrimaryFixedVariant: Colors.black,
+      secondaryContainer: accentContainer,
+      onSecondaryContainer: baseScheme.onSurface,
+      secondaryFixed: accentColor,
+      secondaryFixedDim: accentColor,
+      onSecondaryFixed: Colors.black,
+      onSecondaryFixedVariant: Colors.black,
+      inversePrimary: accentColor,
+      surfaceTint: accentColor,
     );
 
     return ThemeData(

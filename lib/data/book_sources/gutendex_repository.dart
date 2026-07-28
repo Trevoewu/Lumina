@@ -326,6 +326,7 @@ class GutendexRepository {
       voiceId: parsed.book.voiceId,
       importedAt: parsed.book.importedAt,
       lastReadAt: parsed.book.lastReadAt,
+      isRead: false,
       kind: 'book',
       externalSource: gutendexSourceId,
       externalId: book.id.toString(),

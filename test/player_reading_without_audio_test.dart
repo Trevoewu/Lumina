@@ -41,6 +41,7 @@ void main() {
       playbackOffsetMs: 0,
       importedAt: 1,
       lastReadAt: 1,
+      isRead: false,
       kind: 'book',
       rightsStatus: 'user_uploaded',
     );
@@ -142,6 +143,7 @@ void main() {
         playbackOffsetMs: 0,
         importedAt: 1,
         lastReadAt: 0,
+        isRead: false,
         kind: 'book',
         rightsStatus: 'user_uploaded',
       );
@@ -364,6 +366,31 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(
+        find.byKey(const ValueKey('player-sticky-mini-player')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('player-sticky-mini-player-action')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('player-sticky-mini-player-progress')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('player-default-header')), findsNothing);
+      await tester.tap(
+        find.byKey(const ValueKey('player-sticky-mini-player-action')),
+      );
+      await tester.pumpAndSettle();
+      expect(audioHandler.playbackState.value.playing, isFalse);
+      audioHandler.startLoadedChapter(
+        bookId: book.id,
+        chapterId: chapter.id,
+        paragraphId: 'readable-paragraph-3',
+      );
+      await tester.pumpAndSettle();
+      expect(audioHandler.playbackState.value.playing, isTrue);
+      expect(
         find.byKey(const ValueKey('ai-summary-card')).hitTestable(),
         findsWidgets,
       );
@@ -382,6 +409,14 @@ void main() {
         const Offset(0, 700),
       );
       await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('player-sticky-mini-player')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('player-default-header')),
+        findsOneWidget,
+      );
 
       await tester.tap(
         find.byKey(const ValueKey('player-primary-audio-action')),
@@ -488,6 +523,7 @@ void main() {
       playbackOffsetMs: 0,
       importedAt: 1,
       lastReadAt: 0,
+      isRead: false,
       kind: 'book',
       rightsStatus: 'user_uploaded',
     );
@@ -580,6 +616,7 @@ void main() {
       playbackOffsetMs: 0,
       importedAt: 1,
       lastReadAt: 0,
+      isRead: false,
       kind: 'book',
       rightsStatus: 'user_uploaded',
     );
@@ -640,6 +677,7 @@ void main() {
       playbackOffsetMs: 1000,
       importedAt: 1,
       lastReadAt: 0,
+      isRead: false,
       kind: 'book',
       rightsStatus: 'user_uploaded',
       externalMetadataJson:

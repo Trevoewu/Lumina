@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:audio_service/audio_service.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -82,7 +83,8 @@ void main() {
         lastRefreshedAt: 1,
       );
       const episodeDescription =
-          'Luke explores the countryside and shares practical English while '
+          'At 00:36:33 Luke explores the countryside and shares practical '
+          'English while '
           'talking about current podcast news, moving house, plans for a future '
           'episode, listener questions, and several stories from family life. '
           'These detailed notes should remain available without crowding the '
@@ -95,7 +97,7 @@ void main() {
         description: episodeDescription,
         audioUrl: 'https://example.com/episode.mp3',
         publishedAt: 1,
-        durationMs: 600000,
+        durationMs: 3600000,
         playbackPositionMs: 0,
         lastPlayedAt: 0,
         isPlayed: false,
@@ -149,6 +151,19 @@ void main() {
         ),
         findsOneWidget,
       );
+      final shownotesText = tester.widget<Text>(
+        find.descendant(
+          of: find.byKey(const ValueKey('podcast-episode-description')),
+          matching: find.byType(Text),
+        ),
+      );
+      final timestampSpan = (shownotesText.textSpan! as TextSpan).children!
+          .whereType<TextSpan>()
+          .firstWhere((span) => span.text == '00:36:33');
+      (timestampSpan.recognizer! as TapGestureRecognizer).onTap!();
+      await tester.pumpAndSettle();
+      expect(handler.loadedPodcastEpisodeId, episode.id);
+      expect(handler.soughtPosition, const Duration(minutes: 36, seconds: 33));
       expect(
         find.byKey(const ValueKey('podcast-information-card')),
         findsNothing,
@@ -306,6 +321,8 @@ class _PodcastTestAudioHandler extends BaseAudioHandler
   final _paragraphController = StreamController<String?>.broadcast();
   final _positionController = StreamController<Duration>.broadcast();
   bool _disposed = false;
+  String? loadedPodcastEpisodeId;
+  Duration? soughtPosition;
 
   @override
   Duration get chapterDuration => Duration.zero;
@@ -329,7 +346,16 @@ class _PodcastTestAudioHandler extends BaseAudioHandler
   String? get currentParagraphId => null;
 
   @override
-  String? get currentPodcastEpisodeId => null;
+  String? get currentPodcastEpisodeId => loadedPodcastEpisodeId;
+
+  @override
+  Future<void> loadPodcastQueue({
+    required List<PodcastPlaybackSource> episodes,
+    required String initialEpisodeId,
+    Duration initialPosition = Duration.zero,
+  }) async {
+    loadedPodcastEpisodeId = initialEpisodeId;
+  }
 
   @override
   Stream<String?> get currentParagraphIdStream => _paragraphController.stream;
@@ -339,6 +365,11 @@ class _PodcastTestAudioHandler extends BaseAudioHandler
 
   @override
   Stream<Duration> get positionStream => _positionController.stream;
+
+  @override
+  Future<void> seek(Duration position) async {
+    soughtPosition = position;
+  }
 
   @override
   Future<void> setSpeed(double speed) async {}

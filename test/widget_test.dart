@@ -120,6 +120,7 @@ void main() {
         voiceId: null,
         importedAt: 1,
         lastReadAt: 0,
+        isRead: false,
         kind: 'book',
         rightsStatus: 'user_uploaded',
       ),
@@ -146,6 +147,20 @@ void main() {
     var bookCard = find.byType(BookListCard);
     expect(bookCard, findsOneWidget);
     expect(find.textContaining('0% read'), findsOneWidget);
+    await tester.longPress(bookCard);
+    await tester.pumpAndSettle();
+    expect(find.text('Mark as read'), findsOneWidget);
+    await tester.tap(find.text('Mark as read'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('100% read'), findsOneWidget);
+
+    await tester.longPress(bookCard);
+    await tester.pumpAndSettle();
+    expect(find.text('Mark as unread'), findsOneWidget);
+    await tester.tap(find.text('Mark as unread'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('0% read'), findsOneWidget);
+
     await tester.longPress(bookCard);
     await tester.pumpAndSettle();
     expect(find.text('Cache Entire Book'), findsOneWidget);

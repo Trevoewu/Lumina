@@ -221,6 +221,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             child: SizedBox(
               width: double.infinity,
               child: SegmentedButton<_SearchScope>(
+                key: const ValueKey('book-search-scope-selector'),
                 segments: [
                   ButtonSegment(
                     value: _SearchScope.online,

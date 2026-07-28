@@ -45,6 +45,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   late String? _currentChapterId;
   late int _currentParagraphIndex;
   late int _playbackOffsetMs;
+  late bool _isRead;
 
   @override
   void initState() {
@@ -55,6 +56,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     _currentChapterId = widget.book.currentChapterId;
     _currentParagraphIndex = widget.book.currentParagraphIndex;
     _playbackOffsetMs = widget.book.playbackOffsetMs;
+    _isRead = widget.book.isRead;
   }
 
   @override
@@ -82,7 +84,22 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       _currentChapterId = widget.book.currentChapterId;
       _currentParagraphIndex = widget.book.currentParagraphIndex;
       _playbackOffsetMs = widget.book.playbackOffsetMs;
+      _isRead = widget.book.isRead;
     }
+  }
+
+  Future<void> _toggleBookReadStatus() async {
+    final isRead = !_isRead;
+    await ref
+        .read(appDatabaseProvider)
+        .updateBookReadStatus(widget.book.id, isRead);
+    if (!mounted) return;
+    setState(() => _isRead = isRead);
+    _showSnackBar(
+      isRead
+          ? context.tr('已标记为已读', 'Marked as read')
+          : context.tr('已标记为未读', 'Marked as unread'),
+    );
   }
 
   Future<void> _openChapter(drift_db.Chapter chapter) async {
@@ -600,9 +617,30 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
           onSelected: (value) {
             if (value == 'hidden_chapters') {
               _showHiddenChapters();
+            } else if (value == 'toggle_read') {
+              _toggleBookReadStatus();
             }
           },
           itemBuilder: (context) => [
+            PopupMenuItem<String>(
+              value: 'toggle_read',
+              child: Row(
+                children: [
+                  Icon(
+                    _isRead
+                        ? Icons.remove_done_outlined
+                        : Icons.done_all_rounded,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    _isRead
+                        ? context.tr('标记为未读', 'Mark as unread')
+                        : context.tr('标记为已读', 'Mark as read'),
+                  ),
+                ],
+              ),
+            ),
             PopupMenuItem<String>(
               value: 'hidden_chapters',
               child: Row(

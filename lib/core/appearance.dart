@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'app_colors.dart';
 import 'providers.dart';
 
 const _fontKey = 'appearance_font_family';
@@ -38,7 +39,7 @@ const appearanceFontOptions = [
 ];
 
 const appearanceAccentOptions = [
-  Color(0xFF1DB954),
+  AppColors.defaultAccent,
   Color(0xFF3DDC97),
   Color(0xFF56A8FF),
   Color(0xFFFFC857),
@@ -55,7 +56,7 @@ class AppearanceSettings {
   const AppearanceSettings({
     this.fontId = 'system',
     this.fontScale = 1.0,
-    this.accentColor = const Color(0xFF1DB954),
+    this.accentColor = AppColors.defaultAccent,
     this.loaded = false,
   });
 

@@ -373,6 +373,7 @@ Future<void> _insertBookFixture(
       playbackOffsetMs: 0,
       importedAt: 1,
       lastReadAt: 1,
+      isRead: false,
       kind: 'book',
       rightsStatus: rightsStatus,
     ),
