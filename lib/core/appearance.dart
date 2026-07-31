@@ -8,6 +8,9 @@ const _fontKey = 'appearance_font_family';
 const _scaleKey = 'appearance_font_scale';
 const _accentKey = 'appearance_accent_color';
 
+/// Makes the current 100% setting visually match the previous 85% size.
+const appTextScaleBaseline = 0.85;
+
 class AppearanceFontOption {
   final String id;
   final String label;
@@ -55,7 +58,7 @@ class AppearanceSettings {
 
   const AppearanceSettings({
     this.fontId = 'system',
-    this.fontScale = 0.85,
+    this.fontScale = 1.0,
     this.accentColor = AppColors.defaultAccent,
     this.loaded = false,
   });

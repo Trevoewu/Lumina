@@ -6,8 +6,9 @@ import 'package:lumina/core/appearance.dart';
 import 'package:lumina/core/theme.dart';
 
 void main() {
-  test('reading appearance defaults to 85% text size', () {
-    expect(const AppearanceSettings().fontScale, 0.85);
+  test('100% text size uses the previous 85% visual baseline', () {
+    expect(const AppearanceSettings().fontScale, 1.0);
+    expect(appTextScaleBaseline, 0.85);
   });
 
   test('component themes and custom widgets share semantic tokens', () {

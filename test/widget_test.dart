@@ -91,7 +91,7 @@ void main() {
     );
     expect(
       MediaQuery.textScalerOf(contentContext).scale(10),
-      closeTo(26, 0.01),
+      closeTo(22.1, 0.01),
     );
   });
 

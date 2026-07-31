@@ -96,7 +96,7 @@ class _LuminaAppState extends ConsumerState<LuminaApp> {
           data: media.copyWith(
             textScaler: _RelativeTextScaler(
               media.textScaler,
-              appearance.fontScale,
+              appearance.fontScale * appTextScaleBaseline,
             ),
           ),
           child: _MacWindowInset(child: child ?? const SizedBox.shrink()),
