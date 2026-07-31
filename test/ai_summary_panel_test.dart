@@ -175,6 +175,57 @@ void main() {
     expect(composer.textColor, AppColors.textPrimary);
     expect(composer.keyboardAppearance, Brightness.dark);
   });
+
+  testWidgets('AI setup is requested only after transcript is available', (
+    tester,
+  ) async {
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+    const scope = AiContentScope(
+      type: AiScopeType.episode,
+      id: 'episode-setup',
+      parentId: 'show-setup',
+      title: 'Episode',
+      parentTitle: 'Show',
+    );
+    var aiSetupRequests = 0;
+    var transcriptRequests = 0;
+
+    Widget app({required bool transcriptAvailable}) => ProviderScope(
+      overrides: [appDatabaseProvider.overrideWithValue(database)],
+      child: MaterialApp(
+        theme: AppTheme.darkTheme(),
+        home: Scaffold(
+          body: AiSummaryPanel(
+            scope: scope,
+            transcriptAvailable: transcriptAvailable,
+            aiServiceReady: false,
+            onAiServiceRequired: () => aiSetupRequests++,
+            onTranscriptRequired: () => transcriptRequests++,
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(app(transcriptAvailable: false));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('ai-summary-transcribe')), findsOneWidget);
+    expect(find.byKey(const ValueKey('ai-service-required')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('ai-summary-transcribe')));
+    expect(transcriptRequests, 1);
+
+    await tester.pumpWidget(app(transcriptAvailable: true));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('ai-service-required')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('ai-summary-configure-service')),
+      findsOneWidget,
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('ai-summary-configure-service')),
+    );
+    expect(aiSetupRequests, 1);
+  });
 }
 
 TextSpan? _findTextSpan(WidgetTester tester, String text) {

@@ -12,10 +12,13 @@ import 'package:lumina/data/database/app_database.dart';
 import 'package:lumina/domain/models/chapter_manifest.dart';
 import 'package:lumina/presentation/screens/album/album_screen.dart';
 import 'package:lumina/presentation/screens/player/player_screen.dart';
+import 'package:lumina/presentation/screens/settings/tts_service_screen.dart';
 import 'package:lumina/presentation/widgets/mini_player.dart';
 import 'package:lumina/services/lumina_audio_handler.dart';
 import 'package:lumina/services/manifest_store.dart';
 import 'package:lumina/services/sleep_timer_service.dart';
+import 'package:lumina/tts/provider_registry.dart';
+import 'package:lumina/tts/providers/fish_audio_api_tts_provider.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -108,7 +111,10 @@ void main() {
 
     final player = tester.widget<PlayerScreen>(find.byType(PlayerScreen));
     expect(player.initialChapter?.id, chapter.id);
-    expect(find.byKey(const ValueKey('ai-summary-generate')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('ai-summary-configure-service')),
+      findsOneWidget,
+    );
   });
 
   testWidgets(
@@ -440,6 +446,88 @@ void main() {
       await tester.pump(const Duration(milliseconds: 1));
     },
   );
+
+  testWidgets('play guides an unconfigured user to cloud TTS settings', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final temp = Directory.systemTemp.createTempSync('lumina_tts_gate_test_');
+    final manifestStore = ManifestStore(documentsDirectory: () async => temp);
+    final audioHandler = _TestAudioHandler();
+    addTearDown(database.close);
+    addTearDown(audioHandler.dispose);
+    addTearDown(() {
+      if (temp.existsSync()) temp.deleteSync(recursive: true);
+    });
+    const book = Book(
+      id: 'tts-gate-book',
+      title: 'Cloud Narration',
+      author: 'Reader',
+      format: 'epub',
+      sourcePath: '/tmp/cloud.epub',
+      chapterCount: 1,
+      paragraphCount: 1,
+      currentParagraphIndex: 0,
+      playbackOffsetMs: 0,
+      importedAt: 1,
+      lastReadAt: 0,
+      isRead: false,
+      kind: 'book',
+      rightsStatus: 'user_uploaded',
+    );
+    const chapter = Chapter(
+      id: 'tts-gate-chapter',
+      bookId: 'tts-gate-book',
+      chapterIndex: 0,
+      title: 'Chapter',
+      textOffset: 0,
+      isHidden: false,
+    );
+    await database.replaceBookData(
+      book: book,
+      chapterEntries: const [chapter],
+      paragraphEntries: const [
+        Paragraph(
+          id: 'tts-gate-paragraph',
+          chapterId: 'tts-gate-chapter',
+          bookId: 'tts-gate-book',
+          paragraphIndex: 0,
+          content: 'Connect a voice provider before playback.',
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          manifestStoreProvider.overrideWithValue(manifestStore),
+          luminaAudioHandlerProvider.overrideWith((ref) async => audioHandler),
+          activeTtsProviderProvider.overrideWithValue(
+            _UnconfiguredCloudTtsProvider(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.lightTheme(),
+          home: const PlayerScreen(book: book, initialChapter: chapter),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.tap(find.byKey(const ValueKey('player-primary-audio-action')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Connect a voice provider'), findsOneWidget);
+    expect(find.byKey(const ValueKey('open-tts-settings')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('open-tts-settings')));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.byType(TtsServiceScreen), findsOneWidget);
+  });
 
   test('primary audio action remains play or pause while streaming', () {
     expect(
@@ -863,6 +951,14 @@ class _TestManifestStore extends ManifestStore {
     if (value?.bookId != bookId || value?.chapterId != chapterId) return null;
     return value;
   }
+}
+
+class _UnconfiguredCloudTtsProvider extends FishAudioApiTtsProvider {
+  @override
+  String get displayName => 'Cloud TTS';
+
+  @override
+  Future<bool> validate() async => false;
 }
 
 class _CountingManifestStore extends ManifestStore {

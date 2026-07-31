@@ -4,10 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/app_design_tokens.dart';
 import '../../../core/app_localizations.dart';
 import '../../../core/app_preferences.dart';
+import '../../../core/appearance.dart';
 import '../../../core/providers.dart';
 import '../../../core/service_settings_controllers.dart';
+import '../../../tts/provider_registry.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
 import '../../widgets/design_system/app_section_header.dart';
+import '../../widgets/design_system/app_surface.dart';
 import '../../widgets/design_system/settings_components.dart';
 import 'appearance_screen.dart';
 import 'asr_service_screen.dart';
@@ -29,6 +32,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final _languageMenuKey = GlobalKey<PopupMenuButtonState<AppLanguage>>();
   final _themeMenuKey = GlobalKey<PopupMenuButtonState<AppThemePreference>>();
   bool _fadeInEnabled = true;
+  bool _resetting = false;
 
   @override
   void initState() {
@@ -73,48 +77,66 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ],
           ),
-          AppSectionHeader(title: context.tr('AI 服务', 'AI Services')),
+          AppSectionHeader(title: context.tr('增强功能', 'Enhanced Features')),
+          AppSurface(
+            key: const ValueKey('enhanced-features-intro'),
+            color: Theme.of(
+              context,
+            ).colorScheme.primaryContainer.withValues(alpha: 0.48),
+            padding: EdgeInsets.all(design.spaceLg),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.auto_awesome_rounded,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                SizedBox(width: design.spaceMd),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        context.tr('按需开启', 'Set up when needed'),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      SizedBox(height: design.spaceXs),
+                      Text(
+                        context.tr(
+                          '阅读与播放无需额外设置。需要时再开启字幕、AI 助手和语音朗读。',
+                          'Reading and playback work now. Set up transcripts, AI, and narration only when you need them.',
+                        ),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: design.spaceMd),
           SettingsGroup(
             children: [
-              tts.when(
-                loading: () => _loadingServiceRow(
-                  key: const ValueKey('tts-service-settings'),
-                  icon: Icons.record_voice_over_outlined,
-                  title: context.tr('文本转语音', 'Text to Speech'),
-                ),
-                error: (error, _) => _errorServiceRow(
-                  key: const ValueKey('tts-service-settings'),
-                  icon: Icons.record_voice_over_outlined,
-                  title: context.tr('文本转语音', 'Text to Speech'),
-                  onTap: () => ref.invalidate(ttsSettingsControllerProvider),
-                ),
-                data: (state) => _serviceRow(
-                  key: const ValueKey('tts-service-settings'),
-                  icon: Icons.record_voice_over_outlined,
-                  title: context.tr('文本转语音', 'Text to Speech'),
-                  provider:
-                      state.providerName ?? context.tr('未选择服务', 'No provider'),
-                  selection: state.voiceName ?? context.tr('未选择音色', 'No voice'),
-                  readiness: state.readiness,
-                  onTap: () => _push(const TtsServiceScreen()),
-                ),
-              ),
               asr.when(
                 loading: () => _loadingServiceRow(
                   key: const ValueKey('asr-service-settings'),
                   icon: Icons.subtitles_outlined,
-                  title: context.tr('语音转文字', 'Speech to Text'),
+                  title: context.tr('Podcast 字幕', 'Podcast Transcripts'),
                 ),
                 error: (error, _) => _errorServiceRow(
                   key: const ValueKey('asr-service-settings'),
                   icon: Icons.subtitles_outlined,
-                  title: context.tr('语音转文字', 'Speech to Text'),
+                  title: context.tr('Podcast 字幕', 'Podcast Transcripts'),
                   onTap: () => ref.invalidate(asrSettingsControllerProvider),
                 ),
                 data: (state) => _serviceRow(
                   key: const ValueKey('asr-service-settings'),
                   icon: Icons.subtitles_outlined,
-                  title: context.tr('语音转文字', 'Speech to Text'),
+                  title: context.tr('Podcast 字幕', 'Podcast Transcripts'),
                   provider: state.providerName,
                   selection: state.modelName,
                   readiness: state.readiness,
@@ -125,24 +147,47 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 loading: () => _loadingServiceRow(
                   key: const ValueKey('llm-provider-settings'),
                   icon: Icons.auto_awesome_outlined,
-                  title: context.tr('词典解释', 'Dictionary Explanation'),
+                  title: context.tr('AI 模型', 'AI Model'),
                 ),
                 error: (error, _) => _errorServiceRow(
                   key: const ValueKey('llm-provider-settings'),
                   icon: Icons.auto_awesome_outlined,
-                  title: context.tr('词典解释', 'Dictionary Explanation'),
+                  title: context.tr('AI 模型', 'AI Model'),
                   onTap: () => ref.invalidate(llmSettingsControllerProvider),
                 ),
                 data: (state) => _serviceRow(
                   key: const ValueKey('llm-provider-settings'),
                   icon: Icons.auto_awesome_outlined,
-                  title: context.tr('词典解释', 'Dictionary Explanation'),
+                  title: context.tr('AI 模型', 'AI Model'),
                   provider:
                       state.providerName ?? context.tr('未选择服务', 'No provider'),
                   selection: state.modelId ?? context.tr('未选择模型', 'No model'),
                   readiness: state.readiness,
                   onTap: () =>
                       _push(const DictionaryExplanationServiceScreen()),
+                ),
+              ),
+              tts.when(
+                loading: () => _loadingServiceRow(
+                  key: const ValueKey('tts-service-settings'),
+                  icon: Icons.record_voice_over_outlined,
+                  title: context.tr('语音朗读', 'Voice Narration'),
+                ),
+                error: (error, _) => _errorServiceRow(
+                  key: const ValueKey('tts-service-settings'),
+                  icon: Icons.record_voice_over_outlined,
+                  title: context.tr('语音朗读', 'Voice Narration'),
+                  onTap: () => ref.invalidate(ttsSettingsControllerProvider),
+                ),
+                data: (state) => _serviceRow(
+                  key: const ValueKey('tts-service-settings'),
+                  icon: Icons.record_voice_over_outlined,
+                  title: context.tr('语音朗读', 'Voice Narration'),
+                  provider:
+                      state.providerName ?? context.tr('未选择服务', 'No provider'),
+                  selection: state.voiceName ?? context.tr('未选择音色', 'No voice'),
+                  readiness: state.readiness,
+                  onTap: () => _push(const TtsServiceScreen()),
                 ),
               ),
             ],
@@ -195,6 +240,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 icon: Icons.receipt_long_outlined,
                 title: context.tr('日志', 'Logs'),
                 onTap: () => _push(const LogsScreen()),
+              ),
+            ],
+          ),
+          AppSectionHeader(title: context.tr('高级', 'Advanced')),
+          SettingsGroup(
+            children: [
+              SettingValueRow(
+                rowKey: const ValueKey('reset-app-settings'),
+                icon: Icons.restart_alt,
+                title: context.tr('恢复初始设置', 'Restore initial settings'),
+                subtitle: context.tr(
+                  '重置偏好与服务配置，保留书库、进度和下载',
+                  'Reset preferences and service configuration while keeping your library, progress, and downloads',
+                ),
+                trailing: _resetting
+                    ? const SizedBox.square(
+                        dimension: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.chevron_right),
+                onTap: _resetting ? null : _confirmResetAppSettings,
               ),
             ],
           ),
@@ -464,5 +530,106 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         .read(sleepTimerServiceProvider)
         .scheduleDuration(duration, handler);
     if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+  }
+
+  Future<void> _confirmResetAppSettings() async {
+    final continueReset = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(context.tr('恢复初始设置？', 'Restore initial settings?')),
+        content: Text(
+          context.tr(
+            '以下内容将恢复默认值：\n\n'
+                '• 语言、主题、阅读外观和播放偏好\n'
+                '• AI 与语音服务的 API Key 和 Provider 配置\n'
+                '• 模型、朗读音色和字幕偏好\n\n'
+                '书库、播客、阅读进度、下载内容和已下载的 Whisper 模型会保留。',
+            'The following will return to their defaults:\n\n'
+                '• Language, theme, reading appearance, and playback preferences\n'
+                '• API keys and provider configuration for AI and voice services\n'
+                '• Model, reading voice, and transcript preferences\n\n'
+                'Your library, podcasts, reading progress, downloads, and downloaded Whisper model will be kept.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(context.tr('取消', 'Cancel')),
+          ),
+          FilledButton(
+            key: const ValueKey('continue-reset-app-settings'),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(context.tr('继续', 'Continue')),
+          ),
+        ],
+      ),
+    );
+    if (continueReset != true || !mounted) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(context.tr('最后确认', 'Final confirmation')),
+        content: Text(
+          context.tr(
+            '此操作无法撤销。重置后需要重新输入 API Key，并重新选择 Provider、AI 模型和朗读音色。\n\n'
+                '确定立即恢复初始设置吗？',
+            'This cannot be undone. You will need to enter API keys again and reselect providers, AI models, and reading voices.\n\n'
+                'Restore the initial settings now?',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(context.tr('返回', 'Go back')),
+          ),
+          FilledButton(
+            key: const ValueKey('confirm-reset-app-settings'),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
+            ),
+            child: Text(context.tr('恢复初始设置', 'Restore settings')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await _resetAppSettings();
+  }
+
+  Future<void> _resetAppSettings() async {
+    final successMessage = context.tr(
+      '已恢复初始设置。书库、进度和下载内容已保留。',
+      'Initial settings restored. Your library, progress, and downloads were kept.',
+    );
+    final failurePrefix = context.tr('恢复设置失败', 'Could not restore settings');
+    setState(() => _resetting = true);
+    try {
+      await ref.read(appSettingsResetServiceProvider).reset();
+      await ref.read(activeTtsProviderIdProvider.notifier).reset();
+      await ref.read(appPreferencesProvider.notifier).reset();
+      await ref.read(appearanceControllerProvider.notifier).reset();
+      await ref.read(sleepTimerServiceProvider).cancel();
+      ref.invalidate(ttsProviderConfigurationStatusProvider);
+      ref.invalidate(ttsSettingsControllerProvider);
+      ref.invalidate(asrSettingsControllerProvider);
+      ref.invalidate(llmSettingsControllerProvider);
+      if (!mounted) return;
+      setState(() {
+        _fadeInEnabled = true;
+        _resetting = false;
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(successMessage)));
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _resetting = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('$failurePrefix: $error')));
+    }
   }
 }

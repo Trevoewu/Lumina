@@ -72,6 +72,14 @@ class AppPreferencesController extends Notifier<AppPreferences> {
     await ref.read(appDatabaseProvider).setSetting(_themeModeKey, theme.name);
   }
 
+  Future<void> reset() async {
+    const defaults = AppPreferences(loaded: true);
+    state = defaults;
+    final database = ref.read(appDatabaseProvider);
+    await database.setSetting(_languageKey, defaults.language.name);
+    await database.setSetting(_themeModeKey, defaults.theme.name);
+  }
+
   AppLanguage _parseLanguage(String? value) {
     return AppLanguage.values.firstWhere(
       (item) => item.name == value,

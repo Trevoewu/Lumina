@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lumina/core/providers.dart';
+import 'package:lumina/core/service_settings_controllers.dart';
 import 'package:lumina/data/database/app_database.dart';
 import 'package:lumina/data/dictionary/openai_compatible_explanation_provider.dart';
 import 'package:lumina/main.dart';
@@ -20,7 +21,7 @@ void main() {
       const Voice(
         id: 'voice-a',
         name: 'Voice A',
-        providerId: 'kokoro_local',
+        providerId: 'fish_audio_api',
         type: 'preset',
         providerVoiceId: 'af_heart',
         createdAt: 1,
@@ -53,7 +54,13 @@ void main() {
     addTearDown(database.close);
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [appDatabaseProvider.overrideWithValue(database)],
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          ttsSettingsControllerProvider.overrideWith(_WidgetTtsController.new),
+          ttsProviderConfigurationStatusProvider.overrideWith(
+            (ref) async => const {'fish_audio_api': false, 'minimax': false},
+          ),
+        ],
         child: const LuminaApp(),
       ),
     );
@@ -205,7 +212,13 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [appDatabaseProvider.overrideWithValue(database)],
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          ttsSettingsControllerProvider.overrideWith(_WidgetTtsController.new),
+          ttsProviderConfigurationStatusProvider.overrideWith(
+            (ref) async => const {'fish_audio_api': false, 'minimax': false},
+          ),
+        ],
         child: const LuminaApp(),
       ),
     );
@@ -220,11 +233,15 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
+    await tester.drag(find.byType(ListView).last, const Offset(0, -420));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('tts-service-settings')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Provider'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Fish Audio API'));
+    await tester.tap(find.text('Add provider'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Fish Audio'));
     await tester.pumpAndSettle();
 
     expect(find.text('Fast'), findsOneWidget);
@@ -352,7 +369,7 @@ void main() {
       const Voice(
         id: 'voice-a',
         name: 'Voice A',
-        providerId: 'kokoro_local',
+        providerId: 'fish_audio_api',
         type: 'preset',
         providerVoiceId: 'af_heart',
         createdAt: 1,
@@ -362,7 +379,7 @@ void main() {
       const Voice(
         id: 'voice-b',
         name: 'Voice B',
-        providerId: 'kokoro_local',
+        providerId: 'fish_audio_api',
         type: 'preset',
         providerVoiceId: 'af_bella',
         createdAt: 2,
@@ -382,6 +399,8 @@ void main() {
       find.textContaining('Current voice · preset · af_heart'),
       findsOneWidget,
     );
+    await tester.drag(find.byType(ListView), const Offset(0, -320));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Voice B'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
@@ -419,11 +438,8 @@ void main() {
     final providerSettings = find.byKey(
       const ValueKey('llm-provider-settings'),
     );
-    await tester.scrollUntilVisible(
-      providerSettings,
-      180,
-      scrollable: find.byType(Scrollable).last,
-    );
+    await tester.drag(find.byType(ListView), const Offset(0, -300));
+    await tester.pumpAndSettle();
     await tester.tap(providerSettings);
     await tester.pumpAndSettle();
 
@@ -444,4 +460,36 @@ void main() {
     expect(find.text('Required'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+}
+
+class _WidgetTtsController extends TtsSettingsController {
+  @override
+  Future<TtsSettingsState> build() async => const TtsSettingsState(
+    providerId: 'fish_audio_api',
+    providerName: 'Fish Audio API',
+    voiceId: null,
+    voiceName: null,
+    readiness: ServiceReadiness.setupRequired,
+    providers: [
+      ProviderOptionViewData(
+        id: 'fish_audio_api',
+        name: 'Fish Audio API',
+        subtitle: 'Cloud service',
+        readiness: ServiceReadiness.setupRequired,
+        active: true,
+        editable: true,
+        removable: false,
+      ),
+      ProviderOptionViewData(
+        id: 'minimax',
+        name: 'MiniMax 语音合成',
+        subtitle: 'Cloud service',
+        readiness: ServiceReadiness.setupRequired,
+        active: false,
+        editable: true,
+        removable: false,
+      ),
+    ],
+    voices: [],
+  );
 }

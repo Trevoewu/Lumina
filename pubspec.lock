@@ -321,14 +321,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.34.0"
-  edge_tts:
-    dependency: "direct main"
-    description:
-      name: edge_tts
-      sha256: "1f7d2c6ba18bde1eeb99c3161c11972c8d79de3f3eb840dedaf4ea161dbc4c6a"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.1.5"
   epub_pro:
     dependency: "direct main"
     description:

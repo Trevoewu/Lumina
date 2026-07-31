@@ -79,10 +79,10 @@ Future<void> _pumpSettings(
 class _GoldenTtsController extends TtsSettingsController {
   @override
   Future<TtsSettingsState> build() async => const TtsSettingsState(
-    providerId: 'edge',
-    providerName: 'Edge TTS',
-    voiceId: 'en-US-AriaNeural',
-    voiceName: 'Aria',
+    providerId: 'fish_audio_api',
+    providerName: 'Fish Audio API',
+    voiceId: 'fish_api_default',
+    voiceName: 'Fish Audio Default',
     readiness: ServiceReadiness.ready,
     providers: [],
     voices: [],

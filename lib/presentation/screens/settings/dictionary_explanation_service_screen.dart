@@ -19,7 +19,7 @@ class DictionaryExplanationServiceScreen extends ConsumerWidget {
     final design = context.appDesign;
     final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
     return CollapsingPageScaffold(
-      title: context.tr('词典解释', 'Dictionary Explanation'),
+      title: context.tr('AI 模型', 'AI Model'),
       showBackButton: true,
       body: state.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -32,7 +32,7 @@ class DictionaryExplanationServiceScreen extends ConsumerWidget {
           children: [
             ServiceStatusCard(
               icon: Icons.auto_awesome_outlined,
-              title: context.tr('当前解释服务', 'Current explanation service'),
+              title: context.tr('当前 AI 服务', 'Current AI service'),
               provider: data.providerName ?? context.tr('未选择服务', 'No provider'),
               selection: data.modelId ?? context.tr('未选择模型', 'No model'),
               readiness: data.readiness,

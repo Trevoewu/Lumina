@@ -13,14 +13,14 @@ import '../data/dictionary/openai_compatible_explanation_provider.dart';
 import '../data/podcasts/podcast_index_repository.dart';
 import '../data/podcasts/podcast_repository.dart';
 import '../data/settings/provider_selection_repository.dart';
-import '../services/fish_audio_model_manager.dart';
+import '../services/app_settings_reset_service.dart';
 import '../services/generation_orchestrator.dart';
-import '../services/kokoro_model_manager.dart';
 import '../services/lumina_audio_handler.dart';
 import '../services/manifest_store.dart';
 import '../services/podcast_transcription_service.dart';
 import '../services/playback_progress_service.dart';
 import '../services/sleep_timer_service.dart';
+import '../tts/provider_registry.dart';
 import 'database_provider.dart';
 
 export 'database_provider.dart';
@@ -53,6 +53,16 @@ final openAiCompatibleExplanationProvider =
         modelWriter: selections.setSelectedLlmModel,
       );
     });
+
+final appSettingsResetServiceProvider = Provider<AppSettingsResetService>((
+  ref,
+) {
+  return AppSettingsResetService(
+    database: ref.watch(appDatabaseProvider),
+    ttsProviders: ref.watch(providerRegistryProvider),
+    llmProvider: ref.watch(openAiCompatibleExplanationProvider),
+  );
+});
 
 final aiTranscriptToolsProvider = Provider<AiTranscriptTools>((ref) {
   return AiTranscriptTools(ref.watch(appDatabaseProvider));
@@ -142,20 +152,6 @@ final generationOrchestratorProvider = Provider<GenerationOrchestrator>((ref) {
     database: ref.watch(appDatabaseProvider),
     manifestStore: ref.watch(manifestStoreProvider),
   );
-});
-
-/// Kokoro 本地模型下载与安装状态。
-final kokoroModelManagerProvider = Provider<KokoroModelManager>((ref) {
-  final manager = KokoroModelManager();
-  ref.onDispose(manager.dispose);
-  return manager;
-});
-
-/// Fish Audio S2 Pro 本地模型下载与安装状态。
-final fishAudioModelManagerProvider = Provider<FishAudioModelManager>((ref) {
-  final manager = FishAudioModelManager();
-  ref.onDispose(manager.dispose);
-  return manager;
 });
 
 /// AudioService 后台播放 handler。

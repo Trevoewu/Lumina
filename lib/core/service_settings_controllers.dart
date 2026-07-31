@@ -366,7 +366,7 @@ class TtsSettingsController extends AsyncNotifier<TtsSettingsState> {
               readiness: ServiceReadiness.setupRequired,
               active: false,
               editable: true,
-              removable: false,
+              removable: true,
             ),
         ],
         voices: const [],
@@ -412,7 +412,7 @@ class TtsSettingsController extends AsyncNotifier<TtsSettingsState> {
                 : ServiceReadiness.setupRequired,
             active: item.id == provider.id,
             editable: true,
-            removable: false,
+            removable: true,
           ),
       ],
       voices: voices,
@@ -431,6 +431,43 @@ class TtsSettingsController extends AsyncNotifier<TtsSettingsState> {
     }
     await ref.read(activeTtsProviderIdProvider.notifier).set(providerId);
     _notice = null;
+    ref.invalidateSelf();
+  }
+
+  Future<void> removeProvider(String providerId) async {
+    final registry = ref.read(providerRegistryProvider);
+    final provider = registry.get(providerId);
+    if (provider == null) return;
+
+    switch (provider) {
+      case FishAudioApiTtsProvider value:
+        await value.clearApiKey();
+      case MinimaxTtsProvider value:
+        await value.clearApiKey();
+      default:
+        throw UnsupportedError('Provider cannot be removed.');
+    }
+
+    await ref
+        .read(providerSelectionRepositoryProvider)
+        .setSelectedVoice(providerId, null);
+    await ref.read(appDatabaseProvider).deleteVoicesByProvider(providerId);
+
+    final activeProviderId = ref.read(activeTtsProviderIdProvider);
+    if (activeProviderId == providerId) {
+      for (final candidate in registry.all) {
+        if (candidate.id == providerId) continue;
+        if (await _isTtsProviderConfigured(candidate)) {
+          await ref
+              .read(activeTtsProviderIdProvider.notifier)
+              .set(candidate.id);
+          break;
+        }
+      }
+    }
+
+    _notice = null;
+    ref.invalidate(ttsProviderConfigurationStatusProvider);
     ref.invalidateSelf();
   }
 
@@ -518,9 +555,7 @@ final ttsProviderConfigurationStatusProvider =
 
 Future<bool> _isTtsProviderConfigured(TtsProvider provider) async {
   try {
-    return await _readTtsProviderConfiguration(
-      provider,
-    ).timeout(const Duration(seconds: 3), onTimeout: () => false);
+    return await _readTtsProviderConfiguration(provider);
   } catch (_) {
     return false;
   }

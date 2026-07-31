@@ -25,13 +25,7 @@ void main() {
           providerRegistryProvider.overrideWithValue(ProviderRegistry()),
           ttsSettingsControllerProvider.overrideWith(_PickerTtsController.new),
           ttsProviderConfigurationStatusProvider.overrideWith(
-            (ref) async => const {
-              'fish_audio_api': true,
-              'kokoro_local': false,
-              'fish_audio_local': false,
-              'edge': true,
-              'minimax': false,
-            },
+            (ref) async => const {'fish_audio_api': true, 'minimax': true},
           ),
         ],
         child: MaterialApp(
@@ -45,8 +39,8 @@ void main() {
     expect(find.text('Current'), findsOneWidget);
     expect(find.text('Other providers'), findsOneWidget);
     expect(find.text('Use'), findsOneWidget);
-    expect(find.text('Set up'), findsNWidgets(3));
     expect(find.byTooltip('Provider details'), findsNWidgets(2));
+    expect(find.byTooltip('Add voice provider'), findsOneWidget);
     expect(find.byIcon(Icons.radio_button_checked), findsNothing);
     expect(find.byIcon(Icons.radio_button_off), findsNothing);
     expect(tester.takeException(), isNull);
@@ -66,7 +60,10 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [appDatabaseProvider.overrideWithValue(database)],
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          ttsSettingsControllerProvider.overrideWith(_EmptyTtsController.new),
+        ],
         child: const LuminaApp(),
       ),
     );
@@ -75,7 +72,10 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('tts-service-settings')));
+    await tester.drag(find.byType(ListView), const Offset(0, -420));
+    await tester.pumpAndSettle();
+    final ttsSettings = find.byKey(const ValueKey('tts-service-settings'));
+    await tester.tap(ttsSettings);
     await tester.pumpAndSettle();
 
     final text = tester
@@ -90,6 +90,111 @@ void main() {
     );
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));
+  });
+
+  testWidgets('empty provider list opens the add cloud provider flow', (
+    tester,
+  ) async {
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          ttsSettingsControllerProvider.overrideWith(_EmptyTtsController.new),
+          ttsProviderConfigurationStatusProvider.overrideWith(
+            (ref) async => const {'fish_audio_api': false, 'minimax': false},
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.lightTheme(),
+          home: const TtsProviderPickerScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('No cloud voice providers yet'), findsOneWidget);
+    await tester.tap(find.text('Add provider'));
+    await tester.pumpAndSettle();
+    expect(find.text('Fish Audio'), findsOneWidget);
+    expect(find.text('MiniMax'), findsOneWidget);
+    await tester.tap(find.text('Fish Audio'));
+    await tester.pumpAndSettle();
+    expect(find.text('Add Voice Provider'), findsOneWidget);
+    expect(find.byKey(const ValueKey('save-tts-provider')), findsOneWidget);
+    expect(find.text('API Key'), findsOneWidget);
+    expect(find.text('Where do I get an API key?'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('get-tts-api-key-fish_audio_api')),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Create API Key'), findsOneWidget);
+    expect(find.textContaining('stays on this device'), findsOneWidget);
+  });
+
+  testWidgets('MiniMax setup explains where to create an API key', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          providerRegistryProvider.overrideWithValue(ProviderRegistry()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.lightTheme(),
+          home: const TtsProviderDetailsScreen(
+            providerId: 'minimax',
+            adding: true,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Where do I get an API key?'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('get-tts-api-key-minimax')),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Account management > API keys'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('provider details confirms what is removed', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          providerRegistryProvider.overrideWithValue(ProviderRegistry()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.lightTheme(),
+          home: const TtsProviderDetailsScreen(providerId: 'fish_audio_api'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.drag(find.byType(ListView), const Offset(0, -900));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('delete-tts-provider')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Delete voice provider?'), findsOneWidget);
+    expect(find.textContaining('API key, synced voices'), findsOneWidget);
+    expect(
+      find.textContaining('does not delete your cloud account'),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('confirm-delete-tts-provider')),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.text('Delete voice provider?'), findsNothing);
   });
 }
 
@@ -112,29 +217,34 @@ class _PickerTtsController extends TtsSettingsController {
         removable: false,
       ),
       ProviderOptionViewData(
-        id: 'kokoro_local',
-        name: 'Kokoro 本地 TTS（MLX）',
-        subtitle: 'On-device service',
-        readiness: ServiceReadiness.setupRequired,
-        active: false,
-        editable: true,
-        removable: false,
-      ),
-      ProviderOptionViewData(
-        id: 'fish_audio_local',
-        name: 'Fish Audio S2 Pro（MLX 8bit）',
-        subtitle: 'On-device service',
-        readiness: ServiceReadiness.setupRequired,
-        active: false,
-        editable: true,
-        removable: false,
-      ),
-      ProviderOptionViewData(
-        id: 'edge',
-        name: 'Edge TTS（免费保底）',
+        id: 'minimax',
+        name: 'MiniMax 语音合成',
         subtitle: 'Cloud service',
         readiness: ServiceReadiness.ready,
         active: false,
+        editable: true,
+        removable: false,
+      ),
+    ],
+    voices: [],
+  );
+}
+
+class _EmptyTtsController extends TtsSettingsController {
+  @override
+  Future<TtsSettingsState> build() async => const TtsSettingsState(
+    providerId: 'fish_audio_api',
+    providerName: 'Fish Audio API',
+    voiceId: null,
+    voiceName: null,
+    readiness: ServiceReadiness.setupRequired,
+    providers: [
+      ProviderOptionViewData(
+        id: 'fish_audio_api',
+        name: 'Fish Audio API',
+        subtitle: 'Cloud service',
+        readiness: ServiceReadiness.setupRequired,
+        active: true,
         editable: true,
         removable: false,
       ),

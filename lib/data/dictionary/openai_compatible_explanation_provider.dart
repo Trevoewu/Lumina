@@ -459,6 +459,17 @@ not apply. Use concise English and no markdown.
     }
   }
 
+  Future<void> clearAllConfiguration() async {
+    final providers = await configurations;
+    for (final provider in providers) {
+      await _apiKeyStore.delete(_providerApiKeyStorageKey(provider.id));
+    }
+    await _apiKeyStore.delete(apiKeyStorageKey);
+    await _writeConfigurations(const []);
+    await settingWriter(activeProviderSettingKey, '');
+    await settingWriter(modelSettingKey, '');
+  }
+
   Future<void> setConfiguration({
     required String baseUrl,
     required String model,

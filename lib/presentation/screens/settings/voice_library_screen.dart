@@ -7,16 +7,23 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/app_colors.dart';
 import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
+import '../../../core/service_settings_controllers.dart';
 import '../../../data/database/app_database.dart' as drift_db;
 import '../../../services/app_log_service.dart';
 import '../../../tts/models/tts_capabilities.dart';
 import '../../../tts/models/tts_voice.dart';
 import '../../../tts/provider_registry.dart';
-import '../../../tts/providers/fish_audio_local_tts_provider.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
 
 class VoiceLibraryScreen extends ConsumerStatefulWidget {
-  const VoiceLibraryScreen({super.key});
+  final bool guidedSelection;
+  final bool syncOnOpen;
+
+  const VoiceLibraryScreen({
+    super.key,
+    this.guidedSelection = false,
+    this.syncOnOpen = false,
+  });
 
   @override
   ConsumerState<VoiceLibraryScreen> createState() => _VoiceLibraryScreenState();
@@ -43,6 +50,11 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
         .read(appDatabaseProvider)
         .getVoicesByProvider(providerId);
     _loadActiveVoice();
+    if (widget.syncOnOpen) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _syncPresetVoices(providerId);
+      });
+    }
   }
 
   @override
@@ -60,7 +72,9 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
     final capabilities = provider.capabilities;
 
     return CollapsingPageScaffold(
-      title: context.tr('音色库', 'Voice Library'),
+      title: widget.guidedSelection
+          ? context.tr('选择朗读音色', 'Choose a Reading Voice')
+          : context.tr('音色库', 'Voice Library'),
       showBackButton: true,
       body: RefreshIndicator(
         onRefresh: () async => setState(() {}),
@@ -87,8 +101,18 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(_capabilityLine(provider.capabilities)),
+                    if (widget.guidedSelection) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        context.tr(
+                          '正在从云端同步可用音色。点击一个音色，将它设为有声书的朗读声音。',
+                          'Available voices are synced from the cloud. Tap one to use it for audiobook reading.',
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 12),
                     FilledButton.icon(
+                      key: const ValueKey('sync-tts-voices'),
                       onPressed: capabilities.presetVoices && !_loadingPreset
                           ? () => _syncPresetVoices(provider.id)
                           : null,
@@ -100,10 +124,9 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                             )
                           : Icon(Icons.cloud_sync_outlined),
                       label: Text(
-                        context.tr(
-                          '同步当前 Provider 预置音色',
-                          'Sync Provider Preset Voices',
-                        ),
+                        _loadingPreset
+                            ? context.tr('正在同步音色', 'Syncing voices')
+                            : context.tr('同步云端音色', 'Sync cloud voices'),
                       ),
                     ),
                   ],
@@ -118,7 +141,8 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                 onDismiss: () => setState(() => _feedbackMessage = null),
               ),
             ],
-            if (capabilities.voiceCloning) ...[
+            if (widget.guidedSelection) ..._buildVoiceListSection(),
+            if (!widget.guidedSelection && capabilities.voiceCloning) ...[
               const SizedBox(height: 12),
               Card(
                 child: Padding(
@@ -176,7 +200,7 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                 ),
               ),
             ],
-            if (capabilities.voiceDescription) ...[
+            if (!widget.guidedSelection && capabilities.voiceDescription) ...[
               const SizedBox(height: 12),
               Card(
                 child: Padding(
@@ -234,86 +258,104 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                 ),
               ),
             ],
-            const SizedBox(height: 20),
-            Text(
-              context.tr('已保存音色', 'Saved Voices'),
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            FutureBuilder<List<drift_db.Voice>>(
-              future: _voicesFuture,
-              builder: (context, snapshot) {
-                final voices = snapshot.data ?? const <drift_db.Voice>[];
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (voices.isEmpty) {
-                  return Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text(
-                        context.tr(
-                          '暂无保存音色。可以先同步预置音色。',
-                          'No saved voices. Sync preset voices to get started.',
-                        ),
-                      ),
-                    ),
-                  );
-                }
-                return Column(
-                  children: [
-                    for (final voice in voices)
-                      Card(
-                        child: ListTile(
-                          leading: Icon(
-                            _iconForType(voice.type),
-                            color: voice.id == _activeVoiceId
-                                ? Theme.of(context).colorScheme.primary
-                                : context.appTextSecondary,
-                          ),
-                          title: Text(voice.name),
-                          subtitle: Text(
-                            voice.id == _activeVoiceId
-                                ? '${context.tr('当前音色', 'Current voice')} · ${voice.type} · ${voice.providerVoiceId}'
-                                : '${voice.type} · ${voice.providerVoiceId}',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (voice.id == _activeVoiceId)
-                                Tooltip(
-                                  message: context.tr('当前音色', 'Current voice'),
-                                  child: Icon(
-                                    Icons.check_circle,
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.primary,
-                                  ),
-                                ),
-                              IconButton(
-                                tooltip: context.tr(
-                                  '删除本地记录',
-                                  'Delete local record',
-                                ),
-                                icon: Icon(Icons.delete_outline),
-                                onPressed: () => _deleteVoice(voice.id),
-                              ),
-                            ],
-                          ),
-                          onTap: () => _setActiveVoice(voice.id),
-                        ),
-                      ),
-                  ],
-                );
-              },
-            ),
+            if (!widget.guidedSelection) ..._buildVoiceListSection(),
           ],
         ),
       ),
     );
   }
+
+  List<Widget> _buildVoiceListSection() => [
+    const SizedBox(height: 20),
+    Text(
+      widget.guidedSelection
+          ? context.tr('选择一个音色', 'Choose a voice')
+          : context.tr('已保存音色', 'Saved Voices'),
+      style: Theme.of(context).textTheme.titleMedium,
+    ),
+    const SizedBox(height: 8),
+    FutureBuilder<List<drift_db.Voice>>(
+      future: _voicesFuture,
+      builder: (context, snapshot) {
+        final voices = snapshot.data ?? const <drift_db.Voice>[];
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (voices.isEmpty) {
+          return Card(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: _loadingPreset
+                  ? Row(
+                      children: [
+                        const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            context.tr('正在同步云端音色…', 'Syncing cloud voices…'),
+                          ),
+                        ),
+                      ],
+                    )
+                  : Text(
+                      context.tr(
+                        '暂无可用音色，请重新同步。',
+                        'No voices are available. Try syncing again.',
+                      ),
+                    ),
+            ),
+          );
+        }
+        return Column(
+          children: [
+            for (final voice in voices)
+              Card(
+                child: ListTile(
+                  key: ValueKey('voice-option-${voice.id}'),
+                  leading: Icon(
+                    _iconForType(voice.type),
+                    color: voice.id == _activeVoiceId
+                        ? Theme.of(context).colorScheme.primary
+                        : context.appTextSecondary,
+                  ),
+                  title: Text(voice.name),
+                  subtitle: Text(
+                    voice.id == _activeVoiceId
+                        ? '${context.tr('当前音色', 'Current voice')} · ${voice.type} · ${voice.providerVoiceId}'
+                        : '${voice.type} · ${voice.providerVoiceId}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (voice.id == _activeVoiceId)
+                        Tooltip(
+                          message: context.tr('当前音色', 'Current voice'),
+                          child: Icon(
+                            Icons.check_circle,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                      if (!widget.guidedSelection)
+                        IconButton(
+                          tooltip: context.tr('删除本地记录', 'Delete local record'),
+                          icon: Icon(Icons.delete_outline),
+                          onPressed: () => _deleteVoice(voice.id),
+                        ),
+                    ],
+                  ),
+                  onTap: () => _setActiveVoice(voice.id),
+                ),
+              ),
+          ],
+        );
+      },
+    ),
+  ];
 
   Future<void> _syncPresetVoices(String providerId) async {
     setState(() => _loadingPreset = true);
@@ -400,17 +442,6 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
 
     final provider = ref.read(activeTtsProviderProvider);
     final transcript = _cloneTextController.text.trim();
-    if (provider.id == FishAudioLocalTtsProvider.idValue &&
-        transcript.isEmpty) {
-      _showFeedback(
-        context.tr(
-          'Fish Audio 克隆音色必须填写参考文本',
-          'Fish Audio voice cloning requires a reference transcript',
-        ),
-        isError: true,
-      );
-      return;
-    }
     final constraints = provider.capabilities.cloneConstraints;
     final allowedExtensions =
         constraints?.allowedFormats
@@ -496,8 +527,13 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
     await ref
         .read(providerSelectionRepositoryProvider)
         .setSelectedVoice(providerId, voiceId);
+    ref.invalidate(ttsSettingsControllerProvider);
     if (!mounted) return;
     setState(() => _activeVoiceId = voiceId);
+    if (widget.guidedSelection) {
+      Navigator.of(context).pop(true);
+      return;
+    }
     _showFeedback(context.tr('已设为当前音色', 'Set as current voice'));
   }
 

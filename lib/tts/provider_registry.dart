@@ -2,10 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/database_provider.dart';
 import 'api_key_store.dart';
-import '../tts/providers/edge_tts_provider.dart';
 import '../tts/providers/fish_audio_api_tts_provider.dart';
-import '../tts/providers/fish_audio_local_tts_provider.dart';
-import '../tts/providers/kokoro_local_tts_provider.dart';
 import '../tts/providers/minimax_tts_provider.dart';
 import '../tts/tts_provider.dart';
 
@@ -23,21 +20,15 @@ class ProviderRegistry {
     TtsSettingWriter? settingWriter,
   }) {
     final apiKeyStore = ApiKeyStore();
-    final kokoro = KokoroLocalTtsProvider();
-    final fish = FishAudioLocalTtsProvider();
     final fishApi = FishAudioApiTtsProvider(
       apiKeyStore: apiKeyStore,
       settingReader: settingReader,
       settingWriter: settingWriter,
     );
     final minimax = MinimaxTtsProvider(apiKeyStore: apiKeyStore);
-    final edge = EdgeTtsProvider();
 
-    _providers[kokoro.id] = kokoro;
-    _providers[fish.id] = fish;
     _providers[fishApi.id] = fishApi;
     _providers[minimax.id] = minimax;
-    _providers[edge.id] = edge;
   }
 
   /// 所有已注册的 Provider。
@@ -57,7 +48,7 @@ class ActiveTtsProviderId extends Notifier<String> {
   bool _loaded = false;
 
   @override
-  String build() => KokoroLocalTtsProvider.idValue;
+  String build() => FishAudioApiTtsProvider.idValue;
 
   Future<void> load() async {
     if (_loaded) return;
@@ -80,6 +71,13 @@ class ActiveTtsProviderId extends Notifier<String> {
           .setSetting('active_provider_id', providerId);
     }
   }
+
+  Future<void> reset() async {
+    state = FishAudioApiTtsProvider.idValue;
+    await ref
+        .read(appDatabaseProvider)
+        .setSetting('active_provider_id', FishAudioApiTtsProvider.idValue);
+  }
 }
 
 final activeTtsProviderIdProvider =
@@ -89,7 +87,7 @@ final activeTtsProviderIdProvider =
 final activeTtsProviderProvider = Provider<TtsProvider>((ref) {
   final id = ref.watch(activeTtsProviderIdProvider);
   final registry = ref.watch(providerRegistryProvider);
-  return registry.get(id) ?? registry.get(KokoroLocalTtsProvider.idValue)!;
+  return registry.get(id) ?? registry.get(FishAudioApiTtsProvider.idValue)!;
 });
 
 /// Provider 注册表单例。

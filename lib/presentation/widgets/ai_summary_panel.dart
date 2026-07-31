@@ -20,14 +20,18 @@ class AiSummaryPanel extends ConsumerStatefulWidget {
   final AiContentScope scope;
   final AiCitationCallback? onCitationTap;
   final VoidCallback? onTranscriptRequired;
+  final VoidCallback? onAiServiceRequired;
   final bool? transcriptAvailable;
+  final bool aiServiceReady;
 
   const AiSummaryPanel({
     super.key,
     required this.scope,
     this.onCitationTap,
     this.onTranscriptRequired,
+    this.onAiServiceRequired,
     this.transcriptAvailable,
+    this.aiServiceReady = true,
   });
 
   @override
@@ -112,6 +116,10 @@ class _AiSummaryPanelState extends ConsumerState<AiSummaryPanel> {
 
   Future<void> _generate() async {
     if (_running) return;
+    if (!widget.aiServiceReady) {
+      widget.onAiServiceRequired?.call();
+      return;
+    }
     setState(() {
       _running = true;
       _expanded = false;
@@ -206,6 +214,8 @@ class _AiSummaryPanelState extends ConsumerState<AiSummaryPanel> {
           const Center(child: CircularProgressIndicator())
         else if (!_transcriptAvailable)
           _TranscriptRequiredState(onPressed: widget.onTranscriptRequired)
+        else if (!widget.aiServiceReady)
+          _AiServiceRequiredState(onPressed: widget.onAiServiceRequired)
         else if (_running) ...[
           LinearProgressIndicator(
             key: const ValueKey('ai-summary-progress'),
@@ -309,6 +319,44 @@ String _summaryPreview(String markdown) {
       .replaceAll(RegExp(r'[*_#>`~-]+'), ' ')
       .replaceAll(RegExp(r'\s+'), ' ')
       .trim();
+}
+
+class _AiServiceRequiredState extends StatelessWidget {
+  final VoidCallback? onPressed;
+
+  const _AiServiceRequiredState({this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      key: const ValueKey('ai-service-required'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          context.tr(
+            '连接 AI 模型后，可以生成摘要、询问内容并获得带引用的回答。',
+            'Connect an AI model to create summaries and ask grounded questions with citations.',
+          ),
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+            color: AppColors.textSecondary,
+            height: 1.5,
+          ),
+        ),
+        if (onPressed != null) ...[
+          SizedBox(height: context.appDesign.spaceLg),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              key: const ValueKey('ai-summary-configure-service'),
+              onPressed: onPressed,
+              icon: const Icon(Icons.hub_outlined, size: 18),
+              label: Text(context.tr('连接 AI 服务', 'Connect AI service')),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
 }
 
 class _TranscriptRequiredState extends StatelessWidget {

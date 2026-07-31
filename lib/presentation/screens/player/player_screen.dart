@@ -12,6 +12,7 @@ import '../../../core/app_colors.dart';
 import '../../../core/app_design_tokens.dart';
 import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
+import '../../../core/service_settings_controllers.dart';
 import '../../../data/database/app_database.dart' as drift_db;
 import '../../../data/settings/provider_selection_repository.dart';
 import '../../../domain/models/chapter_manifest.dart';
@@ -30,6 +31,8 @@ import '../../widgets/book_cover.dart';
 import '../../widgets/podcast_artwork.dart';
 import '../../widgets/podcast_link_text.dart';
 import '../../widgets/synced_lyrics_list.dart';
+import '../settings/dictionary_explanation_service_screen.dart';
+import '../settings/tts_service_screen.dart';
 
 enum PlayerPrimaryAudioAction { play, pause }
 
@@ -453,7 +456,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
     setState(() => _preparingStream = true);
     try {
-      final provider = ref.read(activeTtsProviderProvider);
+      var provider = ref.read(activeTtsProviderProvider);
+      if (!await provider.validate()) {
+        if (!mounted || !await _openTtsSetupPrompt(provider.displayName)) {
+          return false;
+        }
+        ref.invalidate(ttsSettingsControllerProvider);
+        await ref.read(ttsSettingsControllerProvider.future);
+        provider = ref.read(activeTtsProviderProvider);
+        if (!await provider.validate()) return false;
+      }
       final database = ref.read(appDatabaseProvider);
       final voice = await _resolveVoice(
         provider,
@@ -467,16 +479,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           context.tr(
             '${provider.displayName} 没有可用音色',
             '${provider.displayName} has no available voice',
-          ),
-        );
-        return false;
-      }
-      if (!await provider.validate()) {
-        if (!mounted) return false;
-        _showSnackBar(
-          context.tr(
-            '${provider.displayName} 未配置完成，无法缓存音频',
-            '${provider.displayName} is not configured, so audio cannot be cached',
           ),
         );
         return false;
@@ -508,6 +510,40 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     } finally {
       if (mounted) setState(() => _preparingStream = false);
     }
+  }
+
+  Future<bool> _openTtsSetupPrompt(String providerName) async {
+    final openSettings = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.cloud_outlined),
+        title: Text(context.tr('连接语音服务', 'Connect a voice provider')),
+        content: Text(
+          context.tr(
+            '当前的 $providerName 尚未连接。完成云端语音服务设置后，Lumina 会自动继续生成当前章节。',
+            '$providerName is not connected. Lumina will continue generating the current chapter after cloud voice setup.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(context.tr('暂不', 'Not now')),
+          ),
+          FilledButton(
+            key: const ValueKey('open-tts-settings'),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(context.tr('去设置', 'Open settings')),
+          ),
+        ],
+      ),
+    );
+    if (openSettings != true || !mounted) return false;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const TtsServiceScreen(returnWhenReady: true),
+      ),
+    );
+    return mounted;
   }
 
   Future<TtsVoice?> _resolveVoice(
@@ -733,6 +769,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final episode = _podcastEpisode;
     if (data == null || episode == null || _transcribingPodcast) return;
 
+    if (!await _ensureWhisperModelReady()) return;
+    if (!mounted) return;
     final handler = await ref.read(luminaAudioHandlerProvider.future);
     if (handler.playbackState.value.playing) await handler.pause();
     if (!mounted) return;
@@ -776,6 +814,41 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           _transcriptionProgress = null;
         });
       }
+    }
+  }
+
+  Future<bool> _ensureWhisperModelReady() async {
+    final service = ref.read(podcastTranscriptionServiceProvider);
+    try {
+      final info = await service.getModelInfo();
+      if (info.installed) return true;
+      if (!mounted) return false;
+      final installed = await showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        isDismissible: false,
+        enableDrag: false,
+        showDragHandle: true,
+        builder: (_) => _WhisperModelSetupSheet(
+          service: service,
+          expectedBytes: info.expectedBytes,
+        ),
+      );
+      if (installed == true) {
+        ref.invalidate(asrSettingsControllerProvider);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      if (mounted) {
+        _showSnackBar(
+          context.tr(
+            '无法检查字幕模型：$error',
+            'Unable to check the transcript model: $error',
+          ),
+        );
+      }
+      return false;
     }
   }
 
@@ -1266,6 +1339,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     required LuminaAudioHandler handler,
     required ChapterManifest? manifest,
   }) {
+    final llmState = ref.watch(llmSettingsControllerProvider);
+    final aiServiceReady =
+        llmState.asData?.value.readiness == ServiceReadiness.ready;
     final podcast = widget.podcast;
     final episode = _podcastEpisode ?? podcast?.episode;
     final chapter = widget.initialChapter;
@@ -1303,8 +1379,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         onCitationTap: (citation) =>
             _handleAiCitation(citation, scope, handler, manifest),
         onTranscriptRequired: _isPodcast ? _startPodcastTranscription : null,
+        aiServiceReady: aiServiceReady,
+        onAiServiceRequired: _openAiServiceSettings,
       ),
     );
+  }
+
+  Future<void> _openAiServiceSettings() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const DictionaryExplanationServiceScreen(),
+      ),
+    );
+    ref.invalidate(llmSettingsControllerProvider);
   }
 
   Future<void> _handleAiCitation(
@@ -3076,6 +3163,171 @@ class _FullScreenPlaybackControlsState
           },
         );
       },
+    );
+  }
+}
+
+class _WhisperModelSetupSheet extends StatefulWidget {
+  final PodcastTranscriptionService service;
+  final int expectedBytes;
+
+  const _WhisperModelSetupSheet({
+    required this.service,
+    required this.expectedBytes,
+  });
+
+  @override
+  State<_WhisperModelSetupSheet> createState() =>
+      _WhisperModelSetupSheetState();
+}
+
+class _WhisperModelSetupSheetState extends State<_WhisperModelSetupSheet> {
+  bool _downloading = false;
+  double? _progress;
+  String? _error;
+
+  Future<void> _download() async {
+    if (_downloading) return;
+    setState(() {
+      _downloading = true;
+      _progress = 0;
+      _error = null;
+    });
+    try {
+      await widget.service.installModel(
+        onProgress: (progress, _) {
+          if (!mounted) return;
+          setState(() => _progress = progress);
+        },
+      );
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _downloading = false;
+        _progress = null;
+        _error = error.toString();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final design = context.appDesign;
+    final scheme = Theme.of(context).colorScheme;
+    final sizeMb = (widget.expectedBytes / (1024 * 1024)).round();
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          design.spaceXl,
+          design.spaceSm,
+          design.spaceXl,
+          design.spaceXl,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  backgroundColor: scheme.primaryContainer,
+                  foregroundColor: scheme.onPrimaryContainer,
+                  child: const Icon(Icons.subtitles_rounded),
+                ),
+                SizedBox(width: design.spaceMd),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        context.tr('下载本地字幕模型', 'Download transcript model'),
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      SizedBox(height: design.spaceXs),
+                      Text(
+                        context.tr(
+                          'Whisper Base · 约 $sizeMb MB',
+                          'Whisper Base · about $sizeMb MB',
+                        ),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: design.spaceLg),
+            Text(
+              context.tr(
+                '下载后，Podcast 音频和字幕将在这台设备上处理，不会发送到第三方转写服务。',
+                'After download, podcast audio and transcripts are processed on this device and are not sent to a third-party transcription service.',
+              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyLarge?.copyWith(height: 1.45),
+            ),
+            if (_downloading) ...[
+              SizedBox(height: design.spaceLg),
+              Text(
+                context.tr('正在下载 Whisper Base', 'Downloading Whisper Base'),
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              SizedBox(height: design.spaceSm),
+              LinearProgressIndicator(value: _progress),
+              if (_progress != null) ...[
+                SizedBox(height: design.spaceXs),
+                Text(
+                  '${(_progress! * 100).round()}%',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ],
+            if (_error != null) ...[
+              SizedBox(height: design.spaceLg),
+              Text(
+                context.tr(
+                  '下载失败，请检查网络后重试。\n$_error',
+                  'Download failed. Check your connection and try again.\n$_error',
+                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: scheme.error),
+              ),
+            ],
+            SizedBox(height: design.spaceXl),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                key: const ValueKey('download-whisper-and-transcribe'),
+                onPressed: _downloading ? null : _download,
+                icon: const Icon(Icons.download_rounded),
+                label: Text(
+                  context.tr('下载并生成字幕', 'Download and create transcript'),
+                ),
+              ),
+            ),
+            SizedBox(height: design.spaceSm),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                onPressed: _downloading
+                    ? null
+                    : () => Navigator.of(context).pop(false),
+                child: Text(context.tr('暂不', 'Not now')),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

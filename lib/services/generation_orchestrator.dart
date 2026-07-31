@@ -650,7 +650,7 @@ class GenerationOrchestrator {
 
   /// 对标准 16-bit PCM WAV 添加段首淡入，降低段落切换时的突兀感。
   ///
-  /// 当前本地 Kokoro、Fish 本地和 Fish API 都输出 WAV PCM。无法识别或非
+  /// 当前云端 Provider 优先输出 WAV PCM。无法识别或非
   /// 16-bit PCM 的 WAV 保持原样，避免破坏文件。
   static Uint8List applyWavFadeIn(Uint8List wav, {int fadeInMs = 80}) {
     if (fadeInMs <= 0 || wav.length < 44) return wav;

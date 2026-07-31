@@ -786,6 +786,19 @@ class AppDatabase extends _$AppDatabase {
   Future<void> deleteVoice(String id) =>
       (delete(voices)..where((v) => v.id.equals(id))).go();
 
+  Future<void> deleteVoicesByProvider(String providerId) =>
+      (delete(voices)..where((v) => v.providerId.equals(providerId))).go();
+
+  Future<void> clearVoiceSettings() async {
+    await transaction(() async {
+      await update(books).write(const BooksCompanion(voiceId: Value(null)));
+      await update(
+        chapters,
+      ).write(const ChaptersCompanion(voiceId: Value(null)));
+      await delete(voices).go();
+    });
+  }
+
   // ── 设置 ──
 
   Future<String?> getSetting(String key) async {
@@ -800,6 +813,8 @@ class AppDatabase extends _$AppDatabase {
       appSettings,
     ).insertOnConflictUpdate(AppSetting(key: key, value: value));
   }
+
+  Future<void> clearSettings() => delete(appSettings).go();
 
   // ── 成本 ──
 

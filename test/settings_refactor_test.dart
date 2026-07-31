@@ -66,9 +66,12 @@ void main() {
       await tester.pump(const Duration(milliseconds: 700));
 
       expect(
-        find.byKey(const ValueKey('tts-service-settings')),
+        find.byKey(const ValueKey('enhanced-features-intro')),
         findsOneWidget,
       );
+      expect(find.text('Enhanced Features'), findsOneWidget);
+      await tester.drag(find.byType(ListView), const Offset(0, -300));
+      await tester.pumpAndSettle();
       expect(
         find.byKey(const ValueKey('asr-service-settings')),
         findsOneWidget,
@@ -77,6 +80,15 @@ void main() {
         find.byKey(const ValueKey('llm-provider-settings')),
         findsOneWidget,
       );
+      expect(find.text('Podcast Transcripts'), findsOneWidget);
+      expect(find.text('AI Model'), findsOneWidget);
+      await tester.drag(find.byType(ListView), const Offset(0, -220));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('tts-service-settings')),
+        findsOneWidget,
+      );
+      expect(find.text('Voice Narration'), findsOneWidget);
       expect(find.byKey(const ValueKey('tts-provider-selector')), findsNothing);
       expect(tester.takeException(), isNull);
     });
@@ -143,5 +155,60 @@ void main() {
       find.descendant(of: themeItems, matching: find.byIcon(Icons.check)),
       findsOneWidget,
     );
+  });
+
+  testWidgets('restoring initial settings requires two confirmations', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(430, 820);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [appDatabaseProvider.overrideWithValue(database)],
+        child: MaterialApp(
+          theme: AppTheme.lightTheme(),
+          home: const SettingsScreen(),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 700));
+
+    final resetRow = find.byKey(const ValueKey('reset-app-settings'));
+    await tester.scrollUntilVisible(
+      resetRow,
+      400,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(resetRow);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Restore initial settings?'), findsOneWidget);
+    expect(
+      find.textContaining('API keys and provider configuration'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('downloaded Whisper model will be kept'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('continue-reset-app-settings')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Final confirmation'), findsOneWidget);
+    expect(find.textContaining('This cannot be undone'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('confirm-reset-app-settings')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Go back'));
+    await tester.pumpAndSettle();
+    expect(find.text('Final confirmation'), findsNothing);
   });
 }
