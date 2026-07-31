@@ -6,6 +6,27 @@ import 'package:lumina/core/providers.dart';
 import 'package:lumina/data/database/app_database.dart';
 
 void main() {
+  test('theme defaults to the system setting', () async {
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final container = ProviderContainer(
+      overrides: [appDatabaseProvider.overrideWithValue(database)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(database.close);
+
+    expect(
+      container.read(appPreferencesProvider).theme,
+      AppThemePreference.system,
+    );
+
+    await container.read(appPreferencesProvider.notifier).load();
+
+    expect(
+      container.read(appPreferencesProvider).theme,
+      AppThemePreference.system,
+    );
+  });
+
   test('language and theme preferences restore and persist', () async {
     final database = AppDatabase.forTesting(NativeDatabase.memory());
     final container = ProviderContainer(

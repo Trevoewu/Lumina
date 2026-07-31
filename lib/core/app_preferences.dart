@@ -17,7 +17,7 @@ class AppPreferences {
 
   const AppPreferences({
     this.language = AppLanguage.system,
-    this.theme = AppThemePreference.dark,
+    this.theme = AppThemePreference.system,
     this.loaded = false,
   });
 
@@ -82,7 +82,7 @@ class AppPreferencesController extends Notifier<AppPreferences> {
   AppThemePreference _parseTheme(String? value) {
     return AppThemePreference.values.firstWhere(
       (item) => item.name == value,
-      orElse: () => AppThemePreference.dark,
+      orElse: () => AppThemePreference.system,
     );
   }
 }

@@ -55,7 +55,7 @@ class AppearanceSettings {
 
   const AppearanceSettings({
     this.fontId = 'system',
-    this.fontScale = 1.0,
+    this.fontScale = 0.85,
     this.accentColor = AppColors.defaultAccent,
     this.loaded = false,
   });

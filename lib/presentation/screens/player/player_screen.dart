@@ -2106,6 +2106,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           chapterTitle: widget.initialChapter?.title,
           bookId: widget.book.id,
           chapterId: chapterId,
+          virtualized: true,
         );
       },
     );
@@ -2715,7 +2716,7 @@ class _FullScreenLyricsSheetState
           bookId: widget.bookId,
           bookTitle: widget.bookTitle,
           chapterTitle: widget.chapterTitle,
-          virtualized: widget.podcast != null,
+          virtualized: true,
         ),
       );
     }

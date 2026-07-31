@@ -303,7 +303,13 @@ void main() {
     expect(find.text('General'), findsOneWidget);
     expect(find.text('Language'), findsOneWidget);
     expect(find.text('Reading appearance'), findsOneWidget);
-    expect(find.text('Dark'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('theme-selector')),
+        matching: find.text('System'),
+      ),
+      findsOneWidget,
+    );
 
     await tester.tap(find.text('Language'));
     await tester.pumpAndSettle();

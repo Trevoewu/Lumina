@@ -285,6 +285,10 @@ void main() {
         ),
       );
       expect(find.text('Synchronized text'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('synced-lyrics-virtualized-list')),
+        findsOneWidget,
+      );
       expect(find.byIcon(Icons.more_horiz_rounded), findsOneWidget);
       expect(find.byIcon(Icons.timer_outlined), findsOneWidget);
 
