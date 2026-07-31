@@ -10,10 +10,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lumina/core/providers.dart';
 import 'package:lumina/core/theme.dart';
 import 'package:lumina/data/database/app_database.dart';
+import 'package:lumina/domain/models/audio_text_timing.dart';
 import 'package:lumina/domain/models/chapter_manifest.dart';
 import 'package:lumina/presentation/screens/player/player_screen.dart';
 import 'package:lumina/presentation/screens/podcast/podcast_episode_screen.dart';
 import 'package:lumina/presentation/widgets/podcast_link_text.dart';
+import 'package:lumina/presentation/widgets/synced_lyrics_list.dart';
 import 'package:lumina/services/lumina_audio_handler.dart';
 import 'package:lumina/services/sleep_timer_service.dart';
 
@@ -57,6 +59,62 @@ void main() {
       ),
       isTrue,
     );
+  });
+
+  group('joinPodcastTranscriptLines', () {
+    AudioTextTiming timing(String text) =>
+        AudioTextTiming(text: text, startMs: 0, endMs: 1000);
+
+    test('stitches Whisper segments that stop mid-sentence', () {
+      expect(
+        joinPodcastTranscriptLines([
+          timing('So the thing I wanted'),
+          timing('to say is that it never worked.'),
+          timing('That was the whole problem.'),
+        ]),
+        'So the thing I wanted to say is that it never worked.\n'
+        'That was the whole problem.',
+      );
+    });
+
+    test('keeps sentences that end behind a closing quote apart', () {
+      expect(
+        joinPodcastTranscriptLines([
+          timing('He said "we are done."'),
+          timing('Then he left.'),
+        ]),
+        'He said "we are done."\nThen he left.',
+      );
+    });
+
+    test('joins CJK segments without inserting a space', () {
+      expect(
+        joinPodcastTranscriptLines([timing('我想说的是'), timing('这件事从来没成过。')]),
+        '我想说的是这件事从来没成过。',
+      );
+    });
+
+    test('bounds speech that Whisper transcribed without punctuation', () {
+      final merged = joinPodcastTranscriptLines([
+        for (var index = 0; index < 12; index++) timing('word ' * 5),
+      ], maxMergedChars: 60);
+      final lines = merged.split('\n');
+      expect(lines.length, greaterThan(1));
+      for (final line in lines) {
+        expect(line.length, lessThanOrEqualTo(60));
+      }
+    });
+
+    test('drops blank segments', () {
+      expect(
+        joinPodcastTranscriptLines([
+          timing('First line.'),
+          timing('   '),
+          timing('Second line.'),
+        ]),
+        'First line.\nSecond line.',
+      );
+    });
   });
 
   testWidgets(
@@ -191,6 +249,12 @@ void main() {
       expect(find.text('Transcript'), findsOneWidget);
       expect(find.text('First cached chunk.'), findsOneWidget);
 
+      final transcriptList = find.descendant(
+        of: find.byKey(const ValueKey('podcast-transcript-card')),
+        matching: find.byType(SyncedLyricsList),
+      );
+      final transcriptState = tester.state(transcriptList);
+
       await database.updatePodcastTranscript(
         episode.id,
         status: 'running',
@@ -204,6 +268,33 @@ void main() {
 
       expect(find.text('First cached chunk.'), findsOneWidget);
       expect(find.text('Second cached chunk.'), findsOneWidget);
+      expect(
+        tester.state(transcriptList),
+        same(transcriptState),
+        reason: 'a cached chunk must not discard the transcript list state',
+      );
+      final chunkParagraphs = tester
+          .widget<SyncedLyricsList>(transcriptList)
+          .paragraphs;
+
+      // Whisper rewrites the same segments when it flips the row to complete.
+      await database.updatePodcastTranscript(
+        episode.id,
+        status: 'complete',
+        transcriptJson:
+            '[{"text":"First cached chunk.","startMs":0,"endMs":1200},'
+            '{"text":"Second cached chunk.","startMs":1200,"endMs":2400}]',
+        language: 'en',
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(tester.state(transcriptList), same(transcriptState));
+      expect(
+        tester.widget<SyncedLyricsList>(transcriptList).paragraphs,
+        same(chunkParagraphs),
+        reason: 'an unchanged transcript must not rebuild the lyric lines',
+      );
 
       await tester.drag(
         find.byKey(const ValueKey('podcast-player-scroll-view')),
@@ -224,6 +315,93 @@ void main() {
       await tester.pump(const Duration(milliseconds: 1));
     },
   );
+
+  testWidgets('transcript card grows into its first chunk gradually', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final handler = _PodcastTestAudioHandler();
+    final sleepTimer = SleepTimerService();
+    addTearDown(database.close);
+    addTearDown(handler.dispose);
+    addTearDown(sleepTimer.dispose);
+
+    await database.upsertPodcastShow(
+      const PodcastShow(
+        id: 'show-growth',
+        feedUrl: 'https://example.com/feed.xml',
+        title: 'Example Podcast',
+        description: '',
+        subscribedAt: 1,
+        lastRefreshedAt: 1,
+      ),
+    );
+    await database.upsertPodcastEpisode(
+      const PodcastEpisode(
+        id: 'episode-growth',
+        showId: 'show-growth',
+        guid: 'episode-growth-guid',
+        title: 'A Growing Transcript',
+        description: 'Shownotes.',
+        audioUrl: 'https://example.com/episode.mp3',
+        publishedAt: 1,
+        durationMs: 3600000,
+        playbackPositionMs: 0,
+        lastPlayedAt: 0,
+        isPlayed: false,
+        transcriptStatus: 'none',
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          luminaAudioHandlerProvider.overrideWith((ref) async => handler),
+          sleepTimerServiceProvider.overrideWithValue(sleepTimer),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.darkTheme(),
+          home: const PodcastEpisodeScreen(episodeId: 'episode-growth'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final card = find.byKey(const ValueKey('podcast-transcript-card'));
+    final placeholderHeight = tester.getSize(card).height;
+
+    await database.updatePodcastTranscript(
+      'episode-growth',
+      status: 'running',
+      transcriptJson: '[{"text":"First cached chunk.","startMs":0,'
+          '"endMs":1200}]',
+      language: 'en',
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 120));
+    final midHeight = tester.getSize(card).height;
+
+    await tester.pumpAndSettle();
+    final settledHeight = tester.getSize(card).height;
+
+    expect(settledHeight, greaterThan(placeholderHeight));
+    expect(midHeight, greaterThan(placeholderHeight));
+    expect(
+      midHeight,
+      lessThan(settledHeight),
+      reason: 'the card must ease into its taller size instead of snapping',
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump(const Duration(milliseconds: 1));
+  });
 
   testWidgets('podcast card entry opens above the tab navigator', (
     tester,

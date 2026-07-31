@@ -15,6 +15,7 @@ import '../../../core/providers.dart';
 import '../../../core/service_settings_controllers.dart';
 import '../../../data/database/app_database.dart' as drift_db;
 import '../../../data/settings/provider_selection_repository.dart';
+import '../../../domain/models/audio_text_timing.dart';
 import '../../../domain/models/chapter_manifest.dart';
 import '../../../services/app_log_service.dart';
 import '../../../services/book_playback_queue.dart';
@@ -153,6 +154,49 @@ class _PodcastTranscriptContent {
   });
 }
 
+/// `ChapterManifest` and `Paragraph` compare by identity, so a rebuilt
+/// transcript always looks new to `SyncedLyricsList` and costs a full line
+/// rebuild plus a forced re-scroll. Episode rows change for reasons that leave
+/// the transcript untouched — a status flip, a cached audio path — so compare
+/// the content and hand back the previous instance when nothing moved.
+bool _podcastTranscriptContentMatches(
+  _PodcastTranscriptContent? previous,
+  _PodcastTranscriptContent next,
+) {
+  if (previous == null) return false;
+  if (previous.timingCount != next.timingCount) return false;
+  if (previous.paragraphs.length != next.paragraphs.length) return false;
+  for (var index = 0; index < previous.paragraphs.length; index++) {
+    final before = previous.paragraphs[index];
+    final after = next.paragraphs[index];
+    if (before.id != after.id || before.content != after.content) return false;
+  }
+
+  final previousSegments = previous.manifest.segments;
+  final nextSegments = next.manifest.segments;
+  if (previousSegments.length != nextSegments.length) return false;
+  for (var index = 0; index < previousSegments.length; index++) {
+    final before = previousSegments[index];
+    final after = nextSegments[index];
+    if (before.paragraphId != after.paragraphId ||
+        before.audioFile != after.audioFile ||
+        before.durationMs != after.durationMs ||
+        before.timings.length != after.timings.length) {
+      return false;
+    }
+    for (var position = 0; position < before.timings.length; position++) {
+      final beforeTiming = before.timings[position];
+      final afterTiming = after.timings[position];
+      if (beforeTiming.startMs != afterTiming.startMs ||
+          beforeTiming.endMs != afterTiming.endMs ||
+          beforeTiming.text != afterTiming.text) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 /// Playback progress changes once per second and must not invalidate the
 /// transcript UI. Only fields that can affect this player return true here.
 bool podcastEpisodeRequiresPlayerRefresh(
@@ -176,6 +220,87 @@ bool podcastEpisodeRequiresPlayerRefresh(
       previous.transcriptStatus != next.transcriptStatus ||
       previous.transcriptError != next.transcriptError ||
       previous.sourceTranscriptUrl != next.sourceTranscriptUrl;
+}
+
+const _transcriptSentenceTerminators = {'.', '?', '!', '。', '？', '！', '…'};
+const _transcriptClosingMarks = {
+  '"',
+  '”',
+  '’',
+  "'",
+  ')',
+  ']',
+  '}',
+  '》',
+  '」',
+  '』',
+};
+final _transcriptCjkPattern = RegExp(
+  '[\u3000-\u9fff\uff00-\uffef]',
+  unicode: true,
+);
+
+/// Whisper cuts a segment on every pause, so one sentence routinely spans
+/// several of them. Stitching the unterminated halves back together keeps the
+/// lyrics widget from rendering "So the thing I meant" as its own line.
+///
+/// [maxMergedChars] only bounds speech Whisper transcribed without any final
+/// punctuation at all; ordinary sentences merge in full and the lyrics widget
+/// still wraps the long ones on its own clause boundaries.
+String joinPodcastTranscriptLines(
+  List<AudioTextTiming> timings, {
+  int maxMergedChars = 200,
+}) {
+  final buffer = StringBuffer();
+  var pending = '';
+
+  void flush() {
+    if (pending.isEmpty) return;
+    if (buffer.isNotEmpty) buffer.write('\n');
+    buffer.write(pending);
+    pending = '';
+  }
+
+  for (final timing in timings) {
+    final text = timing.text.trim();
+    if (text.isEmpty) continue;
+    if (pending.isEmpty) {
+      pending = text;
+      continue;
+    }
+    if (_endsPodcastSentence(pending) ||
+        pending.length + text.length > maxMergedChars) {
+      flush();
+      pending = text;
+      continue;
+    }
+    pending = '$pending${_transcriptJoinSeparator(pending, text)}$text';
+  }
+  flush();
+  return buffer.toString();
+}
+
+bool _endsPodcastSentence(String text) {
+  var index = text.length - 1;
+  while (index >= 0 &&
+      (_transcriptClosingMarks.contains(text[index]) ||
+          text[index].trim().isEmpty)) {
+    index--;
+  }
+  if (index < 0) return false;
+  return _transcriptSentenceTerminators.contains(text[index]);
+}
+
+/// CJK segments read as one sentence without a separator; a space there shows
+/// up as a visible gap mid-word.
+String _transcriptJoinSeparator(String previous, String next) {
+  final left = previous[previous.length - 1];
+  final right = next[0];
+  if (_transcriptCjkPattern.hasMatch(left) &&
+      _transcriptCjkPattern.hasMatch(right)) {
+    return '';
+  }
+  return ' ';
 }
 
 _PodcastTranscriptContent _buildPodcastTranscriptContent(
@@ -212,9 +337,10 @@ _PodcastTranscriptContent _buildPodcastTranscriptContent(
             chapterId: episode.id,
             bookId: 'podcast:${data.show.id}',
             paragraphIndex: 0,
-            // Newlines retain Whisper segment boundaries while the shared
-            // lyrics widget keeps the episode as one seekable paragraph.
-            content: timings.map((timing) => timing.text).join('\n'),
+            // Newlines are hard line breaks for the lyrics widget, so only the
+            // Whisper boundaries that end a sentence keep one. The episode
+            // still stays a single seekable paragraph.
+            content: joinPodcastTranscriptLines(timings),
           ),
         ];
   return _PodcastTranscriptContent(
@@ -321,7 +447,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           if (!podcastEpisodeRequiresPlayerRefresh(_podcastEpisode, episode)) {
             return;
           }
-          final transcript = _buildPodcastTranscriptContent(data, episode);
+          final rebuilt = _buildPodcastTranscriptContent(data, episode);
+          final previous = _podcastTranscript;
+          final transcript = _podcastTranscriptContentMatches(previous, rebuilt)
+              ? previous!
+              : rebuilt;
           setState(() {
             _podcastEpisode = episode;
             _podcastTranscript = transcript;
@@ -1609,18 +1739,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ],
             ),
           ),
-          SizedBox(
-            height: hasTranscript ? 280 : 176,
-            child: _buildSyncedLyrics(
-              chapterId: safeChapterId,
-              handler: handler,
-              manifest: manifest,
-              playbackEnabled: playbackEnabled,
-              expanded: false,
-              focusMode: false,
-              listKey: ValueKey(
-                'podcast-transcript-list:${episode.id}:'
-                '${_podcastTranscript?.timingCount ?? 0}',
+          // The card grows once, when the first cached chunk replaces the
+          // placeholder. Animating that step keeps the cards below it from
+          // jumping down the screen.
+          AnimatedSize(
+            duration: const Duration(milliseconds: 240),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: SizedBox(
+              height: hasTranscript ? 280 : 176,
+              child: _buildSyncedLyrics(
+                chapterId: safeChapterId,
+                handler: handler,
+                manifest: manifest,
+                playbackEnabled: playbackEnabled,
+                expanded: false,
+                focusMode: false,
+                // The segment count must stay out of this key: every cached
+                // chunk would otherwise discard the list state and snap the
+                // transcript back to the top.
+                listKey: ValueKey('podcast-transcript-list:${episode.id}'),
               ),
             ),
           ),
@@ -2140,32 +2278,37 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         chapterId: episode.id,
         virtualized: true,
       );
-      if (!_transcribingPodcast) return lyrics;
+      // The progress row appears and disappears around the same list, so the
+      // list has to keep its place in the tree. Swapping between a bare list
+      // and a wrapped one would drop its state twice per transcription.
       return Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 4, 12, 6),
-            child: Row(
-              children: [
-                Expanded(
-                  child: LinearProgressIndicator(
-                    value: currentProgress?.progress,
+          if (!_transcribingPodcast)
+            const SizedBox.shrink()
+          else
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 6),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: LinearProgressIndicator(
+                      value: currentProgress?.progress,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  context.tr(
-                    '已缓存 ${transcript?.timingCount ?? 0} 段',
-                    '${transcript?.timingCount ?? 0} cached',
+                  const SizedBox(width: 10),
+                  Text(
+                    context.tr(
+                      '已缓存 ${transcript?.timingCount ?? 0} 段',
+                      '${transcript?.timingCount ?? 0} cached',
+                    ),
+                    style: TextStyle(
+                      color: context.appTextSecondary,
+                      fontSize: 11,
+                    ),
                   ),
-                  style: TextStyle(
-                    color: context.appTextSecondary,
-                    fontSize: 11,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
           Expanded(child: lyrics),
         ],
       );
