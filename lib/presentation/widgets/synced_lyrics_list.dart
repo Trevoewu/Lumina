@@ -646,7 +646,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
 
   void _ensureVirtualMetrics(double width) {
     final safeWidth = math.max(width, 1.0);
-    final style = _lineTextStyle(color: AppColors.lyricsTextPrimary);
+    final style = _lineTextStyle(color: _primaryLyricTextColor);
     final direction = Directionality.of(context);
     final textScaler = MediaQuery.textScalerOf(context);
     if (_virtualMetricsWidth == safeWidth &&
@@ -1065,6 +1065,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
   Widget _buildLyricLine(SyncedLyricLine line, {required bool enabled}) {
     final highlighted = line.id == _activeLineId;
     final pressed = line.id == _pressedLineId;
+    final primaryTextColor = _primaryLyricTextColor;
     return Listener(
       onPointerDown: enabled ? (_) => _selectionLineId = line.id : null,
       child: InkWell(
@@ -1103,15 +1104,15 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
               style: _lineTextStyle(
                 color: enabled
                     ? highlighted
-                          ? AppColors.lyricsTextPrimary
-                          : AppColors.lyricsTextPrimary.withValues(
+                          ? primaryTextColor
+                          : primaryTextColor.withValues(
                               alpha: widget.focusMode
                                   ? 0.56
                                   : widget.expanded
                                   ? 0.42
                                   : 0.3,
                             )
-                    : AppColors.lyricsTextPrimary.withValues(alpha: 0.16),
+                    : primaryTextColor.withValues(alpha: 0.16),
               ),
               child: Text(line.text),
             ),
@@ -1241,6 +1242,10 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
       fontFamilyFallback: context.appDesign.readingFontFamilyFallback,
     );
   }
+
+  Color get _primaryLyricTextColor => widget.expanded || widget.focusMode
+      ? AppColors.lyricsTextPrimary
+      : context.appTextPrimary;
 
   double _tokenTrailingSpaceWidth(String source, int index, TextStyle style) {
     if (index >= _wordSelectionTokens.length - 1) return 0;

@@ -1030,11 +1030,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   Widget build(BuildContext context) {
     final handlerAsync = ref.watch(luminaAudioHandlerProvider);
-    final topTint = AppColors.surface;
-    final pageBottom = AppColors.background;
+    final theme = Theme.of(context);
+    final topTint = theme.colorScheme.surfaceContainer;
+    final pageBottom = theme.colorScheme.surface;
     final middleTint = Color.lerp(topTint, pageBottom, 0.62)!;
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
+      value: theme.brightness == Brightness.dark
+          ? SystemUiOverlayStyle.light
+          : SystemUiOverlayStyle.dark,
       child: Scaffold(
         backgroundColor: pageBottom,
         body: Container(
@@ -1053,9 +1056,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 _buildPlayerHeader(handlerAsync),
                 Expanded(
                   child: handlerAsync.when(
-                    loading: () => const Center(
+                    loading: () => Center(
                       child: CircularProgressIndicator(
-                        color: AppColors.textPrimary,
+                        color: context.appTextPrimary,
                       ),
                     ),
                     error: (error, _) => Center(
@@ -1064,7 +1067,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           '播放器不可用：$error',
                           'Player unavailable: $error',
                         ),
-                        style: const TextStyle(color: AppColors.textSecondary),
+                        style: TextStyle(color: context.appTextSecondary),
                       ),
                     ),
                     data: (handler) => StreamBuilder<String?>(
@@ -1199,7 +1202,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 handler: handler,
                 fallbackDuration: duration,
                 manifest: manifest,
-                foregroundColor: AppColors.textPrimary,
+                foregroundColor: context.appTextPrimary,
               ),
             ),
             SizedBox(height: design.spaceXxl),
@@ -1336,7 +1339,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 handler: handler,
                 fallbackDuration: duration,
                 manifest: manifest,
-                foregroundColor: AppColors.textPrimary,
+                foregroundColor: context.appTextPrimary,
               ),
             ),
             SizedBox(height: design.spaceXxl),
@@ -1457,77 +1460,74 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       isScrollControlled: true,
       useSafeArea: true,
       showDragHandle: true,
-      backgroundColor: AppColors.surface,
-      builder: (sheetContext) => Theme(
-        data: _immersiveTheme(),
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(
-            sheetContext.appDesign.spaceLg,
-            sheetContext.appDesign.spaceSm,
-            sheetContext.appDesign.spaceLg,
-            sheetContext.appDesign.spaceXl,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.format_quote_rounded,
-                    color: Theme.of(sheetContext).colorScheme.primary,
-                  ),
-                  SizedBox(width: sheetContext.appDesign.spaceSm),
-                  Expanded(
-                    child: Text(
-                      context.tr(
-                        'Transcript 引用 ${citation.label}',
-                        'Transcript reference ${citation.label}',
-                      ),
-                      style: Theme.of(sheetContext).textTheme.titleMedium
-                          ?.copyWith(
-                            color: AppColors.textPrimary,
-                            fontWeight: FontWeight.w800,
-                          ),
+      backgroundColor: context.appSurface,
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.fromLTRB(
+          sheetContext.appDesign.spaceLg,
+          sheetContext.appDesign.spaceSm,
+          sheetContext.appDesign.spaceLg,
+          sheetContext.appDesign.spaceXl,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.format_quote_rounded,
+                  color: Theme.of(sheetContext).colorScheme.primary,
+                ),
+                SizedBox(width: sheetContext.appDesign.spaceSm),
+                Expanded(
+                  child: Text(
+                    context.tr(
+                      'Transcript 引用 ${citation.label}',
+                      'Transcript reference ${citation.label}',
                     ),
+                    style: Theme.of(sheetContext).textTheme.titleMedium
+                        ?.copyWith(
+                          color: sheetContext.appTextPrimary,
+                          fontWeight: FontWeight.w800,
+                        ),
                   ),
-                ],
-              ),
-              SizedBox(height: sheetContext.appDesign.spaceLg),
-              Flexible(
-                child: SingleChildScrollView(
-                  child: SelectableText(
-                    citedLine!.text,
-                    style: Theme.of(sheetContext).textTheme.bodyLarge?.copyWith(
-                      color: AppColors.textPrimary,
-                      height: 1.55,
-                    ),
+                ),
+              ],
+            ),
+            SizedBox(height: sheetContext.appDesign.spaceLg),
+            Flexible(
+              child: SingleChildScrollView(
+                child: SelectableText(
+                  citedLine!.text,
+                  style: Theme.of(sheetContext).textTheme.bodyLarge?.copyWith(
+                    color: sheetContext.appTextPrimary,
+                    height: 1.55,
                   ),
                 ),
               ),
-              SizedBox(height: sheetContext.appDesign.spaceXl),
-              Row(
-                children: [
+            ),
+            SizedBox(height: sheetContext.appDesign.spaceXl),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(sheetContext).pop(false),
+                    child: Text(context.tr('关闭', 'Close')),
+                  ),
+                ),
+                if (canPlay) ...[
+                  SizedBox(width: sheetContext.appDesign.spaceSm),
                   Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(sheetContext).pop(false),
-                      child: Text(context.tr('关闭', 'Close')),
+                    child: FilledButton.icon(
+                      onPressed: () => Navigator.of(sheetContext).pop(true),
+                      icon: const Icon(Icons.play_arrow_rounded),
+                      label: Text(context.tr('从这里播放', 'Play from here')),
                     ),
                   ),
-                  if (canPlay) ...[
-                    SizedBox(width: sheetContext.appDesign.spaceSm),
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: () => Navigator.of(sheetContext).pop(true),
-                        icon: const Icon(Icons.play_arrow_rounded),
-                        label: Text(context.tr('从这里播放', 'Play from here')),
-                      ),
-                    ),
-                  ],
                 ],
-              ),
-            ],
-          ),
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -1672,7 +1672,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   ? TextOverflow.visible
                   : TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: AppColors.textSecondary,
+                color: context.appTextSecondary,
                 height: 1.5,
               ),
             ),
@@ -1714,14 +1714,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       padding: padding ?? EdgeInsets.all(design.spaceLg),
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: AppColors.surface.withValues(alpha: 0.9),
+        color: context.appSurface.withValues(
+          alpha: Theme.of(context).brightness == Brightness.dark ? 0.9 : 0.94,
+        ),
         borderRadius: BorderRadius.circular(design.radiusLarge),
         border: Border.all(
-          color: AppColors.textPrimary.withValues(alpha: 0.07),
+          color: context.appTextPrimary.withValues(alpha: 0.07),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.16),
+            color: Colors.black.withValues(
+              alpha: Theme.of(context).brightness == Brightness.dark
+                  ? 0.16
+                  : 0.08,
+            ),
             blurRadius: 18,
             offset: const Offset(0, 8),
           ),
@@ -1738,7 +1744,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 20, color: AppColors.textSecondary),
+        Icon(icon, size: 20, color: context.appTextSecondary),
         SizedBox(width: context.appDesign.spaceSm),
         Flexible(
           child: Text(
@@ -1746,7 +1752,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: AppColors.textPrimary,
+              color: context.appTextPrimary,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -1792,10 +1798,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         children: [
           IconButton(
             tooltip: context.tr('收起播放器', 'Close player'),
-            icon: const Icon(
+            icon: Icon(
               Icons.keyboard_arrow_down_rounded,
               size: 32,
-              color: AppColors.textPrimary,
+              color: context.appTextPrimary,
             ),
             onPressed: () => Navigator.of(context).pop(),
           ),
@@ -1806,17 +1812,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: AppColors.textPrimary,
+                color: context.appTextPrimary,
                 letterSpacing: 0.4,
               ),
             ),
           ),
           IconButton(
             tooltip: context.tr('更多选项', 'More options'),
-            icon: const Icon(
-              Icons.more_horiz_rounded,
-              color: AppColors.textPrimary,
-            ),
+            icon: Icon(Icons.more_horiz_rounded, color: context.appTextPrimary),
             onPressed: () {},
           ),
         ],
@@ -1856,10 +1859,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   IconButton(
                     tooltip: context.tr('收起播放器', 'Close player'),
                     visualDensity: VisualDensity.compact,
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.keyboard_arrow_down_rounded,
                       size: 28,
-                      color: AppColors.textPrimary,
+                      color: context.appTextPrimary,
                     ),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
@@ -1891,7 +1894,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.bodyMedium
                               ?.copyWith(
-                                color: AppColors.textPrimary,
+                                color: context.appTextPrimary,
                                 fontWeight: FontWeight.w800,
                               ),
                         ),
@@ -1900,7 +1903,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: AppColors.textSecondary),
+                              ?.copyWith(color: context.appTextSecondary),
                         ),
                       ],
                     ),
@@ -1928,7 +1931,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         tooltip: tooltip,
                         icon: _buildPrimaryAudioGlyph(
                           action: action,
-                          color: AppColors.textPrimary,
+                          color: context.appTextPrimary,
                         ),
                         onPressed: () => unawaited(
                           _handlePrimaryAudioAction(handler, playing),
@@ -1958,7 +1961,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     key: const ValueKey('player-sticky-mini-player-progress'),
                     value: progress,
                     minHeight: 2,
-                    backgroundColor: AppColors.textPrimary.withValues(
+                    backgroundColor: context.appTextPrimary.withValues(
                       alpha: 0.12,
                     ),
                     valueColor: AlwaysStoppedAnimation<Color>(
@@ -1971,36 +1974,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           ],
         );
       },
-    );
-  }
-
-  ThemeData _immersiveTheme() {
-    final base = Theme.of(context);
-    final accent = base.colorScheme.primary;
-    final colorScheme = AppColors.darkColorScheme.copyWith(
-      primary: accent,
-      secondary: accent,
-    );
-    return base.copyWith(
-      colorScheme: colorScheme,
-      scaffoldBackgroundColor: AppColors.background,
-      textTheme: base.textTheme.apply(
-        bodyColor: AppColors.textPrimary,
-        displayColor: AppColors.textPrimary,
-      ),
-      iconTheme: const IconThemeData(color: AppColors.textPrimary),
-      chipTheme: base.chipTheme.copyWith(
-        backgroundColor: AppColors.surfaceHighlight,
-        selectedColor: accent,
-        labelStyle: base.textTheme.labelLarge?.copyWith(
-          color: AppColors.textPrimary,
-        ),
-      ),
-      sliderTheme: base.sliderTheme.copyWith(
-        activeTrackColor: accent,
-        inactiveTrackColor: AppColors.surfaceHighlight,
-        thumbColor: accent,
-      ),
     );
   }
 
@@ -2035,21 +2008,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           ),
         );
       },
-      child: Theme(
-        data: _immersiveTheme(),
-        child: _isPodcast
-            ? PodcastArtwork(
-                imageUrl:
-                    _podcastEpisode?.imageUrl ?? widget.podcast?.show.imageUrl,
-                size: size,
-                borderRadius: borderRadius,
-              )
-            : BookCover(
-                coverPath: widget.book.coverPath,
-                iconSize: size * 0.32,
-                borderRadius: borderRadius,
-              ),
-      ),
+      child: _isPodcast
+          ? PodcastArtwork(
+              imageUrl:
+                  _podcastEpisode?.imageUrl ?? widget.podcast?.show.imageUrl,
+              size: size,
+              borderRadius: borderRadius,
+            )
+          : BookCover(
+              coverPath: widget.book.coverPath,
+              iconSize: size * 0.32,
+              borderRadius: borderRadius,
+            ),
     );
   }
 
@@ -2067,7 +2037,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: AppColors.textPrimary,
+                  color: context.appTextPrimary,
                 ),
               ),
               SizedBox(height: design.spaceXs),
@@ -2075,9 +2045,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 widget.book.author ?? context.tr('未知作者', 'Unknown Author'),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyLarge?.copyWith(color: AppColors.textSecondary),
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: context.appTextSecondary,
+                ),
               ),
             ],
           ),
@@ -2086,7 +2056,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         IconButton(
           tooltip: context.tr('收藏', 'Save'),
           icon: const Icon(Icons.favorite_border_rounded),
-          color: AppColors.textPrimary,
+          color: context.appTextPrimary,
           onPressed: () {},
         ),
       ],
@@ -2120,7 +2090,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   _transcribingPodcast
                       ? Icons.graphic_eq_rounded
                       : Icons.subtitles_outlined,
-                  color: AppColors.lyricsTextSecondary,
+                  color: context.appTextSecondary,
                   size: 34,
                 ),
                 const SizedBox(height: 10),
@@ -2132,8 +2102,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       ? context.tr('上次转写未完成', 'Last transcription stopped')
                       : context.tr('这个单集还没有字幕', 'No transcript yet'),
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: AppColors.lyricsTextPrimary,
+                  style: TextStyle(
+                    color: context.appTextPrimary,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -2188,8 +2158,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     '已缓存 ${transcript?.timingCount ?? 0} 段',
                     '${transcript?.timingCount ?? 0} cached',
                   ),
-                  style: const TextStyle(
-                    color: AppColors.lyricsTextSecondary,
+                  style: TextStyle(
+                    color: context.appTextSecondary,
                     fontSize: 11,
                   ),
                 ),
@@ -2210,7 +2180,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           return Center(
             child: Text(
               context.tr('无正文', 'No text'),
-              style: const TextStyle(color: AppColors.lyricsTextSecondary),
+              style: TextStyle(color: context.appTextSecondary),
             ),
           );
         }
@@ -2284,8 +2254,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final design = context.appDesign;
     final accent = Theme.of(context).colorScheme.primary;
     final controlColor = foregroundColor;
-    final cacheColor = AppColors.textSecondary.withValues(alpha: 0.46);
-    final secondaryColor = AppColors.textSecondary;
+    final cacheColor = context.appTextSecondary.withValues(alpha: 0.46);
+    final secondaryColor = context.appTextSecondary;
     final inactiveTrackColor = foregroundColor.withValues(alpha: 0.18);
     final playbackFraction = duration.inMilliseconds <= 0
         ? 0.0
@@ -2421,7 +2391,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 button: true,
                 label: primaryTooltip,
                 child: Material(
-                  color: AppColors.textPrimary,
+                  color: context.appTextPrimary,
                   shape: const CircleBorder(),
                   child: InkWell(
                     key: const ValueKey('player-primary-audio-action'),
@@ -2446,7 +2416,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           },
                           child: _buildPrimaryAudioGlyph(
                             action: primaryAction,
-                            color: AppColors.background,
+                            color: context.appBackground,
                           ),
                         ),
                       ),
@@ -2536,94 +2506,84 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      backgroundColor: AppColors.surface,
-      builder: (_) => Theme(
-        data: _immersiveTheme(),
-        child: StatefulBuilder(
-          builder: (context, setSheetState) {
-            final accent = Theme.of(context).colorScheme.primary;
-            return SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            context.tr('播放倍速', 'Playback speed'),
-                            style: TextStyle(
-                              color: context.appTextPrimary,
-                              fontSize: 20,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                        Text(
-                          '${draft.toStringAsFixed(1)}x',
+      backgroundColor: context.appSurface,
+      builder: (_) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          final accent = Theme.of(context).colorScheme.primary;
+          return SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          context.tr('播放倍速', 'Playback speed'),
                           style: TextStyle(
-                            color: accent,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                            color: context.appTextPrimary,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    SliderTheme(
-                      data: SliderTheme.of(context).copyWith(
-                        activeTrackColor: accent,
-                        inactiveTrackColor: context.appSurfaceHighlight,
-                        thumbColor: accent,
                       ),
-                      child: Slider(
-                        min: 0.5,
-                        max: 3.0,
-                        divisions: 25,
-                        value: draft,
-                        onChanged: (value) {
-                          setSheetState(() => draft = value);
-                          _applySpeed(value);
-                        },
+                      Text(
+                        '${draft.toStringAsFixed(1)}x',
+                        style: TextStyle(
+                          color: accent,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      activeTrackColor: accent,
+                      inactiveTrackColor: context.appSurfaceHighlight,
+                      thumbColor: accent,
                     ),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final value in const [
-                          0.8,
-                          1.0,
-                          1.2,
-                          1.5,
-                          2.0,
-                          2.5,
-                        ])
-                          ChoiceChip(
-                            label: Text('${value.toStringAsFixed(1)}x'),
-                            selected: (draft - value).abs() < 0.01,
-                            selectedColor: accent,
-                            labelStyle: TextStyle(
-                              color: (draft - value).abs() < 0.01
-                                  ? Colors.black
-                                  : context.appTextPrimary,
-                            ),
-                            onSelected: (_) {
-                              setSheetState(() => draft = value);
-                              _applySpeed(value);
-                            },
+                    child: Slider(
+                      min: 0.5,
+                      max: 3.0,
+                      divisions: 25,
+                      value: draft,
+                      onChanged: (value) {
+                        setSheetState(() => draft = value);
+                        _applySpeed(value);
+                      },
+                    ),
+                  ),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final value in const [0.8, 1.0, 1.2, 1.5, 2.0, 2.5])
+                        ChoiceChip(
+                          label: Text('${value.toStringAsFixed(1)}x'),
+                          selected: (draft - value).abs() < 0.01,
+                          selectedColor: accent,
+                          labelStyle: TextStyle(
+                            color: (draft - value).abs() < 0.01
+                                ? Colors.black
+                                : context.appTextPrimary,
                           ),
-                      ],
-                    ),
-                  ],
-                ),
+                          onSelected: (_) {
+                            setSheetState(() => draft = value);
+                            _applySpeed(value);
+                          },
+                        ),
+                    ],
+                  ),
+                ],
               ),
-            );
-          },
-        ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -2644,82 +2604,79 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      backgroundColor: AppColors.surface,
-      builder: (sheetContext) => Theme(
-        data: _immersiveTheme(),
-        child: Builder(
-          builder: (context) => SafeArea(
-            top: false,
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                context.appDesign.spaceXl,
-                context.appDesign.spaceSm,
-                context.appDesign.spaceXl,
-                context.appDesign.spaceXl,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    context.tr('定时关闭', 'Sleep timer'),
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: context.appTextPrimary,
-                    ),
+      backgroundColor: context.appSurface,
+      builder: (sheetContext) => Builder(
+        builder: (context) => SafeArea(
+          top: false,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              context.appDesign.spaceXl,
+              context.appDesign.spaceSm,
+              context.appDesign.spaceXl,
+              context.appDesign.spaceXl,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  context.tr('定时关闭', 'Sleep timer'),
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: context.appTextPrimary,
                   ),
-                  SizedBox(height: context.appDesign.spaceXs),
-                  Text(
-                    context.tr(
-                      '当前：${_sleepTimerLabel(timerService.state)}',
-                      'Current: ${_sleepTimerLabel(timerService.state)}',
-                    ),
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: context.appTextSecondary,
-                    ),
+                ),
+                SizedBox(height: context.appDesign.spaceXs),
+                Text(
+                  context.tr(
+                    '当前：${_sleepTimerLabel(timerService.state)}',
+                    'Current: ${_sleepTimerLabel(timerService.state)}',
                   ),
-                  SizedBox(height: context.appDesign.spaceLg),
-                  Wrap(
-                    spacing: context.appDesign.spaceSm,
-                    runSpacing: context.appDesign.spaceSm,
-                    children: [
-                      for (final minutes in const [15, 30, 45, 60])
-                        ActionChip(
-                          label: Text(
-                            context.tr('$minutes 分钟', '$minutes minutes'),
-                          ),
-                          onPressed: () async {
-                            await timerService.scheduleDuration(
-                              Duration(minutes: minutes),
-                              handler,
-                            );
-                            if (sheetContext.mounted) {
-                              Navigator.of(sheetContext).pop();
-                            }
-                          },
-                        ),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: context.appTextSecondary,
+                  ),
+                ),
+                SizedBox(height: context.appDesign.spaceLg),
+                Wrap(
+                  spacing: context.appDesign.spaceSm,
+                  runSpacing: context.appDesign.spaceSm,
+                  children: [
+                    for (final minutes in const [15, 30, 45, 60])
                       ActionChip(
-                        label: Text(context.tr('本章结束', 'End of chapter')),
+                        label: Text(
+                          context.tr('$minutes 分钟', '$minutes minutes'),
+                        ),
                         onPressed: () async {
-                          await timerService.scheduleChapterEnd(handler);
+                          await timerService.scheduleDuration(
+                            Duration(minutes: minutes),
+                            handler,
+                          );
                           if (sheetContext.mounted) {
                             Navigator.of(sheetContext).pop();
                           }
                         },
                       ),
-                      if (timerService.state.active)
-                        ActionChip(
-                          label: Text(context.tr('关闭定时', 'Turn off')),
-                          onPressed: () async {
-                            await timerService.cancel();
-                            if (sheetContext.mounted) {
-                              Navigator.of(sheetContext).pop();
-                            }
-                          },
-                        ),
-                    ],
-                  ),
-                ],
-              ),
+                    ActionChip(
+                      label: Text(context.tr('本章结束', 'End of chapter')),
+                      onPressed: () async {
+                        await timerService.scheduleChapterEnd(handler);
+                        if (sheetContext.mounted) {
+                          Navigator.of(sheetContext).pop();
+                        }
+                      },
+                    ),
+                    if (timerService.state.active)
+                      ActionChip(
+                        label: Text(context.tr('关闭定时', 'Turn off')),
+                        onPressed: () async {
+                          await timerService.cancel();
+                          if (sheetContext.mounted) {
+                            Navigator.of(sheetContext).pop();
+                          }
+                        },
+                      ),
+                  ],
+                ),
+              ],
             ),
           ),
         ),

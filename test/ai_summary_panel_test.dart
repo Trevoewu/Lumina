@@ -226,6 +226,25 @@ void main() {
     );
     expect(aiSetupRequests, 1);
   });
+
+  testWidgets('summary markdown follows the light theme text color', (
+    tester,
+  ) async {
+    final theme = AppTheme.lightTheme();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: theme,
+        home: const Scaffold(
+          body: AiAnswerText(text: 'Readable summary body.'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final bodySpan = _findTextSpan(tester, 'Readable summary body.');
+    expect(bodySpan, isNotNull);
+    expect(bodySpan!.style?.color, theme.colorScheme.onSurface);
+  });
 }
 
 TextSpan? _findTextSpan(WidgetTester tester, String text) {

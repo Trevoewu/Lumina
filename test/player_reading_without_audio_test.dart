@@ -291,6 +291,28 @@ void main() {
         ),
       );
       expect(find.text('Synchronized text'), findsOneWidget);
+      final lightOnSurface = AppTheme.lightTheme().colorScheme.onSurface;
+      expect(
+        tester.widget<Text>(find.text('AI Summary')).style?.color,
+        lightOnSurface,
+      );
+      expect(
+        tester.widget<Text>(find.text('Synchronized text')).style?.color,
+        lightOnSurface,
+      );
+      final transcriptLineStyle = tester
+          .widget<AnimatedDefaultTextStyle>(
+            find
+                .ancestor(
+                  of: find.text(
+                    'This text is readable before any audio is cached.',
+                  ),
+                  matching: find.byType(AnimatedDefaultTextStyle),
+                )
+                .first,
+          )
+          .style;
+      expect(transcriptLineStyle.color, isNot(Colors.white));
       expect(
         find.byKey(const ValueKey('synced-lyrics-virtualized-list')),
         findsOneWidget,
@@ -306,7 +328,7 @@ void main() {
           backgroundDecoration.gradient! as LinearGradient;
       expect(
         backgroundGradient.colors.every(
-          (color) => color.computeLuminance() < 0.2,
+          (color) => color.computeLuminance() > 0.8,
         ),
         isTrue,
       );
@@ -318,11 +340,14 @@ void main() {
             )
             .first,
       );
-      expect(primaryButtonMaterial.color, Colors.white);
+      expect(
+        primaryButtonMaterial.color,
+        AppTheme.lightTheme().colorScheme.onSurface,
+      );
 
       await expectLater(
         find.byType(PlayerScreen),
-        matchesGoldenFile('goldens/player_spotify_dark_390.png'),
+        matchesGoldenFile('goldens/player_spotify_light_390.png'),
       );
 
       await tester.tap(find.byIcon(Icons.timer_outlined));
@@ -367,7 +392,7 @@ void main() {
 
       await expectLater(
         find.byType(PlayerScreen),
-        matchesGoldenFile('goldens/player_spotify_playing_390.png'),
+        matchesGoldenFile('goldens/player_spotify_light_playing_390.png'),
       );
 
       await tester.drag(

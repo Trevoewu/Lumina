@@ -185,17 +185,17 @@ class _AiSummaryPanelState extends ConsumerState<AiSummaryPanel> {
       children: [
         Row(
           children: [
-            const Icon(
+            Icon(
               Icons.auto_awesome_rounded,
               size: 20,
-              color: AppColors.textSecondary,
+              color: context.appTextSecondary,
             ),
             SizedBox(width: design.spaceSm),
             Expanded(
               child: Text(
                 'AI Summary',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppColors.textPrimary,
+                  color: context.appTextPrimary,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -227,7 +227,7 @@ class _AiSummaryPanelState extends ConsumerState<AiSummaryPanel> {
               _status!,
               style: Theme.of(
                 context,
-              ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+              ).textTheme.bodySmall?.copyWith(color: context.appTextSecondary),
             ),
         ] else if (hasSummary) ...[
           AnimatedSize(
@@ -245,7 +245,7 @@ class _AiSummaryPanelState extends ConsumerState<AiSummaryPanel> {
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.textSecondary,
+                      color: context.appTextSecondary,
                       height: 1.45,
                     ),
                   ),
@@ -283,7 +283,7 @@ class _AiSummaryPanelState extends ConsumerState<AiSummaryPanel> {
               'Generate a concise overview with references back to the transcript.',
             ),
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: AppColors.textSecondary,
+              color: context.appTextSecondary,
               height: 1.5,
             ),
           ),
@@ -338,7 +338,7 @@ class _AiServiceRequiredState extends StatelessWidget {
             'Connect an AI model to create summaries and ask grounded questions with citations.',
           ),
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            color: AppColors.textSecondary,
+            color: context.appTextSecondary,
             height: 1.5,
           ),
         ),
@@ -375,7 +375,7 @@ class _TranscriptRequiredState extends StatelessWidget {
             'A transcript is required for a grounded summary.',
           ),
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            color: AppColors.textSecondary,
+            color: context.appTextSecondary,
             height: 1.5,
           ),
         ),
@@ -409,9 +409,9 @@ class AiAnswerText extends StatelessWidget {
     final accent = context.appAccent;
     final baseTextStyle = Theme.of(
       context,
-    ).textTheme.bodyLarge?.copyWith(color: AppColors.textPrimary, height: 1.5);
+    ).textTheme.bodyLarge?.copyWith(color: context.appTextPrimary, height: 1.5);
     final headingStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
-      color: AppColors.textPrimary,
+      color: context.appTextPrimary,
       fontWeight: FontWeight.w800,
       height: 1.3,
     );
@@ -431,7 +431,7 @@ class AiAnswerText extends StatelessWidget {
         del: baseTextStyle?.copyWith(decoration: TextDecoration.lineThrough),
         blockquote: baseTextStyle,
         checkbox: baseTextStyle?.copyWith(color: accent),
-        listBullet: baseTextStyle?.copyWith(color: AppColors.textSecondary),
+        listBullet: baseTextStyle?.copyWith(color: context.appTextSecondary),
         tableHead: baseTextStyle?.copyWith(fontWeight: FontWeight.w700),
         tableBody: baseTextStyle,
         a: baseTextStyle?.copyWith(
@@ -442,15 +442,15 @@ class AiAnswerText extends StatelessWidget {
         blockSpacing: context.appDesign.spaceMd,
         listIndent: context.appDesign.spaceLg,
         code: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: AppColors.textPrimary,
-          backgroundColor: AppColors.surfaceHighlight,
+          color: context.appTextPrimary,
+          backgroundColor: context.appSurfaceHighlight,
         ),
         codeblockDecoration: BoxDecoration(
-          color: AppColors.surfaceHighlight,
+          color: context.appSurfaceHighlight,
           borderRadius: BorderRadius.circular(context.appDesign.radiusSmall),
         ),
         blockquoteDecoration: BoxDecoration(
-          color: AppColors.surfaceHighlight,
+          color: context.appSurfaceHighlight,
           border: Border(left: BorderSide(color: accent, width: 3)),
         ),
       ),
@@ -682,11 +682,11 @@ class _AiConversationSheetState extends ConsumerState<AiConversationSheet> {
       colors: chat.ChatColors(
         primary: context.appAccent,
         onPrimary: Colors.black,
-        surface: AppColors.background,
-        onSurface: AppColors.textPrimary,
-        surfaceContainer: AppColors.surface,
-        surfaceContainerLow: AppColors.surface,
-        surfaceContainerHigh: AppColors.surfaceHighlight,
+        surface: context.appBackground,
+        onSurface: context.appTextPrimary,
+        surfaceContainer: context.appSurface,
+        surfaceContainerLow: context.appSurface,
+        surfaceContainerHigh: context.appSurfaceHighlight,
       ),
       typography: chat.ChatTypography.fromThemeData(Theme.of(context)),
       shape: BorderRadius.circular(context.appDesign.radiusMedium),
@@ -697,11 +697,11 @@ class _AiConversationSheetState extends ConsumerState<AiConversationSheet> {
   Widget build(BuildContext context) {
     final design = context.appDesign;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.appBackground,
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
-        foregroundColor: AppColors.textPrimary,
+        backgroundColor: context.appBackground,
+        foregroundColor: context.appTextPrimary,
         title: const Text('AI Summary'),
         leading: IconButton(
           icon: const Icon(Icons.keyboard_arrow_down_rounded),
@@ -715,7 +715,7 @@ class _AiConversationSheetState extends ConsumerState<AiConversationSheet> {
               resolveUser: _resolveUser,
               chatController: _chatController,
               theme: _chatTheme(context),
-              backgroundColor: AppColors.background,
+              backgroundColor: context.appBackground,
               onMessageSend: _send,
               builders: chat.Builders(
                 chatAnimatedListBuilder: (context, itemBuilder) =>
@@ -752,25 +752,23 @@ class _AiConversationSheetState extends ConsumerState<AiConversationSheet> {
                   ),
                   sigmaX: 0,
                   sigmaY: 0,
-                  backgroundColor: AppColors.surface,
-                  inputFillColor: AppColors.surfaceHighlight,
+                  backgroundColor: context.appSurface,
+                  inputFillColor: context.appSurfaceHighlight,
                   inputBorder: OutlineInputBorder(
-                    borderSide: const BorderSide(
-                      color: AppColors.surfaceHighlight,
-                    ),
+                    borderSide: BorderSide(color: context.appSurfaceHighlight),
                     borderRadius: BorderRadius.circular(design.radiusLarge),
                   ),
                   hintText: context.tr('继续提问…', 'Ask a follow-up question…'),
-                  hintColor: AppColors.textSecondary,
-                  textColor: AppColors.textPrimary,
-                  keyboardAppearance: Brightness.dark,
+                  hintColor: context.appTextSecondary,
+                  textColor: context.appTextPrimary,
+                  keyboardAppearance: Theme.of(context).brightness,
                   minLines: 1,
                   maxLines: 4,
                   sendButtonDisabled: _running,
                   sendButtonVisibilityMode:
                       chat_ui.SendButtonVisibilityMode.disabled,
                   sendIconColor: context.appAccent,
-                  emptyFieldSendIconColor: AppColors.textSecondary,
+                  emptyFieldSendIconColor: context.appTextSecondary,
                   sendIcon: const Icon(
                     Icons.arrow_upward_rounded,
                     key: ValueKey('ai-follow-up-send'),
@@ -803,14 +801,14 @@ class _ConversationEmptyState extends StatelessWidget {
           Icon(
             Icons.forum_outlined,
             size: 28,
-            color: AppColors.textSecondary.withValues(alpha: 0.8),
+            color: context.appTextSecondary.withValues(alpha: 0.8),
           ),
           SizedBox(height: design.spaceMd),
           Text(
             context.tr('针对当前内容继续提问', 'Ask about the current content'),
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: AppColors.textPrimary,
+              color: context.appTextPrimary,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -822,7 +820,7 @@ class _ConversationEmptyState extends StatelessWidget {
             ),
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppColors.textSecondary,
+              color: context.appTextSecondary,
               height: 1.4,
             ),
           ),
@@ -857,12 +855,12 @@ class _ChatTextMessage extends StatelessWidget {
       ),
       padding: EdgeInsets.all(design.spaceMd),
       decoration: BoxDecoration(
-        color: isSentByMe ? AppColors.surfaceHighlight : AppColors.surface,
+        color: isSentByMe ? context.appSurfaceHighlight : context.appSurface,
         borderRadius: BorderRadius.circular(design.radiusMedium),
         border: isSentByMe
             ? null
             : Border.all(
-                color: failed ? Colors.redAccent : AppColors.surfaceHighlight,
+                color: failed ? Colors.redAccent : context.appSurfaceHighlight,
               ),
       ),
       child: waiting
@@ -883,17 +881,14 @@ class _ChatTextMessage extends StatelessWidget {
                     style: TextStyle(
                       color: failed
                           ? Colors.redAccent
-                          : AppColors.textSecondary,
+                          : context.appTextSecondary,
                     ),
                   ),
                 ),
               ],
             )
           : isSentByMe
-          ? Text(
-              message.text,
-              style: const TextStyle(color: AppColors.textPrimary),
-            )
+          ? Text(message.text, style: TextStyle(color: context.appTextPrimary))
           : Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -906,7 +901,7 @@ class _ChatTextMessage extends StatelessWidget {
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: failed
                           ? Colors.redAccent
-                          : AppColors.textSecondary,
+                          : context.appTextSecondary,
                     ),
                   ),
                 ],
