@@ -313,12 +313,15 @@ class GenerationOrchestrator {
 
     final active = <int, Future<_SegmentGenerationResult>>{};
     var nextPending = 0;
+    Object? stopGenerationError;
+    StackTrace? stopGenerationStackTrace;
     try {
       while (nextPending < pendingIndexes.length || active.isNotEmpty) {
         await job.waitIfPaused();
         job.throwIfCancelled();
         final launchedIndexes = <int>[];
-        while (active.length < concurrency &&
+        while (stopGenerationError == null &&
+            active.length < concurrency &&
             nextPending < pendingIndexes.length) {
           final index = pendingIndexes[nextPending++];
           final paragraph = paragraphs[index];
@@ -363,6 +366,19 @@ class GenerationOrchestrator {
         active.remove(completed.index);
         job.throwIfCancelled();
         segments[completed.index] = completed.segment;
+        if (stopGenerationError == null &&
+            completed.stopGenerationError != null) {
+          stopGenerationError = completed.stopGenerationError;
+          stopGenerationStackTrace = completed.stopGenerationStackTrace;
+          nextPending = pendingIndexes.length;
+          AppLogger.error(
+            'Generation',
+            '检测到不可恢复的语音服务错误，停止章节后续生成 '
+                'book=$bookId chapter=$chapterId provider=${provider.id}',
+            error: stopGenerationError,
+            stackTrace: stopGenerationStackTrace,
+          );
+        }
 
         if (completed.billedCharacters > 0) {
           await database.recordCost(
@@ -385,6 +401,12 @@ class GenerationOrchestrator {
           currentParagraphId: paragraphs[completed.index].id,
           currentParagraphIndex: completed.index,
           error: completed.segment.error,
+        );
+      }
+      if (stopGenerationError != null) {
+        Error.throwWithStackTrace(
+          stopGenerationError,
+          stopGenerationStackTrace ?? StackTrace.current,
         );
       }
     } finally {
@@ -499,6 +521,14 @@ class GenerationOrchestrator {
       return _SegmentGenerationResult(
         index: index,
         billedCharacters: 0,
+        stopGenerationError:
+            error is TtsProviderException && error.shouldStopGeneration
+            ? error
+            : null,
+        stopGenerationStackTrace:
+            error is TtsProviderException && error.shouldStopGeneration
+            ? stackTrace
+            : null,
         segment: current.copyWith(
           state: ParagraphAudioState.failed,
           error: error.toString(),
@@ -751,17 +781,18 @@ class GenerationOrchestrator {
   }
 
   Future<T> _retry<T>(Future<T> Function() fn, int maxRetries) async {
-    Object? last;
-    for (var attempt = 0; attempt < maxRetries; attempt++) {
+    final attempts = max(1, maxRetries);
+    for (var attempt = 0; attempt < attempts; attempt++) {
       try {
         return await fn();
       } catch (e) {
-        last = e;
+        if (e is TtsProviderException && !e.isRetryable) rethrow;
+        if (attempt + 1 >= attempts) rethrow;
         final backoffMs = 500 * (1 << attempt) + Random().nextInt(250);
         await Future<void>.delayed(Duration(milliseconds: backoffMs));
       }
     }
-    throw last ?? StateError('unknown error');
+    throw StateError('unreachable retry state');
   }
 
   Future<String> _absoluteSegmentPath(String bookId, SegmentEntry entry) async {
@@ -986,10 +1017,14 @@ class _SegmentGenerationResult {
   final int index;
   final SegmentEntry segment;
   final int billedCharacters;
+  final Object? stopGenerationError;
+  final StackTrace? stopGenerationStackTrace;
 
   const _SegmentGenerationResult({
     required this.index,
     required this.segment,
     required this.billedCharacters,
+    this.stopGenerationError,
+    this.stopGenerationStackTrace,
   });
 }

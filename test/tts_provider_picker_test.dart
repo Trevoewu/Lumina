@@ -8,6 +8,7 @@ import 'package:lumina/core/theme.dart';
 import 'package:lumina/data/database/app_database.dart';
 import 'package:lumina/main.dart';
 import 'package:lumina/presentation/screens/settings/tts_service_screen.dart';
+import 'package:lumina/presentation/screens/settings/tts_setup_wizard_screen.dart';
 import 'package:lumina/tts/provider_registry.dart';
 
 void main() {
@@ -43,6 +44,14 @@ void main() {
     expect(find.byTooltip('Add voice provider'), findsOneWidget);
     expect(find.byIcon(Icons.radio_button_checked), findsNothing);
     expect(find.byIcon(Icons.radio_button_off), findsNothing);
+    expect(
+      find.byKey(const ValueKey('provider-brand-fishAudio')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('provider-brand-minimax')),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
     await expectLater(
       find.byType(TtsProviderPickerScreen),
@@ -63,6 +72,9 @@ void main() {
         overrides: [
           appDatabaseProvider.overrideWithValue(database),
           ttsSettingsControllerProvider.overrideWith(_EmptyTtsController.new),
+          ttsProviderConfigurationStatusProvider.overrideWith(
+            (ref) async => const {'fish_audio_api': false, 'minimax': false},
+          ),
         ],
         child: const LuminaApp(),
       ),
@@ -78,6 +90,19 @@ void main() {
     await tester.tap(ttsSettings);
     await tester.pumpAndSettle();
 
+    expect(find.byType(TtsSetupWizardScreen), findsOneWidget);
+    expect(find.text('Configuration'), findsNothing);
+    expect(find.text('Fish Audio'), findsOneWidget);
+    expect(find.text('MiniMax'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('provider-brand-fishAudio')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('provider-brand-minimax')),
+      findsOneWidget,
+    );
+    expect(find.byType(BottomSheet), findsNothing);
     final text = tester
         .widgetList<Text>(find.byType(Text))
         .map((widget) => widget.data)
@@ -88,6 +113,11 @@ void main() {
       findsOneWidget,
       reason: 'Visible text: $text; exception: ${tester.takeException()}',
     );
+
+    Navigator.of(tester.element(find.byType(TtsSetupWizardScreen))).pop();
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('continue-tts-setup')), findsOneWidget);
+    expect(find.text('Configuration'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));
   });
@@ -120,6 +150,8 @@ void main() {
     expect(find.text('Fish Audio'), findsOneWidget);
     expect(find.text('MiniMax'), findsOneWidget);
     await tester.tap(find.text('Fish Audio'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('setup-next')));
     await tester.pumpAndSettle();
     expect(find.text('Add Voice Provider'), findsOneWidget);
     expect(find.byKey(const ValueKey('save-tts-provider')), findsOneWidget);

@@ -8,6 +8,7 @@ import '../../services/wav_audio_utils.dart';
 import '../api_key_store.dart';
 import '../models/tts_capabilities.dart';
 import '../models/tts_chunk.dart';
+import '../models/tts_model.dart';
 import '../models/tts_voice.dart';
 import '../tts_provider.dart';
 
@@ -54,11 +55,11 @@ enum FishAudioGenerationProfile {
 
 /// Fish Audio 云端 API Provider。
 ///
-/// 使用 raw REST API，适配 Flutter/Dart 环境。TTS 模型固定为
-/// s2.1-pro-free，便于开发和测试；API Key 存在系统安全存储中。
-class FishAudioApiTtsProvider implements TtsProvider, TtsConcurrencyPolicy {
+/// 使用 raw REST API，适配 Flutter/Dart 环境。API Key 存在系统安全存储中。
+class FishAudioApiTtsProvider
+    implements TtsProvider, TtsConcurrencyPolicy, TtsModelCatalog {
   static const String idValue = 'fish_audio_api';
-  static const String model = 's2.1-pro-free';
+  static const String defaultModel = 's2-pro';
   static const String _baseUrl = 'https://api.fish.audio';
   static const String _storageKey = 'fish_audio_api_key';
   static const String _defaultVoiceId = 'fish_api_default';
@@ -69,13 +70,18 @@ class FishAudioApiTtsProvider implements TtsProvider, TtsConcurrencyPolicy {
   final ApiKeyStore _apiKeyStore;
   final TtsSettingReader? settingReader;
   final TtsSettingWriter? settingWriter;
+  final TtsModelSelectionReader? modelSelectionReader;
   FishAudioGenerationProfile? _cachedGenerationProfile;
+  List<TtsModel>? _cachedModels;
+  TtsModelCatalogSource _modelCatalogSource =
+      TtsModelCatalogSource.bundledFallback;
 
   FishAudioApiTtsProvider({
     Dio? dio,
     ApiKeyStore? apiKeyStore,
     this.settingReader,
     this.settingWriter,
+    this.modelSelectionReader,
   }) : _dio = dio ?? Dio(),
        _apiKeyStore = apiKeyStore ?? ApiKeyStore();
 
@@ -128,6 +134,78 @@ class FishAudioApiTtsProvider implements TtsProvider, TtsConcurrencyPolicy {
       _apiKeyStore.write(_storageKey, key.trim());
 
   Future<void> clearApiKey() => _apiKeyStore.delete(_storageKey);
+
+  static const List<TtsModel> bundledModels = [
+    TtsModel(
+      id: 's2.1-pro',
+      name: 'Fish Audio S2.1-Pro',
+      description: 'S2.1 Pro production model',
+      recommended: true,
+    ),
+    TtsModel(
+      id: 's2.1-pro-free',
+      name: 'Fish Audio S2.1-Pro Free',
+      description: 'Free developer-tier version of S2.1 Pro',
+    ),
+    TtsModel(
+      id: 's2-pro',
+      name: 'Fish Audio S2-Pro',
+      description: '最新高质量模型，支持 80+ 语言与自然语言情绪控制',
+    ),
+    TtsModel(
+      id: 's1',
+      name: 'Fish Audio S1',
+      description: '上一代稳定模型，支持 13 种语言与情绪标签',
+    ),
+  ];
+
+  @override
+  TtsModelCatalogSource get modelCatalogSource => _modelCatalogSource;
+
+  @override
+  Future<List<TtsModel>> listModels({bool refresh = false}) async {
+    if (!refresh) return _cachedModels ?? bundledModels;
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '$_baseUrl/openapi.json',
+      );
+      final paths = response.data?['paths'] as Map<String, dynamic>?;
+      final ttsPath = paths?['/v1/tts'] as Map<String, dynamic>?;
+      final post = ttsPath?['post'] as Map<String, dynamic>?;
+      final parameters = post?['parameters'] as List<dynamic>? ?? const [];
+      final modelParameter = parameters.whereType<Map<String, dynamic>>().where(
+        (item) => item['name'] == 'model' && item['in'] == 'header',
+      );
+      final schema = modelParameter.isEmpty
+          ? null
+          : modelParameter.first['schema'] as Map<String, dynamic>?;
+      final ids = (schema?['enum'] as List<dynamic>? ?? const [])
+          .whereType<String>()
+          .toList();
+      if (ids.isEmpty) {
+        _cachedModels ??= bundledModels;
+        _modelCatalogSource = TtsModelCatalogSource.bundledFallback;
+      } else {
+        _cachedModels = _modelsFromIds(ids, bundledModels);
+        _modelCatalogSource = TtsModelCatalogSource.officialApi;
+      }
+    } catch (_) {
+      if (_cachedModels == null) {
+        _cachedModels = bundledModels;
+        _modelCatalogSource = TtsModelCatalogSource.bundledFallback;
+      } else {
+        _modelCatalogSource = TtsModelCatalogSource.cachedAfterSyncFailure;
+      }
+    }
+    return _cachedModels!;
+  }
+
+  Future<String> get selectedModel async {
+    final selected = await modelSelectionReader?.call(id);
+    return selected?.trim().isNotEmpty == true
+        ? selected!.trim()
+        : defaultModel;
+  }
 
   @override
   Future<bool> validate() async {
@@ -246,6 +324,7 @@ class FishAudioApiTtsProvider implements TtsProvider, TtsConcurrencyPolicy {
     final key = await apiKey;
     if (key == null || key.isEmpty) throw StateError('Fish Audio API Key 未配置');
     final profile = await generationProfile;
+    final modelId = await selectedModel;
 
     final body = <String, dynamic>{
       'text': text,
@@ -262,11 +341,19 @@ class FishAudioApiTtsProvider implements TtsProvider, TtsConcurrencyPolicy {
 
     FishTimestampSynthesisResult result;
     try {
-      result = await _synthesizeWithTimestamps(key: key, body: body);
+      result = await _synthesizeWithTimestamps(
+        key: key,
+        modelId: modelId,
+        body: body,
+      );
     } on DioException catch (error) {
       final statusCode = error.response?.statusCode;
       if (statusCode != 404 && statusCode != 405 && statusCode != 422) rethrow;
-      result = await _synthesizeWithoutTimestamps(key: key, body: body);
+      result = await _synthesizeWithoutTimestamps(
+        key: key,
+        modelId: modelId,
+        body: body,
+      );
     }
 
     final bytes = result.audioBytes;
@@ -286,6 +373,7 @@ class FishAudioApiTtsProvider implements TtsProvider, TtsConcurrencyPolicy {
 
   Future<FishTimestampSynthesisResult> _synthesizeWithTimestamps({
     required String key,
+    required String modelId,
     required Map<String, dynamic> body,
   }) async {
     final response = await _dio.post<ResponseBody>(
@@ -296,7 +384,7 @@ class FishAudioApiTtsProvider implements TtsProvider, TtsConcurrencyPolicy {
         headers: {
           ..._headers(key),
           'Content-Type': 'application/json',
-          'model': model,
+          'model': modelId,
         },
       ),
     );
@@ -327,6 +415,7 @@ class FishAudioApiTtsProvider implements TtsProvider, TtsConcurrencyPolicy {
 
   Future<FishTimestampSynthesisResult> _synthesizeWithoutTimestamps({
     required String key,
+    required String modelId,
     required Map<String, dynamic> body,
   }) async {
     final response = await _dio.post<List<int>>(
@@ -337,7 +426,7 @@ class FishAudioApiTtsProvider implements TtsProvider, TtsConcurrencyPolicy {
         headers: {
           ..._headers(key),
           'Content-Type': 'application/json',
-          'model': model,
+          'model': modelId,
         },
       ),
     );
@@ -350,6 +439,27 @@ class FishAudioApiTtsProvider implements TtsProvider, TtsConcurrencyPolicy {
   Map<String, String> _headers(String apiKey) => {
     'Authorization': 'Bearer $apiKey',
   };
+
+  List<TtsModel> _modelsFromIds(
+    List<String> discovered,
+    List<TtsModel> bundled,
+  ) {
+    final metadata = {for (final model in bundled) model.id: model};
+    final seen = <String>{};
+    final result = <TtsModel>[];
+    for (final id in discovered) {
+      if (!seen.add(id)) continue;
+      result.add(
+        metadata[id] ??
+            TtsModel(
+              id: id,
+              name: id,
+              description: 'Fish Audio TTS model from the official API schema',
+            ),
+      );
+    }
+    return result;
+  }
 
   TtsVoice? _voiceFromModel(Map<String, dynamic> model) {
     final modelId = model['_id'] as String? ?? model['id'] as String?;

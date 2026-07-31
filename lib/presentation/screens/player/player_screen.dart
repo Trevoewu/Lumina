@@ -457,20 +457,38 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     setState(() => _preparingStream = true);
     try {
       var provider = ref.read(activeTtsProviderProvider);
-      if (!await provider.validate()) {
-        if (!mounted || !await _openTtsSetupPrompt(provider.displayName)) {
+      var selections = ref.read(providerSelectionRepositoryProvider);
+      var providerConnected = await provider.validate();
+      var selectedModel = await selections.selectedTtsModel(provider.id);
+      var selectedVoice = await selections.selectedVoice(provider.id);
+      if (!providerConnected ||
+          selectedModel == null ||
+          selectedVoice == null) {
+        if (!mounted ||
+            !await _openTtsSetupPrompt(
+              provider.displayName,
+              setupIncomplete: providerConnected,
+            )) {
           return false;
         }
         ref.invalidate(ttsSettingsControllerProvider);
         await ref.read(ttsSettingsControllerProvider.future);
         provider = ref.read(activeTtsProviderProvider);
-        if (!await provider.validate()) return false;
+        selections = ref.read(providerSelectionRepositoryProvider);
+        providerConnected = await provider.validate();
+        selectedModel = await selections.selectedTtsModel(provider.id);
+        selectedVoice = await selections.selectedVoice(provider.id);
+        if (!providerConnected ||
+            selectedModel == null ||
+            selectedVoice == null) {
+          return false;
+        }
       }
       final database = ref.read(appDatabaseProvider);
       final voice = await _resolveVoice(
         provider,
         database,
-        ref.read(providerSelectionRepositoryProvider),
+        selections,
         chapterVoiceId: chapter.voiceId,
       );
       if (!mounted) return false;
@@ -512,17 +530,31 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
   }
 
-  Future<bool> _openTtsSetupPrompt(String providerName) async {
+  Future<bool> _openTtsSetupPrompt(
+    String providerName, {
+    bool setupIncomplete = false,
+  }) async {
     final openSettings = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         icon: const Icon(Icons.cloud_outlined),
-        title: Text(context.tr('连接语音服务', 'Connect a voice provider')),
+        title: Text(
+          setupIncomplete
+              ? context.tr('完成语音设置', 'Complete voice setup')
+              : context.tr('连接语音服务', 'Connect a voice provider'),
+        ),
         content: Text(
-          context.tr(
-            '当前的 $providerName 尚未连接。完成云端语音服务设置后，Lumina 会自动继续生成当前章节。',
-            '$providerName is not connected. Lumina will continue generating the current chapter after cloud voice setup.',
-          ),
+          setupIncomplete
+              ? context.tr(
+                  '$providerName 已连接，但还需要选择语音模型和朗读音色。'
+                      '完成后，Lumina 会自动继续生成当前章节。',
+                  '$providerName is connected, but a voice model and reading voice still need to be selected. '
+                      'Lumina will continue generating the current chapter after setup.',
+                )
+              : context.tr(
+                  '当前的 $providerName 尚未连接。完成云端语音服务设置后，Lumina 会自动继续生成当前章节。',
+                  '$providerName is not connected. Lumina will continue generating the current chapter after cloud voice setup.',
+                ),
         ),
         actions: [
           TextButton(
@@ -1388,7 +1420,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Future<void> _openAiServiceSettings() async {
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => const DictionaryExplanationServiceScreen(),
+        builder: (_) =>
+            const DictionaryExplanationServiceScreen(returnWhenReady: true),
       ),
     );
     ref.invalidate(llmSettingsControllerProvider);

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/database_provider.dart';
+import '../data/settings/provider_selection_repository.dart';
 import 'api_key_store.dart';
 import '../tts/providers/fish_audio_api_tts_provider.dart';
 import '../tts/providers/minimax_tts_provider.dart';
@@ -20,12 +21,22 @@ class ProviderRegistry {
     TtsSettingWriter? settingWriter,
   }) {
     final apiKeyStore = ApiKeyStore();
+    final selections = settingReader == null || settingWriter == null
+        ? null
+        : ProviderSelectionRepository(
+            settingReader: settingReader,
+            settingWriter: settingWriter,
+          );
     final fishApi = FishAudioApiTtsProvider(
       apiKeyStore: apiKeyStore,
       settingReader: settingReader,
       settingWriter: settingWriter,
+      modelSelectionReader: selections?.selectedTtsModel,
     );
-    final minimax = MinimaxTtsProvider(apiKeyStore: apiKeyStore);
+    final minimax = MinimaxTtsProvider(
+      apiKeyStore: apiKeyStore,
+      modelSelectionReader: selections?.selectedTtsModel,
+    );
 
     _providers[fishApi.id] = fishApi;
     _providers[minimax.id] = minimax;

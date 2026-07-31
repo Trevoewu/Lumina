@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import '../api_key_store.dart';
 import '../models/tts_capabilities.dart';
 import '../models/tts_chunk.dart';
+import '../models/tts_model.dart';
 import '../models/tts_voice.dart';
 import '../tts_provider.dart';
 
@@ -20,18 +21,26 @@ import '../tts_provider.dart';
 ///
 /// 能力：presetVoices ✅ | voiceCloning ✅ | voiceDescription ✅
 /// 计费：按字符计费（paid = true）。
-class MinimaxTtsProvider implements TtsProvider {
+class MinimaxTtsProvider implements TtsProvider, TtsModelCatalog {
   static const String idValue = 'minimax';
+  static const String defaultModel = 'speech-2.8-hd';
 
   static const String _baseUrl = 'https://api.minimaxi.com';
   static const String _storageKey = 'minimax_api_key';
 
   final Dio _dio;
   final ApiKeyStore _apiKeyStore;
+  final TtsModelSelectionReader? modelSelectionReader;
+  List<TtsModel>? _cachedModels;
+  TtsModelCatalogSource _modelCatalogSource =
+      TtsModelCatalogSource.bundledFallback;
 
-  MinimaxTtsProvider({Dio? dio, ApiKeyStore? apiKeyStore})
-    : _dio = dio ?? Dio(),
-      _apiKeyStore = apiKeyStore ?? ApiKeyStore();
+  MinimaxTtsProvider({
+    Dio? dio,
+    ApiKeyStore? apiKeyStore,
+    this.modelSelectionReader,
+  }) : _dio = dio ?? Dio(),
+       _apiKeyStore = apiKeyStore ?? ApiKeyStore();
 
   @override
   String get id => idValue;
@@ -65,6 +74,99 @@ class MinimaxTtsProvider implements TtsProvider {
   Future<void> setApiKey(String key) => _apiKeyStore.write(_storageKey, key);
 
   Future<void> clearApiKey() => _apiKeyStore.delete(_storageKey);
+
+  static const List<TtsModel> bundledModels = [
+    TtsModel(
+      id: 'speech-2.8-hd',
+      name: 'Speech 2.8 HD',
+      description: '最新高质量模型，适合自然、有表现力的长篇朗读',
+      recommended: true,
+    ),
+    TtsModel(
+      id: 'speech-2.8-turbo',
+      name: 'Speech 2.8 Turbo',
+      description: '最新高速模型，兼顾自然度与生成速度',
+    ),
+    TtsModel(
+      id: 'speech-2.6-hd',
+      name: 'Speech 2.6 HD',
+      description: '高自然度、低延迟的高质量模型',
+    ),
+    TtsModel(
+      id: 'speech-2.6-turbo',
+      name: 'Speech 2.6 Turbo',
+      description: '更快、更经济，适合低延迟场景',
+    ),
+    TtsModel(
+      id: 'speech-02-hd',
+      name: 'Speech 02 HD',
+      description: '稳定、音质突出且复刻相似度高',
+    ),
+    TtsModel(
+      id: 'speech-02-turbo',
+      name: 'Speech 02 Turbo',
+      description: '稳定高速，并增强小语种能力',
+    ),
+    TtsModel(
+      id: 'speech-01-hd',
+      name: 'Speech 01 HD',
+      description: '兼容旧项目的高质量模型',
+    ),
+    TtsModel(
+      id: 'speech-01-turbo',
+      name: 'Speech 01 Turbo',
+      description: '兼容旧项目的高速模型',
+    ),
+  ];
+
+  @override
+  TtsModelCatalogSource get modelCatalogSource => _modelCatalogSource;
+
+  @override
+  Future<List<TtsModel>> listModels({bool refresh = false}) async {
+    if (!refresh) return _cachedModels ?? bundledModels;
+    final key = await apiKey;
+    if (key == null || key.isEmpty) {
+      _cachedModels ??= bundledModels;
+      _modelCatalogSource = TtsModelCatalogSource.bundledFallback;
+      return _cachedModels!;
+    }
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '$_baseUrl/v1/models',
+        options: Options(headers: {'Authorization': 'Bearer $key'}),
+      );
+      final data = response.data?['data'] as List<dynamic>? ?? const [];
+      final ids = data
+          .whereType<Map<String, dynamic>>()
+          .map((item) => item['id'])
+          .whereType<String>()
+          .where((id) => id.toLowerCase().contains('speech'))
+          .toList();
+      if (ids.isEmpty) {
+        _cachedModels = bundledModels;
+        _modelCatalogSource = TtsModelCatalogSource.bundledFallback;
+      } else {
+        _cachedModels = _modelsFromIds(ids, bundledModels);
+        _modelCatalogSource = TtsModelCatalogSource.officialApi;
+      }
+    } catch (_) {
+      if (_cachedModels == null) {
+        _cachedModels = bundledModels;
+        _modelCatalogSource = TtsModelCatalogSource.bundledFallback;
+      } else {
+        _modelCatalogSource = TtsModelCatalogSource.cachedAfterSyncFailure;
+      }
+    }
+    return _cachedModels!;
+  }
+
+  Future<String> get selectedModel async {
+    final selected = await modelSelectionReader?.call(id);
+    return selected?.trim().isNotEmpty == true
+        ? selected!.trim()
+        : defaultModel;
+  }
 
   @override
   Future<bool> validate() async {
@@ -196,9 +298,10 @@ class MinimaxTtsProvider implements TtsProvider {
     }
     final key = await apiKey;
     if (key == null) throw StateError('MiniMax API Key 未配置');
+    final modelId = await selectedModel;
 
     final body = {
-      'model': 'speech-2.8-hd',
+      'model': modelId,
       'text': text,
       'stream': false,
       'voice_setting': {
@@ -292,10 +395,32 @@ class MinimaxTtsProvider implements TtsProvider {
     }
     return result;
   }
+
+  List<TtsModel> _modelsFromIds(
+    List<String> discovered,
+    List<TtsModel> bundled,
+  ) {
+    final metadata = {for (final model in bundled) model.id: model};
+    final seen = <String>{};
+    final result = <TtsModel>[];
+    for (final id in discovered) {
+      if (!seen.add(id)) continue;
+      result.add(
+        metadata[id] ??
+            TtsModel(
+              id: id,
+              name: id,
+              description:
+                  'MiniMax speech synthesis model from the official model API',
+            ),
+      );
+    }
+    return result;
+  }
 }
 
 /// MiniMax API 错误。
-class MinimaxApiException implements Exception {
+class MinimaxApiException implements TtsProviderException {
   final int code;
   final String message;
   final String context;
@@ -305,6 +430,46 @@ class MinimaxApiException implements Exception {
     required this.message,
     required this.context,
   });
+
+  static const _nonRetryableCodes = {
+    1004,
+    1008,
+    1026,
+    1027,
+    1039,
+    1041,
+    1042,
+    1043,
+    1044,
+    2013,
+    20132,
+    2037,
+    2038,
+    2039,
+    2042,
+    2048,
+    2049,
+    2056,
+  };
+
+  static const _generationStoppingCodes = {
+    1004, // Invalid or mismatched token.
+    1008, // Insufficient balance.
+    1039, // Token configuration limit.
+    1041, // Account connection limit.
+    2013, // Request/model parameter error.
+    20132, // Invalid voice ID.
+    2038, // Voice cloning disabled for the account.
+    2042, // No permission to use the voice.
+    2049, // Invalid API key.
+    2056, // Token Plan quota exhausted.
+  };
+
+  @override
+  bool get isRetryable => !_nonRetryableCodes.contains(code);
+
+  @override
+  bool get shouldStopGeneration => _generationStoppingCodes.contains(code);
 
   @override
   String toString() => 'MiniMax $context 失败 [$code]: $message';

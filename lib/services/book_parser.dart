@@ -2,12 +2,14 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:archive/archive.dart';
 import 'package:epub_pro/epub_pro.dart';
 import 'package:flutter/foundation.dart';
 import 'package:html/dom.dart' as html_dom;
 import 'package:html/parser.dart' as html_parser;
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
+import 'package:xml/xml.dart' as xml;
 
 import '../domain/models/book.dart';
 import '../domain/models/chapter.dart';
@@ -135,7 +137,7 @@ class BookParser {
     required String appDir,
   }) async {
     final bytes = await File(sourcePath).readAsBytes();
-    final epub = await EpubReader.readBook(bytes);
+    final epub = await _readEpub(bytes);
 
     final title = epub.title ?? p.basenameWithoutExtension(sourcePath);
     final author = epub.author;
@@ -204,7 +206,7 @@ class BookParser {
     if (!await File(sourcePath).exists()) return null;
 
     final bytes = await File(sourcePath).readAsBytes();
-    final epub = await EpubReader.readBook(bytes);
+    final epub = await _readEpub(bytes);
     return _writeCoverImage(
       coverImage: epub.coverImage,
       bookId: bookId,
@@ -221,12 +223,113 @@ class BookParser {
     try {
       return Isolate.run(() async {
         final source = File(sourcePath);
-        final epub = await EpubReader.readBook(await source.readAsBytes());
+        final epub = await _readEpub(await source.readAsBytes());
         return epub.schema?.package?.metadata?.description;
       });
     } catch (_) {
       return null;
     }
+  }
+
+  /// Reads an EPUB and works around epub_pro's inconsistent handling of
+  /// percent-encoded manifest paths.
+  ///
+  /// epub_pro keeps OPF hrefs such as `Text/Chapter%2001.xhtml` as content-map
+  /// keys, but decodes the same NCX href to `Text/Chapter 01.xhtml` before
+  /// looking it up. Retry with matching, decoded OPF hrefs only when the
+  /// referenced decoded ZIP entries actually exist.
+  static Future<EpubBook> _readEpub(List<int> bytes) async {
+    try {
+      return await EpubReader.readBook(bytes);
+    } catch (error) {
+      if (!_isMissingManifestItemError(error)) rethrow;
+
+      final normalizedBytes = _normalizePercentEncodedManifestHrefs(bytes);
+      if (normalizedBytes == null) rethrow;
+      return EpubReader.readBook(normalizedBytes);
+    }
+  }
+
+  static bool _isMissingManifestItemError(Object error) {
+    return error.toString().contains(
+      'Incorrect EPUB manifest: item with href = ',
+    );
+  }
+
+  /// Returns a rebuilt in-memory EPUB when an OPF href can safely be decoded,
+  /// or null when there is nothing to repair.
+  static List<int>? _normalizePercentEncodedManifestHrefs(List<int> bytes) {
+    final archive = ZipDecoder().decodeBytes(bytes);
+    final entryNames = archive
+        .where((entry) => entry.isFile)
+        .map((entry) => entry.name)
+        .toSet();
+    final replacements = <String, List<int>>{};
+
+    for (final entry in archive.where(
+      (entry) => entry.isFile && entry.name.toLowerCase().endsWith('.opf'),
+    )) {
+      xml.XmlDocument document;
+      try {
+        document = xml.XmlDocument.parse(utf8.decode(entry.content));
+      } catch (_) {
+        continue;
+      }
+
+      final opfDirectory = p.posix.dirname(entry.name);
+      var changed = false;
+      for (final item in document.descendants.whereType<xml.XmlElement>()) {
+        if (item.name.local.toLowerCase() != 'item') continue;
+
+        xml.XmlAttribute? hrefAttribute;
+        for (final attribute in item.attributes) {
+          if (attribute.name.local.toLowerCase() == 'href') {
+            hrefAttribute = attribute;
+            break;
+          }
+        }
+        if (hrefAttribute == null || !hrefAttribute.value.contains('%')) {
+          continue;
+        }
+
+        String decodedHref;
+        try {
+          decodedHref = Uri.decodeFull(hrefAttribute.value);
+        } on FormatException {
+          continue;
+        }
+        if (decodedHref == hrefAttribute.value) continue;
+
+        final decodedEntryPath = p.posix.normalize(
+          p.posix.join(opfDirectory, decodedHref),
+        );
+        if (!entryNames.contains(decodedEntryPath)) continue;
+
+        hrefAttribute.value = decodedHref;
+        changed = true;
+      }
+
+      if (changed) {
+        replacements[entry.name] = utf8.encode(document.toXmlString());
+      }
+    }
+
+    if (replacements.isEmpty) return null;
+
+    final normalizedArchive = Archive();
+    for (final entry in archive) {
+      if (entry.isDirectory) {
+        normalizedArchive.add(ArchiveFile.directory(entry.name));
+        continue;
+      }
+      final content = replacements[entry.name] ?? entry.content;
+      normalizedArchive.add(
+        entry.name == 'mimetype'
+            ? ArchiveFile.noCompress(entry.name, content.length, content)
+            : ArchiveFile.bytes(entry.name, content),
+      );
+    }
+    return ZipEncoder().encodeBytes(normalizedArchive);
   }
 
   static Future<String?> _writeCoverImage({

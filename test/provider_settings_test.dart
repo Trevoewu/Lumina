@@ -101,6 +101,9 @@ void main() {
       await container
           .read(providerSelectionRepositoryProvider)
           .setSelectedVoice(FishAudioApiTtsProvider.idValue, 'fish-voice');
+      await container
+          .read(providerSelectionRepositoryProvider)
+          .setSelectedTtsModel(FishAudioApiTtsProvider.idValue, 's2-pro');
       await container.read(ttsSettingsControllerProvider.future);
 
       await container
@@ -116,6 +119,12 @@ void main() {
         await container
             .read(providerSelectionRepositoryProvider)
             .selectedVoice(FishAudioApiTtsProvider.idValue),
+        isNull,
+      );
+      expect(
+        await container
+            .read(providerSelectionRepositoryProvider)
+            .selectedTtsModel(FishAudioApiTtsProvider.idValue),
         isNull,
       );
       expect(

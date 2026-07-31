@@ -185,7 +185,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   title: context.tr('语音朗读', 'Voice Narration'),
                   provider:
                       state.providerName ?? context.tr('未选择服务', 'No provider'),
-                  selection: state.voiceName ?? context.tr('未选择音色', 'No voice'),
+                  selection:
+                      [
+                        state.modelName,
+                        state.voiceName,
+                      ].whereType<String>().join(' · ').isEmpty
+                      ? context.tr('尚未完成设置', 'Setup incomplete')
+                      : [
+                          state.modelName,
+                          state.voiceName,
+                        ].whereType<String>().join(' · '),
                   readiness: state.readiness,
                   onTap: () => _push(const TtsServiceScreen()),
                 ),

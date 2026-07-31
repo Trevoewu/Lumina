@@ -1,3 +1,7 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lumina/services/book_parser.dart';
 
@@ -20,6 +24,29 @@ void main() {
       '"We have to practice for the athletic meet on Friday-I know',
       'Another paragraph.',
     ]);
+  });
+
+  test('EPUB parser imports percent-encoded manifest paths', () async {
+    final tempDirectory = await Directory.systemTemp.createTemp(
+      'lumina_epub_path_test_',
+    );
+    addTearDown(() => tempDirectory.delete(recursive: true));
+    final sourceFile = File('${tempDirectory.path}/encoded-path.epub');
+    await sourceFile.writeAsBytes(_buildTestEpub());
+
+    final parsed = await BookParser.parse(
+      sourcePath: sourceFile.path,
+      appDir: tempDirectory.path,
+    );
+
+    expect(parsed.book.title, 'Encoded Path Test');
+    expect(parsed.chapters.map((chapter) => chapter.title), ['Chapter One']);
+    expect(
+      parsed.paragraphs.map((paragraph) => paragraph.text),
+      contains(
+        'The chapter file is present despite its encoded manifest path.',
+      ),
+    );
   });
 
   test('EPUB html parser filters CSS text when no block tags are usable', () {
@@ -264,4 +291,73 @@ void main() {
       isFalse,
     );
   });
+}
+
+List<int> _buildTestEpub() {
+  final archive = Archive()
+    ..add(
+      ArchiveFile.noCompress(
+        'mimetype',
+        'application/epub+zip'.length,
+        utf8.encode('application/epub+zip'),
+      ),
+    )
+    ..add(
+      ArchiveFile.string('META-INF/container.xml', '''<?xml version="1.0"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>'''),
+    )
+    ..add(
+      ArchiveFile.string(
+        'OEBPS/content.opf',
+        '''<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" unique-identifier="book-id" version="2.0">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="book-id">encoded-path-test</dc:identifier>
+    <dc:title>Encoded Path Test</dc:title>
+    <dc:creator>Test Author</dc:creator>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="Text/Chapter%20001.xhtml" media-type="application/xhtml+xml"/>
+    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+  </manifest>
+  <spine toc="ncx">
+    <itemref idref="chapter"/>
+  </spine>
+</package>''',
+      ),
+    )
+    ..add(
+      ArchiveFile.string(
+        'OEBPS/toc.ncx',
+        '''<?xml version="1.0" encoding="UTF-8"?>
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+  <head><meta name="dtb:uid" content="encoded-path-test"/></head>
+  <docTitle><text>Encoded Path Test</text></docTitle>
+  <navMap>
+    <navPoint id="chapter" playOrder="1">
+      <navLabel><text>Chapter One</text></navLabel>
+      <content src="Text/Chapter%20001.xhtml"/>
+    </navPoint>
+  </navMap>
+</ncx>''',
+      ),
+    )
+    ..add(
+      ArchiveFile.string(
+        'OEBPS/Text/Chapter 001.xhtml',
+        '''<html xmlns="http://www.w3.org/1999/xhtml">
+<head><title>Chapter One</title></head>
+<body>
+  <h1>Chapter One</h1>
+  <p>The chapter file is present despite its encoded manifest path.</p>
+</body>
+</html>''',
+      ),
+    );
+  return ZipEncoder().encodeBytes(archive);
 }

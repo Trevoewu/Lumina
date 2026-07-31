@@ -39,7 +39,11 @@ void main() {
     expect(find.text('Narrator Two'), findsOneWidget);
     expect(await database.getVoicesByProvider('fish_audio_api'), hasLength(2));
 
+    await tester.ensureVisible(find.text('Narrator Two'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Narrator Two'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('setup-next')));
     await tester.pumpAndSettle();
 
     expect(find.text('Voice selected'), findsOneWidget);

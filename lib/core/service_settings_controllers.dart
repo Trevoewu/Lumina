@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/database/app_database.dart' as drift_db;
 import '../data/dictionary/openai_compatible_explanation_provider.dart';
 import '../services/podcast_transcription_service.dart';
+import '../tts/models/tts_model.dart';
 import '../tts/models/tts_voice.dart';
 import '../tts/provider_registry.dart';
 import '../tts/providers/fish_audio_api_tts_provider.dart';
@@ -47,20 +48,26 @@ class ProviderOptionViewData {
 class TtsSettingsState {
   final String? providerId;
   final String? providerName;
+  final String? modelId;
+  final String? modelName;
   final String? voiceId;
   final String? voiceName;
   final ServiceReadiness readiness;
   final List<ProviderOptionViewData> providers;
+  final List<TtsModel> models;
   final List<TtsVoice> voices;
   final ServiceSettingsNotice? notice;
 
   const TtsSettingsState({
     required this.providerId,
     required this.providerName,
+    this.modelId,
+    this.modelName,
     required this.voiceId,
     required this.voiceName,
     required this.readiness,
     required this.providers,
+    this.models = const [],
     required this.voices,
     this.notice,
   }) : assert(
@@ -375,6 +382,10 @@ class TtsSettingsController extends AsyncNotifier<TtsSettingsState> {
     }
 
     final voices = await _voicesFor(provider.id);
+    final models = switch (provider) {
+      TtsModelCatalog catalog => await catalog.listModels(),
+      _ => const <TtsModel>[],
+    };
     final selections = ref.watch(providerSelectionRepositoryProvider);
     await selections.migrateLegacyTtsVoice(
       activeTtsProviderId: provider.id,
@@ -386,9 +397,13 @@ class TtsSettingsController extends AsyncNotifier<TtsSettingsState> {
     );
     final selectedId = await selections.selectedVoice(provider.id);
     final selectedVoice = _findVoice(voices, selectedId);
+    final selectedModelId = await selections.selectedTtsModel(provider.id);
+    final selectedModel = _findModel(models, selectedModelId);
     var readiness = ServiceReadiness.setupRequired;
     try {
-      if (selectedVoice != null && await provider.validate()) {
+      if (selectedModelId != null &&
+          selectedVoice != null &&
+          await provider.validate()) {
         readiness = ServiceReadiness.ready;
       }
     } catch (_) {
@@ -398,6 +413,8 @@ class TtsSettingsController extends AsyncNotifier<TtsSettingsState> {
     return TtsSettingsState(
       providerId: provider.id,
       providerName: provider.displayName,
+      modelId: selectedModelId,
+      modelName: selectedModel?.name ?? selectedModelId,
       voiceId: selectedVoice?.id,
       voiceName: selectedVoice?.name,
       readiness: readiness,
@@ -415,6 +432,7 @@ class TtsSettingsController extends AsyncNotifier<TtsSettingsState> {
             removable: true,
           ),
       ],
+      models: models,
       voices: voices,
       notice: _notice,
     );
@@ -448,6 +466,9 @@ class TtsSettingsController extends AsyncNotifier<TtsSettingsState> {
         throw UnsupportedError('Provider cannot be removed.');
     }
 
+    await ref
+        .read(providerSelectionRepositoryProvider)
+        .setSelectedTtsModel(providerId, null);
     await ref
         .read(providerSelectionRepositoryProvider)
         .setSelectedVoice(providerId, null);
@@ -486,6 +507,19 @@ class TtsSettingsController extends AsyncNotifier<TtsSettingsState> {
     ref.invalidateSelf();
   }
 
+  Future<void> selectModel(String modelId) async {
+    final current = state.requireValue;
+    final providerId = current.providerId;
+    if (providerId == null ||
+        !current.models.any((model) => model.id == modelId)) {
+      throw ArgumentError('Model does not belong to the active provider.');
+    }
+    await ref
+        .read(providerSelectionRepositoryProvider)
+        .setSelectedTtsModel(providerId, modelId);
+    ref.invalidateSelf();
+  }
+
   Future<bool> testProvider() async {
     final providerId = state.requireValue.providerId;
     if (providerId == null) return false;
@@ -520,6 +554,14 @@ class TtsSettingsController extends AsyncNotifier<TtsSettingsState> {
       if (voice.id == selectedId || voice.providerVoiceId == selectedId) {
         return voice;
       }
+    }
+    return null;
+  }
+
+  TtsModel? _findModel(List<TtsModel> models, String? selectedId) {
+    if (selectedId == null) return null;
+    for (final model in models) {
+      if (model.id == selectedId) return model;
     }
     return null;
   }

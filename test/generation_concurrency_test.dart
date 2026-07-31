@@ -12,6 +12,7 @@ import 'package:lumina/services/manifest_store.dart';
 import 'package:lumina/tts/models/tts_capabilities.dart';
 import 'package:lumina/tts/models/tts_chunk.dart';
 import 'package:lumina/tts/models/tts_voice.dart';
+import 'package:lumina/tts/providers/minimax_tts_provider.dart';
 import 'package:lumina/tts/tts_provider.dart';
 
 void main() {
@@ -355,6 +356,89 @@ void main() {
     );
     expect(provider.synthesisRequests, 0);
   });
+
+  test(
+    'quota exhaustion is not retried and stops the remaining chapter',
+    () async {
+      final temp = await Directory.systemTemp.createTemp('lumina_quota_stop_');
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      final store = _TestManifestStore(temp);
+      final provider = _QuotaExhaustedProvider();
+      const voice = TtsVoice(
+        id: 'voice',
+        name: 'Test voice',
+        providerId: 'parallel_test',
+        type: VoiceType.preset,
+        providerVoiceId: 'voice',
+        createdAt: 1,
+      );
+      addTearDown(() async {
+        await database.close();
+        if (await temp.exists()) await temp.delete(recursive: true);
+      });
+
+      await _insertBookFixture(database);
+      final orchestrator = GenerationOrchestrator(
+        database: database,
+        manifestStore: store,
+      );
+
+      await expectLater(
+        orchestrator
+            .generateChapter(
+              bookId: 'book',
+              chapterId: 'chapter',
+              provider: provider,
+              voice: voice,
+              maxRetries: 3,
+            )
+            .drain<void>(),
+        throwsA(
+          isA<MinimaxApiException>().having(
+            (error) => error.code,
+            'code',
+            2056,
+          ),
+        ),
+      );
+
+      expect(provider.synthesisRequests, 1);
+      expect(store.saved?.segments.first.state, ParagraphAudioState.failed);
+      expect(store.saved?.segments.first.error, contains('[2056]'));
+      expect(
+        store.saved?.segments.skip(1).map((segment) => segment.state),
+        everyElement(ParagraphAudioState.notGenerated),
+      );
+    },
+  );
+
+  test(
+    'MiniMax classifies account failures separately from content errors',
+    () {
+      const quota = MinimaxApiException(
+        code: 2056,
+        message: 'quota exhausted',
+        context: '语音合成',
+      );
+      const rateLimit = MinimaxApiException(
+        code: 1002,
+        message: 'rate limited',
+        context: '语音合成',
+      );
+      const sensitiveContent = MinimaxApiException(
+        code: 1026,
+        message: 'sensitive input',
+        context: '语音合成',
+      );
+
+      expect(quota.isRetryable, isFalse);
+      expect(quota.shouldStopGeneration, isTrue);
+      expect(rateLimit.isRetryable, isTrue);
+      expect(rateLimit.shouldStopGeneration, isFalse);
+      expect(sensitiveContent.isRetryable, isFalse);
+      expect(sensitiveContent.shouldStopGeneration, isFalse);
+    },
+  );
 }
 
 Future<void> _insertBookFixture(
@@ -458,6 +542,24 @@ class _ConcurrentTestProvider implements TtsProvider, TtsConcurrencyPolicy {
     required String description,
     required String name,
   }) => throw UnsupportedError('not used');
+}
+
+class _QuotaExhaustedProvider extends _ConcurrentTestProvider {
+  _QuotaExhaustedProvider() : super(concurrency: 1);
+
+  @override
+  Future<TtsChunk> synthesize({
+    required String text,
+    required TtsVoice voice,
+    double speed = 1,
+  }) async {
+    synthesisRequests++;
+    throw const MinimaxApiException(
+      code: 2056,
+      message: 'Token Plan quota exhausted',
+      context: '语音合成',
+    );
+  }
 }
 
 class _TestManifestStore extends ManifestStore {

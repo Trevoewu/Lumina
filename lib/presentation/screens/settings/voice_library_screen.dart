@@ -14,6 +14,7 @@ import '../../../tts/models/tts_capabilities.dart';
 import '../../../tts/models/tts_voice.dart';
 import '../../../tts/provider_registry.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
+import '../../widgets/design_system/settings_components.dart';
 
 class VoiceLibraryScreen extends ConsumerStatefulWidget {
   final bool guidedSelection;
@@ -34,6 +35,7 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
   bool _creatingVoice = false;
   bool _cloningVoice = false;
   String? _activeVoiceId;
+  String? _pendingVoiceId;
   String? _feedbackMessage;
   bool _feedbackIsError = false;
   late Future<List<drift_db.Voice>> _voicesFuture;
@@ -76,191 +78,249 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
           ? context.tr('选择朗读音色', 'Choose a Reading Voice')
           : context.tr('音色库', 'Voice Library'),
       showBackButton: true,
-      body: RefreshIndicator(
-        onRefresh: () async => setState(() {}),
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Card(
-              child: Padding(
+      body: Column(
+        children: [
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () async => setState(() {}),
+              child: ListView(
                 padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.record_voice_over_outlined),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            provider.displayName,
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                        ),
+                children: [
+                  if (widget.guidedSelection) ...[
+                    SetupProgressHeader(
+                      title: context.tr('语音设置进度', 'Voice setup progress'),
+                      steps: [
+                        'Provider',
+                        context.tr('密钥', 'Key'),
+                        context.tr('模型', 'Model'),
+                        'Voice',
                       ],
+                      currentStep: 3,
                     ),
-                    const SizedBox(height: 8),
-                    Text(_capabilityLine(provider.capabilities)),
-                    if (widget.guidedSelection) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        context.tr(
-                          '正在从云端同步可用音色。点击一个音色，将它设为有声书的朗读声音。',
-                          'Available voices are synced from the cloud. Tap one to use it for audiobook reading.',
-                        ),
-                      ),
-                    ],
                     const SizedBox(height: 12),
-                    FilledButton.icon(
-                      key: const ValueKey('sync-tts-voices'),
-                      onPressed: capabilities.presetVoices && !_loadingPreset
-                          ? () => _syncPresetVoices(provider.id)
-                          : null,
-                      icon: _loadingPreset
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Icon(Icons.cloud_sync_outlined),
-                      label: Text(
-                        _loadingPreset
-                            ? context.tr('正在同步音色', 'Syncing voices')
-                            : context.tr('同步云端音色', 'Sync cloud voices'),
+                    SettingsFeedbackBanner(
+                      message: context.tr(
+                        '可用音色会从 ${provider.displayName} 云端同步。点击一个音色完成设置。',
+                        'Available voices are synced from the cloud through ${provider.displayName}. Tap one to finish setup.',
                       ),
                     ),
                   ],
+                  if (!widget.guidedSelection)
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.record_voice_over_outlined),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    provider.displayName,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleMedium,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(_capabilityLine(provider.capabilities)),
+                            if (widget.guidedSelection) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                context.tr(
+                                  '正在从云端同步可用音色。点击一个音色，将它设为有声书的朗读声音。',
+                                  'Available voices are synced from the cloud. Tap one to use it for audiobook reading.',
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 12),
+                            FilledButton.icon(
+                              key: const ValueKey('sync-tts-voices'),
+                              onPressed:
+                                  capabilities.presetVoices && !_loadingPreset
+                                  ? () => _syncPresetVoices(provider.id)
+                                  : null,
+                              icon: _loadingPreset
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : Icon(Icons.cloud_sync_outlined),
+                              label: Text(
+                                _loadingPreset
+                                    ? context.tr('正在同步音色', 'Syncing voices')
+                                    : context.tr('同步云端音色', 'Sync cloud voices'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  if (_feedbackMessage != null) ...[
+                    const SizedBox(height: 12),
+                    _VoiceFeedbackBanner(
+                      message: _feedbackMessage!,
+                      isError: _feedbackIsError,
+                      onDismiss: () => setState(() => _feedbackMessage = null),
+                    ),
+                  ],
+                  if (widget.guidedSelection) ..._buildVoiceListSection(),
+                  if (!widget.guidedSelection && capabilities.voiceCloning) ...[
+                    const SizedBox(height: 12),
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              context.tr('克隆音色', 'Clone Voice'),
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: _cloneNameController,
+                              decoration: InputDecoration(
+                                border: const OutlineInputBorder(),
+                                labelText: context.tr('音色名称', 'Voice name'),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: _cloneTextController,
+                              minLines: 2,
+                              maxLines: 4,
+                              decoration: InputDecoration(
+                                border: const OutlineInputBorder(),
+                                labelText: context.tr(
+                                  '参考文本',
+                                  'Reference transcript',
+                                ),
+                                hintText: context.tr(
+                                  '尽量填写样本音频中实际说出的文字，可显著稳定音色',
+                                  'Enter the words spoken in the sample for a more stable voice.',
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: FilledButton.icon(
+                                onPressed: _cloningVoice ? null : _cloneVoice,
+                                icon: _cloningVoice
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : Icon(Icons.upload_file_outlined),
+                                label: Text(
+                                  context.tr(
+                                    '选择音频并保存',
+                                    'Choose Audio and Save',
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (!widget.guidedSelection &&
+                      capabilities.voiceDescription) ...[
+                    const SizedBox(height: 12),
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              context.tr('描述生成音色', 'Design a Voice'),
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: _nameController,
+                              decoration: InputDecoration(
+                                border: const OutlineInputBorder(),
+                                labelText: context.tr('音色名称', 'Voice name'),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: _descriptionController,
+                              minLines: 3,
+                              maxLines: 5,
+                              maxLength: capabilities.maxDescriptionLength,
+                              decoration: InputDecoration(
+                                border: const OutlineInputBorder(),
+                                labelText: context.tr(
+                                  '音色描述',
+                                  'Voice description',
+                                ),
+                                hintText: context.tr(
+                                  '例如：温暖、自然、适合睡前听书的女声',
+                                  'For example: a warm, natural female voice for bedtime listening',
+                                ),
+                              ),
+                            ),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: FilledButton.icon(
+                                onPressed: _creatingVoice
+                                    ? null
+                                    : _createVoiceFromDescription,
+                                icon: _creatingVoice
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : Icon(Icons.auto_awesome),
+                                label: Text(
+                                  context.tr('生成并保存', 'Generate and Save'),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (!widget.guidedSelection) ..._buildVoiceListSection(),
+                ],
+              ),
+            ),
+          ),
+          if (widget.guidedSelection)
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: SetupNavigationBar(
+                  previousLabel: context.tr('上一步', 'Previous'),
+                  nextLabel: context.tr('完成', 'Finish'),
+                  onPrevious: () => Navigator.of(context).pop(false),
+                  onNext: _pendingVoiceId == null && _activeVoiceId == null
+                      ? null
+                      : _confirmGuidedVoice,
                 ),
               ),
             ),
-            if (_feedbackMessage != null) ...[
-              const SizedBox(height: 12),
-              _VoiceFeedbackBanner(
-                message: _feedbackMessage!,
-                isError: _feedbackIsError,
-                onDismiss: () => setState(() => _feedbackMessage = null),
-              ),
-            ],
-            if (widget.guidedSelection) ..._buildVoiceListSection(),
-            if (!widget.guidedSelection && capabilities.voiceCloning) ...[
-              const SizedBox(height: 12),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        context.tr('克隆音色', 'Clone Voice'),
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _cloneNameController,
-                        decoration: InputDecoration(
-                          border: const OutlineInputBorder(),
-                          labelText: context.tr('音色名称', 'Voice name'),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _cloneTextController,
-                        minLines: 2,
-                        maxLines: 4,
-                        decoration: InputDecoration(
-                          border: const OutlineInputBorder(),
-                          labelText: context.tr('参考文本', 'Reference transcript'),
-                          hintText: context.tr(
-                            '尽量填写样本音频中实际说出的文字，可显著稳定音色',
-                            'Enter the words spoken in the sample for a more stable voice.',
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: FilledButton.icon(
-                          onPressed: _cloningVoice ? null : _cloneVoice,
-                          icon: _cloningVoice
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : Icon(Icons.upload_file_outlined),
-                          label: Text(
-                            context.tr('选择音频并保存', 'Choose Audio and Save'),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-            if (!widget.guidedSelection && capabilities.voiceDescription) ...[
-              const SizedBox(height: 12),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        context.tr('描述生成音色', 'Design a Voice'),
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _nameController,
-                        decoration: InputDecoration(
-                          border: const OutlineInputBorder(),
-                          labelText: context.tr('音色名称', 'Voice name'),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _descriptionController,
-                        minLines: 3,
-                        maxLines: 5,
-                        maxLength: capabilities.maxDescriptionLength,
-                        decoration: InputDecoration(
-                          border: const OutlineInputBorder(),
-                          labelText: context.tr('音色描述', 'Voice description'),
-                          hintText: context.tr(
-                            '例如：温暖、自然、适合睡前听书的女声',
-                            'For example: a warm, natural female voice for bedtime listening',
-                          ),
-                        ),
-                      ),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: FilledButton.icon(
-                          onPressed: _creatingVoice
-                              ? null
-                              : _createVoiceFromDescription,
-                          icon: _creatingVoice
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : Icon(Icons.auto_awesome),
-                          label: Text(context.tr('生成并保存', 'Generate and Save')),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-            if (!widget.guidedSelection) ..._buildVoiceListSection(),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -317,13 +377,13 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                   key: ValueKey('voice-option-${voice.id}'),
                   leading: Icon(
                     _iconForType(voice.type),
-                    color: voice.id == _activeVoiceId
+                    color: voice.id == _displayedVoiceId
                         ? Theme.of(context).colorScheme.primary
                         : context.appTextSecondary,
                   ),
                   title: Text(voice.name),
                   subtitle: Text(
-                    voice.id == _activeVoiceId
+                    voice.id == _displayedVoiceId
                         ? '${context.tr('当前音色', 'Current voice')} · ${voice.type} · ${voice.providerVoiceId}'
                         : '${voice.type} · ${voice.providerVoiceId}',
                     maxLines: 2,
@@ -332,7 +392,7 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (voice.id == _activeVoiceId)
+                      if (voice.id == _displayedVoiceId)
                         Tooltip(
                           message: context.tr('当前音色', 'Current voice'),
                           child: Icon(
@@ -523,6 +583,10 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
   }
 
   Future<void> _setActiveVoice(String voiceId) async {
+    if (widget.guidedSelection) {
+      setState(() => _pendingVoiceId = voiceId);
+      return;
+    }
     final providerId = ref.read(activeTtsProviderProvider).id;
     await ref
         .read(providerSelectionRepositoryProvider)
@@ -530,11 +594,22 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
     ref.invalidate(ttsSettingsControllerProvider);
     if (!mounted) return;
     setState(() => _activeVoiceId = voiceId);
-    if (widget.guidedSelection) {
-      Navigator.of(context).pop(true);
-      return;
-    }
     _showFeedback(context.tr('已设为当前音色', 'Set as current voice'));
+  }
+
+  String? get _displayedVoiceId => widget.guidedSelection
+      ? _pendingVoiceId ?? _activeVoiceId
+      : _activeVoiceId;
+
+  Future<void> _confirmGuidedVoice() async {
+    final voiceId = _pendingVoiceId ?? _activeVoiceId;
+    if (voiceId == null) return;
+    final providerId = ref.read(activeTtsProviderProvider).id;
+    await ref
+        .read(providerSelectionRepositoryProvider)
+        .setSelectedVoice(providerId, voiceId);
+    ref.invalidate(ttsSettingsControllerProvider);
+    if (mounted) Navigator.of(context).pop(true);
   }
 
   Future<void> _loadActiveVoice() async {
@@ -543,7 +618,10 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
         .read(providerSelectionRepositoryProvider)
         .selectedVoice(providerId);
     if (!mounted) return;
-    setState(() => _activeVoiceId = voiceId);
+    setState(() {
+      _activeVoiceId = voiceId;
+      _pendingVoiceId = voiceId;
+    });
   }
 
   Future<void> _deleteVoice(String voiceId) async {

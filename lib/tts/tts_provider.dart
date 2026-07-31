@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'models/tts_capabilities.dart';
 import 'models/tts_chunk.dart';
+import 'models/tts_model.dart';
 import 'models/tts_voice.dart';
 
 /// TTS Provider 抽象层。
@@ -60,4 +61,21 @@ abstract class TtsProvider {
 /// Optional policy implemented by providers that support parallel synthesis.
 abstract interface class TtsConcurrencyPolicy {
   Future<int> get generationConcurrency;
+}
+
+abstract interface class TtsModelCatalog {
+  TtsModelCatalogSource get modelCatalogSource;
+
+  Future<List<TtsModel>> listModels({bool refresh = false});
+}
+
+/// A provider error with an explicit retry and job-stopping policy.
+///
+/// Transient failures may be retried for the current request. Account,
+/// credential, quota, model, and voice failures should stop the surrounding
+/// generation job so the same request is not repeated for every paragraph.
+abstract interface class TtsProviderException implements Exception {
+  bool get isRetryable;
+
+  bool get shouldStopGeneration;
 }

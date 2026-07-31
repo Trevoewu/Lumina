@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -6,21 +7,33 @@ import '../../../core/app_design_tokens.dart';
 import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
 import '../../../core/service_settings_controllers.dart';
+import '../../../tts/models/tts_model.dart';
 import '../../../tts/provider_registry.dart';
 import '../../../tts/providers/fish_audio_api_tts_provider.dart';
 import '../../../tts/providers/minimax_tts_provider.dart';
+import '../../../tts/tts_provider.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
 import '../../widgets/design_system/app_section_header.dart';
+import '../../widgets/design_system/provider_brand_icon.dart';
 import '../../widgets/design_system/settings_components.dart';
+import 'tts_setup_wizard_screen.dart';
 import 'voice_library_screen.dart';
 
-class TtsServiceScreen extends ConsumerWidget {
+class TtsServiceScreen extends ConsumerStatefulWidget {
   final bool returnWhenReady;
 
   const TtsServiceScreen({super.key, this.returnWhenReady = false});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TtsServiceScreen> createState() => _TtsServiceScreenState();
+}
+
+class _TtsServiceScreenState extends ConsumerState<TtsServiceScreen> {
+  bool _setupAutoStarted = false;
+  bool _setupFlowOpen = false;
+
+  @override
+  Widget build(BuildContext context) {
     final design = context.appDesign;
     final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
     final state = ref.watch(ttsSettingsControllerProvider);
@@ -40,35 +53,51 @@ class TtsServiceScreen extends ConsumerWidget {
           final providerConfigured =
               data.providerId != null &&
               providerConfiguration.asData?.value[data.providerId] == true;
+          if (data.readiness != ServiceReadiness.ready) {
+            final providerReadyForSetup =
+                providerConfigured && data.readiness != ServiceReadiness.error;
+            if (!providerConfiguration.isLoading && !_setupAutoStarted) {
+              _setupAutoStarted = true;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) _resumeSetup(data, providerReadyForSetup);
+              });
+            }
+            return _buildSetupLanding(
+              context,
+              data,
+              providerConfigured: providerReadyForSetup,
+              inset: inset,
+            );
+          }
           return ListView(
-            padding: EdgeInsets.fromLTRB(inset, design.spaceSm, inset, 120),
+            padding: EdgeInsets.fromLTRB(
+              inset,
+              design.spaceSm,
+              inset,
+              design.spaceXl,
+            ),
             children: [
               ServiceStatusCard(
                 icon: Icons.record_voice_over_outlined,
                 title: context.tr('当前语音服务', 'Current voice service'),
                 provider:
                     data.providerName ?? context.tr('未选择服务', 'No provider'),
-                selection: data.voiceName ?? context.tr('未选择音色', 'No voice'),
+                selection:
+                    [
+                      data.modelName,
+                      data.voiceName,
+                    ].whereType<String>().join(' · ').isEmpty
+                    ? context.tr('尚未完成设置', 'Setup incomplete')
+                    : [
+                        data.modelName,
+                        data.voiceName,
+                      ].whereType<String>().join(' · '),
                 readiness: data.readiness,
                 onTap: () {},
               ),
               if (data.notice != null) ...[
                 SizedBox(height: design.spaceMd),
                 SettingsFeedbackBanner(message: data.notice!.message),
-              ],
-              if (data.readiness != ServiceReadiness.ready) ...[
-                SizedBox(height: design.spaceMd),
-                SettingsFeedbackBanner(
-                  message: providerConfigured && data.voiceId == null
-                      ? context.tr(
-                          '语音服务已连接。下一步同步并选择朗读音色。',
-                          'The voice provider is connected. Next, sync and choose a reading voice.',
-                        )
-                      : context.tr(
-                          '添加并连接云端语音服务，再选择朗读音色，即可生成有声书。',
-                          'Connect a cloud voice provider, then choose a reading voice to generate audiobook audio.',
-                        ),
-                ),
               ],
               AppSectionHeader(title: context.tr('配置', 'Configuration')),
               SettingsGroup(
@@ -78,22 +107,53 @@ class TtsServiceScreen extends ConsumerWidget {
                     title: context.tr('语音服务', 'Provider'),
                     value:
                         data.providerName ?? context.tr('未选择', 'Not selected'),
-                    onTap: () => _openProviders(context, ref),
+                    onTap: () => _openProviders(
+                      context,
+                      ref,
+                      guidedSetup: data.readiness != ServiceReadiness.ready,
+                    ),
+                  ),
+                  SettingValueRow(
+                    icon: Icons.model_training_outlined,
+                    title: context.tr('语音模型', 'Voice model'),
+                    subtitle: data.modelId == null
+                        ? context.tr(
+                            '同步供应商支持的模型并选择',
+                            'Sync supported provider models and choose one',
+                          )
+                        : context.tr(
+                            '更换生成语音使用的模型',
+                            'Change the model used to generate speech',
+                          ),
+                    value: data.modelName ?? context.tr('未选择', 'Not selected'),
+                    onTap: !providerConfigured
+                        ? null
+                        : () => _openModels(
+                            context,
+                            ref,
+                            data.providerId!,
+                            guidedSelection: data.modelId == null,
+                          ),
                   ),
                   SettingValueRow(
                     icon: Icons.voice_chat_outlined,
                     title: context.tr('朗读音色', 'Reading voice'),
                     subtitle: data.voiceId == null
-                        ? context.tr(
-                            '自动同步云端音色并选择',
-                            'Sync cloud voices and choose one',
-                          )
+                        ? data.modelId == null
+                              ? context.tr(
+                                  '请先选择语音模型',
+                                  'Choose a voice model first',
+                                )
+                              : context.tr(
+                                  '自动同步云端音色并选择',
+                                  'Sync cloud voices and choose one',
+                                )
                         : context.tr(
                             '更换有声书的朗读声音',
                             'Change the audiobook reading voice',
                           ),
                     value: data.voiceName ?? context.tr('未选择', 'Not selected'),
-                    onTap: !providerConfigured
+                    onTap: !providerConfigured || data.modelId == null
                         ? null
                         : () => _openVoices(
                             context,
@@ -125,12 +185,103 @@ class TtsServiceScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _openVoices(
+  Widget _buildSetupLanding(
+    BuildContext context,
+    TtsSettingsState data, {
+    required bool providerConfigured,
+    required double inset,
+  }) {
+    final design = context.appDesign;
+    final currentStep = !providerConfigured
+        ? 0
+        : data.modelId == null
+        ? 2
+        : 3;
+    final (icon, title, description) = switch (currentStep) {
+      0 => (
+        Icons.hub_outlined,
+        context.tr('选择语音服务', 'Choose a voice provider'),
+        context.tr(
+          '选择云端 Provider，获取并设置 API Key。连接成功后会自动继续选择模型和音色。',
+          'Choose a cloud provider, get and set its API key. After connecting, setup continues to model and voice selection.',
+        ),
+      ),
+      2 => (
+        Icons.model_training_outlined,
+        context.tr('选择语音模型', 'Choose a voice model'),
+        context.tr(
+          '${data.providerName ?? 'Provider'} 已连接。同步官方模型列表并选择一个模型。',
+          '${data.providerName ?? 'Provider'} is connected. Sync its model catalog and choose a model.',
+        ),
+      ),
+      _ => (
+        Icons.voice_chat_outlined,
+        context.tr('选择朗读音色', 'Choose a reading voice'),
+        context.tr(
+          '最后一步：同步云端音色，并选择有声书的默认朗读声音。',
+          'Last step: sync cloud voices and choose the default audiobook reading voice.',
+        ),
+      ),
+    };
+    return ListView(
+      padding: EdgeInsets.fromLTRB(inset, design.spaceSm, inset, 120),
+      children: [
+        SetupProgressHeader(
+          title: context.tr('语音设置进度', 'Voice setup progress'),
+          steps: [
+            'Provider',
+            context.tr('密钥', 'Key'),
+            context.tr('模型', 'Model'),
+            'Voice',
+          ],
+          currentStep: currentStep,
+        ),
+        SizedBox(height: design.spaceMd),
+        if (data.notice != null) ...[
+          SettingsFeedbackBanner(message: data.notice!.message),
+          SizedBox(height: design.spaceMd),
+        ],
+        SetupActionCard(
+          icon: icon,
+          title: title,
+          description: description,
+          actionLabel: context.tr('继续设置', 'Continue setup'),
+          actionKey: const ValueKey('continue-tts-setup'),
+          onPressed: () => _resumeSetup(data, providerConfigured),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _resumeSetup(
+    TtsSettingsState data,
+    bool providerConfigured,
+  ) async {
+    if (_setupFlowOpen || !mounted) return;
+    _setupFlowOpen = true;
+    try {
+      final selected = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(builder: (_) => const TtsSetupWizardScreen()),
+      );
+      if (selected != true || !mounted) return;
+      ref.invalidate(ttsSettingsControllerProvider);
+      final refreshed = await ref.read(ttsSettingsControllerProvider.future);
+      if (mounted &&
+          widget.returnWhenReady &&
+          refreshed.readiness == ServiceReadiness.ready) {
+        Navigator.of(context).pop(true);
+      }
+    } finally {
+      _setupFlowOpen = false;
+    }
+  }
+
+  Future<bool?> _openVoices(
     BuildContext context,
     WidgetRef ref, {
     required bool guidedSelection,
   }) async {
-    await Navigator.of(context).push<bool>(
+    final selected = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => VoiceLibraryScreen(
           guidedSelection: guidedSelection,
@@ -139,14 +290,40 @@ class TtsServiceScreen extends ConsumerWidget {
       ),
     );
     ref.invalidate(ttsSettingsControllerProvider);
+    return selected;
   }
 
-  Future<void> _openProviders(BuildContext context, WidgetRef ref) async {
-    final connected = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => const TtsProviderPickerScreen()),
+  Future<bool?> _openModels(
+    BuildContext context,
+    WidgetRef ref,
+    String providerId, {
+    required bool guidedSelection,
+  }) async {
+    final selected = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => TtsModelPickerScreen(
+          providerId: providerId,
+          guidedSelection: guidedSelection,
+          syncOnOpen: true,
+        ),
+      ),
     );
     ref.invalidate(ttsSettingsControllerProvider);
-    if (connected == true && returnWhenReady && context.mounted) {
+    return selected;
+  }
+
+  Future<void> _openProviders(
+    BuildContext context,
+    WidgetRef ref, {
+    required bool guidedSetup,
+  }) async {
+    final connected = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => TtsProviderPickerScreen(guidedSetup: guidedSetup),
+      ),
+    );
+    ref.invalidate(ttsSettingsControllerProvider);
+    if (connected == true && widget.returnWhenReady && context.mounted) {
       Navigator.of(context).pop(true);
     }
   }
@@ -164,14 +341,238 @@ class TtsServiceScreen extends ConsumerWidget {
       ),
     );
     ref.invalidate(ttsSettingsControllerProvider);
-    if (connected == true && returnWhenReady && context.mounted) {
+    if (connected == true && widget.returnWhenReady && context.mounted) {
       Navigator.of(context).pop(true);
     }
   }
 }
 
+class TtsModelPickerScreen extends ConsumerStatefulWidget {
+  final String providerId;
+  final bool guidedSelection;
+  final bool syncOnOpen;
+
+  const TtsModelPickerScreen({
+    super.key,
+    required this.providerId,
+    this.guidedSelection = false,
+    this.syncOnOpen = false,
+  });
+
+  @override
+  ConsumerState<TtsModelPickerScreen> createState() =>
+      _TtsModelPickerScreenState();
+}
+
+class _TtsModelPickerScreenState extends ConsumerState<TtsModelPickerScreen> {
+  late Future<List<TtsModel>> _models;
+  String? _selectedId;
+
+  @override
+  void initState() {
+    super.initState();
+    _models = _loadModels(refresh: widget.syncOnOpen);
+  }
+
+  Future<List<TtsModel>> _loadModels({required bool refresh}) async {
+    _selectedId = await ref
+        .read(providerSelectionRepositoryProvider)
+        .selectedTtsModel(widget.providerId);
+    final provider = ref.read(providerRegistryProvider).get(widget.providerId);
+    if (provider case final TtsModelCatalog catalog) {
+      return catalog.listModels(refresh: refresh);
+    }
+    return const [];
+  }
+
+  void _refresh() {
+    setState(() => _models = _loadModels(refresh: true));
+  }
+
+  Future<void> _select(TtsModel model) async {
+    if (widget.guidedSelection) {
+      setState(() => _selectedId = model.id);
+      return;
+    }
+    await ref
+        .read(providerSelectionRepositoryProvider)
+        .setSelectedTtsModel(widget.providerId, model.id);
+    ref.invalidate(ttsSettingsControllerProvider);
+    if (!mounted) return;
+    setState(() => _selectedId = model.id);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          context.tr('已选择 ${model.name}', '${model.name} selected'),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmGuidedSelection() async {
+    final modelId = _selectedId;
+    if (modelId == null) return;
+    await ref
+        .read(providerSelectionRepositoryProvider)
+        .setSelectedTtsModel(widget.providerId, modelId);
+    ref.invalidate(ttsSettingsControllerProvider);
+    if (mounted) Navigator.of(context).pop(true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = ref.watch(providerRegistryProvider).get(widget.providerId);
+    final design = context.appDesign;
+    final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
+    return CollapsingPageScaffold(
+      title: context.tr('选择语音模型', 'Choose Voice Model'),
+      showBackButton: true,
+      actions: [
+        IconButton(
+          key: const ValueKey('sync-tts-models'),
+          tooltip: context.tr('同步模型', 'Sync models'),
+          onPressed: _refresh,
+          icon: const Icon(Icons.sync),
+        ),
+      ],
+      body: FutureBuilder<List<TtsModel>>(
+        future: _models,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return SettingsErrorState(
+              error: snapshot.error!,
+              onRetry: _refresh,
+            );
+          }
+          final models = snapshot.data ?? const <TtsModel>[];
+          if (models.isEmpty) {
+            return SettingsEmptyState(
+              icon: Icons.model_training_outlined,
+              message: context.tr(
+                '没有找到可用的语音模型',
+                'No voice models are available',
+              ),
+              actionLabel: context.tr('重新同步', 'Sync again'),
+              onAction: _refresh,
+            );
+          }
+          final catalogSource = switch (provider) {
+            TtsModelCatalog catalog => catalog.modelCatalogSource,
+            _ => TtsModelCatalogSource.bundledFallback,
+          };
+          final catalogMessage = switch (catalogSource) {
+            TtsModelCatalogSource.officialApi => context.tr(
+              '已从 ${provider?.displayName ?? 'Provider'} 官方接口同步可用模型。'
+                  '模型选择会按语音服务分别保存。',
+              'Available models were synced from the official ${provider?.displayName ?? 'provider'} API. '
+                  'The selection is saved separately for each voice provider.',
+            ),
+            TtsModelCatalogSource.cachedAfterSyncFailure => context.tr(
+              '本次同步失败，当前显示上次成功同步的模型。请检查网络后重试。',
+              'Sync failed, so the last successfully loaded models are shown. Check your connection and try again.',
+            ),
+            TtsModelCatalogSource.bundledFallback => context.tr(
+              '供应商接口未返回可用的 TTS 模型，当前显示 App 内置的官方模型目录。'
+                  '模型更新后可点右上角重新同步。',
+              'The provider API did not return usable TTS models, so the official catalog bundled with the app is shown. '
+                  'Use Sync after the provider updates its models.',
+            ),
+          };
+          final modelList = ListView(
+            padding: EdgeInsets.fromLTRB(inset, design.spaceSm, inset, 0),
+            children: [
+              if (widget.guidedSelection) ...[
+                SetupProgressHeader(
+                  title: context.tr('语音设置进度', 'Voice setup progress'),
+                  steps: [
+                    'Provider',
+                    context.tr('密钥', 'Key'),
+                    context.tr('模型', 'Model'),
+                    'Voice',
+                  ],
+                  currentStep: 2,
+                ),
+                SizedBox(height: design.spaceMd),
+              ],
+              SettingsFeedbackBanner(message: catalogMessage),
+              AppSectionHeader(title: context.tr('可用模型', 'Available models')),
+              SettingsGroup(
+                children: [
+                  for (final model in models)
+                    ListTile(
+                      key: ValueKey('tts-model-${model.id}'),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: design.spaceLg,
+                        vertical: design.spaceXs,
+                      ),
+                      title: Row(
+                        children: [
+                          Expanded(child: Text(model.name)),
+                          if (model.recommended)
+                            Text(
+                              context.tr('推荐', 'Recommended'),
+                              style: Theme.of(context).textTheme.labelMedium
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                  ),
+                            ),
+                        ],
+                      ),
+                      subtitle: Text('${model.id}\n${model.description}'),
+                      isThreeLine: true,
+                      trailing: _selectedId == model.id
+                          ? Icon(
+                              Icons.check_circle,
+                              color: Theme.of(context).colorScheme.primary,
+                            )
+                          : const Icon(Icons.chevron_right),
+                      onTap: () => _select(model),
+                    ),
+                ],
+              ),
+              SizedBox(height: design.spaceXl),
+            ],
+          );
+          if (!widget.guidedSelection) return modelList;
+          return Column(
+            children: [
+              Expanded(child: modelList),
+              SafeArea(
+                top: false,
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    inset,
+                    design.spaceSm,
+                    inset,
+                    design.spaceMd,
+                  ),
+                  child: SetupNavigationBar(
+                    previousLabel: context.tr('上一步', 'Previous'),
+                    nextLabel: context.tr('下一步', 'Next'),
+                    onPrevious: () => Navigator.of(context).pop(false),
+                    onNext: _selectedId == null
+                        ? null
+                        : _confirmGuidedSelection,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
 class TtsProviderPickerScreen extends ConsumerStatefulWidget {
-  const TtsProviderPickerScreen({super.key});
+  final bool guidedSetup;
+
+  const TtsProviderPickerScreen({super.key, this.guidedSetup = false});
 
   @override
   ConsumerState<TtsProviderPickerScreen> createState() =>
@@ -182,6 +583,8 @@ class _TtsProviderPickerScreenState
     extends ConsumerState<TtsProviderPickerScreen> {
   String? _switchingProviderId;
   String? _feedback;
+  String? _selectedProviderId;
+  bool _addingInline = false;
 
   @override
   Widget build(BuildContext context) {
@@ -205,7 +608,9 @@ class _TtsProviderPickerScreenState
         IconButton(
           key: const ValueKey('add-tts-provider'),
           tooltip: context.tr('添加语音服务', 'Add voice provider'),
-          onPressed: checkingConfiguration ? null : _addProvider,
+          onPressed: checkingConfiguration
+              ? null
+              : () => setState(() => _addingInline = true),
           icon: const Icon(Icons.add),
         ),
       ],
@@ -228,12 +633,18 @@ class _TtsProviderPickerScreenState
                     !provider.active && configuredById[provider.id] == true,
               )
               .toList();
+          if (widget.guidedSetup || _addingInline) {
+            return _buildProviderChoice(
+              configuredById: configuredById,
+              inset: inset,
+            );
+          }
           if (!checkingConfiguration && current.isEmpty && available.isEmpty) {
             return SettingsEmptyState(
               icon: Icons.cloud_outlined,
               message: context.tr('尚未添加云端语音服务', 'No cloud voice providers yet'),
               actionLabel: context.tr('添加服务', 'Add provider'),
-              onAction: _addProvider,
+              onAction: () => setState(() => _addingInline = true),
             );
           }
           return ListView(
@@ -306,56 +717,135 @@ class _TtsProviderPickerScreenState
     );
   }
 
-  Future<void> _addProvider() async {
-    final providerId = await showModalBottomSheet<String>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.graphic_eq_rounded),
-              title: const Text('Fish Audio'),
-              subtitle: Text(
-                context.tr(
-                  '自然语音、声音克隆与流式合成',
-                  'Natural voices, voice cloning, and streaming synthesis',
-                ),
-              ),
-              onTap: () => Navigator.of(
-                sheetContext,
-              ).pop(FishAudioApiTtsProvider.idValue),
-            ),
-            ListTile(
-              leading: const Icon(Icons.record_voice_over_outlined),
-              title: const Text('MiniMax'),
-              subtitle: Text(
-                context.tr(
-                  '高质量语音、声音克隆与声音设计',
-                  'High-quality speech, cloning, and voice design',
-                ),
-              ),
-              onTap: () =>
-                  Navigator.of(sheetContext).pop(MinimaxTtsProvider.idValue),
-            ),
-          ],
+  Widget _buildProviderChoice({
+    required Map<String, bool> configuredById,
+    required double inset,
+  }) {
+    final design = context.appDesign;
+    final choices = [
+      (
+        FishAudioApiTtsProvider.idValue,
+        'Fish Audio',
+        Icons.graphic_eq_rounded,
+        context.tr(
+          '自然语音、声音克隆与流式合成',
+          'Natural voices, voice cloning, and streaming synthesis',
         ),
       ),
+      (
+        MinimaxTtsProvider.idValue,
+        'MiniMax',
+        Icons.record_voice_over_outlined,
+        context.tr(
+          '高质量语音、声音克隆与声音设计',
+          'High-quality speech, cloning, and voice design',
+        ),
+      ),
+    ];
+    return Column(
+      children: [
+        Expanded(
+          child: ListView(
+            padding: EdgeInsets.fromLTRB(
+              inset,
+              design.spaceMd,
+              inset,
+              design.spaceXl,
+            ),
+            children: [
+              if (widget.guidedSetup) ...[
+                SetupProgressHeader(
+                  title: context.tr('语音设置进度', 'Voice setup progress'),
+                  steps: [
+                    'Provider',
+                    context.tr('密钥', 'Key'),
+                    context.tr('模型', 'Model'),
+                    'Voice',
+                  ],
+                  currentStep: 0,
+                ),
+                SizedBox(height: design.spaceMd),
+              ],
+              AppSectionHeader(
+                title: context.tr('选择语音服务', 'Choose a voice provider'),
+              ),
+              SettingsGroup(
+                children: [
+                  for (final choice in choices)
+                    ListTile(
+                      key: ValueKey('choose-tts-provider-${choice.$1}'),
+                      leading: ProviderBrandIcon(
+                        brand: providerBrandForTtsId(choice.$1)!,
+                        selected: _selectedProviderId == choice.$1,
+                      ),
+                      title: Text(choice.$2),
+                      subtitle: Text(
+                        configuredById[choice.$1] == true
+                            ? context.tr('已连接', 'Connected')
+                            : choice.$4,
+                      ),
+                      trailing: Icon(
+                        _selectedProviderId == choice.$1
+                            ? Icons.radio_button_checked
+                            : Icons.radio_button_off,
+                      ),
+                      selected: _selectedProviderId == choice.$1,
+                      onTap: () =>
+                          setState(() => _selectedProviderId = choice.$1),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        SafeArea(
+          top: false,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              inset,
+              design.spaceSm,
+              inset,
+              design.spaceMd,
+            ),
+            child: SetupNavigationBar(
+              previousLabel: context.tr('上一步', 'Previous'),
+              nextLabel: context.tr('下一步', 'Next'),
+              onPrevious: () {
+                if (widget.guidedSetup) {
+                  Navigator.of(context).maybePop();
+                } else {
+                  setState(() {
+                    _addingInline = false;
+                    _selectedProviderId = null;
+                  });
+                }
+              },
+              onNext: _selectedProviderId == null
+                  ? null
+                  : () => _continueProviderChoice(
+                      _selectedProviderId!,
+                      configured: configuredById[_selectedProviderId] == true,
+                    ),
+            ),
+          ),
+        ),
+      ],
     );
-    if (providerId == null || !mounted) return;
-    final configuration = await ref.read(
-      ttsProviderConfigurationStatusProvider.future,
-    );
-    final configured = configuration[providerId] == true;
+  }
+
+  Future<void> _continueProviderChoice(
+    String providerId, {
+    required bool configured,
+  }) async {
+    if (configured) {
+      await _useProvider(providerId);
+      return;
+    }
     if (!mounted) return;
     final connected = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => TtsProviderDetailsScreen(
-          providerId: providerId,
-          adding: !configured,
-        ),
+        builder: (_) =>
+            TtsProviderDetailsScreen(providerId: providerId, adding: true),
       ),
     );
     ref.invalidate(ttsProviderConfigurationStatusProvider);
@@ -384,9 +874,31 @@ class _TtsProviderPickerScreenState
       await ref
           .read(ttsSettingsControllerProvider.notifier)
           .selectProvider(providerId);
-      final selectedVoiceId = await ref
-          .read(providerSelectionRepositoryProvider)
-          .selectedVoice(providerId);
+      final selections = ref.read(providerSelectionRepositoryProvider);
+      final selectedModelId = await selections.selectedTtsModel(providerId);
+      if (selectedModelId == null && mounted) {
+        final selected = await Navigator.of(context).push<bool>(
+          MaterialPageRoute(
+            builder: (_) => TtsModelPickerScreen(
+              providerId: providerId,
+              guidedSelection: true,
+              syncOnOpen: true,
+            ),
+          ),
+        );
+        if (selected != true) {
+          if (!mounted) return;
+          setState(() {
+            _switchingProviderId = null;
+            _feedback = context.tr(
+              '语音服务已连接，请选择一个语音模型以继续设置。',
+              'The provider is connected. Choose a voice model to continue setup.',
+            );
+          });
+          return;
+        }
+      }
+      final selectedVoiceId = await selections.selectedVoice(providerId);
       if (selectedVoiceId == null && mounted) {
         final selected = await Navigator.of(context).push<bool>(
           MaterialPageRoute(
@@ -447,6 +959,7 @@ class _TtsProviderTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final design = context.appDesign;
     final scheme = Theme.of(context).colorScheme;
+    final brand = providerBrandForTtsId(provider.id);
     final status = current
         ? context.tr('当前使用', 'In use')
         : checkingConfiguration
@@ -468,15 +981,19 @@ class _TtsProviderTile extends StatelessWidget {
         top: design.spaceXs,
         bottom: design.spaceXs,
       ),
-      leading: CircleAvatar(
-        backgroundColor:
-            (current ? scheme.primary : scheme.surfaceContainerHighest)
-                .withValues(alpha: current ? 0.14 : 0.75),
-        foregroundColor: current ? scheme.primary : scheme.onSurfaceVariant,
-        child: Icon(
-          requiresNetwork ? Icons.cloud_outlined : Icons.memory_outlined,
-        ),
-      ),
+      leading: brand == null
+          ? CircleAvatar(
+              backgroundColor:
+                  (current ? scheme.primary : scheme.surfaceContainerHighest)
+                      .withValues(alpha: current ? 0.14 : 0.75),
+              foregroundColor: current
+                  ? scheme.primary
+                  : scheme.onSurfaceVariant,
+              child: Icon(
+                requiresNetwork ? Icons.cloud_outlined : Icons.memory_outlined,
+              ),
+            )
+          : ProviderBrandIcon(brand: brand, selected: current),
       title: Text(
         provider.name,
         maxLines: 2,
@@ -607,143 +1124,199 @@ class _TtsProviderDetailsScreenState
           ? context.tr('添加语音服务', 'Add Voice Provider')
           : provider.displayName,
       showBackButton: true,
-      body: ListView(
-        padding: EdgeInsets.fromLTRB(inset, design.spaceSm, inset, 120),
+      body: Column(
         children: [
-          if (_feedback != null) ...[
-            SettingsFeedbackBanner(
-              message: _feedback!,
-              error: _feedbackIsError,
-            ),
-            SizedBox(height: design.spaceMd),
-          ],
-          AppSectionHeader(title: context.tr('连接', 'Connection')),
-          SettingsGroup(
-            children: [
-              if (provider is MinimaxTtsProvider ||
-                  provider is FishAudioApiTtsProvider)
-                Padding(
-                  padding: EdgeInsets.all(design.spaceLg),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      TextField(
-                        controller: _apiKeyController,
-                        obscureText: true,
-                        autocorrect: false,
-                        enableSuggestions: false,
-                        decoration: InputDecoration(
-                          labelText: 'API Key',
-                          helperText: widget.adding
-                              ? context.tr('必填', 'Required')
-                              : context.tr(
-                                  '留空可保留已保存的凭据',
-                                  'Leave empty to keep the saved credential',
+          Expanded(
+            child: ListView(
+              scrollCacheExtent: const ScrollCacheExtent.pixels(5000),
+              padding: EdgeInsets.fromLTRB(
+                inset,
+                design.spaceSm,
+                inset,
+                design.spaceXl,
+              ),
+              children: [
+                if (widget.adding) ...[
+                  SetupProgressHeader(
+                    title: context.tr('语音设置进度', 'Voice setup progress'),
+                    steps: [
+                      'Provider',
+                      context.tr('密钥', 'Key'),
+                      context.tr('模型', 'Model'),
+                      'Voice',
+                    ],
+                    currentStep: 1,
+                  ),
+                  SizedBox(height: design.spaceMd),
+                  SettingsFeedbackBanner(
+                    message: context.tr(
+                      '获取 API Key，粘贴后保存。连接验证成功后会自动进入模型选择。',
+                      'Get an API key and paste it below. After verification, setup continues to model selection.',
+                    ),
+                  ),
+                  SizedBox(height: design.spaceMd),
+                ],
+                if (_feedback != null) ...[
+                  SettingsFeedbackBanner(
+                    message: _feedback!,
+                    error: _feedbackIsError,
+                  ),
+                  SizedBox(height: design.spaceMd),
+                ],
+                AppSectionHeader(title: context.tr('连接', 'Connection')),
+                SettingsGroup(
+                  children: [
+                    if (provider is MinimaxTtsProvider ||
+                        provider is FishAudioApiTtsProvider)
+                      Padding(
+                        padding: EdgeInsets.all(design.spaceLg),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            TextField(
+                              controller: _apiKeyController,
+                              obscureText: true,
+                              autocorrect: false,
+                              enableSuggestions: false,
+                              decoration: InputDecoration(
+                                labelText: 'API Key',
+                                helperText: widget.adding
+                                    ? context.tr('必填', 'Required')
+                                    : context.tr(
+                                        '留空可保留已保存的凭据',
+                                        'Leave empty to keep the saved credential',
+                                      ),
+                              ),
+                            ),
+                            SizedBox(height: design.spaceLg),
+                            _buildApiKeyGuide(provider),
+                            SizedBox(height: design.spaceLg),
+                            if (!widget.adding)
+                              SizedBox(
+                                width: double.infinity,
+                                child: FilledButton.icon(
+                                  key: const ValueKey('save-tts-provider'),
+                                  onPressed: _saving
+                                      ? null
+                                      : () => _saveKey(provider),
+                                  icon: _saving
+                                      ? const SizedBox.square(
+                                          dimension: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : const Icon(Icons.save_outlined),
+                                  label: Text(
+                                    context.tr('保存凭据', 'Save credentials'),
+                                  ),
                                 ),
+                              ),
+                          ],
                         ),
                       ),
-                      SizedBox(height: design.spaceLg),
-                      _buildApiKeyGuide(provider),
-                    ],
-                  ),
-                ),
-              if (provider is FishAudioApiTtsProvider)
-                FutureBuilder<FishAudioGenerationProfile>(
-                  future: provider.generationProfile,
-                  builder: (context, snapshot) => Padding(
-                    padding: EdgeInsets.all(design.spaceLg),
-                    child: SegmentedButton<FishAudioGenerationProfile>(
-                      segments: const [
-                        ButtonSegment(
-                          value: FishAudioGenerationProfile.fast,
-                          label: Text('Fast'),
+                    if (provider is FishAudioApiTtsProvider)
+                      FutureBuilder<FishAudioGenerationProfile>(
+                        future: provider.generationProfile,
+                        builder: (context, snapshot) => Padding(
+                          padding: EdgeInsets.all(design.spaceLg),
+                          child: SegmentedButton<FishAudioGenerationProfile>(
+                            segments: const [
+                              ButtonSegment(
+                                value: FishAudioGenerationProfile.fast,
+                                label: Text('Fast'),
+                              ),
+                              ButtonSegment(
+                                value: FishAudioGenerationProfile.quality,
+                                label: Text('Quality'),
+                              ),
+                            ],
+                            selected: {
+                              snapshot.data ?? FishAudioGenerationProfile.fast,
+                            },
+                            onSelectionChanged: (value) =>
+                                provider.setGenerationProfile(value.single),
+                          ),
                         ),
-                        ButtonSegment(
-                          value: FishAudioGenerationProfile.quality,
-                          label: Text('Quality'),
-                        ),
-                      ],
-                      selected: {
-                        snapshot.data ?? FishAudioGenerationProfile.fast,
-                      },
-                      onSelectionChanged: (value) =>
-                          provider.setGenerationProfile(value.single),
-                    ),
-                  ),
+                      ),
+                  ],
                 ),
-            ],
-          ),
-          SizedBox(height: design.spaceXl),
-          if (provider is MinimaxTtsProvider ||
-              provider is FishAudioApiTtsProvider)
-            FilledButton.icon(
-              key: const ValueKey('save-tts-provider'),
-              onPressed: _saving
-                  ? null
-                  : widget.adding
-                  ? () => _saveAndConnect(provider)
-                  : () => _saveKey(provider),
-              icon: _saving
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.save_outlined),
-              label: Text(
-                widget.adding
-                    ? context.tr('保存并连接', 'Save and connect')
-                    : context.tr('保存凭据', 'Save credentials'),
-              ),
-            ),
-          if (!widget.adding) ...[
-            SizedBox(height: design.spaceMd),
-            FilledButton.icon(
-              onPressed: activeId == provider.id || _activating
-                  ? null
-                  : () => _activate(provider.id),
-              icon: _activating
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Icon(
+                if (!widget.adding) ...[
+                  SizedBox(height: design.spaceXl),
+                  FilledButton.icon(
+                    onPressed: activeId == provider.id || _activating
+                        ? null
+                        : () => _activate(provider.id),
+                    icon: _activating
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(
+                            activeId == provider.id
+                                ? Icons.check
+                                : Icons.check_circle_outline,
+                          ),
+                    label: Text(
                       activeId == provider.id
-                          ? Icons.check
-                          : Icons.check_circle_outline,
+                          ? context.tr('当前服务', 'Current provider')
+                          : context.tr('设为当前服务', 'Use this provider'),
                     ),
-              label: Text(
-                activeId == provider.id
-                    ? context.tr('当前服务', 'Current provider')
-                    : context.tr('设为当前服务', 'Use this provider'),
+                  ),
+                  SizedBox(height: design.spaceMd),
+                  OutlinedButton.icon(
+                    onPressed: _testing ? null : _test,
+                    icon: _testing
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.wifi_tethering_outlined),
+                    label: Text(context.tr('测试服务', 'Test provider')),
+                  ),
+                  SizedBox(height: design.spaceXl),
+                  TextButton.icon(
+                    key: const ValueKey('delete-tts-provider'),
+                    onPressed: _deleting
+                        ? null
+                        : () => _deleteProvider(provider),
+                    icon: _deleting
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.delete_outline),
+                    label: Text(context.tr('删除语音服务', 'Delete provider')),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (widget.adding)
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  inset,
+                  design.spaceSm,
+                  inset,
+                  design.spaceMd,
+                ),
+                child: KeyedSubtree(
+                  key: const ValueKey('save-tts-provider'),
+                  child: SetupNavigationBar(
+                    previousLabel: context.tr('上一步', 'Previous'),
+                    nextLabel: context.tr('下一步', 'Next'),
+                    busy: _saving,
+                    onPrevious: () => Navigator.of(context).pop(false),
+                    onNext: () => _saveAndConnect(provider),
+                  ),
+                ),
               ),
             ),
-            SizedBox(height: design.spaceMd),
-            OutlinedButton.icon(
-              onPressed: _testing ? null : _test,
-              icon: _testing
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.wifi_tethering_outlined),
-              label: Text(context.tr('测试服务', 'Test provider')),
-            ),
-            SizedBox(height: design.spaceXl),
-            TextButton.icon(
-              key: const ValueKey('delete-tts-provider'),
-              onPressed: _deleting ? null : () => _deleteProvider(provider),
-              icon: _deleting
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.delete_outline),
-              label: Text(context.tr('删除语音服务', 'Delete provider')),
-              style: TextButton.styleFrom(
-                foregroundColor: Theme.of(context).colorScheme.error,
-              ),
-            ),
-          ],
         ],
       ),
     );
@@ -784,12 +1357,38 @@ class _TtsProviderDetailsScreenState
       setState(() {
         _saving = false;
         _feedback = context.tr(
-          '连接成功，正在同步云端音色。请选择一个朗读音色。',
-          'Connected. Cloud voices are syncing; choose a reading voice.',
+          '连接成功，正在同步可用语音模型。',
+          'Connected. Available voice models are syncing.',
         );
         _feedbackIsError = false;
       });
-      final selected = await Navigator.of(context).push<bool>(
+      final modelSelected = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (_) => TtsModelPickerScreen(
+            providerId: widget.providerId,
+            guidedSelection: true,
+            syncOnOpen: true,
+          ),
+        ),
+      );
+      if (modelSelected != true) {
+        if (!mounted) return;
+        setState(() {
+          _feedback = context.tr(
+            '语音服务已连接，请选择一个语音模型以继续设置。',
+            'The provider is connected. Choose a voice model to continue setup.',
+          );
+        });
+        return;
+      }
+      if (!mounted) return;
+      setState(() {
+        _feedback = context.tr(
+          '模型已选择，正在同步云端音色。',
+          'Model selected. Cloud voices are syncing.',
+        );
+      });
+      final voiceSelected = await Navigator.of(context).push<bool>(
         MaterialPageRoute(
           builder: (_) =>
               const VoiceLibraryScreen(guidedSelection: true, syncOnOpen: true),
@@ -798,7 +1397,7 @@ class _TtsProviderDetailsScreenState
       ref.invalidate(ttsProviderConfigurationStatusProvider);
       ref.invalidate(ttsSettingsControllerProvider);
       if (!mounted) return;
-      if (selected == true) {
+      if (voiceSelected == true) {
         Navigator.of(context).pop(true);
       } else {
         setState(() {
@@ -964,6 +1563,53 @@ class _TtsProviderDetailsScreenState
       await ref
           .read(ttsSettingsControllerProvider.notifier)
           .selectProvider(providerId);
+      if (!mounted) return;
+      final selections = ref.read(providerSelectionRepositoryProvider);
+      if (await selections.selectedTtsModel(providerId) == null) {
+        if (!mounted) return;
+        final selected = await Navigator.of(context).push<bool>(
+          MaterialPageRoute(
+            builder: (_) => TtsModelPickerScreen(
+              providerId: providerId,
+              guidedSelection: true,
+              syncOnOpen: true,
+            ),
+          ),
+        );
+        if (selected != true) {
+          if (!mounted) return;
+          setState(() {
+            _activating = false;
+            _feedback = context.tr(
+              '服务已启用，请选择语音模型以继续设置。',
+              'The provider is active. Choose a voice model to continue setup.',
+            );
+          });
+          return;
+        }
+      }
+      if (await selections.selectedVoice(providerId) == null) {
+        if (!mounted) return;
+        final selected = await Navigator.of(context).push<bool>(
+          MaterialPageRoute(
+            builder: (_) => const VoiceLibraryScreen(
+              guidedSelection: true,
+              syncOnOpen: true,
+            ),
+          ),
+        );
+        if (selected != true) {
+          if (!mounted) return;
+          setState(() {
+            _activating = false;
+            _feedback = context.tr(
+              '模型已选择，请再选择朗读音色以完成设置。',
+              'Model selected. Choose a reading voice to finish setup.',
+            );
+          });
+          return;
+        }
+      }
       if (mounted) Navigator.of(context).pop(true);
     } catch (_) {
       if (!mounted) return;

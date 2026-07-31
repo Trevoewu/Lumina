@@ -9,6 +9,8 @@ import 'package:lumina/data/dictionary/openai_compatible_explanation_provider.da
 import 'package:lumina/main.dart';
 import 'package:lumina/presentation/widgets/narrator_label.dart';
 import 'package:lumina/presentation/screens/settings/settings_screen.dart';
+import 'package:lumina/presentation/screens/settings/llm_setup_wizard_screen.dart';
+import 'package:lumina/presentation/screens/settings/tts_setup_wizard_screen.dart';
 import 'package:lumina/presentation/screens/settings/voice_library_screen.dart';
 import 'package:lumina/presentation/widgets/mini_player.dart';
 import 'package:lumina/presentation/widgets/book_list_card.dart';
@@ -200,9 +202,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
-  testWidgets('app opens Fish generation profiles without overflow', (
-    tester,
-  ) async {
+  testWidgets('TTS setup advances inside one wizard page', (tester) async {
     tester.view.physicalSize = const Size(800, 650);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -237,18 +237,19 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('tts-service-settings')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Provider'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Add provider'));
-    await tester.pumpAndSettle();
+    final wizardElement = tester.element(find.byType(TtsSetupWizardScreen));
     await tester.tap(find.text('Fish Audio'));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('setup-next')));
+    await tester.pumpAndSettle();
 
-    expect(find.text('Fast'), findsOneWidget);
-    expect(find.text('Quality'), findsOneWidget);
-    await tester.tap(find.text('Quality'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(TtsSetupWizardScreen), findsOneWidget);
+    expect(
+      tester.element(find.byType(TtsSetupWizardScreen)),
+      same(wizardElement),
+    );
+    expect(find.byKey(const ValueKey('wizard-tts-api-key')), findsOneWidget);
+    expect(find.text('Where do I get an API key?'), findsOneWidget);
 
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
@@ -443,17 +444,14 @@ void main() {
     await tester.tap(providerSettings);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Provider'));
-    await tester.pumpAndSettle();
-
-    expect(find.byTooltip('Add Provider'), findsOneWidget);
-    await tester.tap(find.byTooltip('Add Provider'));
-    await tester.pumpAndSettle();
+    expect(find.byType(LlmSetupWizardScreen), findsOneWidget);
     expect(find.text('DeepSeek'), findsOneWidget);
     expect(find.text('Z.AI'), findsOneWidget);
     expect(find.text('Custom'), findsOneWidget);
 
     await tester.tap(find.text('Z.AI'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('setup-next')));
     await tester.pumpAndSettle();
     expect(find.text('API Key'), findsOneWidget);
     expect(find.text('https://api.z.ai/api/paas/v4'), findsOneWidget);
