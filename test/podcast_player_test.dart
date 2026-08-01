@@ -128,6 +128,26 @@ void main() {
       }
     });
 
+    test('a spoken URL survives joining and line splitting', () {
+      final joined = joinPodcastTranscriptLines([
+        timing('plus add-free listening and access to the premium community,'),
+        timing('sign up to LEP Premium at teacherluke.co.uk/premium.'),
+      ]);
+      final lines = splitLyricsText(joined);
+
+      final withDomain = lines
+          .where((line) => line.contains('teacherluke'))
+          .toList();
+      expect(withDomain, hasLength(1));
+      expect(
+        withDomain.single,
+        contains('teacherluke.co.uk/premium.'),
+        reason: 'the domain must not be split across transcript lines',
+      );
+      expect(lines, isNot(contains('co.')));
+      expect(lines, isNot(contains('uk/premium.')));
+    });
+
     test('drops blank segments', () {
       expect(
         joinPodcastTranscriptLines([
@@ -252,29 +272,29 @@ void main() {
       );
       expect(find.byKey(const ValueKey('ai-summary-card')), findsOneWidget);
       expect(
-        find.byKey(const ValueKey('podcast-transcript-card')),
+        find.byKey(const ValueKey('podcast-shownotes-card')),
         findsOneWidget,
+      );
+
+      final transcriptToggle = find.byKey(
+        const ValueKey('player-transcript-toggle'),
+      );
+      expect(transcriptToggle, findsOneWidget);
+      await tester.ensureVisible(transcriptToggle);
+      await tester.tap(transcriptToggle);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('podcast-transcript-card')),
+        findsNothing,
       );
       expect(
-        find.byKey(const ValueKey('podcast-shownotes-card')),
+        find.byKey(const ValueKey('podcast-transcript-focus-viewport')),
         findsOneWidget,
       );
-      final shownotesTop = tester.getTopLeft(
-        find.byKey(const ValueKey('podcast-shownotes-card')),
-      );
-      final summaryTop = tester.getTopLeft(
-        find.byKey(const ValueKey('ai-summary-card')),
-      );
-      final transcriptTop = tester.getTopLeft(
-        find.byKey(const ValueKey('podcast-transcript-card')),
-      );
-      expect(shownotesTop.dy, lessThan(summaryTop.dy));
-      expect(summaryTop.dy, lessThan(transcriptTop.dy));
-      expect(find.text('Transcript'), findsOneWidget);
       expect(find.text('First cached chunk.'), findsOneWidget);
 
       final transcriptList = find.descendant(
-        of: find.byKey(const ValueKey('podcast-transcript-card')),
+        of: find.byKey(const ValueKey('podcast-transcript-focus-viewport')),
         matching: find.byType(SyncedLyricsList),
       );
       final transcriptState = tester.state(transcriptList);
@@ -321,7 +341,7 @@ void main() {
       );
 
       await tester.drag(
-        find.byKey(const ValueKey('podcast-player-scroll-view')),
+        find.byKey(const ValueKey('podcast-transcript-scroll-view')),
         const Offset(0, -1000),
       );
       await tester.pumpAndSettle();
@@ -340,9 +360,7 @@ void main() {
     },
   );
 
-  testWidgets('transcript card grows into its first chunk gradually', (
-    tester,
-  ) async {
+  testWidgets('transcript mode reveals the first cached chunk', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -398,8 +416,16 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final card = find.byKey(const ValueKey('podcast-transcript-card'));
-    final placeholderHeight = tester.getSize(card).height;
+    final transcriptToggle = find.byKey(
+      const ValueKey('player-transcript-toggle'),
+    );
+    await tester.ensureVisible(transcriptToggle);
+    await tester.tap(transcriptToggle);
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('podcast-transcript-focus-viewport')),
+      findsOneWidget,
+    );
 
     await database.updatePodcastTranscript(
       'episode-growth',
@@ -411,18 +437,79 @@ void main() {
     );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 120));
-    final midHeight = tester.getSize(card).height;
-
     await tester.pumpAndSettle();
-    final settledHeight = tester.getSize(card).height;
+    expect(find.text('First cached chunk.'), findsOneWidget);
 
-    expect(settledHeight, greaterThan(placeholderHeight));
-    expect(midHeight, greaterThan(placeholderHeight));
-    expect(
-      midHeight,
-      lessThan(settledHeight),
-      reason: 'the card must ease into its taller size instead of snapping',
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump(const Duration(milliseconds: 1));
+  });
+
+  testWidgets('transcript mode idles its chrome away and taps it back', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final handler = _PodcastTestAudioHandler();
+    final sleepTimer = SleepTimerService();
+    final service = _FakeTranscriptionService(database, null);
+    addTearDown(database.close);
+    addTearDown(handler.dispose);
+    addTearDown(sleepTimer.dispose);
+    addTearDown(service.dispose);
+
+    await _insertPodcast(
+      database,
+      episodeId: 'episode-idle',
+      transcriptStatus: 'complete',
+      transcriptJson:
+          '[{"text":"A cached sentence.","startMs":0,"endMs":1200},'
+          '{"text":"And another one.","startMs":1200,"endMs":2400}]',
     );
+
+    await tester.pumpWidget(
+      _podcastApp(
+        database: database,
+        handler: handler,
+        sleepTimer: sleepTimer,
+        service: service,
+        episodeId: 'episode-idle',
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final transcriptToggle = find.byKey(
+      const ValueKey('player-transcript-toggle'),
+    );
+    await tester.ensureVisible(transcriptToggle);
+    await tester.tap(transcriptToggle);
+    await tester.pumpAndSettle();
+
+    // The floating controls start visible and reachable.
+    expect(transcriptToggle.hitTestable(), findsOneWidget);
+
+    // Three seconds without input drops the chrome out of the way, leaving the
+    // transcript and the wake-up hint.
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+    expect(
+      transcriptToggle.hitTestable(),
+      findsNothing,
+      reason: 'idle chrome must stop taking taps',
+    );
+    expect(
+      find.text('Tap anywhere to bring the controls back'),
+      findsOneWidget,
+    );
+
+    // The transcript itself never moves, so any touch is enough to wake it.
+    await tester.tapAt(const Offset(195, 420));
+    await tester.pumpAndSettle();
+    expect(transcriptToggle.hitTestable(), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));
@@ -520,7 +607,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
-  testWidgets('a running transcription can be paused from the card', (
+  testWidgets('a running transcription can be paused from transcript mode', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -560,6 +647,13 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
+    final transcriptToggle = find.byKey(
+      const ValueKey('player-transcript-toggle'),
+    );
+    await tester.ensureVisible(transcriptToggle);
+    await tester.tap(transcriptToggle);
+    await tester.pump();
+
     final pauseButton = find.byKey(const ValueKey('podcast-transcript-pause'));
     expect(pauseButton, findsOneWidget);
     expect(
@@ -586,7 +680,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
-  testWidgets('a paused episode offers to resume where it stopped', (
+  testWidgets('a paused episode offers to resume in transcript mode', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -622,6 +716,13 @@ void main() {
         episodeId: 'episode-paused',
       ),
     );
+    await tester.pumpAndSettle();
+
+    final transcriptToggle = find.byKey(
+      const ValueKey('player-transcript-toggle'),
+    );
+    await tester.ensureVisible(transcriptToggle);
+    await tester.tap(transcriptToggle);
     await tester.pumpAndSettle();
 
     final restart = find.byKey(const ValueKey('podcast-transcript-restart'));

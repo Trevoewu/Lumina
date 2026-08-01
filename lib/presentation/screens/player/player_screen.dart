@@ -22,6 +22,7 @@ import '../../../services/app_log_service.dart';
 import '../../../services/book_playback_queue.dart';
 import '../../../services/cover_palette_service.dart';
 import '../../../services/generation_orchestrator.dart';
+import '../../../services/image_disk_cache.dart';
 import '../../../services/lumina_audio_handler.dart';
 import '../../../services/podcast_transcription_service.dart';
 import '../../../services/sleep_timer_service.dart';
@@ -391,6 +392,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _showFullPodcastNotes = false;
   double _readingScrollSpeed = 1.0;
   bool _lyricSweepEnabled = true;
+  bool _podcastTranscriptMode = false;
+  bool _transcriptChromeVisible = true;
+  Timer? _transcriptChromeTimer;
+  String? _ambientArtworkUrl;
+  Future<Color?>? _ambientSeed;
 
   bool get _isPodcast => widget.podcast != null;
 
@@ -425,6 +431,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     unawaited(_generationSubscription?.cancel());
     unawaited(_podcastEpisodeSubscription?.cancel());
     unawaited(_transcriptionSubscription?.cancel());
+    _transcriptChromeTimer?.cancel();
     _playerScrollController
       ..removeListener(_handlePlayerScroll)
       ..dispose();
@@ -442,6 +449,43 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     setState(() => _showStickyMiniPlayer = shouldShow);
   }
 
+  void _setPodcastTranscriptMode(bool enabled) {
+    if (!_isPodcast) return;
+    _transcriptChromeTimer?.cancel();
+    if (!mounted) return;
+    setState(() {
+      _podcastTranscriptMode = enabled;
+      _transcriptChromeVisible = true;
+      if (enabled) _showStickyMiniPlayer = false;
+    });
+    if (enabled) {
+      _scheduleTranscriptChromeHide();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_podcastTranscriptMode) return;
+        if (_playerScrollController.hasClients) {
+          _playerScrollController.jumpTo(0);
+        }
+      });
+    }
+  }
+
+  void _scheduleTranscriptChromeHide() {
+    _transcriptChromeTimer?.cancel();
+    if (!_podcastTranscriptMode) return;
+    _transcriptChromeTimer = Timer(const Duration(seconds: 3), () {
+      if (!mounted || !_podcastTranscriptMode) return;
+      setState(() => _transcriptChromeVisible = false);
+    });
+  }
+
+  void _showTranscriptChrome() {
+    if (!mounted || !_podcastTranscriptMode) return;
+    if (!_transcriptChromeVisible) {
+      setState(() => _transcriptChromeVisible = true);
+    }
+    _scheduleTranscriptChromeHide();
+  }
+
   void _setStreamPlaybackRequested(bool value) {
     if (_streamPlaybackRequested == value) return;
     _streamPlaybackRequested = value;
@@ -457,10 +501,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void _watchPodcastEpisode() {
     final data = widget.podcast;
     if (data == null) return;
+    final episodeId = (_podcastEpisode ?? data.episode).id;
     unawaited(_podcastEpisodeSubscription?.cancel());
     _podcastEpisodeSubscription = ref
         .read(appDatabaseProvider)
-        .watchPodcastEpisode(data.episode.id)
+        .watchPodcastEpisode(episodeId)
         .listen((episode) {
           if (!mounted || episode == null) return;
           if (!podcastEpisodeRequiresPlayerRefresh(_podcastEpisode, episode)) {
@@ -1363,7 +1408,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                 selectedLoaded: selectedLoaded,
                                 duration: duration,
                                 manifest: manifest,
-                                chapterId: currentChapterId,
                                 chapterTitle: chapterTitle,
                               );
                             }
@@ -1531,7 +1575,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     required bool selectedLoaded,
     required Duration duration,
     required ChapterManifest? manifest,
-    required String? chapterId,
     required String chapterTitle,
   }) {
     final data = widget.podcast!;
@@ -1553,6 +1596,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
     _stickyMiniPlayerTriggerOffset =
         artworkSize + (compact ? design.spaceSm : design.spaceLg);
+
+    if (_podcastTranscriptMode) {
+      _stickyMiniPlayerTriggerOffset = double.infinity;
+      return _buildPodcastTranscriptModeBody(
+        constraints: constraints,
+        handler: handler,
+        selectedLoaded: selectedLoaded,
+        duration: duration,
+        manifest: manifest,
+        pageInset: pageInset,
+      );
+    }
 
     return SingleChildScrollView(
       key: const ValueKey('podcast-player-scroll-view'),
@@ -1578,6 +1633,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 fallbackDuration: duration,
                 manifest: manifest,
                 foregroundColor: context.appTextPrimary,
+                showPodcastActions: true,
               ),
             ),
             SizedBox(height: design.spaceXxl),
@@ -1592,18 +1648,451 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   SizedBox(height: design.spaceMd),
                   _buildAiSummaryCard(handler: handler, manifest: manifest),
                   SizedBox(height: design.spaceMd),
-                  _buildPodcastTranscriptCard(
-                    episode: episode,
-                    handler: handler,
-                    manifest: manifest,
-                    chapterId: chapterId,
-                    playbackEnabled: selectedLoaded,
-                  ),
+                  _buildTranscriptPointerCard(),
+                  SizedBox(height: design.spaceMd),
                 ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// The transcript no longer has a card of its own. This dashed row tells a
+  /// reader who scrolls looking for it where it went, and doubles as a second
+  /// way into transcript mode.
+  Widget _buildTranscriptPointerCard() {
+    final design = context.appDesign;
+    final cachedCount = _podcastTranscript?.timingCount ?? 0;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        key: const ValueKey('podcast-transcript-pointer-card'),
+        borderRadius: BorderRadius.circular(design.radiusLarge),
+        onTap: () => _setPodcastTranscriptMode(true),
+        child: CustomPaint(
+          painter: _DashedBorderPainter(
+            color: context.appTextPrimary.withValues(alpha: 0.16),
+            radius: design.radiusLarge,
+          ),
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: design.spaceLg,
+              vertical: design.spaceLg,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.chat_bubble_outline_rounded,
+                  size: 20,
+                  color: context.appTextSecondary,
+                ),
+                SizedBox(width: design.spaceMd),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        context.tr(
+                          '转录已移至播放器',
+                          'Transcript moved to the player',
+                        ),
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: context.appTextPrimary.withValues(alpha: 0.8),
+                        ),
+                      ),
+                      SizedBox(height: design.spaceXs),
+                      Text(
+                        cachedCount > 0
+                            ? context.tr(
+                                '点此以歌词方式跟读 · 已缓存 $cachedCount 段',
+                                'Read along lyric-style · $cachedCount segments cached',
+                              )
+                            : context.tr('点此以歌词方式跟读', 'Read along lyric-style'),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: context.appTextSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 20,
+                  color: context.appTextSecondary,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPodcastTranscriptModeBody({
+    required BoxConstraints constraints,
+    required LuminaAudioHandler handler,
+    required bool selectedLoaded,
+    required Duration duration,
+    required ChapterManifest? manifest,
+    required double pageInset,
+  }) {
+    final data = widget.podcast!;
+    final episode = _podcastEpisode ?? data.episode;
+    final design = context.appDesign;
+    // The transcript owns the first screen outright. Both the header and the
+    // controls float above it rather than sitting in the column, so idling out
+    // the chrome reveals more transcript instead of reflowing the page.
+    final stageHeight = math.max(360.0, constraints.maxHeight);
+
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      // Only real input wakes the chrome. The transcript auto-scrolls itself
+      // every line, so reacting to scroll notifications would keep the controls
+      // on screen for the whole episode.
+      onPointerDown: (_) => _showTranscriptChrome(),
+      onPointerSignal: (_) => _showTranscriptChrome(),
+      child: SingleChildScrollView(
+        key: const ValueKey('podcast-transcript-scroll-view'),
+        controller: _playerScrollController,
+        physics: const BouncingScrollPhysics(),
+        padding: EdgeInsets.only(bottom: design.spaceXxl),
+        child: Column(
+          children: [
+            SizedBox(
+              height: stageHeight,
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    key: const ValueKey('podcast-transcript-ambience'),
+                    child: _buildTranscriptAmbience(),
+                  ),
+                  Positioned.fill(
+                    key: const ValueKey('podcast-transcript-focus-viewport'),
+                    // Fading the transcript's own alpha at both ends is what
+                    // keeps lines from showing through the chrome scrims, and
+                    // from running into the bare screen edge once the chrome
+                    // has idled away. The opaque band comfortably contains the
+                    // active line, which sits at 34%.
+                    child: ShaderMask(
+                      blendMode: BlendMode.dstIn,
+                      shaderCallback: (bounds) => const LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black,
+                          Colors.black,
+                          Colors.transparent,
+                        ],
+                        stops: [0, 0.14, 0.7, 0.93],
+                      ).createShader(bounds),
+                      child: _buildSyncedLyrics(
+                        chapterId: episode.id,
+                        handler: handler,
+                        manifest: manifest,
+                        playbackEnabled: selectedLoaded,
+                        expanded: true,
+                        focusMode: true,
+                        listKey: ValueKey(
+                          'podcast-transcript-focus:${episode.id}',
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: _buildTranscriptChrome(
+                      visible: _transcriptChromeVisible,
+                      fromTop: true,
+                      child: _buildTranscriptMiniHeader(
+                        episode: episode,
+                        pageInset: pageInset,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: _buildTranscriptChrome(
+                      visible: _transcriptChromeVisible,
+                      fromTop: false,
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          pageInset,
+                          design.spaceXl,
+                          pageInset,
+                          design.spaceXl,
+                        ),
+                        child: _buildReactiveControls(
+                          handler: handler,
+                          fallbackDuration: duration,
+                          manifest: manifest,
+                          foregroundColor: context.appTextPrimary,
+                          showPodcastActions: true,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: design.spaceXl,
+                    left: 0,
+                    right: 0,
+                    child: IgnorePointer(
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 320),
+                        opacity: _transcriptChromeVisible ? 0 : 1,
+                        child: Text(
+                          context.tr(
+                            '轻触屏幕唤回控制',
+                            'Tap anywhere to bring the controls back',
+                          ),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: context.appTextSecondary.withValues(
+                              alpha: 0.7,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                pageInset,
+                design.spaceLg,
+                pageInset,
+                0,
+              ),
+              child: Column(
+                children: [
+                  _buildPodcastShownotesCard(
+                    episode: episode,
+                    handler: handler,
+                  ),
+                  SizedBox(height: design.spaceMd),
+                  _buildAiSummaryCard(handler: handler, manifest: manifest),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Memoizes the artwork's dominant color per URL. The future has to be stable
+  /// across rebuilds or the `FutureBuilder` below would refetch every frame.
+  Future<Color?> _transcriptAmbientSeed() {
+    final url = _podcastEpisode?.imageUrl ?? widget.podcast?.show.imageUrl;
+    if (url != _ambientArtworkUrl || _ambientSeed == null) {
+      _ambientArtworkUrl = url;
+      _ambientSeed = url == null || url.isEmpty
+          ? Future<Color?>.value(null)
+          : _resolveAmbientSeed(url);
+    }
+    return _ambientSeed!;
+  }
+
+  Future<Color?> _resolveAmbientSeed(String url) async {
+    try {
+      final file = await appImageDiskCache.load(url);
+      return await CoverPaletteService.seedForPath(file.path);
+    } catch (_) {
+      // A cover that will not download is not worth reporting: the transcript
+      // simply keeps the plain page background.
+      return null;
+    }
+  }
+
+  /// A very faint wash of the cover's own color behind the transcript. The
+  /// design deliberately stops short of Apple's dark glass — this only has to
+  /// hint that the transcript belongs to this episode.
+  Widget _buildTranscriptAmbience() {
+    return FutureBuilder<Color?>(
+      future: _transcriptAmbientSeed(),
+      builder: (context, snapshot) {
+        final seed = snapshot.data;
+        if (seed == null) return const SizedBox.shrink();
+        final brightness = Theme.of(context).brightness;
+        // The raw artwork color is usually far darker than the page, so laying
+        // it on at low alpha just greys the background out. Normalizing it to
+        // the page's own lightness first is what makes the wash read as the
+        // cover's color rather than as dirt.
+        final tint = CoverPaletteService.pageTopForSeed(seed, brightness);
+        final tintHsl = HSLColor.fromColor(tint);
+        final counterpart = tintHsl.withHue((tintHsl.hue + 42) % 360).toColor();
+        final strength = brightness == Brightness.dark ? 0.55 : 0.7;
+        return IgnorePointer(
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: const Alignment(-0.7, -0.85),
+                      radius: 1.2,
+                      colors: [
+                        tint.withValues(alpha: strength),
+                        tint.withValues(alpha: 0),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: const Alignment(0.8, 0.6),
+                      radius: 1.1,
+                      colors: [
+                        counterpart.withValues(alpha: strength * 0.8),
+                        counterpart.withValues(alpha: 0),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// Fades and slides one of the floating chrome bands out of the way, keeping
+  /// its scrim so the transcript never runs into hard-edged text underneath.
+  Widget _buildTranscriptChrome({
+    required bool visible,
+    required bool fromTop,
+    required Widget child,
+  }) {
+    final scrim = fromTop
+        ? Theme.of(context).colorScheme.surfaceContainer
+        : Theme.of(context).colorScheme.surface;
+    return IgnorePointer(
+      ignoring: !visible,
+      child: AnimatedSlide(
+        duration: const Duration(milliseconds: 380),
+        curve: Curves.easeOutCubic,
+        offset: visible ? Offset.zero : Offset(0, fromTop ? -0.35 : 0.4),
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 260),
+          opacity: visible ? 1 : 0,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: fromTop ? Alignment.topCenter : Alignment.bottomCenter,
+                end: fromTop ? Alignment.bottomCenter : Alignment.topCenter,
+                colors: [
+                  scrim,
+                  scrim.withValues(alpha: 0.96),
+                  scrim.withValues(alpha: 0),
+                ],
+                stops: const [0, 0.62, 1],
+              ),
+            ),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTranscriptMiniHeader({
+    required drift_db.PodcastEpisode episode,
+    required double pageInset,
+  }) {
+    final data = widget.podcast!;
+    final design = context.appDesign;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        pageInset,
+        design.spaceSm,
+        pageInset,
+        design.spaceXl,
+      ),
+      child: Row(
+        children: [
+          _buildArtwork(58, borderRadius: design.radiusMedium),
+          SizedBox(width: design.spaceMd),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  episode.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: context.appTextPrimary,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                SizedBox(height: design.spaceXs),
+                Text(
+                  data.show.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: context.appTextSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_transcribingPodcast)
+            IconButton(
+              key: const ValueKey('podcast-transcript-pause'),
+              tooltip: _pausingPodcastTranscription
+                  ? context.tr('正在暂停…', 'Pausing…')
+                  : context.tr('暂停转写', 'Pause transcription'),
+              icon: _pausingPodcastTranscription
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.pause_circle_outline),
+              onPressed: _pausingPodcastTranscription
+                  ? null
+                  : _pausePodcastTranscription,
+            )
+          else if ((_podcastTranscript?.timingCount ?? 0) > 0)
+            IconButton(
+              key: const ValueKey('podcast-transcript-restart'),
+              tooltip: _transcriptPaused(episode)
+                  ? context.tr('继续转写', 'Resume transcription')
+                  : context.tr('重新转写', 'Transcribe again'),
+              icon: Icon(
+                _transcriptPaused(episode)
+                    ? Icons.play_circle_outline
+                    : Icons.auto_awesome_rounded,
+              ),
+              onPressed: _transcriptPaused(episode)
+                  ? _startPodcastTranscription
+                  : _restartPodcastTranscription,
+            ),
+          IconButton(
+            key: const ValueKey('podcast-transcript-close'),
+            tooltip: context.tr('返回封面', 'Back to cover'),
+            icon: const Icon(Icons.crop_square_rounded),
+            color: context.appTextPrimary,
+            onPressed: () => _setPodcastTranscriptMode(false),
+          ),
+        ],
       ),
     );
   }
@@ -1792,108 +2281,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     await handler.seek(Duration(milliseconds: offsetMs));
   }
 
-  Widget _buildPodcastTranscriptCard({
-    required drift_db.PodcastEpisode episode,
-    required LuminaAudioHandler handler,
-    required ChapterManifest? manifest,
-    required String? chapterId,
-    required bool playbackEnabled,
-  }) {
-    final hasTranscript = (_podcastTranscript?.timingCount ?? 0) > 0;
-    final safeChapterId = chapterId ?? episode.id;
-    return _buildPlayerSectionCard(
-      key: const ValueKey('podcast-transcript-card'),
-      padding: EdgeInsets.zero,
-      child: Column(
-        children: [
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-              context.appDesign.spaceLg,
-              context.appDesign.spaceMd,
-              context.appDesign.spaceSm,
-              context.appDesign.spaceXs,
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildPlayerCardTitle(
-                    icon: Icons.subtitles_rounded,
-                    title: context.tr('字幕', 'Transcript'),
-                  ),
-                ),
-                if (_transcribingPodcast)
-                  IconButton(
-                    key: const ValueKey('podcast-transcript-pause'),
-                    tooltip: _pausingPodcastTranscription
-                        ? context.tr('正在暂停…', 'Pausing…')
-                        : context.tr('暂停转写', 'Pause transcription'),
-                    icon: _pausingPodcastTranscription
-                        ? const SizedBox.square(
-                            dimension: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.pause_circle_outline, size: 22),
-                    onPressed: _pausingPodcastTranscription
-                        ? null
-                        : _pausePodcastTranscription,
-                  )
-                else if (hasTranscript)
-                  IconButton(
-                    key: const ValueKey('podcast-transcript-restart'),
-                    tooltip: _transcriptPaused(episode)
-                        ? context.tr('继续转写', 'Resume transcription')
-                        : context.tr('重新转写', 'Transcribe again'),
-                    icon: Icon(
-                      _transcriptPaused(episode)
-                          ? Icons.play_circle_outline
-                          : Icons.auto_awesome_rounded,
-                      size: 20,
-                    ),
-                    onPressed: _transcriptPaused(episode)
-                        ? _startPodcastTranscription
-                        : _restartPodcastTranscription,
-                  ),
-                if (hasTranscript)
-                  IconButton(
-                    tooltip: context.tr('全屏字幕', 'Full-screen transcript'),
-                    icon: const Icon(Icons.open_in_full_rounded, size: 20),
-                    onPressed: () => _showFullScreenLyrics(
-                      safeChapterId,
-                      manifest,
-                      playbackEnabled,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          // The card grows once, when the first cached chunk replaces the
-          // placeholder. Animating that step keeps the cards below it from
-          // jumping down the screen.
-          AnimatedSize(
-            duration: const Duration(milliseconds: 240),
-            curve: Curves.easeOutCubic,
-            alignment: Alignment.topCenter,
-            child: SizedBox(
-              height: hasTranscript ? 280 : 176,
-              child: _buildSyncedLyrics(
-                chapterId: safeChapterId,
-                handler: handler,
-                manifest: manifest,
-                playbackEnabled: playbackEnabled,
-                expanded: false,
-                focusMode: false,
-                // The segment count must stay out of this key: every cached
-                // chunk would otherwise discard the list state and snap the
-                // transcript back to the top.
-                listKey: ValueKey('podcast-transcript-list:${episode.id}'),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _seekToPodcastShownoteTimestamp(
     LuminaAudioHandler handler,
     Duration position,
@@ -2028,28 +2415,43 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   Widget _buildPlayerHeader(AsyncValue<LuminaAudioHandler> handlerAsync) {
     final design = context.appDesign;
-    return SizedBox(
-      height: design.toolbarHeight,
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 220),
-        switchInCurve: Curves.easeOutCubic,
-        switchOutCurve: Curves.easeInCubic,
-        transitionBuilder: (child, animation) => FadeTransition(
-          opacity: animation,
-          child: SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(0, -0.08),
-              end: Offset.zero,
-            ).animate(animation),
-            child: child,
+    final chromeVisible = !_podcastTranscriptMode || _transcriptChromeVisible;
+    final header = AnimatedSwitcher(
+      duration: const Duration(milliseconds: 220),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) => FadeTransition(
+        opacity: animation,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, -0.08),
+            end: Offset.zero,
+          ).animate(animation),
+          child: child,
+        ),
+      ),
+      child: _podcastTranscriptMode
+          ? _buildDefaultPlayerHeader()
+          : _showStickyMiniPlayer
+          ? handlerAsync.maybeWhen(
+              data: (handler) => _buildStickyMiniPlayerHeader(handler),
+              orElse: _buildDefaultPlayerHeader,
+            )
+          : _buildDefaultPlayerHeader(),
+    );
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.topCenter,
+      child: ClipRect(
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 240),
+          opacity: chromeVisible ? 1 : 0,
+          child: SizedBox(
+            height: chromeVisible ? design.toolbarHeight : 0,
+            child: header,
           ),
         ),
-        child: _showStickyMiniPlayer
-            ? handlerAsync.maybeWhen(
-                data: (handler) => _buildStickyMiniPlayerHeader(handler),
-                orElse: _buildDefaultPlayerHeader,
-              )
-            : _buildDefaultPlayerHeader(),
       ),
     );
   }
@@ -2507,6 +2909,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     required Duration fallbackDuration,
     required ChapterManifest? manifest,
     required Color foregroundColor,
+    bool showPodcastActions = false,
   }) {
     return StreamBuilder(
       stream: handler.playbackState,
@@ -2534,6 +2937,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 manifest: manifest,
                 selectedLoaded: selectedLoaded,
                 foregroundColor: foregroundColor,
+                showPodcastActions: showPodcastActions,
               ),
             );
           },
@@ -2550,6 +2954,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     required ChapterManifest? manifest,
     required bool selectedLoaded,
     required Color foregroundColor,
+    bool showPodcastActions = false,
   }) {
     final design = context.appDesign;
     final accent = Theme.of(context).colorScheme.primary;
@@ -2768,8 +3173,263 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             ),
           ],
         ),
+        if (showPodcastActions) ...[
+          SizedBox(height: design.spaceSm),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildPodcastActionButton(
+                key: const ValueKey('player-transcript-toggle'),
+                icon: _podcastTranscriptMode
+                    ? Icons.keyboard_arrow_down_rounded
+                    : Icons.chat_bubble_outline_rounded,
+                label: _podcastTranscriptMode
+                    ? context.tr('封面', 'Cover')
+                    : context.tr('转录', 'Transcript'),
+                onPressed: () =>
+                    _setPodcastTranscriptMode(!_podcastTranscriptMode),
+              ),
+              SizedBox(width: design.spaceXs),
+              _buildPodcastActionButton(
+                key: const ValueKey('player-playlist-toggle'),
+                icon: Icons.queue_music_rounded,
+                label: context.tr('列表', 'Playlist'),
+                onPressed: () => _showPodcastPlaylist(handler),
+              ),
+            ],
+          ),
+        ],
       ],
     );
+  }
+
+  Widget _buildPodcastActionButton({
+    required Key key,
+    required IconData icon,
+    required String label,
+    required VoidCallback onPressed,
+  }) {
+    return Semantics(
+      button: true,
+      label: label,
+      child: TextButton.icon(
+        key: key,
+        onPressed: onPressed,
+        icon: Icon(icon, size: 18),
+        label: Text(label),
+        style: TextButton.styleFrom(
+          foregroundColor: context.appTextPrimary,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          minimumSize: const Size(0, 40),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showPodcastPlaylist(LuminaAudioHandler handler) async {
+    final data = widget.podcast;
+    if (data == null || !mounted) return;
+    final currentId = handler.currentPodcastEpisodeId ?? _podcastEpisode?.id;
+    final currentIndex = data.episodes.indexWhere(
+      (episode) => episode.id == currentId,
+    );
+    final nextEpisodes = currentIndex < 0
+        ? data.episodes
+        : data.episodes.skip(currentIndex + 1).toList(growable: false);
+    final design = context.appDesign;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.28),
+      builder: (sheetContext) {
+        final maxHeight = MediaQuery.sizeOf(sheetContext).height * 0.62;
+        return Container(
+          constraints: BoxConstraints(maxHeight: maxHeight),
+          decoration: BoxDecoration(
+            color: context.appSurface,
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(design.radiusLarge + 10),
+            ),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: EdgeInsets.only(
+                    top: design.spaceMd,
+                    bottom: design.spaceSm,
+                  ),
+                  child: Container(
+                    width: 38,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: context.appTextPrimary.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    design.spaceLg,
+                    design.spaceSm,
+                    design.spaceLg,
+                    design.spaceMd,
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              context.tr('接下来播放', 'Up next'),
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(
+                                    color: context.appTextPrimary,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                            ),
+                            SizedBox(height: design.spaceXs),
+                            Text(
+                              data.show.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: context.appTextSecondary,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: context.tr('关闭', 'Close'),
+                        icon: const Icon(Icons.close_rounded),
+                        color: context.appTextSecondary,
+                        onPressed: () => Navigator.of(sheetContext).pop(),
+                      ),
+                    ],
+                  ),
+                ),
+                if (nextEpisodes.isEmpty)
+                  Padding(
+                    padding: EdgeInsets.symmetric(vertical: design.spaceXxl),
+                    child: Text(
+                      context.tr('没有更多单集', 'No more episodes'),
+                      style: TextStyle(color: context.appTextSecondary),
+                    ),
+                  )
+                else
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      physics: const BouncingScrollPhysics(),
+                      padding: EdgeInsets.fromLTRB(
+                        design.spaceSm,
+                        0,
+                        design.spaceSm,
+                        design.spaceLg,
+                      ),
+                      itemCount: nextEpisodes.length,
+                      separatorBuilder: (_, _) =>
+                          SizedBox(height: design.spaceXs),
+                      itemBuilder: (context, index) {
+                        final episode = nextEpisodes[index];
+                        return ListTile(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              design.radiusMedium,
+                            ),
+                          ),
+                          leading: PodcastArtwork(
+                            imageUrl: episode.imageUrl ?? data.show.imageUrl,
+                            size: 50,
+                            borderRadius: 11,
+                          ),
+                          title: Text(
+                            episode.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: context.appTextPrimary,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14.5,
+                            ),
+                          ),
+                          subtitle: Text(
+                            '${data.show.title} · '
+                            '${_fmt(Duration(milliseconds: episode.durationMs))}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: context.appTextSecondary,
+                              fontSize: 12.5,
+                            ),
+                          ),
+                          onTap: () async {
+                            await _selectPodcastEpisode(handler, episode);
+                            if (sheetContext.mounted) {
+                              Navigator.of(sheetContext).pop();
+                            }
+                          },
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _selectPodcastEpisode(
+    LuminaAudioHandler handler,
+    drift_db.PodcastEpisode episode,
+  ) async {
+    final data = widget.podcast;
+    if (data == null) return;
+    try {
+      var queueIndex = handler.queue.value.indexWhere(
+        (item) => item.extras?['podcastEpisodeId'] == episode.id,
+      );
+      if (queueIndex < 0) {
+        await _loadPodcastPlayback(handler);
+        queueIndex = handler.queue.value.indexWhere(
+          (item) => item.extras?['podcastEpisodeId'] == episode.id,
+        );
+      }
+      if (queueIndex < 0) {
+        throw StateError('Episode is not available in the playback queue.');
+      }
+      await handler.skipToQueueItem(queueIndex);
+      final transcript = _buildPodcastTranscriptContent(data, episode);
+      if (!mounted) return;
+      setState(() {
+        _podcastEpisode = episode;
+        _podcastTranscript = transcript;
+        _selectedManifest = transcript.manifest;
+        _paragraphCount = transcript.paragraphs.length;
+      });
+      _watchPodcastEpisode();
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        'Playback',
+        '播放列表切换单集失败 episode=${episode.id}',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      _showSnackBar(
+        context.tr('无法切换到该单集：$error', 'Unable to play episode: $error'),
+      );
+    }
   }
 
   Widget _buildPrimaryAudioGlyph({
@@ -3016,6 +3676,45 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       ),
     );
   }
+}
+
+/// Draws the rounded dashed outline used by the "transcript moved" pointer.
+/// A dashed edge marks the row as a signpost rather than one more content card.
+class _DashedBorderPainter extends CustomPainter {
+  static const double dashLength = 6;
+  static const double gapLength = 5;
+
+  final Color color;
+  final double radius;
+
+  const _DashedBorderPainter({required this.color, required this.radius});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final outline = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(
+          Offset.zero & size,
+          Radius.circular(radius),
+        ).deflate(0.75),
+      );
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..color = color;
+    for (final metric in outline.computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        final end = math.min(distance + dashLength, metric.length);
+        canvas.drawPath(metric.extractPath(distance, end), paint);
+        distance = end + gapLength;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedBorderPainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.radius != radius;
 }
 
 class _FullScreenLyricsSheet extends ConsumerStatefulWidget {

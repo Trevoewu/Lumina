@@ -171,6 +171,33 @@ void main() {
     expect(lines, ['Where is Mrs. Hirsch?', 'Dr. Smith knows.']);
   });
 
+  test('keeps a spoken domain on one line', () {
+    final lines = splitLyricsText(
+      'Sign up to LEP Premium at teacherluke.co.uk/premium. '
+      'Right then, welcome back.',
+      maxChars: 100,
+    );
+
+    expect(lines, [
+      'Sign up to LEP Premium at teacherluke.co.uk/premium.',
+      'Right then, welcome back.',
+    ]);
+  });
+
+  test('keeps versions, file names and ellipses intact', () {
+    expect(
+      splitLyricsText('We shipped v1.2.3 and notes.txt today.', maxChars: 100),
+      ['We shipped v1.2.3 and notes.txt today.'],
+    );
+    // An ellipsis still reads as a pause worth breaking on, but it stays whole
+    // instead of shattering into 'Wait.' / '.' / '.' the way it used to.
+    expect(splitLyricsText('Wait... what happened? Nothing.', maxChars: 100), [
+      'Wait...',
+      'what happened?',
+      'Nothing.',
+    ]);
+  });
+
   test('splits long sentences at clause boundaries before spaces', () {
     final lines = splitLyricsText(
       'Annemarie outdistanced her friend quickly, even though one of her '

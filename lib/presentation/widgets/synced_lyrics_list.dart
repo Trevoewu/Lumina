@@ -21,7 +21,7 @@ import 'dictionary_lookup_sheet.dart';
 /// Speech-friendly tuning knobs for the karaoke-style renderer.
 const syncedLyricsSweepLeadMs = 80;
 const syncedLyricsSweepFeatherEm = 0.5;
-const _syncedLyricsBlurSigmaCap = 4.0;
+const _syncedLyricsBlurSigmaCap = 7.0;
 
 /// A frame-rate playback clock anchored to just_audio's coarse position stream.
 ///
@@ -481,7 +481,9 @@ List<String> _splitSentences(String text) {
       continue;
     }
     if (!_isSentenceTerminator(character)) continue;
-    if (character == '.' && _isAbbreviationOrDecimal(text, start, index)) {
+    if (character == '.' &&
+        (_isIntraTokenPeriod(text, index) ||
+            _isAbbreviationOrDecimal(text, start, index))) {
       continue;
     }
 
@@ -524,6 +526,23 @@ bool _isSentenceTerminator(String character) =>
 
 bool _isClosingMark(String character) =>
     const {'"', '”', '’', ')', ']', '}'}.contains(character);
+
+final _intraTokenPeriodPattern = RegExp(r'[A-Za-z0-9.]');
+
+/// A period glued straight onto a letter, a digit, or another period sits
+/// inside a token — `teacherluke.co.uk`, `notes.txt`, `v1.2`, an ellipsis —
+/// rather than ending a sentence. Speech leaves whitespace after a real
+/// sentence break, so requiring it keeps a spoken URL on one lyric line
+/// instead of shattering it into `teacherluke.` / `co.` / `uk/premium.`
+///
+/// This deliberately only guards the ASCII period. CJK text runs `。` straight
+/// into the next sentence with no space, so the same rule there would stop
+/// Chinese and Japanese transcripts from splitting at all.
+bool _isIntraTokenPeriod(String text, int periodIndex) {
+  final next = periodIndex + 1;
+  if (next >= text.length) return false;
+  return _intraTokenPeriodPattern.hasMatch(text[next]);
+}
 
 bool _isAbbreviationOrDecimal(String text, int start, int periodIndex) {
   if (periodIndex > 0 &&
@@ -1410,7 +1429,13 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
 
   void _ensureVirtualMetrics(double width) {
     final safeWidth = math.max(width, 1.0);
-    final style = _lineTextStyle(color: _primaryLyricTextColor);
+    // Measure at the active-line size in focus mode. Every line reaches it once
+    // it becomes current, and `itemExtentBuilder` forces the extent it is given,
+    // so measuring the smaller size would clip whichever line is playing.
+    final style = _lineTextStyle(
+      color: _primaryLyricTextColor,
+      highlighted: widget.focusMode,
+    );
     final direction = Directionality.of(context);
     final textScaler = MediaQuery.textScalerOf(context);
     if (_virtualMetricsWidth == safeWidth &&
@@ -1777,15 +1802,22 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
 
   EdgeInsets _lyricsPadding() {
     final horizontal = widget.focusMode
-        ? 0.0
+        ? context.appDesign.pageInsetFor(MediaQuery.sizeOf(context).width)
         : widget.expanded
         ? context.appDesign.pageGutter
         : context.appDesign.spaceLg;
+    // Focus mode floats the header and the controls over the transcript, so the
+    // list needs enough slack at both ends for the first and last sentences to
+    // reach the active-line position instead of stopping under the chrome.
     return EdgeInsets.fromLTRB(
       horizontal,
-      context.appDesign.spaceSm,
+      widget.focusMode
+          ? context.appDesign.spaceXxl * 3
+          : context.appDesign.spaceSm,
       horizontal,
-      context.appDesign.spaceXxl + context.appDesign.spaceLg,
+      widget.focusMode
+          ? context.appDesign.spaceXxl * 7
+          : context.appDesign.spaceXxl + context.appDesign.spaceLg,
     );
   }
 
@@ -1925,14 +1957,19 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
   }) {
     final pressed = line.id == _pressedLineId;
     final primaryTextColor = _primaryLyricTextColor;
+    final distanceFromActive = lineIndex < 0 || activeIndex < 0
+        ? -1
+        : (lineIndex - activeIndex).abs();
     final text = AnimatedDefaultTextStyle(
       duration: const Duration(milliseconds: 220),
       style: _lineTextStyle(
+        highlighted: highlighted,
         color: _lineBaseColor(
           line,
           highlighted: highlighted,
           enabled: enabled,
           positionMs: positionMs,
+          distanceFromActive: distanceFromActive,
         ),
       ),
       child: _buildLyricText(
@@ -1941,14 +1978,10 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
         enabled: enabled,
         primaryTextColor: primaryTextColor,
         positionMs: positionMs,
+        distanceFromActive: distanceFromActive,
       ),
     );
-    final blurred = _depthFilteredLine(
-      text,
-      lineIndex: lineIndex,
-      activeIndex: activeIndex,
-    );
-    return Listener(
+    final frame = Listener(
       onPointerDown: enabled ? (_) => _selectionLineId = line.id : null,
       child: InkWell(
         onTap: enabled && widget.playbackEnabled
@@ -1967,7 +2000,11 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
         splashColor: Colors.transparent,
         highlightColor: Colors.transparent,
         child: AnimatedScale(
-          scale: (highlighted ? 1.025 : 1) * (pressed ? 0.985 : 1),
+          // Focus mode already steps the active line up a font size; scaling it
+          // again would push a long sentence past the viewport edge.
+          scale:
+              (highlighted && !widget.focusMode ? 1.025 : 1) *
+              (pressed ? 0.985 : 1),
           alignment: Alignment.centerLeft,
           duration: const Duration(milliseconds: 260),
           curve: Curves.easeOutCubic,
@@ -1981,10 +2018,15 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: blurred,
+            child: text,
           ),
         ),
       ),
+    );
+    return _depthFilteredLine(
+      frame,
+      lineIndex: lineIndex,
+      activeIndex: activeIndex,
     );
   }
 
@@ -1999,8 +2041,14 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
       return child;
     }
     final distance = (lineIndex - activeIndex).abs();
-    if (distance == 0 || distance > 3) return child;
-    final sigma = math.min(_syncedLyricsBlurSigmaCap, 0.8 * (distance + 1));
+    if (distance == 0) return child;
+    // Keep the active sentence crisp while progressively defocusing every
+    // sentence farther away. The cap still leaves distant text discoverable,
+    // but prevents the viewport from reading like a stack of sharp cards.
+    final sigma = math.min(
+      _syncedLyricsBlurSigmaCap,
+      1.0 + math.max(0, distance - 1) * 1.5,
+    );
     return ImageFiltered(
       imageFilter: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
       child: child,
@@ -2013,6 +2061,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
     required bool enabled,
     required Color primaryTextColor,
     required int positionMs,
+    required int distanceFromActive,
   }) {
     // Disabled transcript lists are also used for static selection/search
     // views. Keep them as a plain Text widget; only the active player needs
@@ -2021,7 +2070,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
       return Text(line.text);
     }
     if (widget.sweepEnabled && highlighted) {
-      final style = _lineTextStyle(color: primaryTextColor);
+      final style = _lineTextStyle(color: primaryTextColor, highlighted: true);
       return CustomPaint(
         foregroundPainter: _LyricSweepPainter(
           line: line,
@@ -2050,6 +2099,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
                   enabled: enabled,
                   primaryTextColor: primaryTextColor,
                   positionMs: positionMs,
+                  distanceFromActive: distanceFromActive,
                 ),
               ),
             ),
@@ -2063,11 +2113,20 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
     required bool highlighted,
     required bool enabled,
     required int positionMs,
+    int distanceFromActive = -1,
   }) {
     final primaryTextColor = _primaryLyricTextColor;
     if (!enabled) return primaryTextColor.withValues(alpha: 0.16);
     if (highlighted) return primaryTextColor;
     final passed = line.endMs > line.startMs && line.endMs <= positionMs;
+    // Focus mode fades by distance rather than by a flat inactive alpha, so the
+    // sentences around the current one read as depth instead of as a wall of
+    // equally dim text. The far end is clamped well above zero because a
+    // transcript is read, not glanced at.
+    if (widget.focusMode && !passed && distanceFromActive > 0) {
+      final alpha = math.max(0.2, 0.56 - distanceFromActive * 0.09);
+      return primaryTextColor.withValues(alpha: alpha);
+    }
     final alpha = passed
         ? 0.22
         : widget.focusMode
@@ -2085,6 +2144,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
     required bool enabled,
     required Color primaryTextColor,
     required int positionMs,
+    required int distanceFromActive,
   }) {
     if (!enabled || !highlighted) {
       return _lineBaseColor(
@@ -2092,6 +2152,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
         highlighted: highlighted,
         enabled: enabled,
         positionMs: positionMs,
+        distanceFromActive: distanceFromActive,
       );
     }
     final progress = _wordProgress(word, positionMs);
@@ -2216,10 +2277,19 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
     );
   }
 
-  TextStyle _lineTextStyle({required Color color}) {
+  /// Focus mode steps the active line up a size the way Apple Music does, so a
+  /// screen holds three or four sentences of context around it. Transcript
+  /// sentences are longer than song lines, so the step is smaller than a lyric
+  /// app would use — 26/21 rather than doubling.
+  TextStyle _lineTextStyle({required Color color, bool highlighted = false}) {
+    final focusActive = widget.focusMode && highlighted;
     return TextStyle(
-      fontSize: widget.expanded || widget.focusMode ? 22 : 18,
-      fontWeight: FontWeight.w700,
+      fontSize: widget.focusMode
+          ? (focusActive ? 26 : 21)
+          : widget.expanded
+          ? 22
+          : 18,
+      fontWeight: focusActive ? FontWeight.w800 : FontWeight.w700,
       color: color,
       height: widget.expanded || widget.focusMode ? 1.35 : 1.4,
       fontFamily: context.appDesign.readingFontFamily,
@@ -2227,7 +2297,10 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
     );
   }
 
-  Color get _primaryLyricTextColor => widget.expanded || widget.focusMode
+  /// The white lyric palette belongs to the dark full-screen sheet. Focus mode
+  /// renders over the player's own light background, so it stays on the theme
+  /// text color.
+  Color get _primaryLyricTextColor => widget.expanded && !widget.focusMode
       ? AppColors.lyricsTextPrimary
       : context.appTextPrimary;
 
