@@ -1051,6 +1051,87 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
   }
 
+  Future<void> _restartPodcastTranscription() async {
+    final episode = _podcastEpisode;
+    if (episode == null || _transcribingPodcast) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(context.tr('重新生成字幕？', 'Regenerate transcript?')),
+        content: Text(
+          context.tr(
+            '当前字幕会被删除，然后从头重新转写。',
+            'The current transcript will be deleted and transcribed again from the beginning.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(context.tr('取消', 'Cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(context.tr('重新生成', 'Regenerate')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await ref
+        .read(cacheManagerProvider)
+        .clearPodcastEpisodeTranscript(episode.id);
+    if (!mounted) return;
+    await _startPodcastTranscription();
+  }
+
+  Future<void> _deletePodcastTranscript() async {
+    final episode = _podcastEpisode;
+    if (episode == null || _transcribingPodcast) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(context.tr('删除字幕？', 'Delete transcript?')),
+        content: Text(
+          context.tr(
+            '只删除本地字幕，Podcast 音频会保留。之后可以重新生成。',
+            'Only the local transcript will be deleted. Podcast audio will be kept and you can generate it again later.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(context.tr('取消', 'Cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(context.tr('删除', 'Delete')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await ref
+          .read(cacheManagerProvider)
+          .clearPodcastEpisodeTranscript(episode.id);
+      if (mounted) {
+        _showSnackBar(context.tr('字幕已删除', 'Transcript deleted'));
+      }
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        'Podcast',
+        '删除 Podcast 字幕失败 episode=${episode.id}',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      if (mounted) {
+        _showSnackBar(
+          context.tr('字幕删除失败：$error', 'Unable to delete transcript: $error'),
+        );
+      }
+    }
+  }
+
   Future<bool> _ensureWhisperModelReady() async {
     final service = ref.read(podcastTranscriptionServiceProvider);
     try {
@@ -1816,7 +1897,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           : Icons.auto_awesome_rounded,
                       size: 20,
                     ),
-                    onPressed: _startPodcastTranscription,
+                    onPressed: _transcriptPaused(episode)
+                        ? _startPodcastTranscription
+                        : _restartPodcastTranscription,
+                  ),
+                if (hasTranscript)
+                  IconButton(
+                    key: const ValueKey('podcast-transcript-delete'),
+                    tooltip: context.tr('删除字幕', 'Delete transcript'),
+                    icon: const Icon(Icons.delete_outline_rounded, size: 20),
+                    onPressed: _deletePodcastTranscript,
                   ),
                 if (hasTranscript)
                   IconButton(

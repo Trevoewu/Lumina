@@ -637,6 +637,72 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
     await tester.pump(const Duration(milliseconds: 1));
   });
+
+  testWidgets('a completed transcript can be deleted and generated again', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final handler = _PodcastTestAudioHandler();
+    final sleepTimer = SleepTimerService();
+    final service = _FakeTranscriptionService(database, null);
+    addTearDown(database.close);
+    addTearDown(handler.dispose);
+    addTearDown(sleepTimer.dispose);
+    addTearDown(service.dispose);
+
+    await _insertPodcast(
+      database,
+      episodeId: 'episode-complete',
+      transcriptJson:
+          '[{"text":"A cached transcript.","startMs":0,"endMs":1200}]',
+      transcriptStatus: 'complete',
+    );
+
+    await tester.pumpWidget(
+      _podcastApp(
+        database: database,
+        handler: handler,
+        sleepTimer: sleepTimer,
+        service: service,
+        episodeId: 'episode-complete',
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final deleteButton = find.byKey(
+      const ValueKey('podcast-transcript-delete'),
+    );
+    expect(deleteButton, findsOneWidget);
+    await tester.ensureVisible(deleteButton);
+    await tester.tap(deleteButton);
+    await tester.pumpAndSettle();
+    expect(find.text('Delete transcript?'), findsOneWidget);
+
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+
+    final episode = await database.getPodcastEpisode('episode-complete');
+    expect(episode?.transcriptJson, isNull);
+    expect(episode?.transcriptStatus, 'none');
+    expect(
+      find.byKey(const ValueKey('podcast-transcript-delete')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('podcast-transcript-restart')),
+      findsNothing,
+    );
+    expect(find.text('Transcribe on device'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump(const Duration(milliseconds: 1));
+  });
 }
 
 Future<void> _insertPodcast(
