@@ -17,6 +17,7 @@ import 'package:lumina/presentation/screens/podcast/podcast_episode_screen.dart'
 import 'package:lumina/presentation/widgets/podcast_link_text.dart';
 import 'package:lumina/presentation/widgets/synced_lyrics_list.dart';
 import 'package:lumina/services/lumina_audio_handler.dart';
+import 'package:lumina/services/podcast_transcription_service.dart';
 import 'package:lumina/services/sleep_timer_service.dart';
 
 void main() {
@@ -33,6 +34,7 @@ void main() {
       playbackPositionMs: 0,
       lastPlayedAt: 0,
       isPlayed: false,
+      transcriptProgressMs: 0,
       transcriptJson: '[{"text":"Cached line.","startMs":0,"endMs":1000}]',
       transcriptStatus: 'running',
     );
@@ -44,6 +46,7 @@ void main() {
           playbackPositionMs: 5000,
           lastPlayedAt: 10,
           isPlayed: true,
+          transcriptProgressMs: 0,
         ),
       ),
       isFalse,
@@ -159,6 +162,7 @@ void main() {
         playbackPositionMs: 0,
         lastPlayedAt: 0,
         isPlayed: false,
+        transcriptProgressMs: 0,
         transcriptJson:
             '[{"text":"First cached chunk.","startMs":0,"endMs":1200}]',
         transcriptStatus: 'running',
@@ -354,6 +358,7 @@ void main() {
         playbackPositionMs: 0,
         lastPlayedAt: 0,
         isPlayed: false,
+        transcriptProgressMs: 0,
         transcriptStatus: 'none',
       ),
     );
@@ -379,7 +384,8 @@ void main() {
     await database.updatePodcastTranscript(
       'episode-growth',
       status: 'running',
-      transcriptJson: '[{"text":"First cached chunk.","startMs":0,'
+      transcriptJson:
+          '[{"text":"First cached chunk.","startMs":0,'
           '"endMs":1200}]',
       language: 'en',
     );
@@ -440,6 +446,7 @@ void main() {
         playbackPositionMs: 0,
         lastPlayedAt: 0,
         isPlayed: false,
+        transcriptProgressMs: 0,
         transcriptStatus: 'none',
       ),
     );
@@ -492,6 +499,221 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));
   });
+
+  testWidgets('a running transcription can be paused from the card', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final handler = _PodcastTestAudioHandler();
+    final sleepTimer = SleepTimerService();
+    final service = _FakeTranscriptionService(database, 'episode-running');
+    addTearDown(database.close);
+    addTearDown(handler.dispose);
+    addTearDown(sleepTimer.dispose);
+    addTearDown(service.dispose);
+
+    await _insertPodcast(
+      database,
+      episodeId: 'episode-running',
+      transcriptJson:
+          '[{"text":"First cached chunk.","startMs":0,'
+          '"endMs":1200}]',
+      transcriptStatus: 'running',
+    );
+
+    await tester.pumpWidget(
+      _podcastApp(
+        database: database,
+        handler: handler,
+        sleepTimer: sleepTimer,
+        service: service,
+        episodeId: 'episode-running',
+      ),
+    );
+    // The running state carries an indeterminate progress bar, so this never
+    // settles; pump a couple of frames instead.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final pauseButton = find.byKey(const ValueKey('podcast-transcript-pause'));
+    expect(pauseButton, findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('podcast-transcript-restart')),
+      findsNothing,
+      reason: 'a running job offers pause, not another start',
+    );
+
+    await tester.ensureVisible(pauseButton);
+    await tester.pump();
+    await tester.tap(pauseButton);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(service.pauseCalls, 1);
+    expect(pauseButton, findsNothing);
+    expect(
+      find.byKey(const ValueKey('podcast-transcript-restart')),
+      findsOneWidget,
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump(const Duration(milliseconds: 1));
+  });
+
+  testWidgets('a paused episode offers to resume where it stopped', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final handler = _PodcastTestAudioHandler();
+    final sleepTimer = SleepTimerService();
+    final service = _FakeTranscriptionService(database, null);
+    addTearDown(database.close);
+    addTearDown(handler.dispose);
+    addTearDown(sleepTimer.dispose);
+    addTearDown(service.dispose);
+
+    await _insertPodcast(
+      database,
+      episodeId: 'episode-paused',
+      transcriptJson:
+          '[{"text":"First cached chunk.","startMs":0,'
+          '"endMs":1200}]',
+      transcriptStatus: podcastTranscriptPausedStatus,
+      transcriptProgressMs: 180000,
+    );
+
+    await tester.pumpWidget(
+      _podcastApp(
+        database: database,
+        handler: handler,
+        sleepTimer: sleepTimer,
+        service: service,
+        episodeId: 'episode-paused',
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final restart = find.byKey(const ValueKey('podcast-transcript-restart'));
+    expect(restart, findsOneWidget);
+    expect(
+      tester.widget<IconButton>(restart).tooltip,
+      'Resume transcription',
+      reason: 'the cached chunks are kept, so this continues the run',
+    );
+    expect(find.text('First cached chunk.'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump(const Duration(milliseconds: 1));
+  });
+}
+
+Future<void> _insertPodcast(
+  AppDatabase database, {
+  required String episodeId,
+  required String transcriptStatus,
+  String? transcriptJson,
+  int transcriptProgressMs = 0,
+}) async {
+  await database.upsertPodcastShow(
+    const PodcastShow(
+      id: 'show-pause-ui',
+      feedUrl: 'https://example.com/feed.xml',
+      title: 'Example Podcast',
+      description: '',
+      subscribedAt: 1,
+      lastRefreshedAt: 1,
+    ),
+  );
+  await database.upsertPodcastEpisode(
+    PodcastEpisode(
+      id: episodeId,
+      showId: 'show-pause-ui',
+      guid: '$episodeId-guid',
+      title: 'Interruptible Episode',
+      description: 'Shownotes.',
+      audioUrl: 'https://example.com/episode.mp3',
+      publishedAt: 1,
+      durationMs: 3600000,
+      playbackPositionMs: 0,
+      lastPlayedAt: 0,
+      isPlayed: false,
+      transcriptJson: transcriptJson,
+      transcriptStatus: transcriptStatus,
+      transcriptProgressMs: transcriptProgressMs,
+    ),
+  );
+}
+
+Widget _podcastApp({
+  required AppDatabase database,
+  required _PodcastTestAudioHandler handler,
+  required SleepTimerService sleepTimer,
+  required _FakeTranscriptionService service,
+  required String episodeId,
+}) {
+  return ProviderScope(
+    overrides: [
+      appDatabaseProvider.overrideWithValue(database),
+      luminaAudioHandlerProvider.overrideWith((ref) async => handler),
+      sleepTimerServiceProvider.overrideWithValue(sleepTimer),
+      podcastTranscriptionServiceProvider.overrideWithValue(service),
+    ],
+    child: MaterialApp(
+      theme: AppTheme.darkTheme(),
+      home: PodcastEpisodeScreen(episodeId: episodeId),
+    ),
+  );
+}
+
+/// Stands in for Whisper: it only reports which episode it is working on and
+/// records the pause requests the transcript card sends.
+class _FakeTranscriptionService extends PodcastTranscriptionService {
+  final StreamController<PodcastTranscriptionProgress> _progress =
+      StreamController<PodcastTranscriptionProgress>.broadcast();
+  String? _activeEpisodeId;
+  int pauseCalls = 0;
+
+  _FakeTranscriptionService(super.database, this._activeEpisodeId);
+
+  @override
+  String? get activeEpisodeId => _activeEpisodeId;
+
+  @override
+  Stream<PodcastTranscriptionProgress> get progressStream => _progress.stream;
+
+  @override
+  Future<void> pause() async {
+    pauseCalls++;
+    final episodeId = _activeEpisodeId;
+    _activeEpisodeId = null;
+    if (episodeId == null) return;
+    _progress.add(
+      PodcastTranscriptionProgress(
+        episodeId: episodeId,
+        stage: PodcastTranscriptionStage.paused,
+        message: '本地转写已暂停',
+        progress: 0.5,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    unawaited(_progress.close());
+    super.dispose();
+  }
 }
 
 class _PodcastTestAudioHandler extends BaseAudioHandler

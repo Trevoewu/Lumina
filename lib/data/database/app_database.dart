@@ -268,6 +268,11 @@ class PodcastEpisodes extends Table {
   TextColumn get transcriptStatus =>
       text().withDefault(const Constant('none'))();
   TextColumn get transcriptError => text().nullable()();
+
+  /// Audio offset already covered by fully transcribed chunks. A paused run
+  /// resumes from here instead of listening to the episode again.
+  IntColumn get transcriptProgressMs =>
+      integer().withDefault(const Constant(0))();
   TextColumn get sourceTranscriptUrl => text().nullable()();
 
   @override
@@ -348,7 +353,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e) : _repairPathsOnOpen = false;
 
   @override
-  int get schemaVersion => 15;
+  int get schemaVersion => 16;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -443,6 +448,26 @@ class AppDatabase extends _$AppDatabase {
           await m.addColumn(books, books.isRead);
         } else {
           await m.createTable(books);
+        }
+      }
+      if (from >= 10 && from < 16) {
+        // A database can carry the podcast schema version without ever having
+        // created the episodes table (shows-only imports from schema 10).
+        final episodesTableExists =
+            await m.database
+                .customSelect(
+                  "SELECT 1 FROM sqlite_master WHERE type = 'table' "
+                  "AND name = 'podcast_episodes'",
+                )
+                .getSingleOrNull() !=
+            null;
+        if (episodesTableExists) {
+          await m.addColumn(
+            podcastEpisodes,
+            podcastEpisodes.transcriptProgressMs,
+          );
+        } else {
+          await m.createTable(podcastEpisodes);
         }
       }
     },
@@ -1070,6 +1095,7 @@ class AppDatabase extends _$AppDatabase {
         transcriptLanguage: Value(null),
         transcriptStatus: Value('none'),
         transcriptError: Value(null),
+        transcriptProgressMs: Value(0),
       ),
     );
   }
@@ -1080,6 +1106,7 @@ class AppDatabase extends _$AppDatabase {
     String? transcriptJson,
     String? language,
     String? error,
+    int? progressMs,
   }) async {
     await (update(
       podcastEpisodes,
@@ -1095,6 +1122,9 @@ class AppDatabase extends _$AppDatabase {
             ? const Value.absent()
             : Value(language),
         transcriptError: Value(error),
+        transcriptProgressMs: progressMs == null
+            ? const Value.absent()
+            : Value(progressMs),
       ),
     );
   }

@@ -370,7 +370,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   drift_db.PodcastEpisode? _podcastEpisode;
   _PodcastTranscriptContent? _podcastTranscript;
   StreamSubscription<drift_db.PodcastEpisode?>? _podcastEpisodeSubscription;
+  StreamSubscription<PodcastTranscriptionProgress>? _transcriptionSubscription;
   bool _transcribingPodcast = false;
+  bool _pausingPodcastTranscription = false;
   PodcastTranscriptionProgress? _transcriptionProgress;
   bool _autoplayHandled = false;
   bool _showFullPodcastNotes = false;
@@ -395,6 +397,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       unawaited(_loadPlaybackSpeed());
       if (_isPodcast) {
         _watchPodcastEpisode();
+        _watchTranscriptionProgress();
         unawaited(_autoplayIfRequested());
       } else {
         unawaited(_loadSelectedChapterState());
@@ -406,6 +409,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void dispose() {
     unawaited(_generationSubscription?.cancel());
     unawaited(_podcastEpisodeSubscription?.cancel());
+    unawaited(_transcriptionSubscription?.cancel());
     _playerScrollController
       ..removeListener(_handlePlayerScroll)
       ..dispose();
@@ -926,6 +930,49 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
+  /// A run outlives the screen that started it, so the transcript card reads
+  /// its state from the service instead of a flag set on tap. Reopening the
+  /// episode — or opening a different one — then shows the truth.
+  void _watchTranscriptionProgress() {
+    final episode = _podcastEpisode;
+    if (episode == null) return;
+    final service = ref.read(podcastTranscriptionServiceProvider);
+    setState(() {
+      _transcribingPodcast = service.activeEpisodeId == episode.id;
+    });
+    unawaited(_transcriptionSubscription?.cancel());
+    _transcriptionSubscription = service.progressStream.listen((progress) {
+      if (!mounted || progress.episodeId != _podcastEpisode?.id) return;
+      setState(() {
+        _transcribingPodcast = progress.running;
+        _transcriptionProgress = progress.running ? progress : null;
+      });
+    });
+  }
+
+  bool _transcriptPaused(drift_db.PodcastEpisode episode) =>
+      episode.transcriptStatus == podcastTranscriptPausedStatus &&
+      episode.transcriptProgressMs > 0;
+
+  Future<void> _pausePodcastTranscription() async {
+    if (_pausingPodcastTranscription) return;
+    final service = ref.read(podcastTranscriptionServiceProvider);
+    // Whisper finishes the chunk it is holding before it lets go, which can
+    // take a while on a long chunk size. Say so instead of looking stuck.
+    setState(() => _pausingPodcastTranscription = true);
+    try {
+      await service.pause();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _pausingPodcastTranscription = false;
+          _transcribingPodcast = false;
+          _transcriptionProgress = null;
+        });
+      }
+    }
+  }
+
   Future<void> _startPodcastTranscription() async {
     final data = widget.podcast;
     final episode = _podcastEpisode;
@@ -938,7 +985,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (!mounted) return;
     setState(() {
       _transcribingPodcast = true;
-      _transcriptionProgress = const PodcastTranscriptionProgress(
+      _transcriptionProgress = PodcastTranscriptionProgress(
+        episodeId: episode.id,
         stage: PodcastTranscriptionStage.preparing,
         message: '正在准备本地转写',
       );
@@ -1713,18 +1761,35 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     title: context.tr('字幕', 'Transcript'),
                   ),
                 ),
-                if (hasTranscript)
+                if (_transcribingPodcast)
                   IconButton(
-                    tooltip: context.tr('重新转写', 'Transcribe again'),
-                    icon: _transcribingPodcast
+                    key: const ValueKey('podcast-transcript-pause'),
+                    tooltip: _pausingPodcastTranscription
+                        ? context.tr('正在暂停…', 'Pausing…')
+                        : context.tr('暂停转写', 'Pause transcription'),
+                    icon: _pausingPodcastTranscription
                         ? const SizedBox.square(
                             dimension: 18,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Icon(Icons.auto_awesome_rounded, size: 20),
-                    onPressed: _transcribingPodcast
+                        : const Icon(Icons.pause_circle_outline, size: 22),
+                    onPressed: _pausingPodcastTranscription
                         ? null
-                        : _startPodcastTranscription,
+                        : _pausePodcastTranscription,
+                  )
+                else if (hasTranscript)
+                  IconButton(
+                    key: const ValueKey('podcast-transcript-restart'),
+                    tooltip: _transcriptPaused(episode)
+                        ? context.tr('继续转写', 'Resume transcription')
+                        : context.tr('重新转写', 'Transcribe again'),
+                    icon: Icon(
+                      _transcriptPaused(episode)
+                          ? Icons.play_circle_outline
+                          : Icons.auto_awesome_rounded,
+                      size: 20,
+                    ),
+                    onPressed: _startPodcastTranscription,
                   ),
                 if (hasTranscript)
                   IconButton(
@@ -2218,6 +2283,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       final currentProgress = _transcriptionProgress;
       if (paragraphs.isEmpty) {
         final failed = episode.transcriptStatus == 'failed';
+        final paused = _transcriptPaused(episode);
         return Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -2236,6 +2302,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   _transcribingPodcast
                       ? currentProgress?.message ??
                             context.tr('正在本地转写', 'Transcribing locally')
+                      : paused
+                      ? context.tr('转写已暂停', 'Transcription paused')
                       : failed
                       ? context.tr('上次转写未完成', 'Last transcription stopped')
                       : context.tr('这个单集还没有字幕', 'No transcript yet'),
@@ -2248,13 +2316,36 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 if (_transcribingPodcast) ...[
                   const SizedBox(height: 12),
                   LinearProgressIndicator(value: currentProgress?.progress),
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    key: const ValueKey('podcast-transcript-pause-inline'),
+                    onPressed: _pausingPodcastTranscription
+                        ? null
+                        : _pausePodcastTranscription,
+                    icon: const Icon(Icons.pause_rounded, size: 18),
+                    label: Text(
+                      _pausingPodcastTranscription
+                          ? context.tr('正在暂停…', 'Pausing…')
+                          : context.tr('暂停', 'Pause'),
+                    ),
+                  ),
                 ] else ...[
                   const SizedBox(height: 12),
                   FilledButton.icon(
                     onPressed: _startPodcastTranscription,
-                    icon: const Icon(Icons.auto_awesome_rounded, size: 18),
+                    icon: Icon(
+                      paused
+                          ? Icons.play_arrow_rounded
+                          : Icons.auto_awesome_rounded,
+                      size: 18,
+                    ),
                     label: Text(
-                      context.tr('使用本地 Whisper 转写', 'Transcribe on device'),
+                      paused
+                          ? context.tr('继续转写', 'Resume transcription')
+                          : context.tr(
+                              '使用本地 Whisper 转写',
+                              'Transcribe on device',
+                            ),
                     ),
                   ),
                 ],

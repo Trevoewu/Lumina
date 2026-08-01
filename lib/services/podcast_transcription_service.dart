@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -21,18 +22,98 @@ enum PodcastTranscriptionStage {
   downloadingAudio,
   transcribing,
   complete,
+  paused,
+}
+
+/// Status stored on the episode row while a run is interrupted on purpose.
+/// A paused episode resumes from `transcriptProgressMs`; a failed one does
+/// too, but only the paused label offers to continue.
+const podcastTranscriptPausedStatus = 'paused';
+
+/// One slice of audio handed to Whisper.
+class PodcastChunkWindow {
+  final int startMs;
+  final int durationMs;
+
+  const PodcastChunkWindow({required this.startMs, required this.durationMs});
+
+  @override
+  String toString() => 'PodcastChunkWindow($startMs, $durationMs)';
+}
+
+/// Chunk schedule for one run.
+///
+/// [startFromMs] is the offset a paused run already covered, so resuming never
+/// hands Whisper the same audio twice and never skips a gap between the two
+/// runs — even if the chunk size setting changed in between. A feed without a
+/// usable duration falls back to a bounded number of fixed-size chunks; the
+/// loop stops early once FFmpeg runs out of audio.
+List<PodcastChunkWindow> planPodcastChunks({
+  required int durationMs,
+  required int startFromMs,
+  required int chunkDurationMs,
+  int maxUnknownChunks = 480,
+}) {
+  if (chunkDurationMs <= 0) return const [];
+  final start = math.max(0, startFromMs);
+  if (durationMs <= 0) {
+    return [
+      for (var index = 0; index < maxUnknownChunks; index++)
+        PodcastChunkWindow(
+          startMs: start + index * chunkDurationMs,
+          durationMs: chunkDurationMs,
+        ),
+    ];
+  }
+
+  final windows = <PodcastChunkWindow>[];
+  for (var offset = start; offset < durationMs; offset += chunkDurationMs) {
+    windows.add(
+      PodcastChunkWindow(
+        startMs: offset,
+        durationMs: math.min(chunkDurationMs, durationMs - offset),
+      ),
+    );
+  }
+  return windows;
+}
+
+class _ChunkRun {
+  final List<AudioTextTiming> segments;
+  final int completedMs;
+  final bool paused;
+
+  const _ChunkRun({
+    required this.segments,
+    required this.completedMs,
+    required this.paused,
+  });
+}
+
+class _ActiveTranscription {
+  final String episodeId;
+  final Completer<void> finished = Completer<void>();
+  bool cancelled = false;
+
+  _ActiveTranscription(this.episodeId);
 }
 
 class PodcastTranscriptionProgress {
+  final String episodeId;
   final PodcastTranscriptionStage stage;
   final String message;
   final double? progress;
 
   const PodcastTranscriptionProgress({
+    required this.episodeId,
     required this.stage,
     required this.message,
     this.progress,
   });
+
+  bool get running =>
+      stage != PodcastTranscriptionStage.complete &&
+      stage != PodcastTranscriptionStage.paused;
 }
 
 class PodcastAsrModelInfo {
@@ -69,7 +150,9 @@ class PodcastTranscriptionService {
   final Dio _dio;
   final WhisperController _controller;
   final Map<String, Future<String>> _audioDownloads = {};
-  bool _busy = false;
+  final StreamController<PodcastTranscriptionProgress> _progressController =
+      StreamController<PodcastTranscriptionProgress>.broadcast();
+  _ActiveTranscription? _active;
   bool _installingModel = false;
 
   PodcastTranscriptionService(
@@ -109,10 +192,32 @@ class PodcastTranscriptionService {
     );
   }
 
+  /// Episode currently being transcribed, if any. Every screen reads this to
+  /// decide whether it owns the running job.
+  String? get activeEpisodeId => _active?.episodeId;
+
+  /// Progress for whichever episode is running. Screens filter by episode id
+  /// so a run stays visible after navigating away and back.
+  Stream<PodcastTranscriptionProgress> get progressStream =>
+      _progressController.stream;
+
+  /// Stops the running job at the next chunk boundary and waits for it to
+  /// settle. Chunks already cached stay on the episode row.
+  Future<void> pause() async {
+    final active = _active;
+    if (active == null) return;
+    active.cancelled = true;
+    await active.finished.future;
+  }
+
+  void dispose() {
+    unawaited(_progressController.close());
+  }
+
   Future<void> installModel({
     void Function(double? progress, String message)? onProgress,
   }) async {
-    if (_busy) {
+    if (_active != null) {
       throw StateError('Podcast 转写进行中，暂时不能管理 Whisper 模型。');
     }
     await _ensureModel(
@@ -123,7 +228,7 @@ class PodcastTranscriptionService {
   }
 
   Future<void> deleteModel() async {
-    if (_busy || _installingModel) {
+    if (_active != null || _installingModel) {
       throw StateError('Whisper 正在使用或下载中，暂时不能删除模型。');
     }
     final path = await _controller.getPath(defaultModel);
@@ -137,21 +242,25 @@ class PodcastTranscriptionService {
     String? languageHint,
     void Function(PodcastTranscriptionProgress progress)? onProgress,
   }) async {
-    if (_busy) {
-      throw StateError('已有一个 Podcast 正在本地转写，请稍候。');
-    }
-    _busy = true;
+    // Starting an episode takes over from whatever was running: the previous
+    // job pauses at its next chunk boundary and keeps everything it cached.
+    await pause();
+    final active = _ActiveTranscription(episode.id);
+    _active = active;
     void emit(
       PodcastTranscriptionStage stage,
       String message, {
       double? progress,
-    }) => onProgress?.call(
-      PodcastTranscriptionProgress(
+    }) {
+      final event = PodcastTranscriptionProgress(
+        episodeId: episode.id,
         stage: stage,
         message: message,
         progress: progress,
-      ),
-    );
+      );
+      onProgress?.call(event);
+      if (!_progressController.isClosed) _progressController.add(event);
+    }
 
     try {
       await database.updatePodcastTranscript(
@@ -198,15 +307,55 @@ class PodcastTranscriptionService {
         1,
         10,
       );
-      final segments = await _transcribeInChunks(
+      // The row carries how far an earlier run got. Resuming replays only the
+      // audio after that point and keeps the chunks it already cached.
+      final stored = await database.getPodcastEpisode(episode.id) ?? episode;
+      final resumeFromMs = stored.transcriptStatus == 'complete'
+          ? 0
+          : stored.transcriptProgressMs
+                .clamp(0, math.max(0, durationMs))
+                .toInt();
+      final cached = resumeFromMs > 0
+          ? decodeTranscript(stored.transcriptJson)
+          : const <AudioTextTiming>[];
+
+      final run = await _transcribeInChunks(
+        active: active,
         episode: episode,
         audioPath: cachedAudioPath,
         language: language,
         durationMs: durationMs,
+        startFromMs: resumeFromMs,
+        cachedSegments: cached,
         chunkDuration: Duration(minutes: chunkMinutes),
         emit: emit,
       );
-      if (segments.isEmpty) {
+
+      if (run.paused) {
+        await database.updatePodcastTranscript(
+          episode.id,
+          status: podcastTranscriptPausedStatus,
+          transcriptJson: jsonEncode([
+            for (final segment in run.segments) segment.toJson(),
+          ]),
+          language: language,
+          error: null,
+          progressMs: run.completedMs,
+        );
+        emit(
+          PodcastTranscriptionStage.paused,
+          '本地转写已暂停',
+          progress: durationMs <= 0 ? null : run.completedMs / durationMs,
+        );
+        AppLogger.info(
+          'Podcast',
+          'Whisper 本地转写暂停 episode=${episode.id} '
+              'segments=${run.segments.length} at=${run.completedMs}ms',
+        );
+        return run.segments;
+      }
+
+      if (run.segments.isEmpty) {
         throw StateError('没有识别到可显示的语音内容。');
       }
 
@@ -214,17 +363,19 @@ class PodcastTranscriptionService {
         episode.id,
         status: 'complete',
         transcriptJson: jsonEncode([
-          for (final segment in segments) segment.toJson(),
+          for (final segment in run.segments) segment.toJson(),
         ]),
         language: language,
         error: null,
+        progressMs: run.completedMs,
       );
       emit(PodcastTranscriptionStage.complete, '本地转写完成', progress: 1);
       AppLogger.info(
         'Podcast',
-        'Whisper 本地转写完成 episode=${episode.id} segments=${segments.length}',
+        'Whisper 本地转写完成 episode=${episode.id} '
+            'segments=${run.segments.length}',
       );
-      return segments;
+      return run.segments;
     } catch (error, stackTrace) {
       await database.updatePodcastTranscript(
         episode.id,
@@ -239,7 +390,8 @@ class PodcastTranscriptionService {
       );
       rethrow;
     } finally {
-      _busy = false;
+      if (identical(_active, active)) _active = null;
+      active.finished.complete();
     }
   }
 
@@ -264,11 +416,14 @@ class PodcastTranscriptionService {
     }
   }
 
-  Future<List<AudioTextTiming>> _transcribeInChunks({
+  Future<_ChunkRun> _transcribeInChunks({
+    required _ActiveTranscription active,
     required PodcastEpisode episode,
     required String audioPath,
     required String language,
     required int durationMs,
+    required int startFromMs,
+    required List<AudioTextTiming> cachedSegments,
     required Duration chunkDuration,
     required void Function(
       PodcastTranscriptionStage stage,
@@ -284,25 +439,34 @@ class PodcastTranscriptionService {
     await chunkDirectory.create(recursive: true);
 
     final chunkDurationMs = chunkDuration.inMilliseconds;
-    final knownChunkCount = durationMs <= 0
-        ? null
-        : math.max(1, (durationMs / chunkDurationMs).ceil());
-    final output = <AudioTextTiming>[];
+    final plan = planPodcastChunks(
+      durationMs: durationMs,
+      startFromMs: startFromMs,
+      chunkDurationMs: chunkDurationMs,
+      maxUnknownChunks: _maximumUnknownDurationChunks,
+    );
+    final knownChunkCount = durationMs <= 0 ? null : plan.length;
+    final output = <AudioTextTiming>[...cachedSegments];
+    var completedMs = startFromMs;
 
-    for (
-      var chunkIndex = 0;
-      chunkIndex < (knownChunkCount ?? _maximumUnknownDurationChunks);
-      chunkIndex++
-    ) {
-      final startMs = chunkIndex * chunkDurationMs;
-      final requestedDurationMs = durationMs > 0
-          ? math.min(chunkDurationMs, durationMs - startMs)
-          : chunkDurationMs;
-      if (requestedDurationMs <= 0) break;
+    for (var chunkIndex = 0; chunkIndex < plan.length; chunkIndex++) {
+      // Pausing lands between chunks: the one in flight would have to be
+      // thrown away otherwise, and its audio re-transcribed on resume.
+      if (active.cancelled) {
+        return _ChunkRun(
+          segments: output,
+          completedMs: completedMs,
+          paused: true,
+        );
+      }
+
+      final window = plan[chunkIndex];
+      final startMs = window.startMs;
+      final requestedDurationMs = window.durationMs;
 
       final chunkPath = p.join(
         chunkDirectory.path,
-        'chunk_${chunkIndex.toString().padLeft(4, '0')}.wav',
+        'chunk_${startMs.toString().padLeft(9, '0')}.wav',
       );
       final hasAudio = await _extractAudioChunk(
         sourcePath: audioPath,
@@ -318,10 +482,16 @@ class PodcastTranscriptionService {
       final chunkLabel = knownChunkCount == null
           ? '${chunkIndex + 1}'
           : '${chunkIndex + 1}/$knownChunkCount';
+      // Progress covers the whole episode, not just this run, so resuming
+      // picks the bar up where the paused run left it.
+      double? overallProgress(double chunkFraction) => durationMs <= 0
+          ? null
+          : ((startMs + requestedDurationMs * chunkFraction) / durationMs)
+                .clamp(0.0, 1.0);
       emit(
         PodcastTranscriptionStage.transcribing,
         'Whisper 正在设备上转写（$chunkLabel）',
-        progress: knownChunkCount == null ? null : chunkIndex / knownChunkCount,
+        progress: overallProgress(0),
       );
 
       try {
@@ -335,10 +505,7 @@ class PodcastTranscriptionService {
             emit(
               PodcastTranscriptionStage.transcribing,
               'Whisper 正在设备上转写（$chunkLabel）',
-              progress: knownChunkCount == null
-                  ? null
-                  : (chunkIndex + percent.clamp(0, 100) / 100) /
-                        knownChunkCount,
+              progress: overallProgress(percent.clamp(0, 100) / 100),
             );
           },
         );
@@ -366,9 +533,11 @@ class PodcastTranscriptionService {
           );
         }
         output.addAll(chunkSegments);
+        completedMs = startMs + requestedDurationMs;
 
         // Each completed chunk is durable immediately. Database watchers can
-        // render these lines as lyrics while later chunks are still running.
+        // render these lines as lyrics while later chunks are still running,
+        // and the offset lets a paused run pick up exactly here.
         await database.updatePodcastTranscript(
           episode.id,
           status: 'running',
@@ -377,12 +546,13 @@ class PodcastTranscriptionService {
           ]),
           language: language,
           error: null,
+          progressMs: completedMs,
         );
       } finally {
         await _deletePreparedAudio(chunkPath);
       }
     }
-    return output;
+    return _ChunkRun(segments: output, completedMs: completedMs, paused: false);
   }
 
   Future<void> _deletePreparedAudio(String audioPath) async {

@@ -176,6 +176,7 @@ class PodcastRepository {
           transcriptLanguage: old?.transcriptLanguage,
           transcriptStatus: old?.transcriptStatus ?? 'none',
           transcriptError: old?.transcriptError,
+          transcriptProgressMs: old?.transcriptProgressMs ?? 0,
           sourceTranscriptUrl:
               item.sourceTranscriptUrl ?? old?.sourceTranscriptUrl,
         );

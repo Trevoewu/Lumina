@@ -500,6 +500,7 @@ Future<void> _seedScrollableHome(AppDatabase database) async {
         playbackPositionMs: 0,
         lastPlayedAt: 0,
         isPlayed: false,
+        transcriptProgressMs: 0,
         transcriptStatus: 'none',
       ),
     );

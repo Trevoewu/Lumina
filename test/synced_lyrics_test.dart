@@ -315,6 +315,97 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('a newly cached chunk leaves the reading position alone', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 500);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final handler = _VirtualLyricsAudioHandler(paragraphId: 'growing');
+    addTearDown(handler.dispose);
+
+    List<AudioTextTiming> timingsFor(int count) => [
+      for (var index = 0; index < count; index++)
+        AudioTextTiming(
+          text: 'Transcript segment $index.',
+          startMs: index * 1000,
+          endMs: (index + 1) * 1000,
+        ),
+    ];
+    Widget buildAt(int count) {
+      final timings = timingsFor(count);
+      return MaterialApp(
+        theme: AppTheme.darkTheme(),
+        home: Scaffold(
+          body: SizedBox(
+            width: 390,
+            height: 500,
+            child: SyncedLyricsList(
+              paragraphs: [
+                Paragraph(
+                  id: 'growing',
+                  chapterId: 'growing',
+                  bookId: 'podcast:growing-show',
+                  paragraphIndex: 0,
+                  content: timings.map((timing) => timing.text).join('\n'),
+                ),
+              ],
+              manifest: ChapterManifest(
+                chapterId: 'growing',
+                bookId: 'podcast:growing-show',
+                providerId: 'whisper-local',
+                voiceId: '',
+                speed: 1,
+                updatedAt: 1,
+                segments: [
+                  SegmentEntry(
+                    paragraphId: 'growing',
+                    audioFile: 'https://example.com/episode.mp3',
+                    durationMs: count * 1000,
+                    state: ParagraphAudioState.ready,
+                    format: 'podcast',
+                    timings: timings,
+                  ),
+                ],
+              ),
+              handler: handler,
+              // Playback is enabled while a podcast transcribes, so the list
+              // tracks an active line the whole time.
+              playbackEnabled: true,
+              expanded: true,
+              virtualized: true,
+            ),
+          ),
+        ),
+      );
+    }
+
+    await tester.pumpWidget(buildAt(200));
+    await tester.pumpAndSettle();
+
+    final scrollable = find.descendant(
+      of: find.byKey(const ValueKey('synced-lyrics-virtualized-list')),
+      matching: find.byType(Scrollable),
+    );
+    final position = tester.state<ScrollableState>(scrollable).position;
+    position.jumpTo(position.maxScrollExtent * 0.6);
+    await tester.pumpAndSettle();
+    final before = tester.state<ScrollableState>(scrollable).position.pixels;
+    expect(before, greaterThan(1000));
+
+    // Whisper caches another chunk while the reader is further down.
+    await tester.pumpWidget(buildAt(240));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Transcript segment 239.'), findsNothing);
+    expect(
+      tester.state<ScrollableState>(scrollable).position.pixels,
+      closeTo(before, 1),
+      reason: 'appending cached lines must not scroll the transcript',
+    );
+  });
+
   testWidgets(
     'long-press word selection preserves virtualized transcript position',
     (tester) async {
@@ -441,6 +532,10 @@ void main() {
 
 class _VirtualLyricsAudioHandler extends BaseAudioHandler
     implements LuminaAudioHandler {
+  _VirtualLyricsAudioHandler({this.paragraphId});
+
+  final String? paragraphId;
+
   @override
   Duration get chapterDuration => Duration.zero;
 
@@ -460,7 +555,7 @@ class _VirtualLyricsAudioHandler extends BaseAudioHandler
   ChapterManifest? get currentManifest => null;
 
   @override
-  String? get currentParagraphId => null;
+  String? get currentParagraphId => paragraphId;
 
   @override
   String? get currentPodcastEpisodeId => null;

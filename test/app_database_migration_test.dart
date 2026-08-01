@@ -61,7 +61,7 @@ void main() {
     expect(repaired?.coverPath, cover.path);
   });
 
-  test('schema 1 books migrate to schema 15 without data loss', () async {
+  test('schema 1 books migrate to schema 16 without data loss', () async {
     final tempDir = Directory.systemTemp.createTempSync('lumina_migration_');
     final databaseFile = File('${tempDir.path}/lumina.db');
 
@@ -105,7 +105,7 @@ void main() {
         .customSelect('PRAGMA user_version;')
         .getSingle();
 
-    expect(version.read<int>('user_version'), 15);
+    expect(version.read<int>('user_version'), 16);
     expect(await database.getPodcastShows(), isEmpty);
     expect(await database.select(database.aiThreads).get(), isEmpty);
     expect(await database.select(database.aiMessages).get(), isEmpty);
@@ -212,6 +212,37 @@ void main() {
       );
     ''');
       oldDatabase.execute('''
+      CREATE TABLE podcast_episodes (
+        id TEXT NOT NULL PRIMARY KEY,
+        show_id TEXT NOT NULL,
+        guid TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        audio_url TEXT NOT NULL,
+        image_url TEXT NULL,
+        published_at INTEGER NOT NULL DEFAULT 0,
+        duration_ms INTEGER NOT NULL DEFAULT 0,
+        playback_position_ms INTEGER NOT NULL DEFAULT 0,
+        last_played_at INTEGER NOT NULL DEFAULT 0,
+        is_played INTEGER NOT NULL DEFAULT 0,
+        local_audio_path TEXT NULL,
+        transcript_json TEXT NULL,
+        transcript_language TEXT NULL,
+        transcript_status TEXT NOT NULL DEFAULT 'none',
+        transcript_error TEXT NULL,
+        source_transcript_url TEXT NULL,
+        UNIQUE (show_id, guid)
+      );
+    ''');
+      oldDatabase.execute('''
+      INSERT INTO podcast_episodes (
+        id, show_id, guid, title, audio_url, transcript_status
+      ) VALUES (
+        'episode-1', 'show-1', 'guid-1', 'Legacy Episode',
+        'https://example.com/1.mp3', 'running'
+      );
+    ''');
+      oldDatabase.execute('''
       CREATE TABLE chapter_playback_progresses (
         chapter_id TEXT NOT NULL PRIMARY KEY,
         book_id TEXT NOT NULL,
@@ -239,12 +270,19 @@ void main() {
       final version = await database
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(version.read<int>('user_version'), 15);
+      expect(version.read<int>('user_version'), 16);
       expect(show?.title, 'Legacy Show');
       expect(show?.categoriesJson, equals(null));
       final progress = await database.getChapterPlaybackProgress('chapter-1');
       expect(progress?.positionMs, 1200);
       expect(progress?.isFinished, isFalse);
+      final episode = await database.getPodcastEpisode('episode-1');
+      expect(episode?.title, 'Legacy Episode');
+      expect(
+        episode?.transcriptProgressMs,
+        0,
+        reason: 'legacy rows start a resume from the beginning',
+      );
     },
   );
 }

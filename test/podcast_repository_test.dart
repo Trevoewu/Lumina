@@ -302,6 +302,7 @@ void main() {
         playbackPositionMs: 0,
         lastPlayedAt: 0,
         isPlayed: false,
+        transcriptProgressMs: 0,
         transcriptStatus: 'none',
       );
 

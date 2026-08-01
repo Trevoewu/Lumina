@@ -42,6 +42,7 @@ void main() {
       playbackPositionMs: 12000,
       lastPlayedAt: 0,
       isPlayed: false,
+      transcriptProgressMs: 0,
       transcriptStatus: 'none',
     );
     await database.upsertPodcastEpisode(episode);

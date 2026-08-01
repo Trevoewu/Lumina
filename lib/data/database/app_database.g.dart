@@ -7715,6 +7715,17 @@ class $PodcastEpisodesTable extends PodcastEpisodes
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _transcriptProgressMsMeta =
+      const VerificationMeta('transcriptProgressMs');
+  @override
+  late final GeneratedColumn<int> transcriptProgressMs = GeneratedColumn<int>(
+    'transcript_progress_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   static const VerificationMeta _sourceTranscriptUrlMeta =
       const VerificationMeta('sourceTranscriptUrl');
   @override
@@ -7745,6 +7756,7 @@ class $PodcastEpisodesTable extends PodcastEpisodes
     transcriptLanguage,
     transcriptStatus,
     transcriptError,
+    transcriptProgressMs,
     sourceTranscriptUrl,
   ];
   @override
@@ -7895,6 +7907,15 @@ class $PodcastEpisodesTable extends PodcastEpisodes
         ),
       );
     }
+    if (data.containsKey('transcript_progress_ms')) {
+      context.handle(
+        _transcriptProgressMsMeta,
+        transcriptProgressMs.isAcceptableOrUnknown(
+          data['transcript_progress_ms']!,
+          _transcriptProgressMsMeta,
+        ),
+      );
+    }
     if (data.containsKey('source_transcript_url')) {
       context.handle(
         _sourceTranscriptUrlMeta,
@@ -7985,6 +8006,10 @@ class $PodcastEpisodesTable extends PodcastEpisodes
         DriftSqlType.string,
         data['${effectivePrefix}transcript_error'],
       ),
+      transcriptProgressMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}transcript_progress_ms'],
+      )!,
       sourceTranscriptUrl: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}source_transcript_url'],
@@ -8016,6 +8041,10 @@ class PodcastEpisode extends DataClass implements Insertable<PodcastEpisode> {
   final String? transcriptLanguage;
   final String transcriptStatus;
   final String? transcriptError;
+
+  /// Audio offset already covered by fully transcribed chunks. A paused run
+  /// resumes from here instead of listening to the episode again.
+  final int transcriptProgressMs;
   final String? sourceTranscriptUrl;
   const PodcastEpisode({
     required this.id,
@@ -8035,6 +8064,7 @@ class PodcastEpisode extends DataClass implements Insertable<PodcastEpisode> {
     this.transcriptLanguage,
     required this.transcriptStatus,
     this.transcriptError,
+    required this.transcriptProgressMs,
     this.sourceTranscriptUrl,
   });
   @override
@@ -8067,6 +8097,7 @@ class PodcastEpisode extends DataClass implements Insertable<PodcastEpisode> {
     if (!nullToAbsent || transcriptError != null) {
       map['transcript_error'] = Variable<String>(transcriptError);
     }
+    map['transcript_progress_ms'] = Variable<int>(transcriptProgressMs);
     if (!nullToAbsent || sourceTranscriptUrl != null) {
       map['source_transcript_url'] = Variable<String>(sourceTranscriptUrl);
     }
@@ -8102,6 +8133,7 @@ class PodcastEpisode extends DataClass implements Insertable<PodcastEpisode> {
       transcriptError: transcriptError == null && nullToAbsent
           ? const Value.absent()
           : Value(transcriptError),
+      transcriptProgressMs: Value(transcriptProgressMs),
       sourceTranscriptUrl: sourceTranscriptUrl == null && nullToAbsent
           ? const Value.absent()
           : Value(sourceTranscriptUrl),
@@ -8133,6 +8165,9 @@ class PodcastEpisode extends DataClass implements Insertable<PodcastEpisode> {
       ),
       transcriptStatus: serializer.fromJson<String>(json['transcriptStatus']),
       transcriptError: serializer.fromJson<String?>(json['transcriptError']),
+      transcriptProgressMs: serializer.fromJson<int>(
+        json['transcriptProgressMs'],
+      ),
       sourceTranscriptUrl: serializer.fromJson<String?>(
         json['sourceTranscriptUrl'],
       ),
@@ -8159,6 +8194,7 @@ class PodcastEpisode extends DataClass implements Insertable<PodcastEpisode> {
       'transcriptLanguage': serializer.toJson<String?>(transcriptLanguage),
       'transcriptStatus': serializer.toJson<String>(transcriptStatus),
       'transcriptError': serializer.toJson<String?>(transcriptError),
+      'transcriptProgressMs': serializer.toJson<int>(transcriptProgressMs),
       'sourceTranscriptUrl': serializer.toJson<String?>(sourceTranscriptUrl),
     };
   }
@@ -8181,6 +8217,7 @@ class PodcastEpisode extends DataClass implements Insertable<PodcastEpisode> {
     Value<String?> transcriptLanguage = const Value.absent(),
     String? transcriptStatus,
     Value<String?> transcriptError = const Value.absent(),
+    int? transcriptProgressMs,
     Value<String?> sourceTranscriptUrl = const Value.absent(),
   }) => PodcastEpisode(
     id: id ?? this.id,
@@ -8208,6 +8245,7 @@ class PodcastEpisode extends DataClass implements Insertable<PodcastEpisode> {
     transcriptError: transcriptError.present
         ? transcriptError.value
         : this.transcriptError,
+    transcriptProgressMs: transcriptProgressMs ?? this.transcriptProgressMs,
     sourceTranscriptUrl: sourceTranscriptUrl.present
         ? sourceTranscriptUrl.value
         : this.sourceTranscriptUrl,
@@ -8251,6 +8289,9 @@ class PodcastEpisode extends DataClass implements Insertable<PodcastEpisode> {
       transcriptError: data.transcriptError.present
           ? data.transcriptError.value
           : this.transcriptError,
+      transcriptProgressMs: data.transcriptProgressMs.present
+          ? data.transcriptProgressMs.value
+          : this.transcriptProgressMs,
       sourceTranscriptUrl: data.sourceTranscriptUrl.present
           ? data.sourceTranscriptUrl.value
           : this.sourceTranscriptUrl,
@@ -8277,6 +8318,7 @@ class PodcastEpisode extends DataClass implements Insertable<PodcastEpisode> {
           ..write('transcriptLanguage: $transcriptLanguage, ')
           ..write('transcriptStatus: $transcriptStatus, ')
           ..write('transcriptError: $transcriptError, ')
+          ..write('transcriptProgressMs: $transcriptProgressMs, ')
           ..write('sourceTranscriptUrl: $sourceTranscriptUrl')
           ..write(')'))
         .toString();
@@ -8301,6 +8343,7 @@ class PodcastEpisode extends DataClass implements Insertable<PodcastEpisode> {
     transcriptLanguage,
     transcriptStatus,
     transcriptError,
+    transcriptProgressMs,
     sourceTranscriptUrl,
   );
   @override
@@ -8324,6 +8367,7 @@ class PodcastEpisode extends DataClass implements Insertable<PodcastEpisode> {
           other.transcriptLanguage == this.transcriptLanguage &&
           other.transcriptStatus == this.transcriptStatus &&
           other.transcriptError == this.transcriptError &&
+          other.transcriptProgressMs == this.transcriptProgressMs &&
           other.sourceTranscriptUrl == this.sourceTranscriptUrl);
 }
 
@@ -8345,6 +8389,7 @@ class PodcastEpisodesCompanion extends UpdateCompanion<PodcastEpisode> {
   final Value<String?> transcriptLanguage;
   final Value<String> transcriptStatus;
   final Value<String?> transcriptError;
+  final Value<int> transcriptProgressMs;
   final Value<String?> sourceTranscriptUrl;
   final Value<int> rowid;
   const PodcastEpisodesCompanion({
@@ -8365,6 +8410,7 @@ class PodcastEpisodesCompanion extends UpdateCompanion<PodcastEpisode> {
     this.transcriptLanguage = const Value.absent(),
     this.transcriptStatus = const Value.absent(),
     this.transcriptError = const Value.absent(),
+    this.transcriptProgressMs = const Value.absent(),
     this.sourceTranscriptUrl = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -8386,6 +8432,7 @@ class PodcastEpisodesCompanion extends UpdateCompanion<PodcastEpisode> {
     this.transcriptLanguage = const Value.absent(),
     this.transcriptStatus = const Value.absent(),
     this.transcriptError = const Value.absent(),
+    this.transcriptProgressMs = const Value.absent(),
     this.sourceTranscriptUrl = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
@@ -8411,6 +8458,7 @@ class PodcastEpisodesCompanion extends UpdateCompanion<PodcastEpisode> {
     Expression<String>? transcriptLanguage,
     Expression<String>? transcriptStatus,
     Expression<String>? transcriptError,
+    Expression<int>? transcriptProgressMs,
     Expression<String>? sourceTranscriptUrl,
     Expression<int>? rowid,
   }) {
@@ -8433,6 +8481,8 @@ class PodcastEpisodesCompanion extends UpdateCompanion<PodcastEpisode> {
       if (transcriptLanguage != null) 'transcript_language': transcriptLanguage,
       if (transcriptStatus != null) 'transcript_status': transcriptStatus,
       if (transcriptError != null) 'transcript_error': transcriptError,
+      if (transcriptProgressMs != null)
+        'transcript_progress_ms': transcriptProgressMs,
       if (sourceTranscriptUrl != null)
         'source_transcript_url': sourceTranscriptUrl,
       if (rowid != null) 'rowid': rowid,
@@ -8457,6 +8507,7 @@ class PodcastEpisodesCompanion extends UpdateCompanion<PodcastEpisode> {
     Value<String?>? transcriptLanguage,
     Value<String>? transcriptStatus,
     Value<String?>? transcriptError,
+    Value<int>? transcriptProgressMs,
     Value<String?>? sourceTranscriptUrl,
     Value<int>? rowid,
   }) {
@@ -8478,6 +8529,7 @@ class PodcastEpisodesCompanion extends UpdateCompanion<PodcastEpisode> {
       transcriptLanguage: transcriptLanguage ?? this.transcriptLanguage,
       transcriptStatus: transcriptStatus ?? this.transcriptStatus,
       transcriptError: transcriptError ?? this.transcriptError,
+      transcriptProgressMs: transcriptProgressMs ?? this.transcriptProgressMs,
       sourceTranscriptUrl: sourceTranscriptUrl ?? this.sourceTranscriptUrl,
       rowid: rowid ?? this.rowid,
     );
@@ -8537,6 +8589,9 @@ class PodcastEpisodesCompanion extends UpdateCompanion<PodcastEpisode> {
     if (transcriptError.present) {
       map['transcript_error'] = Variable<String>(transcriptError.value);
     }
+    if (transcriptProgressMs.present) {
+      map['transcript_progress_ms'] = Variable<int>(transcriptProgressMs.value);
+    }
     if (sourceTranscriptUrl.present) {
       map['source_transcript_url'] = Variable<String>(
         sourceTranscriptUrl.value,
@@ -8568,6 +8623,7 @@ class PodcastEpisodesCompanion extends UpdateCompanion<PodcastEpisode> {
           ..write('transcriptLanguage: $transcriptLanguage, ')
           ..write('transcriptStatus: $transcriptStatus, ')
           ..write('transcriptError: $transcriptError, ')
+          ..write('transcriptProgressMs: $transcriptProgressMs, ')
           ..write('sourceTranscriptUrl: $sourceTranscriptUrl, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -13474,6 +13530,7 @@ typedef $$PodcastEpisodesTableCreateCompanionBuilder =
       Value<String?> transcriptLanguage,
       Value<String> transcriptStatus,
       Value<String?> transcriptError,
+      Value<int> transcriptProgressMs,
       Value<String?> sourceTranscriptUrl,
       Value<int> rowid,
     });
@@ -13496,6 +13553,7 @@ typedef $$PodcastEpisodesTableUpdateCompanionBuilder =
       Value<String?> transcriptLanguage,
       Value<String> transcriptStatus,
       Value<String?> transcriptError,
+      Value<int> transcriptProgressMs,
       Value<String?> sourceTranscriptUrl,
       Value<int> rowid,
     });
@@ -13591,6 +13649,11 @@ class $$PodcastEpisodesTableFilterComposer
 
   ColumnFilters<String> get transcriptError => $composableBuilder(
     column: $table.transcriptError,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get transcriptProgressMs => $composableBuilder(
+    column: $table.transcriptProgressMs,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -13694,6 +13757,11 @@ class $$PodcastEpisodesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get transcriptProgressMs => $composableBuilder(
+    column: $table.transcriptProgressMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get sourceTranscriptUrl => $composableBuilder(
     column: $table.sourceTranscriptUrl,
     builder: (column) => ColumnOrderings(column),
@@ -13780,6 +13848,11 @@ class $$PodcastEpisodesTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<int> get transcriptProgressMs => $composableBuilder(
+    column: $table.transcriptProgressMs,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get sourceTranscriptUrl => $composableBuilder(
     column: $table.sourceTranscriptUrl,
     builder: (column) => column,
@@ -13840,6 +13913,7 @@ class $$PodcastEpisodesTableTableManager
                 Value<String?> transcriptLanguage = const Value.absent(),
                 Value<String> transcriptStatus = const Value.absent(),
                 Value<String?> transcriptError = const Value.absent(),
+                Value<int> transcriptProgressMs = const Value.absent(),
                 Value<String?> sourceTranscriptUrl = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => PodcastEpisodesCompanion(
@@ -13860,6 +13934,7 @@ class $$PodcastEpisodesTableTableManager
                 transcriptLanguage: transcriptLanguage,
                 transcriptStatus: transcriptStatus,
                 transcriptError: transcriptError,
+                transcriptProgressMs: transcriptProgressMs,
                 sourceTranscriptUrl: sourceTranscriptUrl,
                 rowid: rowid,
               ),
@@ -13882,6 +13957,7 @@ class $$PodcastEpisodesTableTableManager
                 Value<String?> transcriptLanguage = const Value.absent(),
                 Value<String> transcriptStatus = const Value.absent(),
                 Value<String?> transcriptError = const Value.absent(),
+                Value<int> transcriptProgressMs = const Value.absent(),
                 Value<String?> sourceTranscriptUrl = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => PodcastEpisodesCompanion.insert(
@@ -13902,6 +13978,7 @@ class $$PodcastEpisodesTableTableManager
                 transcriptLanguage: transcriptLanguage,
                 transcriptStatus: transcriptStatus,
                 transcriptError: transcriptError,
+                transcriptProgressMs: transcriptProgressMs,
                 sourceTranscriptUrl: sourceTranscriptUrl,
                 rowid: rowid,
               ),

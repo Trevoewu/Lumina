@@ -39,7 +39,11 @@ final podcastIndexRepositoryProvider = Provider<PodcastIndexRepository>((ref) {
 
 final podcastTranscriptionServiceProvider =
     Provider<PodcastTranscriptionService>((ref) {
-      return PodcastTranscriptionService(ref.watch(appDatabaseProvider));
+      final service = PodcastTranscriptionService(
+        ref.watch(appDatabaseProvider),
+      );
+      ref.onDispose(service.dispose);
+      return service;
     });
 
 final openAiCompatibleExplanationProvider =

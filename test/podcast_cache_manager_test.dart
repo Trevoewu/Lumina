@@ -48,6 +48,7 @@ void main() {
         playbackPositionMs: 0,
         lastPlayedAt: 0,
         isPlayed: false,
+        transcriptProgressMs: 0,
         localAudioPath: audio.path,
         transcriptJson: '[{"text":"cached","startMs":0,"endMs":1}]',
         transcriptLanguage: 'en',

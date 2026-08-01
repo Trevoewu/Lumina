@@ -442,7 +442,10 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.paragraphs != widget.paragraphs ||
         oldWidget.manifest != widget.manifest) {
-      _rebuildLines();
+      // A podcast caches a chunk every few minutes while the reader is
+      // somewhere else in the transcript. Rebuild the lines, but let the
+      // position stand unless the active line itself moved.
+      _rebuildLines(forceScroll: false);
     }
     if (oldWidget.expanded != widget.expanded ||
         oldWidget.focusMode != widget.focusMode ||
@@ -455,7 +458,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
     }
   }
 
-  void _rebuildLines() {
+  void _rebuildLines({bool forceScroll = true}) {
     _lines = buildSyncedLyricLines(widget.paragraphs, widget.manifest);
     final linesByParagraph = <String, List<SyncedLyricLine>>{};
     final lineIndexById = <String, int>{};
@@ -476,7 +479,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
       _tokenKeys.clear();
       _resetSelectionPointer();
     }
-    _sync(widget.handler.position, forceScroll: true);
+    _sync(widget.handler.position, forceScroll: forceScroll);
   }
 
   void _bindHandler() {
