@@ -60,7 +60,7 @@ dependencies:
   url_launcher: ^6.3.2
   uuid: ^4.5.3
   xml: ^6.6.1
-  ffmpeg_kit_flutter_new_min: ^2.1.0
+  ffmpeg_kit_flutter_new_min: ^3.6.2
   whisper_ggml: ^2.4.0
   flutter_markdown_plus: ^1.0.12
   flutter_chat_core: ^2.9.0
@@ -85,6 +85,10 @@ dev_dependencies:
 # currently be unloaded during a macOS hot restart (dart-lang/sdk#55850).
 dependency_overrides:
   path_provider_foundation: 2.5.1
+  # whisper_ggml pins ffmpeg_kit_flutter_new_min ^2.1.0, whose iOS frameworks
+  # ship no arm64 simulator slice. 3.x vendors xcframeworks that do, which
+  # Apple Silicon simulators require since Xcode 26 dropped Rosetta.
+  ffmpeg_kit_flutter_new_min: ^3.6.2
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

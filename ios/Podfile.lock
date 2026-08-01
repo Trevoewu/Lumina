@@ -1,9 +1,4 @@
 PODS:
-  - ffmpeg_kit_flutter_new_min (7.1.1):
-    - ffmpeg_kit_flutter_new_min/min (= 7.1.1)
-    - Flutter
-  - ffmpeg_kit_flutter_new_min/min (7.1.1):
-    - Flutter
   - Flutter (1.0.0)
   - share_handler_ios (0.0.14):
     - Flutter
@@ -17,15 +12,12 @@ PODS:
     - Flutter
 
 DEPENDENCIES:
-  - ffmpeg_kit_flutter_new_min (from `.symlinks/plugins/ffmpeg_kit_flutter_new_min/ios`)
   - Flutter (from `Flutter`)
   - share_handler_ios (from `.symlinks/plugins/share_handler_ios/ios`)
   - share_handler_ios_models (from `.symlinks/plugins/share_handler_ios/ios/Models`)
   - whisper_ggml (from `.symlinks/plugins/whisper_ggml/ios`)
 
 EXTERNAL SOURCES:
-  ffmpeg_kit_flutter_new_min:
-    :path: ".symlinks/plugins/ffmpeg_kit_flutter_new_min/ios"
   Flutter:
     :path: Flutter
   share_handler_ios:
@@ -36,7 +28,6 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/whisper_ggml/ios"
 
 SPEC CHECKSUMS:
-  ffmpeg_kit_flutter_new_min: 85493896be79f45e846b5c9b23a3bf73eb284c4a
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
   share_handler_ios: e2244e990f826b2c8eaa291ac3831569438ba0fb
   share_handler_ios_models: fc638c9b4330dc7f082586c92aee9dfa0b87b871
