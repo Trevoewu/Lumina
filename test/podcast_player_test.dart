@@ -492,9 +492,14 @@ void main() {
     // The floating controls start visible and reachable.
     expect(transcriptToggle.hitTestable(), findsOneWidget);
 
-    // Three seconds without input drops the chrome out of the way, leaving the
-    // transcript and the wake-up hint.
+    // Four seconds without input still leaves the chrome visible.
     await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+    expect(transcriptToggle.hitTestable(), findsOneWidget);
+
+    // Once the five-second auto-hide delay elapses, the chrome drops out of
+    // the way, leaving the transcript and the wake-up hint.
+    await tester.pump(const Duration(seconds: 2));
     await tester.pumpAndSettle();
     expect(
       transcriptToggle.hitTestable(),

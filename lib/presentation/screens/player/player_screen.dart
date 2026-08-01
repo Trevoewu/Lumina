@@ -366,6 +366,7 @@ _PodcastTranscriptContent _buildPodcastTranscriptContent(
 
 class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   static const _playerTransitionDuration = Duration(milliseconds: 480);
+  static const _transcriptChromeAutoHideDelay = Duration(seconds: 5);
 
   final ScrollController _playerScrollController = ScrollController();
   double _speed = 1.0;
@@ -472,7 +473,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void _scheduleTranscriptChromeHide() {
     _transcriptChromeTimer?.cancel();
     if (!_podcastTranscriptMode) return;
-    _transcriptChromeTimer = Timer(const Duration(seconds: 3), () {
+    _transcriptChromeTimer = Timer(_transcriptChromeAutoHideDelay, () {
       if (!mounted || !_podcastTranscriptMode) return;
       setState(() => _transcriptChromeVisible = false);
     });
