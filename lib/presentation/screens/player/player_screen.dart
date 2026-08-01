@@ -1319,118 +1319,132 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final topTint = theme.colorScheme.surfaceContainer;
     final pageBottom = theme.colorScheme.surface;
     final middleTint = Color.lerp(topTint, pageBottom, 0.62)!;
+    final isDark = theme.brightness == Brightness.dark;
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: theme.brightness == Brightness.dark
-          ? SystemUiOverlayStyle.light
-          : SystemUiOverlayStyle.dark,
+      value: SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+        statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarDividerColor: Colors.transparent,
+        systemNavigationBarIconBrightness: isDark
+            ? Brightness.light
+            : Brightness.dark,
+      ),
       child: Scaffold(
+        resizeToAvoidBottomInset: false,
         backgroundColor: pageBottom,
-        body: Container(
-          key: const ValueKey('player-immersive-background'),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [topTint, middleTint, pageBottom],
-              stops: const [0, 0.46, 1],
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            Container(
+              key: const ValueKey('player-immersive-background'),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [topTint, middleTint, pageBottom],
+                  stops: const [0, 0.46, 1],
+                ),
+              ),
             ),
-          ),
-          child: SafeArea(
-            child: Column(
-              children: [
-                _buildPlayerHeader(handlerAsync),
-                Expanded(
-                  child: handlerAsync.when(
-                    loading: () => Center(
-                      child: CircularProgressIndicator(
-                        color: context.appTextPrimary,
-                      ),
-                    ),
-                    error: (error, _) => Center(
-                      child: Text(
-                        context.tr(
-                          '播放器不可用：$error',
-                          'Player unavailable: $error',
+            SafeArea(
+              child: Column(
+                children: [
+                  _buildPlayerHeader(handlerAsync),
+                  Expanded(
+                    child: handlerAsync.when(
+                      loading: () => Center(
+                        child: CircularProgressIndicator(
+                          color: context.appTextPrimary,
                         ),
-                        style: TextStyle(color: context.appTextSecondary),
                       ),
-                    ),
-                    data: (handler) => StreamBuilder<String?>(
-                      stream: handler.mediaItem.map((item) {
-                        final extras = item?.extras;
-                        final podcastEpisodeId =
-                            extras?['podcastEpisodeId'] as String?;
-                        if (podcastEpisodeId != null) {
-                          return 'podcast:$podcastEpisodeId';
-                        }
-                        final bookId = extras?['bookId'] as String?;
-                        final chapterId = extras?['chapterId'] as String?;
-                        return bookId == null || chapterId == null
-                            ? null
-                            : 'book:$bookId:$chapterId';
-                      }).distinct(),
-                      initialData: () {
-                        final extras = handler.mediaItem.valueOrNull?.extras;
-                        final podcastEpisodeId =
-                            extras?['podcastEpisodeId'] as String?;
-                        if (podcastEpisodeId != null) {
-                          return 'podcast:$podcastEpisodeId';
-                        }
-                        final bookId = extras?['bookId'] as String?;
-                        final chapterId = extras?['chapterId'] as String?;
-                        return bookId == null || chapterId == null
-                            ? null
-                            : 'book:$bookId:$chapterId';
-                      }(),
-                      builder: (context, snapshot) {
-                        final currentItem = handler.mediaItem.valueOrNull;
-                        final selectedLoaded = _isSelectedChapterLoaded(
-                          handler,
-                        );
-                        final manifest = _effectiveManifest(handler);
-                        final duration = selectedLoaded
-                            ? handler.chapterDuration
-                            : Duration(
-                                milliseconds: manifest?.totalDurationMs ?? 0,
-                              );
-                        final currentChapterId =
-                            widget.initialChapter?.id ??
-                            currentItem?.extras?['chapterId'] as String?;
-                        final chapterTitle =
-                            widget.initialChapter?.title ??
-                            currentItem?.title ??
-                            context.tr('未知章节', 'Unknown Chapter');
+                      error: (error, _) => Center(
+                        child: Text(
+                          context.tr(
+                            '播放器不可用：$error',
+                            'Player unavailable: $error',
+                          ),
+                          style: TextStyle(color: context.appTextSecondary),
+                        ),
+                      ),
+                      data: (handler) => StreamBuilder<String?>(
+                        stream: handler.mediaItem.map((item) {
+                          final extras = item?.extras;
+                          final podcastEpisodeId =
+                              extras?['podcastEpisodeId'] as String?;
+                          if (podcastEpisodeId != null) {
+                            return 'podcast:$podcastEpisodeId';
+                          }
+                          final bookId = extras?['bookId'] as String?;
+                          final chapterId = extras?['chapterId'] as String?;
+                          return bookId == null || chapterId == null
+                              ? null
+                              : 'book:$bookId:$chapterId';
+                        }).distinct(),
+                        initialData: () {
+                          final extras = handler.mediaItem.valueOrNull?.extras;
+                          final podcastEpisodeId =
+                              extras?['podcastEpisodeId'] as String?;
+                          if (podcastEpisodeId != null) {
+                            return 'podcast:$podcastEpisodeId';
+                          }
+                          final bookId = extras?['bookId'] as String?;
+                          final chapterId = extras?['chapterId'] as String?;
+                          return bookId == null || chapterId == null
+                              ? null
+                              : 'book:$bookId:$chapterId';
+                        }(),
+                        builder: (context, snapshot) {
+                          final currentItem = handler.mediaItem.valueOrNull;
+                          final selectedLoaded = _isSelectedChapterLoaded(
+                            handler,
+                          );
+                          final manifest = _effectiveManifest(handler);
+                          final duration = selectedLoaded
+                              ? handler.chapterDuration
+                              : Duration(
+                                  milliseconds: manifest?.totalDurationMs ?? 0,
+                                );
+                          final currentChapterId =
+                              widget.initialChapter?.id ??
+                              currentItem?.extras?['chapterId'] as String?;
+                          final chapterTitle =
+                              widget.initialChapter?.title ??
+                              currentItem?.title ??
+                              context.tr('未知章节', 'Unknown Chapter');
 
-                        return LayoutBuilder(
-                          builder: (context, constraints) {
-                            if (_isPodcast) {
-                              return _buildPodcastPlayerBody(
+                          return LayoutBuilder(
+                            builder: (context, constraints) {
+                              if (_isPodcast) {
+                                return _buildPodcastPlayerBody(
+                                  constraints: constraints,
+                                  handler: handler,
+                                  selectedLoaded: selectedLoaded,
+                                  duration: duration,
+                                  manifest: manifest,
+                                  chapterTitle: chapterTitle,
+                                );
+                              }
+                              return _buildBookPlayerBody(
                                 constraints: constraints,
                                 handler: handler,
                                 selectedLoaded: selectedLoaded,
                                 duration: duration,
                                 manifest: manifest,
+                                chapterId: currentChapterId,
                                 chapterTitle: chapterTitle,
                               );
-                            }
-                            return _buildBookPlayerBody(
-                              constraints: constraints,
-                              handler: handler,
-                              selectedLoaded: selectedLoaded,
-                              duration: duration,
-                              manifest: manifest,
-                              chapterId: currentChapterId,
-                              chapterTitle: chapterTitle,
-                            );
-                          },
-                        );
-                      },
+                            },
+                          );
+                        },
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -3878,106 +3892,123 @@ class _FullScreenLyricsSheetState
         final lyricsBackground =
             CoverPaletteService.lyricsBackgroundGradientForSeed(seed);
         final bottomTint = lyricsBackground.colors.last;
-        return Scaffold(
-          backgroundColor: bottomTint,
-          body: Container(
-            key: const ValueKey('fullscreen-lyrics-background'),
-            height: MediaQuery.sizeOf(context).height,
-            decoration: BoxDecoration(gradient: lyricsBackground),
-            child: SafeArea(
-              child: Listener(
-                behavior: HitTestBehavior.translucent,
-                onPointerDown: (_) =>
-                    _controlsKey.currentState?.showTemporarily(),
-                onPointerMove: (_) =>
-                    _controlsKey.currentState?.showTemporarily(),
-                onPointerSignal: (_) =>
-                    _controlsKey.currentState?.showTemporarily(),
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 8,
-                      ),
-                      child: Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(
-                              Icons.keyboard_arrow_down,
-                              color: AppColors.lyricsTextPrimary,
-                              size: 32,
-                            ),
-                            onPressed: () => Navigator.of(context).pop(),
-                          ),
-                          Expanded(
-                            child: Text(
-                              widget.bookTitle,
-                              textAlign: TextAlign.center,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: AppColors.lyricsTextSecondary,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 1.2,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 48),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: widget.podcast == null
-                          ? FutureBuilder<List<drift_db.Paragraph>>(
-                              future: db.getParagraphs(widget.chapterId),
-                              builder: (context, snapshot) => buildLyrics(
-                                snapshot.data ?? const <drift_db.Paragraph>[],
-                                widget.manifest,
-                              ),
-                            )
-                          : StreamBuilder<drift_db.PodcastEpisode?>(
-                              stream: db
-                                  .watchPodcastEpisode(
-                                    widget.podcast!.episode.id,
-                                  )
-                                  .distinct(
-                                    (previous, next) =>
-                                        !podcastEpisodeRequiresPlayerRefresh(
-                                          previous,
-                                          next,
-                                        ),
-                                  ),
-                              initialData: widget.podcast!.episode,
-                              builder: (context, snapshot) {
-                                final episode =
-                                    snapshot.data ?? widget.podcast!.episode;
-                                final transcript =
-                                    _buildPodcastTranscriptContent(
-                                      widget.podcast!,
-                                      episode,
-                                    );
-                                return buildLyrics(
-                                  transcript.paragraphs,
-                                  transcript.manifest,
-                                );
-                              },
-                            ),
-                    ),
-                    if (widget.playbackEnabled)
-                      handlerAsync.when(
-                        loading: () => const SizedBox(height: 156),
-                        error: (_, _) => const SizedBox.shrink(),
-                        data: (handler) => _FullScreenPlaybackControls(
-                          key: _controlsKey,
-                          handler: handler,
-                          backgroundColor: bottomTint,
-                        ),
-                      ),
-                  ],
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: const SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: Brightness.light,
+            statusBarBrightness: Brightness.dark,
+            systemNavigationBarColor: Colors.transparent,
+            systemNavigationBarDividerColor: Colors.transparent,
+            systemNavigationBarIconBrightness: Brightness.light,
+          ),
+          child: Scaffold(
+            resizeToAvoidBottomInset: false,
+            backgroundColor: bottomTint,
+            body: Stack(
+              fit: StackFit.expand,
+              children: [
+                Container(
+                  key: const ValueKey('fullscreen-lyrics-background'),
+                  decoration: BoxDecoration(gradient: lyricsBackground),
                 ),
-              ),
+                SafeArea(
+                  child: Listener(
+                    behavior: HitTestBehavior.translucent,
+                    onPointerDown: (_) =>
+                        _controlsKey.currentState?.showTemporarily(),
+                    onPointerMove: (_) =>
+                        _controlsKey.currentState?.showTemporarily(),
+                    onPointerSignal: (_) =>
+                        _controlsKey.currentState?.showTemporarily(),
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 8,
+                          ),
+                          child: Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.keyboard_arrow_down,
+                                  color: AppColors.lyricsTextPrimary,
+                                  size: 32,
+                                ),
+                                onPressed: () => Navigator.of(context).pop(),
+                              ),
+                              Expanded(
+                                child: Text(
+                                  widget.bookTitle,
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: AppColors.lyricsTextSecondary,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1.2,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 48),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: widget.podcast == null
+                              ? FutureBuilder<List<drift_db.Paragraph>>(
+                                  future: db.getParagraphs(widget.chapterId),
+                                  builder: (context, snapshot) => buildLyrics(
+                                    snapshot.data ??
+                                        const <drift_db.Paragraph>[],
+                                    widget.manifest,
+                                  ),
+                                )
+                              : StreamBuilder<drift_db.PodcastEpisode?>(
+                                  stream: db
+                                      .watchPodcastEpisode(
+                                        widget.podcast!.episode.id,
+                                      )
+                                      .distinct(
+                                        (previous, next) =>
+                                            !podcastEpisodeRequiresPlayerRefresh(
+                                              previous,
+                                              next,
+                                            ),
+                                      ),
+                                  initialData: widget.podcast!.episode,
+                                  builder: (context, snapshot) {
+                                    final episode =
+                                        snapshot.data ??
+                                        widget.podcast!.episode;
+                                    final transcript =
+                                        _buildPodcastTranscriptContent(
+                                          widget.podcast!,
+                                          episode,
+                                        );
+                                    return buildLyrics(
+                                      transcript.paragraphs,
+                                      transcript.manifest,
+                                    );
+                                  },
+                                ),
+                        ),
+                        if (widget.playbackEnabled)
+                          handlerAsync.when(
+                            loading: () => const SizedBox(height: 156),
+                            error: (_, _) => const SizedBox.shrink(),
+                            data: (handler) => _FullScreenPlaybackControls(
+                              key: _controlsKey,
+                              handler: handler,
+                              backgroundColor: bottomTint,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         );
