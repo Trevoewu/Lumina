@@ -30,6 +30,7 @@ import '../../../tts/models/tts_voice.dart';
 import '../../../tts/provider_registry.dart';
 import '../../../tts/tts_provider.dart';
 import '../../widgets/ai_summary_panel.dart';
+import '../../widgets/airplay_route_picker_button.dart';
 import '../../widgets/book_cover.dart';
 import '../../widgets/podcast_artwork.dart';
 import '../../widgets/podcast_link_text.dart';
@@ -3196,16 +3197,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   onPressed: () =>
                       _setPodcastTranscriptMode(!_podcastTranscriptMode),
                 ),
-                _buildPodcastActionButton(
-                  key: const ValueKey('player-output-toggle'),
-                  icon: Icons.airplay_rounded,
-                  tooltip: context.tr('输出', 'Output'),
-                  // Route picking needs an AVRoutePickerView platform view,
-                  // which this app does not have yet. The affordance holds its
-                  // place in the row and reads as unavailable rather than
-                  // pretending to work.
-                  onPressed: null,
-                ),
+                _buildOutputRouteButton(),
                 _buildPodcastActionButton(
                   key: const ValueKey('player-playlist-toggle'),
                   icon: Icons.format_list_bulleted_rounded,
@@ -3217,6 +3209,36 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           ),
         ],
       ],
+    );
+  }
+
+  /// The output button hands its slot to the system route picker where one
+  /// exists. Elsewhere it keeps the affordance's place in the row, disabled,
+  /// rather than offering a tap that could not open anything.
+  Widget _buildOutputRouteButton() {
+    final label = context.tr('输出', 'Output');
+    if (!airPlayRoutePickerSupported) {
+      return _buildPodcastActionButton(
+        key: const ValueKey('player-output-toggle'),
+        icon: Icons.airplay_rounded,
+        tooltip: label,
+        onPressed: null,
+      );
+    }
+    return Tooltip(
+      message: label,
+      child: SizedBox(
+        key: const ValueKey('player-output-toggle'),
+        width: 46,
+        height: 34,
+        child: AirPlayRoutePickerButton(
+          width: 46,
+          height: 34,
+          color: context.appTextSecondary,
+          activeColor: Theme.of(context).colorScheme.primary,
+          semanticLabel: label,
+        ),
+      ),
     );
   }
 
