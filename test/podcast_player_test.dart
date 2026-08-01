@@ -445,7 +445,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
-  testWidgets('cover and transcript cross-fade instead of cutting', (
+  testWidgets('transcript opens as a page and settles over the cover', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -496,17 +496,31 @@ void main() {
     await tester.ensureVisible(transcriptToggle);
     await tester.tap(transcriptToggle);
 
-    // Part way through the switch both panels are mounted — that is what makes
-    // it a cross-fade rather than a cut. It also pins down that the two scroll
-    // views hold separate controllers; sharing one throws once both attach.
+    // During the route transition both pages are mounted. The cover remains
+    // underneath long enough for the Hero artwork to fly into the mini player;
+    // the parent page is removed after the route settles.
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 120));
     expect(coverScroll, findsOneWidget);
     expect(transcriptScroll, findsOneWidget);
+    final routeControls = find.descendant(
+      of: find.byKey(const ValueKey('player-transcript-page')),
+      matching: find.byKey(const ValueKey('player-cache-playback-progress')),
+    );
+    expect(routeControls, findsOneWidget);
+    final controlsTopDuringTransition = tester.getTopLeft(routeControls).dy;
 
     await tester.pumpAndSettle();
     expect(coverScroll, findsNothing);
     expect(transcriptScroll, findsOneWidget);
+    expect(
+      tester.getTopLeft(routeControls).dy,
+      closeTo(controlsTopDuringTransition, 0.1),
+    );
+    expect(
+      find.byKey(const ValueKey('player-transcript-page')),
+      findsOneWidget,
+    );
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));
@@ -554,21 +568,28 @@ void main() {
       const ValueKey('player-transcript-toggle'),
     );
     await tester.ensureVisible(transcriptToggle);
+    handler.loadedPodcastEpisodeId = 'episode-idle';
     await tester.tap(transcriptToggle);
     await tester.pumpAndSettle();
 
     // The floating controls start visible and reachable.
     expect(transcriptToggle.hitTestable(), findsOneWidget);
 
-    // Four seconds without input still leaves the chrome visible.
-    await tester.pump(const Duration(seconds: 4));
+    // A paused episode never starts the idle timer.
+    await tester.pump(const Duration(seconds: 6));
     await tester.pumpAndSettle();
     expect(transcriptToggle.hitTestable(), findsOneWidget);
 
-    // Once the five-second auto-hide delay elapses, the chrome drops out of
-    // the way, leaving the transcript and the wake-up hint.
+    handler.setPlaying(true);
+    await tester.pump();
+
+    // Playback enables the idle timer; once it elapses, the chrome drops out
+    // of the way, leaving the transcript and the wake-up hint.
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(transcriptToggle.hitTestable(), findsOneWidget);
     await tester.pump(const Duration(seconds: 2));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 500));
     expect(
       transcriptToggle.hitTestable(),
       findsNothing,
@@ -581,7 +602,13 @@ void main() {
 
     // The transcript itself never moves, so any touch is enough to wake it.
     await tester.tapAt(const Offset(195, 420));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 1000));
+    expect(transcriptToggle.hitTestable(), findsOneWidget);
+
+    // Pausing after wake-up keeps the chrome visible and cancels future hides.
+    handler.setPlaying(false);
+    await tester.pump(const Duration(seconds: 6));
+    await tester.pump(const Duration(milliseconds: 500));
     expect(transcriptToggle.hitTestable(), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
@@ -726,6 +753,7 @@ void main() {
     await tester.ensureVisible(transcriptToggle);
     await tester.tap(transcriptToggle);
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1));
 
     final pauseButton = find.byKey(const ValueKey('podcast-transcript-pause'));
     expect(pauseButton, findsOneWidget);
@@ -963,6 +991,10 @@ class _PodcastTestAudioHandler extends BaseAudioHandler
   @override
   Future<void> seek(Duration position) async {
     soughtPosition = position;
+  }
+
+  void setPlaying(bool playing) {
+    playbackState.add(playbackState.value.copyWith(playing: playing));
   }
 
   @override

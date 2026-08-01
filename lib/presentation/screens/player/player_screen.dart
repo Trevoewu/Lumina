@@ -383,13 +383,15 @@ _PodcastTranscriptContent _buildPodcastTranscriptContent(
 
 class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   static const _playerTransitionDuration = Duration(milliseconds: 480);
+  static const _transcriptPageTransitionDuration = Duration(milliseconds: 720);
+  static const _transcriptPageReverseDuration = Duration(milliseconds: 520);
   static const _transcriptChromeAutoHideDelay = Duration(seconds: 5);
 
   final ScrollController _playerScrollController = ScrollController();
 
-  /// Transcript mode owns a separate controller because the cross-fade between
-  /// the two panels has both scroll views mounted at once, and one controller
-  /// cannot be attached to two of them.
+  /// The transcript page owns a separate controller because it is pushed over
+  /// the cover route, and one controller cannot be attached to both scroll
+  /// views while the Hero transition is in flight.
   final ScrollController _transcriptScrollController = ScrollController();
   double _speed = 1.0;
   double _stickyMiniPlayerTriggerOffset = 360;
@@ -402,6 +404,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _streamPlaybackRequested = false;
   bool _startingPlayback = false;
   final ValueNotifier<int> _controlStateRevision = ValueNotifier<int>(0);
+  final ValueNotifier<int> _transcriptPageRevision = ValueNotifier<int>(0);
   int _paragraphCount = 0;
   drift_db.ChapterPlaybackProgress? _chapterPlaybackProgress;
   drift_db.PodcastEpisode? _podcastEpisode;
@@ -415,9 +418,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _showFullPodcastNotes = false;
   double _readingScrollSpeed = 1.0;
   bool _lyricSweepEnabled = true;
-  bool _transcriptMode = false;
-  bool _transcriptChromeVisible = true;
-  Timer? _transcriptChromeTimer;
+  bool _transcriptPageActive = false;
+  bool _transcriptRouteOpen = false;
+  Timer? _transcriptPageActivationTimer;
+  final ValueNotifier<bool> _transcriptChromeVisible = ValueNotifier(true);
+  final ValueNotifier<int> _transcriptChromeInteraction = ValueNotifier(0);
   String? _ambientArtworkUrl;
   Future<Color?>? _ambientSeed;
 
@@ -454,12 +459,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     unawaited(_generationSubscription?.cancel());
     unawaited(_podcastEpisodeSubscription?.cancel());
     unawaited(_transcriptionSubscription?.cancel());
-    _transcriptChromeTimer?.cancel();
+    _transcriptPageActivationTimer?.cancel();
     _playerScrollController
       ..removeListener(_handlePlayerScroll)
       ..dispose();
     _transcriptScrollController.dispose();
+    _transcriptChromeVisible.dispose();
+    _transcriptChromeInteraction.dispose();
     _controlStateRevision.dispose();
+    _transcriptPageRevision.dispose();
     super.dispose();
   }
 
@@ -482,41 +490,199 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     setState(() => _showStickyMiniPlayer = shouldShow);
   }
 
-  void _setTranscriptMode(bool enabled) {
-    if (_transcriptMode == enabled) return;
-    _transcriptChromeTimer?.cancel();
-    if (!mounted) return;
-    setState(() {
-      _transcriptMode = enabled;
-      _transcriptChromeVisible = true;
-      if (enabled) _showStickyMiniPlayer = false;
-    });
-    if (enabled) {
-      _scheduleTranscriptChromeHide();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_transcriptMode) return;
-        if (_transcriptScrollController.hasClients) {
-          _transcriptScrollController.jumpTo(0);
-        }
-      });
+  String get _transcriptArtworkHeroTag =>
+      'player-transcript-artwork:${widget.book.id}';
+
+  Future<void> _openTranscriptPage({
+    required LuminaAudioHandler handler,
+    required Duration duration,
+    required ChapterManifest? manifest,
+    required String? chapterId,
+    required String chapterTitle,
+  }) async {
+    if (!mounted || (!_isPodcast && chapterId == null)) return;
+    _transcriptChromeVisible.value = true;
+    _transcriptRouteOpen = true;
+    if (_showStickyMiniPlayer) {
+      setState(() => _showStickyMiniPlayer = false);
+    }
+
+    final route = PageRouteBuilder<void>(
+      settings: const RouteSettings(name: 'player-transcript'),
+      opaque: false,
+      barrierColor: Colors.transparent,
+      transitionDuration: _transcriptPageTransitionDuration,
+      reverseTransitionDuration: _transcriptPageReverseDuration,
+      pageBuilder: (routeContext, _, _) => ValueListenableBuilder<int>(
+        valueListenable: _transcriptPageRevision,
+        builder: (context, _, _) => _buildTranscriptRoutePage(
+          routeContext: routeContext,
+          pageAnimation: ModalRoute.of(routeContext)?.animation,
+          handler: handler,
+          selectedLoaded: _isSelectedChapterLoaded(handler),
+          duration: duration,
+          manifest: manifest,
+          chapterId: chapterId,
+          chapterTitle: chapterTitle,
+        ),
+      ),
+      transitionsBuilder: (context, animation, _, child) {
+        final fade = CurvedAnimation(
+          parent: animation,
+          curve: const Interval(0.08, 1, curve: Curves.easeOutCubic),
+        );
+        // The lower transport menu is part of the fixed player chrome. A
+        // page-level slide would move it even though the reference keeps it
+        // locked to the same baseline throughout the transition.
+        return FadeTransition(opacity: fade, child: child);
+      },
+    );
+
+    _transcriptPageActivationTimer?.cancel();
+    _transcriptPageActivationTimer = Timer(
+      _transcriptPageTransitionDuration,
+      () {
+        _transcriptPageActivationTimer = null;
+        if (!mounted || !_transcriptRouteOpen) return;
+        setState(() => _transcriptPageActive = true);
+      },
+    );
+
+    await Navigator.of(context).push(route);
+    _transcriptRouteOpen = false;
+    _transcriptPageActivationTimer?.cancel();
+    _transcriptPageActivationTimer = null;
+    if (mounted) {
+      setState(() => _transcriptPageActive = false);
+      _transcriptChromeVisible.value = true;
     }
   }
 
-  void _scheduleTranscriptChromeHide() {
-    _transcriptChromeTimer?.cancel();
-    if (!_transcriptMode) return;
-    _transcriptChromeTimer = Timer(_transcriptChromeAutoHideDelay, () {
-      if (!mounted || !_transcriptMode) return;
-      setState(() => _transcriptChromeVisible = false);
-    });
-  }
-
-  void _showTranscriptChrome() {
-    if (!mounted || !_transcriptMode) return;
-    if (!_transcriptChromeVisible) {
-      setState(() => _transcriptChromeVisible = true);
+  Widget _buildTranscriptRoutePage({
+    required BuildContext routeContext,
+    required Animation<double>? pageAnimation,
+    required LuminaAudioHandler handler,
+    required bool selectedLoaded,
+    required Duration duration,
+    required ChapterManifest? manifest,
+    required String? chapterId,
+    required String chapterTitle,
+  }) {
+    final theme = Theme.of(context);
+    final topTint = theme.colorScheme.surfaceContainer;
+    final pageBottom = theme.colorScheme.surface;
+    final middleTint = Color.lerp(topTint, pageBottom, 0.62)!;
+    void closePage() {
+      _transcriptRouteOpen = false;
+      _transcriptPageActivationTimer?.cancel();
+      _transcriptPageActivationTimer = null;
+      if (mounted) setState(() => _transcriptPageActive = false);
+      Navigator.of(routeContext).pop();
     }
-    _scheduleTranscriptChromeHide();
+
+    return Listener(
+      behavior: HitTestBehavior.opaque,
+      onPointerDown: (_) => _transcriptChromeInteraction.value++,
+      onPointerSignal: (_) => _transcriptChromeInteraction.value++,
+      child: DecoratedBox(
+        key: const ValueKey('player-transcript-page'),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [topTint, middleTint, pageBottom],
+            stops: const [0, 0.46, 1],
+          ),
+        ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Positioned.fill(child: _buildPageAmbience()),
+            Scaffold(
+              resizeToAvoidBottomInset: false,
+              backgroundColor: Colors.transparent,
+              body: SafeArea(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final pageInset = context.appDesign.pageInsetFor(
+                      constraints.maxWidth,
+                    );
+                    if (_isPodcast) {
+                      final data = widget.podcast!;
+                      final episode = _podcastEpisode ?? data.episode;
+                      return _buildTranscriptModeBody(
+                        constraints: constraints,
+                        handler: handler,
+                        selectedLoaded: selectedLoaded,
+                        duration: duration,
+                        manifest: manifest,
+                        pageInset: pageInset,
+                        lyricsChapterId: episode.id,
+                        scrollKey: const ValueKey(
+                          'podcast-transcript-scroll-view',
+                        ),
+                        viewportKey: const ValueKey(
+                          'podcast-transcript-focus-viewport',
+                        ),
+                        miniHeader: _buildTranscriptMiniHeader(
+                          title: episode.title,
+                          subtitle: data.show.title,
+                          pageInset: pageInset,
+                          trailing: _buildPodcastTranscriptionActions(episode),
+                          onClose: closePage,
+                        ),
+                        belowFold: [
+                          _buildPodcastShownotesCard(
+                            episode: episode,
+                            handler: handler,
+                          ),
+                          SizedBox(height: context.appDesign.spaceMd),
+                          _buildAiSummaryCard(
+                            handler: handler,
+                            manifest: manifest,
+                          ),
+                        ],
+                        pageAnimation: pageAnimation,
+                        onExit: closePage,
+                      );
+                    }
+
+                    if (chapterId == null) return const SizedBox.shrink();
+                    return _buildTranscriptModeBody(
+                      constraints: constraints,
+                      handler: handler,
+                      selectedLoaded: selectedLoaded,
+                      duration: duration,
+                      manifest: manifest,
+                      pageInset: pageInset,
+                      lyricsChapterId: chapterId,
+                      scrollKey: const ValueKey('book-transcript-scroll-view'),
+                      viewportKey: const ValueKey(
+                        'book-transcript-focus-viewport',
+                      ),
+                      miniHeader: _buildTranscriptMiniHeader(
+                        title: chapterTitle,
+                        subtitle: widget.book.title,
+                        pageInset: pageInset,
+                        onClose: closePage,
+                      ),
+                      belowFold: [
+                        _buildAiSummaryCard(
+                          handler: handler,
+                          manifest: manifest,
+                        ),
+                      ],
+                      pageAnimation: pageAnimation,
+                      onExit: closePage,
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _setStreamPlaybackRequested(bool value) {
@@ -555,6 +721,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             _selectedManifest = transcript.manifest;
             _paragraphCount = transcript.paragraphs.length;
           });
+          _transcriptPageRevision.value++;
         });
   }
 
@@ -1056,12 +1223,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       episode.transcriptStatus == podcastTranscriptPausedStatus &&
       episode.transcriptProgressMs > 0;
 
+  void _refreshTranscriptPage() {
+    if (mounted) _transcriptPageRevision.value++;
+  }
+
   Future<void> _pausePodcastTranscription() async {
     if (_pausingPodcastTranscription) return;
     final service = ref.read(podcastTranscriptionServiceProvider);
     // Whisper finishes the chunk it is holding before it lets go, which can
     // take a while on a long chunk size. Say so instead of looking stuck.
     setState(() => _pausingPodcastTranscription = true);
+    _refreshTranscriptPage();
     try {
       await service.pause();
     } finally {
@@ -1071,6 +1243,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           _transcribingPodcast = false;
           _transcriptionProgress = null;
         });
+        _refreshTranscriptPage();
       }
     }
   }
@@ -1093,6 +1266,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         message: '正在准备本地转写',
       );
     });
+    _refreshTranscriptPage();
 
     try {
       final languagePreference = await ref
@@ -1110,6 +1284,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             onProgress: (progress) {
               if (mounted) {
                 setState(() => _transcriptionProgress = progress);
+                _refreshTranscriptPage();
               }
             },
           );
@@ -1125,6 +1300,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           _transcribingPodcast = false;
           _transcriptionProgress = null;
         });
+        _refreshTranscriptPage();
       }
     }
   }
@@ -1518,70 +1694,30 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
     _stickyMiniPlayerTriggerOffset =
         artworkSize + (compact ? design.spaceSm : design.spaceLg);
+    if (_transcriptPageActive) return const SizedBox.shrink();
 
-    if (_transcriptMode) {
-      _stickyMiniPlayerTriggerOffset = double.infinity;
-    }
-
-    // Books get the same two panels as podcasts: a cover face and a lyric-style
-    // reading face, cross-fading between them.
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 420),
-      reverseDuration: const Duration(milliseconds: 320),
-      switchInCurve: Curves.easeOutCubic,
-      switchOutCurve: Curves.easeInCubic,
-      layoutBuilder: (currentChild, previousChildren) => Stack(
-        fit: StackFit.expand,
-        children: [...previousChildren, ?currentChild],
-      ),
-      transitionBuilder: (child, animation) {
-        final entering = child.key == ValueKey(_transcriptMode);
-        return FadeTransition(
-          opacity: animation,
-          child: ScaleTransition(
-            scale: Tween<double>(
-              begin: entering ? 0.97 : 1.03,
-              end: 1,
-            ).animate(animation),
-            child: child,
-          ),
-        );
-      },
-      child: KeyedSubtree(
-        key: ValueKey(_transcriptMode),
-        child: _transcriptMode && chapterId != null
-            ? _buildTranscriptModeBody(
-                constraints: constraints,
+    return _buildBookCoverBody(
+      handler: handler,
+      selectedLoaded: selectedLoaded,
+      duration: duration,
+      manifest: manifest,
+      chapterId: chapterId,
+      chapterTitle: chapterTitle,
+      pageInset: pageInset,
+      compact: compact,
+      artworkSize: artworkSize,
+      viewportContentHeight: viewportContentHeight,
+      onTranscriptTap: chapterId == null
+          ? null
+          : () => unawaited(
+              _openTranscriptPage(
                 handler: handler,
-                selectedLoaded: selectedLoaded,
-                duration: duration,
-                manifest: manifest,
-                pageInset: pageInset,
-                lyricsChapterId: chapterId,
-                scrollKey: const ValueKey('book-transcript-scroll-view'),
-                viewportKey: const ValueKey('book-transcript-focus-viewport'),
-                miniHeader: _buildTranscriptMiniHeader(
-                  title: chapterTitle,
-                  subtitle: widget.book.title,
-                  pageInset: pageInset,
-                ),
-                belowFold: [
-                  _buildAiSummaryCard(handler: handler, manifest: manifest),
-                ],
-              )
-            : _buildBookCoverBody(
-                handler: handler,
-                selectedLoaded: selectedLoaded,
                 duration: duration,
                 manifest: manifest,
                 chapterId: chapterId,
                 chapterTitle: chapterTitle,
-                pageInset: pageInset,
-                compact: compact,
-                artworkSize: artworkSize,
-                viewportContentHeight: viewportContentHeight,
               ),
-      ),
+            ),
     );
   }
 
@@ -1596,6 +1732,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     required bool compact,
     required double artworkSize,
     required double viewportContentHeight,
+    required VoidCallback? onTranscriptTap,
   }) {
     final design = context.appDesign;
     return SingleChildScrollView(
@@ -1608,7 +1745,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         child: Column(
           children: [
             SizedBox(height: compact ? design.spaceSm : design.spaceLg),
-            _buildArtwork(artworkSize, borderRadius: design.radiusLarge),
+            _buildTranscriptHeroArtwork(
+              artworkSize,
+              borderRadius: design.radiusLarge,
+            ),
             SizedBox(height: compact ? design.spaceLg : design.spaceXl),
             Padding(
               padding: EdgeInsets.symmetric(horizontal: pageInset),
@@ -1623,6 +1763,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 manifest: manifest,
                 foregroundColor: context.appTextPrimary,
                 showSecondaryActions: true,
+                transcriptModeActive: false,
+                onTranscriptToggle: onTranscriptTap,
               ),
             ),
             SizedBox(height: design.spaceXxl),
@@ -1632,7 +1774,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 children: [
                   _buildAiSummaryCard(handler: handler, manifest: manifest),
                   SizedBox(height: design.spaceMd),
-                  _buildTranscriptPointerCard(),
+                  _buildTranscriptPointerCard(onTap: onTranscriptTap),
                 ],
               ),
             ),
@@ -1670,77 +1812,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _stickyMiniPlayerTriggerOffset =
         artworkSize + (compact ? design.spaceSm : design.spaceLg);
 
-    if (_transcriptMode) {
-      _stickyMiniPlayerTriggerOffset = double.infinity;
-    }
+    if (_transcriptPageActive) return const SizedBox.shrink();
 
-    // Cover and transcript cross-fade rather than cutting. The outgoing panel
-    // settles back and the incoming one rises, which reads as the cover
-    // receding into the mini header instead of two unrelated screens swapping.
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 420),
-      reverseDuration: const Duration(milliseconds: 320),
-      switchInCurve: Curves.easeOutCubic,
-      switchOutCurve: Curves.easeInCubic,
-      layoutBuilder: (currentChild, previousChildren) => Stack(
-        fit: StackFit.expand,
-        children: [...previousChildren, ?currentChild],
-      ),
-      transitionBuilder: (child, animation) {
-        final entering = child.key == ValueKey(_transcriptMode);
-        return FadeTransition(
-          opacity: animation,
-          child: ScaleTransition(
-            scale: Tween<double>(
-              begin: entering ? 0.97 : 1.03,
-              end: 1,
-            ).animate(animation),
-            child: child,
-          ),
-        );
-      },
-      child: KeyedSubtree(
-        key: ValueKey(_transcriptMode),
-        child: _transcriptMode
-            ? _buildTranscriptModeBody(
-                constraints: constraints,
-                handler: handler,
-                selectedLoaded: selectedLoaded,
-                duration: duration,
-                manifest: manifest,
-                pageInset: pageInset,
-                lyricsChapterId: episode.id,
-                scrollKey: const ValueKey('podcast-transcript-scroll-view'),
-                viewportKey: const ValueKey(
-                  'podcast-transcript-focus-viewport',
-                ),
-                miniHeader: _buildTranscriptMiniHeader(
-                  title: episode.title,
-                  subtitle: data.show.title,
-                  pageInset: pageInset,
-                  trailing: _buildPodcastTranscriptionActions(episode),
-                ),
-                belowFold: [
-                  _buildPodcastShownotesCard(
-                    episode: episode,
-                    handler: handler,
-                  ),
-                  SizedBox(height: design.spaceMd),
-                  _buildAiSummaryCard(handler: handler, manifest: manifest),
-                ],
-              )
-            : _buildPodcastCoverBody(
-                constraints: constraints,
-                handler: handler,
-                episode: episode,
-                duration: duration,
-                manifest: manifest,
-                chapterTitle: chapterTitle,
-                pageInset: pageInset,
-                compact: compact,
-                artworkSize: artworkSize,
-                viewportContentHeight: viewportContentHeight,
-              ),
+    return _buildPodcastCoverBody(
+      constraints: constraints,
+      handler: handler,
+      episode: episode,
+      duration: duration,
+      manifest: manifest,
+      chapterTitle: chapterTitle,
+      pageInset: pageInset,
+      compact: compact,
+      artworkSize: artworkSize,
+      viewportContentHeight: viewportContentHeight,
+      onTranscriptTap: () => unawaited(
+        _openTranscriptPage(
+          handler: handler,
+          duration: duration,
+          manifest: manifest,
+          chapterId: episode.id,
+          chapterTitle: chapterTitle,
+        ),
       ),
     );
   }
@@ -1756,6 +1848,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     required bool compact,
     required double artworkSize,
     required double viewportContentHeight,
+    required VoidCallback onTranscriptTap,
   }) {
     final design = context.appDesign;
 
@@ -1769,7 +1862,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         child: Column(
           children: [
             SizedBox(height: compact ? design.spaceSm : design.spaceLg),
-            _buildArtwork(artworkSize, borderRadius: design.radiusLarge),
+            _buildTranscriptHeroArtwork(
+              artworkSize,
+              borderRadius: design.radiusLarge,
+            ),
             SizedBox(height: compact ? design.spaceLg : design.spaceXl),
             Padding(
               padding: EdgeInsets.symmetric(horizontal: pageInset),
@@ -1784,6 +1880,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 manifest: manifest,
                 foregroundColor: context.appTextPrimary,
                 showSecondaryActions: true,
+                transcriptModeActive: false,
+                onTranscriptToggle: onTranscriptTap,
               ),
             ),
             SizedBox(height: design.spaceXxl),
@@ -1798,7 +1896,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   SizedBox(height: design.spaceMd),
                   _buildAiSummaryCard(handler: handler, manifest: manifest),
                   SizedBox(height: design.spaceMd),
-                  _buildTranscriptPointerCard(),
+                  _buildTranscriptPointerCard(onTap: onTranscriptTap),
                   SizedBox(height: design.spaceMd),
                 ],
               ),
@@ -1812,7 +1910,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   /// The transcript no longer has a card of its own. This dashed row tells a
   /// reader who scrolls looking for it where it went, and doubles as a second
   /// way into transcript mode.
-  Widget _buildTranscriptPointerCard() {
+  Widget _buildTranscriptPointerCard({required VoidCallback? onTap}) {
     final design = context.appDesign;
     final cachedCount = _podcastTranscript?.timingCount ?? 0;
     return Material(
@@ -1820,7 +1918,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       child: InkWell(
         key: const ValueKey('transcript-pointer-card'),
         borderRadius: BorderRadius.circular(design.radiusLarge),
-        onTap: () => _setTranscriptMode(true),
+        onTap: onTap,
         child: CustomPaint(
           painter: _DashedBorderPainter(
             color: context.appTextPrimary.withValues(alpha: 0.16),
@@ -1903,20 +2001,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     required Key viewportKey,
     required Widget miniHeader,
     required List<Widget> belowFold,
+    required Animation<double>? pageAnimation,
+    required VoidCallback onExit,
   }) {
     final design = context.appDesign;
-    // The transcript owns the first screen outright. Both the header and the
-    // controls float above it rather than sitting in the column, so idling out
-    // the chrome reveals more transcript instead of reflowing the page.
+    // The transcript owns the first screen outright, but its chrome stays in
+    // fixed bands: the mini player at the top, the lyrics only in the space
+    // vacated by the cover, and the transport controls at the bottom.
     final stageHeight = math.max(360.0, constraints.maxHeight);
 
-    return Listener(
-      behavior: HitTestBehavior.translucent,
+    return _TranscriptChromeController(
+      handler: handler,
+      playbackEnabled: selectedLoaded,
+      visibility: _transcriptChromeVisible,
+      interaction: _transcriptChromeInteraction,
+      autoHideDelay: _transcriptChromeAutoHideDelay,
       // Only real input wakes the chrome. The transcript auto-scrolls itself
       // every line, so reacting to scroll notifications would keep the controls
       // on screen for the whole episode.
-      onPointerDown: (_) => _showTranscriptChrome(),
-      onPointerSignal: (_) => _showTranscriptChrome(),
       child: SingleChildScrollView(
         key: scrollKey,
         controller: _transcriptScrollController,
@@ -1927,91 +2029,98 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             SizedBox(
               height: stageHeight,
               child: Stack(
+                fit: StackFit.expand,
                 children: [
-                  Positioned.fill(
-                    key: viewportKey,
-                    // Fading the transcript's own alpha at both ends is what
-                    // keeps lines from showing through the chrome scrims, and
-                    // from running into the bare screen edge once the chrome
-                    // has idled away. The opaque band comfortably contains the
-                    // active line, which sits at 34%.
-                    child: ShaderMask(
-                      blendMode: BlendMode.dstIn,
-                      shaderCallback: (bounds) => const LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.black,
-                          Colors.black,
-                          Colors.transparent,
-                        ],
-                        stops: [0, 0.14, 0.7, 0.93],
-                      ).createShader(bounds),
-                      child: _buildSyncedLyrics(
-                        chapterId: lyricsChapterId,
-                        handler: handler,
-                        manifest: manifest,
-                        playbackEnabled: selectedLoaded,
-                        expanded: true,
-                        focusMode: true,
-                        listKey: ValueKey('transcript-focus:$lyricsChapterId'),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildTranscriptChromeVisibility(
+                        fromTop: true,
+                        child: miniHeader,
                       ),
-                    ),
-                  ),
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    child: _buildTranscriptChrome(
-                      visible: _transcriptChromeVisible,
-                      fromTop: true,
-                      child: miniHeader,
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    child: _buildTranscriptChrome(
-                      visible: _transcriptChromeVisible,
-                      fromTop: false,
-                      child: Padding(
-                        padding: EdgeInsets.fromLTRB(
-                          pageInset,
-                          design.spaceXl,
-                          pageInset,
-                          design.spaceXl,
-                        ),
-                        child: _buildReactiveControls(
-                          handler: handler,
-                          fallbackDuration: duration,
-                          manifest: manifest,
-                          foregroundColor: context.appTextPrimary,
-                          showSecondaryActions: true,
+                      Expanded(
+                        child: SizedBox.expand(
+                          child: KeyedSubtree(
+                            key: viewportKey,
+                            // Fading the transcript's own alpha at both ends
+                            // keeps lines inside the space vacated by the
+                            // cover, rather than under the fixed chrome.
+                            child: _buildTranscriptEnteringContent(
+                              animation: pageAnimation,
+                              child: ShaderMask(
+                                blendMode: BlendMode.dstIn,
+                                shaderCallback: (bounds) =>
+                                    const LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [
+                                        Colors.transparent,
+                                        Colors.black,
+                                        Colors.black,
+                                        Colors.transparent,
+                                      ],
+                                      stops: [0, 0.14, 0.7, 0.93],
+                                    ).createShader(bounds),
+                                child: _buildSyncedLyrics(
+                                  chapterId: lyricsChapterId,
+                                  handler: handler,
+                                  manifest: manifest,
+                                  playbackEnabled: selectedLoaded,
+                                  expanded: true,
+                                  focusMode: true,
+                                  listKey: ValueKey(
+                                    'transcript-focus:$lyricsChapterId',
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                      _buildTranscriptChromeVisibility(
+                        fromTop: false,
+                        child: Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            pageInset,
+                            design.spaceXl,
+                            pageInset,
+                            design.spaceXl,
+                          ),
+                          child: _buildReactiveControls(
+                            handler: handler,
+                            fallbackDuration: duration,
+                            manifest: manifest,
+                            foregroundColor: context.appTextPrimary,
+                            showSecondaryActions: true,
+                            transcriptModeActive: true,
+                            onTranscriptToggle: onExit,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   Positioned(
                     bottom: design.spaceXl,
                     left: 0,
                     right: 0,
-                    child: IgnorePointer(
-                      child: AnimatedOpacity(
-                        duration: const Duration(milliseconds: 320),
-                        opacity: _transcriptChromeVisible ? 0 : 1,
-                        child: Text(
-                          context.tr(
-                            '轻触屏幕唤回控制',
-                            'Tap anywhere to bring the controls back',
-                          ),
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: context.appTextSecondary.withValues(
-                              alpha: 0.7,
+                    child: ValueListenableBuilder<bool>(
+                      valueListenable: _transcriptChromeVisible,
+                      builder: (context, visible, _) => IgnorePointer(
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 320),
+                          opacity: visible ? 0 : 1,
+                          child: Text(
+                            context.tr(
+                              '轻触屏幕唤回控制',
+                              'Tap anywhere to bring the controls back',
+                            ),
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: context.appTextSecondary.withValues(
+                                alpha: 0.7,
+                              ),
                             ),
                           ),
                         ),
@@ -2032,6 +2141,42 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildTranscriptEnteringContent({
+    required Widget child,
+    required Animation<double>? animation,
+  }) {
+    if (animation == null) return child;
+    final opacity = Tween<double>(begin: 0, end: 1)
+        .chain(
+          CurveTween(
+            curve: const Interval(0.14, 1, curve: Curves.easeOutCubic),
+          ),
+        )
+        .animate(animation);
+    final position = Tween<Offset>(
+      begin: const Offset(0, 0.08),
+      end: Offset.zero,
+    ).chain(CurveTween(curve: Curves.easeOutCubic)).animate(animation);
+    return FadeTransition(
+      opacity: opacity,
+      child: SlideTransition(position: position, child: child),
+    );
+  }
+
+  Widget _buildTranscriptChromeVisibility({
+    required bool fromTop,
+    required Widget child,
+  }) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: _transcriptChromeVisible,
+      builder: (context, visible, _) => _buildTranscriptChrome(
+        visible: visible,
+        fromTop: fromTop,
+        child: child,
       ),
     );
   }
@@ -2107,8 +2252,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
-  /// Fades and slides one of the floating chrome bands out of the way, keeping
-  /// its scrim so the transcript never runs into hard-edged text underneath.
+  /// Fades one of the floating chrome bands out of the way, keeping its scrim
+  /// so the transcript never runs into hard-edged text underneath. The band
+  /// stays in its slot while fading so showing it again never translates the
+  /// transcript or its filtered layers.
   Widget _buildTranscriptChrome({
     required bool visible,
     required bool fromTop,
@@ -2119,28 +2266,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         : Theme.of(context).colorScheme.surface;
     return IgnorePointer(
       ignoring: !visible,
-      child: AnimatedSlide(
-        duration: const Duration(milliseconds: 380),
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 320),
         curve: Curves.easeOutCubic,
-        offset: visible ? Offset.zero : Offset(0, fromTop ? -0.35 : 0.4),
-        child: AnimatedOpacity(
-          duration: const Duration(milliseconds: 260),
-          opacity: visible ? 1 : 0,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: fromTop ? Alignment.topCenter : Alignment.bottomCenter,
-                end: fromTop ? Alignment.bottomCenter : Alignment.topCenter,
-                colors: [
-                  scrim,
-                  scrim.withValues(alpha: 0.96),
-                  scrim.withValues(alpha: 0),
-                ],
-                stops: const [0, 0.62, 1],
-              ),
+        opacity: visible ? 1 : 0,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: fromTop ? Alignment.topCenter : Alignment.bottomCenter,
+              end: fromTop ? Alignment.bottomCenter : Alignment.topCenter,
+              colors: [
+                scrim,
+                scrim.withValues(alpha: 0.96),
+                scrim.withValues(alpha: 0),
+              ],
+              stops: const [0, 0.62, 1],
             ),
-            child: child,
           ),
+          child: child,
         ),
       ),
     );
@@ -2199,6 +2342,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     required String subtitle,
     required double pageInset,
     List<Widget> trailing = const [],
+    required VoidCallback onClose,
   }) {
     final design = context.appDesign;
     return Padding(
@@ -2210,7 +2354,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       ),
       child: Row(
         children: [
-          _buildArtwork(58, borderRadius: design.radiusMedium),
+          _buildTranscriptHeroArtwork(58, borderRadius: design.radiusMedium),
           SizedBox(width: design.spaceMd),
           Expanded(
             child: Column(
@@ -2243,7 +2387,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             tooltip: context.tr('返回封面', 'Back to cover'),
             icon: const Icon(Icons.crop_square_rounded),
             color: context.appTextPrimary,
-            onPressed: () => _setTranscriptMode(false),
+            onPressed: onClose,
           ),
         ],
       ),
@@ -2486,9 +2630,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             SizedBox(height: context.appDesign.spaceSm),
             TextButton.icon(
               key: const ValueKey('podcast-shownotes-toggle'),
-              onPressed: () => setState(
-                () => _showFullPodcastNotes = !_showFullPodcastNotes,
-              ),
+              onPressed: () {
+                setState(() => _showFullPodcastNotes = !_showFullPodcastNotes);
+                _transcriptPageRevision.value++;
+              },
               iconAlignment: IconAlignment.end,
               icon: Icon(
                 _showFullPodcastNotes
@@ -2568,7 +2713,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   Widget _buildPlayerHeader(AsyncValue<LuminaAudioHandler> handlerAsync) {
     final design = context.appDesign;
-    final chromeVisible = !_transcriptMode || _transcriptChromeVisible;
+    if (_transcriptPageActive) {
+      return SizedBox(height: design.toolbarHeight);
+    }
     final header = AnimatedSwitcher(
       duration: const Duration(milliseconds: 220),
       switchInCurve: Curves.easeOutCubic,
@@ -2583,29 +2730,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           child: child,
         ),
       ),
-      child: _transcriptMode
-          ? _buildDefaultPlayerHeader()
-          : _showStickyMiniPlayer
+      child: _showStickyMiniPlayer
           ? handlerAsync.maybeWhen(
               data: (handler) => _buildStickyMiniPlayerHeader(handler),
               orElse: _buildDefaultPlayerHeader,
             )
           : _buildDefaultPlayerHeader(),
     );
-    return AnimatedSize(
-      duration: const Duration(milliseconds: 280),
-      curve: Curves.easeOutCubic,
-      alignment: Alignment.topCenter,
-      child: ClipRect(
-        child: AnimatedOpacity(
-          duration: const Duration(milliseconds: 240),
-          opacity: chromeVisible ? 1 : 0,
-          child: SizedBox(
-            height: chromeVisible ? design.toolbarHeight : 0,
-            child: header,
-          ),
-        ),
-      ),
+    // Keep the toolbar's slot fixed while its content changes. Transcript is
+    // a separate route now, so its own mini header and chrome own their input.
+    return SizedBox(
+      height: design.toolbarHeight,
+      child: ClipRect(child: header),
     );
   }
 
@@ -2843,6 +2979,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
+  Widget _buildTranscriptHeroArtwork(
+    double size, {
+    required double borderRadius,
+  }) {
+    return Hero(
+      tag: _transcriptArtworkHeroTag,
+      transitionOnUserGestures: true,
+      createRectTween: (begin, end) =>
+          MaterialRectArcTween(begin: begin, end: end),
+      child: _buildArtwork(size, borderRadius: borderRadius),
+    );
+  }
+
   Widget _buildChapterMetadata(String chapterTitle) {
     final design = context.appDesign;
     return Row(
@@ -3063,6 +3212,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     required ChapterManifest? manifest,
     required Color foregroundColor,
     bool showSecondaryActions = false,
+    required bool transcriptModeActive,
+    required VoidCallback? onTranscriptToggle,
   }) {
     return StreamBuilder(
       stream: handler.playbackState,
@@ -3091,6 +3242,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 selectedLoaded: selectedLoaded,
                 foregroundColor: foregroundColor,
                 showSecondaryActions: showSecondaryActions,
+                transcriptModeActive: transcriptModeActive,
+                onTranscriptToggle: onTranscriptToggle,
               ),
             );
           },
@@ -3108,6 +3261,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     required bool selectedLoaded,
     required Color foregroundColor,
     bool showSecondaryActions = false,
+    required bool transcriptModeActive,
+    required VoidCallback? onTranscriptToggle,
   }) {
     final design = context.appDesign;
     final accent = Theme.of(context).colorScheme.primary;
@@ -3340,12 +3495,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 _buildPodcastActionButton(
                   key: const ValueKey('player-transcript-toggle'),
                   icon: Icons.chat_bubble_outline_rounded,
-                  tooltip: _transcriptMode
+                  tooltip: transcriptModeActive
                       ? context.tr('返回封面', 'Back to cover')
                       : context.tr('转录', 'Transcript'),
                   chip: true,
-                  active: _transcriptMode,
-                  onPressed: () => _setTranscriptMode(!_transcriptMode),
+                  active: transcriptModeActive,
+                  onPressed: onTranscriptToggle,
                 ),
                 _buildOutputRouteButton(),
                 _buildPodcastActionButton(
@@ -3944,6 +4099,150 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         .setSetting('playback_speed', clamped.toStringAsFixed(2));
     if (!mounted) return;
     setState(() => _speed = clamped);
+  }
+}
+
+/// Owns the transcript chrome's interaction and timer without putting those
+/// state changes on [_PlayerScreenState]. Waking a hidden toolbar therefore
+/// only rebuilds the two chrome bands, leaving the filtered transcript layer
+/// and its scroll position untouched.
+class _TranscriptChromeController extends StatefulWidget {
+  final LuminaAudioHandler handler;
+  final bool playbackEnabled;
+  final ValueNotifier<bool> visibility;
+  final ValueNotifier<int> interaction;
+  final Duration autoHideDelay;
+  final Widget child;
+
+  const _TranscriptChromeController({
+    required this.handler,
+    required this.playbackEnabled,
+    required this.visibility,
+    required this.interaction,
+    required this.autoHideDelay,
+    required this.child,
+  });
+
+  @override
+  State<_TranscriptChromeController> createState() =>
+      _TranscriptChromeControllerState();
+}
+
+class _TranscriptChromeControllerState
+    extends State<_TranscriptChromeController> {
+  Timer? _hideTimer;
+  StreamSubscription? _playbackStateSubscription;
+  late bool _isPlaying;
+  late int _lastInteraction;
+
+  bool get _playbackIsActive =>
+      widget.playbackEnabled && widget.handler.playbackState.value.playing;
+
+  @override
+  void initState() {
+    super.initState();
+    _isPlaying = _playbackIsActive;
+    _lastInteraction = widget.interaction.value;
+    widget.interaction.addListener(_handleInteraction);
+    _bindPlaybackState();
+    if (_isPlaying) _scheduleHide();
+  }
+
+  @override
+  void didUpdateWidget(covariant _TranscriptChromeController oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final handlerChanged = oldWidget.handler != widget.handler;
+    if (handlerChanged) {
+      _hideTimer?.cancel();
+      unawaited(_playbackStateSubscription?.cancel());
+      _isPlaying = _playbackIsActive;
+      _bindPlaybackState();
+      if (_isPlaying) {
+        _scheduleHide();
+      } else {
+        _showAndCancel();
+      }
+    }
+
+    if (oldWidget.interaction != widget.interaction) {
+      oldWidget.interaction.removeListener(_handleInteraction);
+      _lastInteraction = widget.interaction.value;
+      widget.interaction.addListener(_handleInteraction);
+    }
+
+    if (!handlerChanged &&
+        oldWidget.playbackEnabled != widget.playbackEnabled) {
+      final playbackIsActive = _playbackIsActive;
+      if (playbackIsActive != _isPlaying) {
+        _handlePlaybackState(playbackIsActive);
+      }
+    }
+  }
+
+  void _bindPlaybackState() {
+    _playbackStateSubscription = widget.handler.playbackState.listen((state) {
+      _handlePlaybackState(widget.playbackEnabled && state.playing);
+    });
+  }
+
+  void _handleInteraction() {
+    final interaction = widget.interaction.value;
+    if (interaction == _lastInteraction) return;
+    _lastInteraction = interaction;
+    _wake();
+  }
+
+  void _handlePlaybackState(bool playbackIsActive) {
+    if (_isPlaying == playbackIsActive) return;
+    _isPlaying = playbackIsActive;
+    if (_isPlaying) {
+      _scheduleHide();
+    } else {
+      _showAndCancel();
+    }
+  }
+
+  void _scheduleHide() {
+    _hideTimer?.cancel();
+    if (!_isPlaying || !_playbackIsActive) return;
+    _hideTimer = Timer(widget.autoHideDelay, () {
+      if (!mounted || !_isPlaying || !_playbackIsActive) return;
+      widget.visibility.value = false;
+    });
+  }
+
+  void _showAndCancel() {
+    _hideTimer?.cancel();
+    _hideTimer = null;
+    if (widget.visibility.value) return;
+    widget.visibility.value = true;
+  }
+
+  void _wake() {
+    if (!_playbackIsActive) {
+      _showAndCancel();
+      return;
+    }
+    if (!widget.visibility.value) widget.visibility.value = true;
+    _scheduleHide();
+  }
+
+  @override
+  void dispose() {
+    _hideTimer?.cancel();
+    unawaited(_playbackStateSubscription?.cancel());
+    widget.interaction.removeListener(_handleInteraction);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) => _wake(),
+      onPointerSignal: (_) => _wake(),
+      child: widget.child,
+    );
   }
 }
 
