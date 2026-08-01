@@ -330,6 +330,47 @@ void main() {
     );
   });
 
+  test('keeps a standalone punctuation line inside phrase timing', () {
+    const paragraph = Paragraph(
+      id: 'punctuation',
+      chapterId: 'c1',
+      bookId: 'b1',
+      paragraphIndex: 0,
+      content: 'Hello\n—\nworld',
+    );
+    final manifest = ChapterManifest(
+      chapterId: 'c1',
+      bookId: 'b1',
+      providerId: 'fish_audio_api',
+      voiceId: 'default',
+      speed: 1,
+      updatedAt: 1,
+      segments: const [
+        SegmentEntry(
+          paragraphId: 'punctuation',
+          audioFile: 'c1/punctuation.wav',
+          durationMs: 1000,
+          state: ParagraphAudioState.ready,
+          timings: [
+            AudioTextTiming(text: 'Hello world', startMs: 0, endMs: 1000),
+          ],
+        ),
+      ],
+    );
+
+    final lines = buildSyncedLyricLines([paragraph], manifest);
+
+    expect(lines.map((line) => line.text), ['Hello', '—', 'world']);
+    // The dash normalizes to an empty range at offset five. It is still
+    // strictly inside the phrase timing, so it must interpolate to 500 ms
+    // rather than fall back to its proportional whole-line estimate.
+    expect((lines[1].startMs, lines[1].endMs), (500, 500));
+    expect(
+      (lines[1].words.single.startMs, lines[1].words.single.endMs),
+      (500, 501),
+    );
+  });
+
   test('legacy cached audio gets proportional line offsets', () {
     const paragraph = Paragraph(
       id: 'p1',
@@ -362,6 +403,76 @@ void main() {
     expect(lines.first.endMs, greaterThan(0));
     expect(lines.last.startMs, lines.first.endMs);
     expect(lines.last.endMs, 1000);
+  });
+
+  test('indexes long transcript timings without quadratic scans', () {
+    // One timing per display line mirrors a Whisper transcript with short
+    // segments. The former implementation scanned every timing once for the
+    // line and once for its word, making this O(n²). Count index visits rather
+    // than elapsed time so this remains a reliable regression test on CI.
+    const timingCount = 4096;
+    String tokenFor(int index) {
+      var value = index;
+      final characters = <int>[];
+      do {
+        characters.add(97 + value % 26);
+        value ~/= 26;
+      } while (value > 0);
+      return 'token${String.fromCharCodes(characters.reversed)}';
+    }
+
+    final transcriptLines = [
+      for (var index = 0; index < timingCount; index++) '${tokenFor(index)}.',
+    ];
+    final timings = [
+      for (var index = 0; index < timingCount; index++)
+        AudioTextTiming(
+          text: tokenFor(index),
+          startMs: index * 10,
+          endMs: (index + 1) * 10,
+        ),
+    ];
+    final metrics = SyncedLyricsBuildMetrics();
+    final paragraph = Paragraph(
+      id: 'large',
+      chapterId: 'large',
+      bookId: 'podcast:large-show',
+      paragraphIndex: 0,
+      content: transcriptLines.join('\n'),
+    );
+    final manifest = ChapterManifest(
+      chapterId: 'large',
+      bookId: 'podcast:large-show',
+      providerId: 'whisper-local',
+      voiceId: '',
+      speed: 1,
+      updatedAt: 1,
+      segments: [
+        SegmentEntry(
+          paragraphId: 'large',
+          audioFile: 'https://example.com/episode.mp3',
+          durationMs: timingCount * 10,
+          state: ParagraphAudioState.ready,
+          format: 'podcast',
+          timings: timings,
+        ),
+      ],
+    );
+
+    final lines = buildSyncedLyricLines(
+      [paragraph],
+      manifest,
+      metrics: metrics,
+    );
+
+    expect(lines, hasLength(timingCount));
+    expect(lines[2048].words.single.startMs, 20480);
+    expect(lines[2048].words.single.endMs, 20490);
+    expect(metrics.timingRangeQueries, timingCount * 2);
+    // A query uses one binary search plus two max-end tree descents. This is
+    // deliberately loose, but orders of magnitude below the former ~33M
+    // timing checks at this input size.
+    expect(metrics.timingIndexNodeVisits, lessThan(timingCount * 120));
   });
 
   testWidgets('long transcripts lazily build only visible lyric lines', (
@@ -450,6 +561,89 @@ void main() {
     scrollable.position.jumpTo(scrollable.position.maxScrollExtent);
     await tester.pumpAndSettle();
     expect(find.text('Transcript segment 499.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('paused long transcript eventually scrolls to active line', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 500);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final handler = _VirtualLyricsAudioHandler(
+      paragraphId: 'paused-long-transcript',
+      initialPosition: const Duration(seconds: 450),
+    );
+    addTearDown(handler.dispose);
+    final transcriptLines = [
+      for (var index = 0; index < 500; index++) 'Transcript segment $index.',
+    ];
+    final timings = [
+      for (var index = 0; index < transcriptLines.length; index++)
+        AudioTextTiming(
+          text: transcriptLines[index],
+          startMs: index * 1000,
+          endMs: (index + 1) * 1000,
+        ),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.darkTheme(),
+        home: Scaffold(
+          body: SizedBox(
+            width: 390,
+            height: 500,
+            child: SyncedLyricsList(
+              paragraphs: [
+                Paragraph(
+                  id: 'paused-long-transcript',
+                  chapterId: 'paused-long-transcript',
+                  bookId: 'podcast:paused-long-show',
+                  paragraphIndex: 0,
+                  content: transcriptLines.join('\n'),
+                ),
+              ],
+              manifest: ChapterManifest(
+                chapterId: 'paused-long-transcript',
+                bookId: 'podcast:paused-long-show',
+                providerId: 'whisper-local',
+                voiceId: '',
+                speed: 1,
+                updatedAt: 1,
+                segments: [
+                  SegmentEntry(
+                    paragraphId: 'paused-long-transcript',
+                    audioFile: 'https://example.com/episode.mp3',
+                    durationMs: 500000,
+                    state: ParagraphAudioState.ready,
+                    format: 'podcast',
+                    timings: timings,
+                  ),
+                ],
+              ),
+              handler: handler,
+              playbackEnabled: true,
+              expanded: true,
+              virtualized: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final virtualList = find.byKey(
+      const ValueKey('synced-lyrics-virtualized-list'),
+    );
+    final scrollable = find.descendant(
+      of: virtualList,
+      matching: find.byType(Scrollable),
+    );
+    final position = tester.state<ScrollableState>(scrollable).position;
+    expect(position.pixels, greaterThan(10000));
+    expect(find.text('Transcript segment 450.'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -670,9 +864,10 @@ void main() {
 
 class _VirtualLyricsAudioHandler extends BaseAudioHandler
     implements LuminaAudioHandler {
-  _VirtualLyricsAudioHandler({this.paragraphId});
+  _VirtualLyricsAudioHandler({this.paragraphId, this.initialPosition});
 
   final String? paragraphId;
+  final Duration? initialPosition;
 
   @override
   Duration get chapterDuration => Duration.zero;
@@ -702,7 +897,7 @@ class _VirtualLyricsAudioHandler extends BaseAudioHandler
   Stream<String?> get currentParagraphIdStream => const Stream<String?>.empty();
 
   @override
-  Duration get position => Duration.zero;
+  Duration get position => initialPosition ?? Duration.zero;
 
   @override
   Stream<Duration> get positionStream => const Stream<Duration>.empty();

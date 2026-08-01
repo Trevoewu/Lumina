@@ -161,6 +161,179 @@ class SyncedLyricLine {
 
 typedef _PositionedTiming = ({AudioTextTiming timing, int start, int end});
 
+/// Optional instrumentation for transcript-line construction.
+///
+/// It intentionally measures index nodes rather than elapsed time so the
+/// large-transcript regression test stays deterministic on both CI and slow
+/// devices. Production callers do not need to provide one.
+@visibleForTesting
+class SyncedLyricsBuildMetrics {
+  int timingRangeQueries = 0;
+  int timingIndexNodeVisits = 0;
+}
+
+/// Finds the first and last timing whose normalized-text interval overlaps a
+/// requested range.
+///
+/// Positioned timings are normally disjoint word intervals, but some speech
+/// engines emit phrase-level timings that span several display words. A plain
+/// binary search is not sufficient for those overlapping intervals: one long
+/// interval near the beginning would make every later query scan from zero.
+/// The max-end tree lets either edge of the matching interval be found in
+/// logarithmic time while retaining phrase-level interpolation.
+class _PositionedTimingIndex {
+  _PositionedTimingIndex(List<_PositionedTiming> positioned, {this.metrics})
+    : _items = [
+        for (var index = 0; index < positioned.length; index++)
+          (positioned: positioned[index], originalIndex: index),
+      ] {
+    _items.sort((left, right) {
+      final byStart = left.positioned.start.compareTo(right.positioned.start);
+      if (byStart != 0) return byStart;
+      // Keep the manifest order for identical source positions. This matches
+      // the old `where(...).first/last` behavior for phrase-level timings.
+      return left.originalIndex.compareTo(right.originalIndex);
+    });
+
+    var leafCount = 1;
+    while (leafCount < _items.length) {
+      leafCount <<= 1;
+    }
+    _leafCount = leafCount;
+    _maxEnds = List<int>.filled(leafCount * 2, -1);
+    for (var index = 0; index < _items.length; index++) {
+      _maxEnds[leafCount + index] = _items[index].positioned.end;
+    }
+    for (var index = leafCount - 1; index > 0; index--) {
+      _maxEnds[index] = math.max(
+        _maxEnds[index << 1],
+        _maxEnds[index << 1 | 1],
+      );
+    }
+  }
+
+  final SyncedLyricsBuildMetrics? metrics;
+  final List<({_PositionedTiming positioned, int originalIndex})> _items;
+  late final int _leafCount;
+  late final List<int> _maxEnds;
+
+  bool get isEmpty => _items.isEmpty;
+
+  int get latestTimingEndMs => _items.fold<int>(
+    0,
+    (maximum, item) => math.max(maximum, item.positioned.timing.endMs),
+  );
+
+  ({_PositionedTiming first, _PositionedTiming last})? overlapping(
+    int start,
+    int end,
+  ) {
+    // A display-only punctuation line has no normalized characters, but it
+    // can still sit inside a phrase-level timing interval. The old overlap
+    // predicate intentionally matched that zero-length range when it was
+    // strictly contained by a timing, so retain that behavior.
+    if (start > end || _items.isEmpty) return null;
+    metrics?.timingRangeQueries++;
+
+    // Only timings that start before the requested end can overlap it.
+    final upperBound = _firstStartAtOrAfter(end);
+    if (upperBound == 0) return null;
+    final firstIndex = _findFirstEndingAfter(
+      node: 1,
+      nodeStart: 0,
+      nodeEnd: _leafCount,
+      upperBound: upperBound,
+      start: start,
+    );
+    if (firstIndex == null) return null;
+    final lastIndex = _findLastEndingAfter(
+      node: 1,
+      nodeStart: 0,
+      nodeEnd: _leafCount,
+      upperBound: upperBound,
+      start: start,
+    );
+    if (lastIndex == null) return null;
+    return (
+      first: _items[firstIndex].positioned,
+      last: _items[lastIndex].positioned,
+    );
+  }
+
+  int _firstStartAtOrAfter(int offset) {
+    var low = 0;
+    var high = _items.length;
+    while (low < high) {
+      metrics?.timingIndexNodeVisits++;
+      final middle = low + ((high - low) >> 1);
+      if (_items[middle].positioned.start < offset) {
+        low = middle + 1;
+      } else {
+        high = middle;
+      }
+    }
+    return low;
+  }
+
+  int? _findFirstEndingAfter({
+    required int node,
+    required int nodeStart,
+    required int nodeEnd,
+    required int upperBound,
+    required int start,
+  }) {
+    metrics?.timingIndexNodeVisits++;
+    if (nodeStart >= upperBound || _maxEnds[node] <= start) return null;
+    if (nodeEnd - nodeStart == 1) {
+      return nodeStart < _items.length ? nodeStart : null;
+    }
+    final middle = nodeStart + ((nodeEnd - nodeStart) >> 1);
+    return _findFirstEndingAfter(
+          node: node << 1,
+          nodeStart: nodeStart,
+          nodeEnd: middle,
+          upperBound: upperBound,
+          start: start,
+        ) ??
+        _findFirstEndingAfter(
+          node: node << 1 | 1,
+          nodeStart: middle,
+          nodeEnd: nodeEnd,
+          upperBound: upperBound,
+          start: start,
+        );
+  }
+
+  int? _findLastEndingAfter({
+    required int node,
+    required int nodeStart,
+    required int nodeEnd,
+    required int upperBound,
+    required int start,
+  }) {
+    metrics?.timingIndexNodeVisits++;
+    if (nodeStart >= upperBound || _maxEnds[node] <= start) return null;
+    if (nodeEnd - nodeStart == 1) {
+      return nodeStart < _items.length ? nodeStart : null;
+    }
+    final middle = nodeStart + ((nodeEnd - nodeStart) >> 1);
+    return _findLastEndingAfter(
+          node: node << 1 | 1,
+          nodeStart: middle,
+          nodeEnd: nodeEnd,
+          upperBound: upperBound,
+          start: start,
+        ) ??
+        _findLastEndingAfter(
+          node: node << 1,
+          nodeStart: nodeStart,
+          nodeEnd: middle,
+          upperBound: upperBound,
+          start: start,
+        );
+  }
+}
+
 class SelectableTextToken {
   final String text;
   final int start;
@@ -217,6 +390,7 @@ List<SyncedLyricLine> buildSyncedLyricLines(
   List<drift_db.Paragraph> paragraphs,
   ChapterManifest? manifest, {
   int maxChars = 100,
+  SyncedLyricsBuildMetrics? metrics,
 }) {
   final segments = {
     for (final segment in manifest?.segments ?? const <SegmentEntry>[])
@@ -231,12 +405,16 @@ List<SyncedLyricLine> buildSyncedLyricLines(
     final durationMs = segment?.durationMs ?? 0;
     final timings = segment?.timings ?? const <AudioTextTiming>[];
     final positionedTimings = _positionTimings(paragraph.content, timings);
+    final timingIndex = _PositionedTimingIndex(
+      positionedTimings,
+      metrics: metrics,
+    );
     final ranges = _timingRanges(
       paragraph.content,
       parts,
       timings,
       durationMs,
-      positionedTimings: positionedTimings,
+      timingIndex: timingIndex,
     );
 
     var normalizedOffset = 0;
@@ -256,7 +434,7 @@ List<SyncedLyricLine> buildSyncedLyricLines(
             lineEndMs: ranges[index].$2,
             lineStartOffset: normalizedOffset,
             lineEndOffset: endOffset,
-            positionedTimings: positionedTimings,
+            timingIndex: timingIndex,
           ),
         ),
       );
@@ -407,26 +585,23 @@ List<(int, int)> _timingRanges(
   List<String> parts,
   List<AudioTextTiming> timings,
   int durationMs, {
-  List<_PositionedTiming>? positionedTimings,
+  _PositionedTimingIndex? timingIndex,
 }) {
   final fallback = _estimatedRanges(parts, durationMs);
   if (timings.isEmpty) return fallback;
 
-  final normalizedParagraph = _normalizeForAlignment(paragraph);
-  if (normalizedParagraph.isEmpty) return fallback;
-
-  final positioned = positionedTimings ?? _positionTimings(paragraph, timings);
-  if (positioned.isEmpty) return fallback;
+  final positionedIndex =
+      timingIndex ??
+      _PositionedTimingIndex(_positionTimings(paragraph, timings));
+  if (positionedIndex.isEmpty) return fallback;
 
   final ranges = <(int, int)>[];
   var normalizedOffset = 0;
   for (var index = 0; index < parts.length; index++) {
     final length = _normalizeForAlignment(parts[index]).length;
     final endOffset = normalizedOffset + length;
-    final matches = positioned.where(
-      (item) => item.end > normalizedOffset && item.start < endOffset,
-    );
-    if (matches.isEmpty) {
+    final matches = positionedIndex.overlapping(normalizedOffset, endOffset);
+    if (matches == null) {
       ranges.add(fallback[index]);
     } else {
       final first = matches.first;
@@ -443,10 +618,9 @@ List<(int, int)> _timingRanges(
     }
     normalizedOffset = endOffset;
   }
-  final effectiveDurationMs = positioned.fold<int>(
+  final effectiveDurationMs = math.max(
     durationMs,
-    (maximum, item) =>
-        item.timing.endMs > maximum ? item.timing.endMs : maximum,
+    positionedIndex.latestTimingEndMs,
   );
   return _makeRangesMonotonic(ranges, effectiveDurationMs);
 }
@@ -479,7 +653,7 @@ List<SyncedLyricWord> _buildLyricWords(
   required int lineEndMs,
   required int lineStartOffset,
   required int lineEndOffset,
-  required List<_PositionedTiming> positionedTimings,
+  required _PositionedTimingIndex timingIndex,
 }) {
   final ranges = _lyricWordRanges(text);
   if (ranges.isEmpty) {
@@ -494,26 +668,23 @@ List<SyncedLyricWord> _buildLyricWords(
   }
 
   final normalizedLineLength = math.max(1, lineEndOffset - lineStartOffset);
+  final normalizedRanges = _normalizedWordRanges(text, ranges);
   var previousEndMs = lineStartMs;
   final words = <SyncedLyricWord>[];
   var sourceEnd = 0;
-  for (final range in ranges) {
+  for (var index = 0; index < ranges.length; index++) {
+    final range = ranges[index];
+    final normalizedRange = normalizedRanges[index];
     final word = text.substring(range.start, range.end);
     final leadingWhitespace = text.substring(sourceEnd, range.start);
     sourceEnd = range.end;
-    final wordStartOffset =
-        lineStartOffset +
-        _normalizeForAlignment(text.substring(0, range.start)).length;
-    final wordEndOffset =
-        lineStartOffset +
-        _normalizeForAlignment(text.substring(0, range.end)).length;
-    final matches = positionedTimings.where(
-      (item) => item.end > wordStartOffset && item.start < wordEndOffset,
-    );
+    final wordStartOffset = lineStartOffset + normalizedRange.start;
+    final wordEndOffset = lineStartOffset + normalizedRange.end;
+    final matches = timingIndex.overlapping(wordStartOffset, wordEndOffset);
 
     int startMs;
     int endMs;
-    if (matches.isNotEmpty) {
+    if (matches != null) {
       final first = matches.first;
       final last = matches.last;
       startMs = _interpolateTiming(
@@ -544,6 +715,30 @@ List<SyncedLyricWord> _buildLyricWords(
     previousEndMs = endMs;
   }
   return words;
+}
+
+/// Maps every display-word range to the number of normalized characters
+/// before and after it. The old implementation re-normalized the entire line
+/// prefix for every word, which is another quadratic path for long lines.
+List<({int start, int end})> _normalizedWordRanges(
+  String text,
+  List<({int start, int end})> ranges,
+) {
+  final normalized = <({int start, int end})>[];
+  var sourceOffset = 0;
+  var normalizedOffset = 0;
+  for (final range in ranges) {
+    normalizedOffset += _normalizeForAlignment(
+      text.substring(sourceOffset, range.start),
+    ).length;
+    final start = normalizedOffset;
+    normalizedOffset += _normalizeForAlignment(
+      text.substring(range.start, range.end),
+    ).length;
+    normalized.add((start: start, end: normalizedOffset));
+    sourceOffset = range.end;
+  }
+  return normalized;
 }
 
 List<({int start, int end})> _lyricWordRanges(String text) {
@@ -728,7 +923,10 @@ class _LyricSweepPainter extends CustomPainter {
     // directly it would light every wrapped row at the same x instead of
     // sweeping row by row.
     final brightPainter = TextPainter(
-      text: TextSpan(text: line.text, style: style.copyWith(color: bright)),
+      text: TextSpan(
+        text: line.text,
+        style: style.copyWith(color: bright),
+      ),
       textDirection: textDirection,
       textScaler: textScaler,
     )..layout(maxWidth: size.width);
@@ -856,6 +1054,12 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
   TextDirection? _virtualMetricsDirection;
   TextScaler? _virtualMetricsTextScaler;
   double _virtualTopPadding = 0;
+  List<double> _pendingVirtualLineExtents = const [];
+  List<double> _pendingVirtualLineOffsets = const [];
+  int _virtualMetricsGeneration = 0;
+  bool _virtualMetricsBuilding = false;
+  String? _deferredVirtualScrollLineId;
+  bool _deferredVirtualScrollForce = false;
   String? _paragraphId;
   String? _activeLineId;
   String? _pendingScrollLineId;
@@ -1099,9 +1303,11 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
     if (index == null ||
         index >= _virtualLineExtents.length ||
         index >= _virtualLineOffsets.length) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _animateToLine(lineId, force: force);
-      });
+      // Exact extents are measured in small post-frame batches so a long
+      // transcript cannot block its first paint. Keep the most recent target
+      // and resolve it as soon as the exact scroll geometry is ready.
+      _deferredVirtualScrollLineId = lineId;
+      _deferredVirtualScrollForce = _deferredVirtualScrollForce || force;
       return;
     }
 
@@ -1190,8 +1396,12 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
   }
 
   void _invalidateVirtualMetrics() {
+    _virtualMetricsGeneration++;
+    _virtualMetricsBuilding = false;
     _virtualLineExtents = const [];
     _virtualLineOffsets = const [];
+    _pendingVirtualLineExtents = const [];
+    _pendingVirtualLineOffsets = const [];
     _virtualMetricsWidth = null;
     _virtualMetricsStyle = null;
     _virtualMetricsDirection = null;
@@ -1207,31 +1417,85 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
         _virtualMetricsStyle == style &&
         _virtualMetricsDirection == direction &&
         _virtualMetricsTextScaler == textScaler &&
-        _virtualLineExtents.length == _lines.length) {
+        (_virtualLineExtents.length == _lines.length ||
+            _virtualMetricsBuilding)) {
       return;
     }
 
-    final extents = <double>[];
-    final offsets = <double>[];
-    var offset = 0.0;
-    for (final line in _lines) {
-      offsets.add(offset);
-      final painter = TextPainter(
-        text: TextSpan(text: line.text, style: style),
-        textDirection: direction,
-        textScaler: textScaler,
-      )..layout(maxWidth: safeWidth);
-      final extent = painter.height + 20;
-      painter.dispose();
-      extents.add(extent);
-      offset += extent;
-    }
-    _virtualLineExtents = extents;
-    _virtualLineOffsets = offsets;
+    final generation = ++_virtualMetricsGeneration;
+    _virtualMetricsBuilding = true;
+    _pendingVirtualLineExtents = <double>[];
+    _pendingVirtualLineOffsets = <double>[];
     _virtualMetricsWidth = safeWidth;
     _virtualMetricsStyle = style;
     _virtualMetricsDirection = direction;
     _virtualMetricsTextScaler = textScaler;
+    _scheduleVirtualMetricsBatch(generation);
+  }
+
+  /// A post-frame callback alone does not keep Flutter producing frames. In a
+  /// paused player there is no ticker to do that for us, so explicitly request
+  /// one for every measurement batch. The generation check in the callback
+  /// makes callbacks queued before an update or dispose harmless.
+  void _scheduleVirtualMetricsBatch(int generation) {
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _measureVirtualMetricsBatch(generation),
+    );
+    WidgetsBinding.instance.scheduleFrame();
+  }
+
+  void _measureVirtualMetricsBatch(int generation) {
+    if (!mounted || generation != _virtualMetricsGeneration) return;
+    final width = _virtualMetricsWidth;
+    final style = _virtualMetricsStyle;
+    final direction = _virtualMetricsDirection;
+    final textScaler = _virtualMetricsTextScaler;
+    if (width == null ||
+        style == null ||
+        direction == null ||
+        textScaler == null) {
+      return;
+    }
+
+    const linesPerFrame = 32;
+    final start = _pendingVirtualLineExtents.length;
+    final end = math.min(start + linesPerFrame, _lines.length);
+    var offset = _pendingVirtualLineOffsets.isEmpty
+        ? 0.0
+        : _pendingVirtualLineOffsets.last + _pendingVirtualLineExtents.last;
+    for (var index = start; index < end; index++) {
+      _pendingVirtualLineOffsets.add(offset);
+      final painter = TextPainter(
+        text: TextSpan(text: _lines[index].text, style: style),
+        textDirection: direction,
+        textScaler: textScaler,
+      )..layout(maxWidth: width);
+      final extent = painter.height + 20;
+      painter.dispose();
+      _pendingVirtualLineExtents.add(extent);
+      offset += extent;
+    }
+
+    if (end < _lines.length) {
+      _scheduleVirtualMetricsBatch(generation);
+      return;
+    }
+
+    _virtualLineExtents = _pendingVirtualLineExtents;
+    _virtualLineOffsets = _pendingVirtualLineOffsets;
+    _pendingVirtualLineExtents = const [];
+    _pendingVirtualLineOffsets = const [];
+    _virtualMetricsBuilding = false;
+    final lineId = _deferredVirtualScrollLineId;
+    final force = _deferredVirtualScrollForce;
+    _deferredVirtualScrollLineId = null;
+    _deferredVirtualScrollForce = false;
+    setState(() {});
+    if (lineId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _animateToLine(lineId, force: force);
+      });
+    }
   }
 
   void _stopAutomaticScroll({bool stopCurrentMotion = false}) {
@@ -1239,6 +1503,8 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
     _scrollDebounce = null;
     _pendingScrollLineId = null;
     _pendingForceScroll = false;
+    _deferredVirtualScrollLineId = null;
+    _deferredVirtualScrollForce = false;
     _stopScrollAnimation();
     if (!stopCurrentMotion || !_scrollController.hasClients) return;
     final position = _scrollController.position;
@@ -1559,13 +1825,13 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
             controller: _scrollController,
             padding: padding,
             itemCount: _lines.length,
-            itemExtentBuilder: (index, _) {
-              if (index >= _virtualLineExtents.length) return null;
-              final selectionExtra = _lines[index].id == _wordSelectionLineId
-                  ? 70.0
-                  : 0.0;
-              return _virtualLineExtents[index] + selectionExtra;
-            },
+            itemExtentBuilder: _virtualLineExtents.length != _lines.length
+                ? null
+                : (index, _) {
+                    final selectionExtra =
+                        _lines[index].id == _wordSelectionLineId ? 70.0 : 0.0;
+                    return _virtualLineExtents[index] + selectionExtra;
+                  },
             addAutomaticKeepAlives: false,
             itemBuilder: (context, index) => _buildLineSlot(
               _lines[index],
