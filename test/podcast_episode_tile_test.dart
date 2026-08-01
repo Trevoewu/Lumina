@@ -144,8 +144,8 @@ void main() {
     );
     await tester.longPress(card);
     await tester.pumpAndSettle();
-    expect(find.text('Regenerate transcript'), findsOneWidget);
     expect(find.text('Delete transcript'), findsOneWidget);
+    expect(find.text('Regenerate transcript'), findsNothing);
 
     await tester.tap(find.text('Delete transcript'));
     await tester.pumpAndSettle();
@@ -159,7 +159,6 @@ void main() {
 
     await tester.longPress(card);
     await tester.pumpAndSettle();
-    expect(find.text('Generate transcript'), findsOneWidget);
-    expect(find.text('Regenerate transcript'), findsNothing);
+    expect(find.text('Delete transcript'), findsNothing);
   });
 }

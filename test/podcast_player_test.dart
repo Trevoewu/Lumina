@@ -520,7 +520,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
-  testWidgets('a running transcription shows progress without card controls', (
+  testWidgets('a running transcription can be paused from the card', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -560,14 +560,25 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(
-      find.byKey(const ValueKey('podcast-transcript-pause')),
-      findsNothing,
-    );
+    final pauseButton = find.byKey(const ValueKey('podcast-transcript-pause'));
+    expect(pauseButton, findsOneWidget);
     expect(
       find.byKey(const ValueKey('podcast-transcript-restart')),
       findsNothing,
-      reason: 'transcript actions live in the episode long-press menu',
+      reason: 'a running job offers pause, not another start',
+    );
+
+    await tester.ensureVisible(pauseButton);
+    await tester.pump();
+    await tester.tap(pauseButton);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(service.pauseCalls, 1);
+    expect(pauseButton, findsNothing);
+    expect(
+      find.byKey(const ValueKey('podcast-transcript-restart')),
+      findsOneWidget,
     );
 
     await tester.pumpWidget(const SizedBox.shrink());
@@ -575,7 +586,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
-  testWidgets('a paused transcript stays visible without card controls', (
+  testWidgets('a paused episode offers to resume where it stopped', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -613,10 +624,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    final restart = find.byKey(const ValueKey('podcast-transcript-restart'));
+    expect(restart, findsOneWidget);
     expect(
-      find.byKey(const ValueKey('podcast-transcript-restart')),
-      findsNothing,
-      reason: 'transcript actions live in the episode long-press menu',
+      tester.widget<IconButton>(restart).tooltip,
+      'Resume transcription',
+      reason: 'the cached chunks are kept, so this continues the run',
     );
     expect(find.text('First cached chunk.'), findsOneWidget);
 
