@@ -632,6 +632,59 @@ final _alignmentNoisePattern = RegExp(
 String _normalizeForAlignment(String text) =>
     text.toLowerCase().replaceAll(_alignmentNoisePattern, '');
 
+typedef _SweepGeometry = ({double center, double rowTop, double rowBottom});
+
+/// Resolves where the highlight sweep currently sits: its x offset plus the
+/// vertical band of the visual row holding the active word. Wrapped lines
+/// occupy several rows, and the sweep has to be confined to one of them.
+@visibleForTesting
+({double center, double rowTop, double rowBottom})? syncedLyricsSweepGeometry({
+  required TextPainter painter,
+  required SyncedLyricLine line,
+  required int positionMs,
+}) {
+  final ranges = _lyricWordRanges(line.text);
+  if (ranges.isEmpty || line.words.isEmpty) return null;
+
+  final effectivePosition = positionMs + syncedLyricsSweepLeadMs;
+  var wordIndex = -1;
+  for (var index = 0; index < line.words.length; index++) {
+    final word = line.words[index];
+    if (effectivePosition < word.startMs) {
+      wordIndex = index;
+      break;
+    }
+    wordIndex = index;
+    if (effectivePosition <= word.endMs) break;
+  }
+  if (wordIndex < 0 || wordIndex >= ranges.length) return null;
+
+  final range = ranges[wordIndex];
+  final boxes = painter.getBoxesForSelection(
+    TextSelection(baseOffset: range.start, extentOffset: range.end),
+  );
+  if (boxes.isEmpty) return null;
+
+  final word = line.words[wordIndex];
+  final progress =
+      ((effectivePosition - word.startMs) /
+              math.max(1, word.endMs - word.startMs))
+          .clamp(0.0, 1.0)
+          .toDouble();
+
+  // A word straddling a line break reports one box per row; walk them in order
+  // so the sweep follows the glyphs instead of snapping back to the first row.
+  final scaled = progress * boxes.length;
+  final boxIndex = math.min(boxes.length - 1, scaled.floor());
+  final box = boxes[boxIndex];
+  final boxProgress = (scaled - boxIndex).clamp(0.0, 1.0).toDouble();
+  return (
+    center: box.left + (box.right - box.left) * boxProgress,
+    rowTop: box.top,
+    rowBottom: box.bottom,
+  );
+}
+
 class _LyricSweepPainter extends CustomPainter {
   final SyncedLyricLine line;
   final TextStyle style;
@@ -649,102 +702,90 @@ class _LyricSweepPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final dimColor = (style.color ?? Colors.white).withValues(alpha: 0.46);
+    final bright = style.color ?? Colors.white;
     final painter = TextPainter(
       text: TextSpan(
         text: line.text,
-        style: style.copyWith(color: dimColor),
+        style: style.copyWith(color: bright.withValues(alpha: 0.46)),
       ),
       textDirection: textDirection,
       textScaler: textScaler,
     )..layout(maxWidth: size.width);
     painter.paint(canvas, Offset.zero);
 
-    final ranges = _lyricWordRanges(line.text);
-    if (ranges.isEmpty || line.words.isEmpty) {
-      painter.dispose();
-      return;
-    }
-    final effectivePosition = positionMs + syncedLyricsSweepLeadMs;
-    var wordIndex = -1;
-    for (var index = 0; index < line.words.length; index++) {
-      final word = line.words[index];
-      if (effectivePosition < word.startMs) {
-        wordIndex = index;
-        break;
-      }
-      wordIndex = index;
-      if (effectivePosition <= word.endMs) break;
-    }
-    if (wordIndex < 0 || wordIndex >= ranges.length) {
-      painter.dispose();
-      return;
-    }
-    final range = ranges[wordIndex];
-    final boxes = painter.getBoxesForSelection(
-      TextSelection(baseOffset: range.start, extentOffset: range.end),
+    final sweep = syncedLyricsSweepGeometry(
+      painter: painter,
+      line: line,
+      positionMs: positionMs,
     );
-    if (boxes.isEmpty) {
+    if (sweep == null) {
       painter.dispose();
       return;
     }
-    final box = boxes.first;
-    final word = line.words[wordIndex];
-    final progress =
-        ((effectivePosition - word.startMs) /
-                math.max(1, word.endMs - word.startMs))
-            .clamp(0.0, 1.0)
-            .toDouble();
-    final center = box.left + (box.right - box.left) * progress;
-    final feather = (style.fontSize ?? 18) * syncedLyricsSweepFeatherEm;
-    final bright = style.color ?? Colors.white;
+
+    // The bright layer is painted whole and then masked back out, because a
+    // horizontal gradient is constant down the y axis: applied to the text
+    // directly it would light every wrapped row at the same x instead of
+    // sweeping row by row.
     final brightPainter = TextPainter(
-      text: TextSpan(
-        text: line.text,
-        style: style.copyWith(
-          color: null,
-          foreground: Paint()
-            ..shader = center >= size.width
-                ? null
-                : _sweepShader(
-                    bright: bright,
-                    center: center,
-                    feather: feather,
-                    width: size.width,
-                  )
-            ..color = center >= size.width ? bright : Colors.white,
-        ),
-      ),
+      text: TextSpan(text: line.text, style: style.copyWith(color: bright)),
       textDirection: textDirection,
       textScaler: textScaler,
     )..layout(maxWidth: size.width);
+    canvas.saveLayer(Offset.zero & size, Paint());
     brightPainter.paint(canvas, Offset.zero);
+    _paintRevealMask(canvas, size, sweep);
+    canvas.restore();
     brightPainter.dispose();
     painter.dispose();
   }
 
-  Shader _sweepShader({
-    required Color bright,
-    required double center,
-    required double feather,
-    required double width,
-  }) {
-    final safeWidth = math.max(width, 1.0);
-    final leading = ((center - feather) / safeWidth).clamp(0.0, 1.0);
-    final trailing = ((center + feather) / safeWidth)
+  /// Masks the bright layer down to what has been spoken so far. The mask must
+  /// cover the full bounds — `dstIn` leaves untouched regions at full opacity,
+  /// so rows below the sweep are erased explicitly rather than skipped.
+  void _paintRevealMask(Canvas canvas, Size size, _SweepGeometry sweep) {
+    final feather = (style.fontSize ?? 18) * syncedLyricsSweepFeatherEm;
+    final safeWidth = math.max(size.width, 1.0);
+    final leading = ((sweep.center - feather) / safeWidth).clamp(0.0, 1.0);
+    final trailing = ((sweep.center + feather) / safeWidth)
         .clamp(leading + 0.001, 1.0)
         .toDouble();
-    return LinearGradient(
-      begin: Alignment.centerLeft,
-      end: Alignment.centerRight,
-      colors: [
-        bright,
-        bright,
-        bright.withValues(alpha: 0.35),
-        Colors.transparent,
-      ],
-      stops: [0, leading, trailing, 1],
-    ).createShader(Offset.zero & Size(safeWidth, 1));
+
+    if (sweep.rowTop > 0) {
+      canvas.drawRect(
+        Rect.fromLTRB(0, 0, size.width, sweep.rowTop),
+        Paint()
+          ..blendMode = BlendMode.dstIn
+          ..color = const Color(0xFFFFFFFF),
+      );
+    }
+
+    final band = Rect.fromLTRB(0, sweep.rowTop, size.width, sweep.rowBottom);
+    canvas.drawRect(
+      band,
+      Paint()
+        ..blendMode = BlendMode.dstIn
+        ..shader = LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: const [
+            Color(0xFFFFFFFF),
+            Color(0xFFFFFFFF),
+            Color(0x59FFFFFF),
+            Color(0x00FFFFFF),
+          ],
+          stops: [0, leading, trailing, 1],
+        ).createShader(band),
+    );
+
+    if (sweep.rowBottom < size.height) {
+      canvas.drawRect(
+        Rect.fromLTRB(0, sweep.rowBottom, size.width, size.height),
+        Paint()
+          ..blendMode = BlendMode.dstIn
+          ..color = const Color(0x00FFFFFF),
+      );
+    }
   }
 
   @override

@@ -55,6 +55,56 @@ void main() {
     expect(clock.position, const Duration(milliseconds: 4800));
   });
 
+  test('sweep stays on the visual row holding the active word', () {
+    // Six words, one second each, forced to wrap by a narrow layout width.
+    const words = ['alpha', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot'];
+    final line = SyncedLyricLine(
+      id: 'p1:0',
+      paragraphId: 'p1',
+      text: words.join(' '),
+      startMs: 0,
+      endMs: 6000,
+      words: [
+        for (var index = 0; index < words.length; index++)
+          SyncedLyricWord(
+            text: words[index],
+            leadingWhitespace: index == 0 ? '' : ' ',
+            startMs: index * 1000,
+            endMs: (index + 1) * 1000,
+          ),
+      ],
+    );
+    final painter = TextPainter(
+      text: TextSpan(
+        text: line.text,
+        style: const TextStyle(fontSize: 20, height: 1.4),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: 120);
+
+    // The layout must actually wrap for this test to mean anything.
+    expect(painter.computeLineMetrics().length, greaterThan(1));
+
+    final first = syncedLyricsSweepGeometry(
+      painter: painter,
+      line: line,
+      positionMs: 100,
+    );
+    final last = syncedLyricsSweepGeometry(
+      painter: painter,
+      line: line,
+      positionMs: 5500,
+    );
+
+    expect(first, isNotNull);
+    expect(last, isNotNull);
+    // A horizontal-only gradient reports the same band for every row, which is
+    // what made wrapped lines light up all at once.
+    expect(last!.rowTop, greaterThan(first!.rowTop));
+    expect(first.rowBottom, lessThanOrEqualTo(last.rowTop));
+    painter.dispose();
+  });
+
   test('tokenizes words, hyphenated phrases, numbers, and punctuation', () {
     final tokens = tokenizeSelectableText(
       'The mind-bender costs 3.07 MB, really.',
