@@ -520,7 +520,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
-  testWidgets('a running transcription can be paused from the card', (
+  testWidgets('a running transcription shows progress without card controls', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -560,25 +560,14 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    final pauseButton = find.byKey(const ValueKey('podcast-transcript-pause'));
-    expect(pauseButton, findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('podcast-transcript-pause')),
+      findsNothing,
+    );
     expect(
       find.byKey(const ValueKey('podcast-transcript-restart')),
       findsNothing,
-      reason: 'a running job offers pause, not another start',
-    );
-
-    await tester.ensureVisible(pauseButton);
-    await tester.pump();
-    await tester.tap(pauseButton);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
-
-    expect(service.pauseCalls, 1);
-    expect(pauseButton, findsNothing);
-    expect(
-      find.byKey(const ValueKey('podcast-transcript-restart')),
-      findsOneWidget,
+      reason: 'transcript actions live in the episode long-press menu',
     );
 
     await tester.pumpWidget(const SizedBox.shrink());
@@ -586,7 +575,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
-  testWidgets('a paused episode offers to resume where it stopped', (
+  testWidgets('a paused transcript stays visible without card controls', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -624,80 +613,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final restart = find.byKey(const ValueKey('podcast-transcript-restart'));
-    expect(restart, findsOneWidget);
-    expect(
-      tester.widget<IconButton>(restart).tooltip,
-      'Resume transcription',
-      reason: 'the cached chunks are kept, so this continues the run',
-    );
-    expect(find.text('First cached chunk.'), findsOneWidget);
-
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump(const Duration(milliseconds: 1));
-    await tester.pump(const Duration(milliseconds: 1));
-  });
-
-  testWidgets('a completed transcript can be deleted and generated again', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(390, 844);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-
-    final database = AppDatabase.forTesting(NativeDatabase.memory());
-    final handler = _PodcastTestAudioHandler();
-    final sleepTimer = SleepTimerService();
-    final service = _FakeTranscriptionService(database, null);
-    addTearDown(database.close);
-    addTearDown(handler.dispose);
-    addTearDown(sleepTimer.dispose);
-    addTearDown(service.dispose);
-
-    await _insertPodcast(
-      database,
-      episodeId: 'episode-complete',
-      transcriptJson:
-          '[{"text":"A cached transcript.","startMs":0,"endMs":1200}]',
-      transcriptStatus: 'complete',
-    );
-
-    await tester.pumpWidget(
-      _podcastApp(
-        database: database,
-        handler: handler,
-        sleepTimer: sleepTimer,
-        service: service,
-        episodeId: 'episode-complete',
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    final deleteButton = find.byKey(
-      const ValueKey('podcast-transcript-delete'),
-    );
-    expect(deleteButton, findsOneWidget);
-    await tester.ensureVisible(deleteButton);
-    await tester.tap(deleteButton);
-    await tester.pumpAndSettle();
-    expect(find.text('Delete transcript?'), findsOneWidget);
-
-    await tester.tap(find.text('Delete'));
-    await tester.pumpAndSettle();
-
-    final episode = await database.getPodcastEpisode('episode-complete');
-    expect(episode?.transcriptJson, isNull);
-    expect(episode?.transcriptStatus, 'none');
-    expect(
-      find.byKey(const ValueKey('podcast-transcript-delete')),
-      findsNothing,
-    );
     expect(
       find.byKey(const ValueKey('podcast-transcript-restart')),
       findsNothing,
+      reason: 'transcript actions live in the episode long-press menu',
     );
-    expect(find.text('Transcribe on device'), findsOneWidget);
+    expect(find.text('First cached chunk.'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));

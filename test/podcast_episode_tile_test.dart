@@ -101,4 +101,65 @@ void main() {
     expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
     expect(find.byType(LinearProgressIndicator), findsNothing);
   });
+
+  testWidgets('transcript actions live in the episode long-press menu', (
+    tester,
+  ) async {
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+    const episode = PodcastEpisode(
+      id: 'transcript-menu-episode',
+      showId: 'show-1',
+      guid: 'transcript-menu-guid',
+      title: 'Transcript menu episode',
+      description: '',
+      audioUrl: 'https://example.com/episode.mp3',
+      publishedAt: 1,
+      durationMs: 60000,
+      playbackPositionMs: 0,
+      lastPlayedAt: 0,
+      isPlayed: false,
+      transcriptProgressMs: 0,
+      transcriptJson:
+          '[{"text":"A cached transcript.","startMs":0,"endMs":1200}]',
+      transcriptStatus: 'complete',
+    );
+    await database.upsertPodcastEpisode(episode);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [appDatabaseProvider.overrideWithValue(database)],
+        child: MaterialApp(
+          theme: AppTheme.lightTheme(),
+          home: Scaffold(
+            body: PodcastEpisodeTile(episode: episode, onTap: () {}),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final card = find.byKey(
+      const ValueKey('podcast-episode-transcript-menu-episode'),
+    );
+    await tester.longPress(card);
+    await tester.pumpAndSettle();
+    expect(find.text('Regenerate transcript'), findsOneWidget);
+    expect(find.text('Delete transcript'), findsOneWidget);
+
+    await tester.tap(find.text('Delete transcript'));
+    await tester.pumpAndSettle();
+    expect(find.text('Delete transcript?'), findsOneWidget);
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+
+    final cleared = await database.getPodcastEpisode(episode.id);
+    expect(cleared?.transcriptJson, isNull);
+    expect(cleared?.transcriptStatus, 'none');
+
+    await tester.longPress(card);
+    await tester.pumpAndSettle();
+    expect(find.text('Generate transcript'), findsOneWidget);
+    expect(find.text('Regenerate transcript'), findsNothing);
+  });
 }

@@ -385,7 +385,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   StreamSubscription<drift_db.PodcastEpisode?>? _podcastEpisodeSubscription;
   StreamSubscription<PodcastTranscriptionProgress>? _transcriptionSubscription;
   bool _transcribingPodcast = false;
-  bool _pausingPodcastTranscription = false;
   PodcastTranscriptionProgress? _transcriptionProgress;
   bool _autoplayHandled = false;
   bool _showFullPodcastNotes = false;
@@ -974,29 +973,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     });
   }
 
-  bool _transcriptPaused(drift_db.PodcastEpisode episode) =>
-      episode.transcriptStatus == podcastTranscriptPausedStatus &&
-      episode.transcriptProgressMs > 0;
-
-  Future<void> _pausePodcastTranscription() async {
-    if (_pausingPodcastTranscription) return;
-    final service = ref.read(podcastTranscriptionServiceProvider);
-    // Whisper finishes the chunk it is holding before it lets go, which can
-    // take a while on a long chunk size. Say so instead of looking stuck.
-    setState(() => _pausingPodcastTranscription = true);
-    try {
-      await service.pause();
-    } finally {
-      if (mounted) {
-        setState(() {
-          _pausingPodcastTranscription = false;
-          _transcribingPodcast = false;
-          _transcriptionProgress = null;
-        });
-      }
-    }
-  }
-
   Future<void> _startPodcastTranscription() async {
     final data = widget.podcast;
     final episode = _podcastEpisode;
@@ -1047,87 +1023,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           _transcribingPodcast = false;
           _transcriptionProgress = null;
         });
-      }
-    }
-  }
-
-  Future<void> _restartPodcastTranscription() async {
-    final episode = _podcastEpisode;
-    if (episode == null || _transcribingPodcast) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(context.tr('重新生成字幕？', 'Regenerate transcript?')),
-        content: Text(
-          context.tr(
-            '当前字幕会被删除，然后从头重新转写。',
-            'The current transcript will be deleted and transcribed again from the beginning.',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(context.tr('取消', 'Cancel')),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(context.tr('重新生成', 'Regenerate')),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-    await ref
-        .read(cacheManagerProvider)
-        .clearPodcastEpisodeTranscript(episode.id);
-    if (!mounted) return;
-    await _startPodcastTranscription();
-  }
-
-  Future<void> _deletePodcastTranscript() async {
-    final episode = _podcastEpisode;
-    if (episode == null || _transcribingPodcast) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(context.tr('删除字幕？', 'Delete transcript?')),
-        content: Text(
-          context.tr(
-            '只删除本地字幕，Podcast 音频会保留。之后可以重新生成。',
-            'Only the local transcript will be deleted. Podcast audio will be kept and you can generate it again later.',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(context.tr('取消', 'Cancel')),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(context.tr('删除', 'Delete')),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-    try {
-      await ref
-          .read(cacheManagerProvider)
-          .clearPodcastEpisodeTranscript(episode.id);
-      if (mounted) {
-        _showSnackBar(context.tr('字幕已删除', 'Transcript deleted'));
-      }
-    } catch (error, stackTrace) {
-      AppLogger.error(
-        'Podcast',
-        '删除 Podcast 字幕失败 episode=${episode.id}',
-        error: error,
-        stackTrace: stackTrace,
-      );
-      if (mounted) {
-        _showSnackBar(
-          context.tr('字幕删除失败：$error', 'Unable to delete transcript: $error'),
-        );
       }
     }
   }
@@ -1869,45 +1764,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     title: context.tr('字幕', 'Transcript'),
                   ),
                 ),
-                if (_transcribingPodcast)
-                  IconButton(
-                    key: const ValueKey('podcast-transcript-pause'),
-                    tooltip: _pausingPodcastTranscription
-                        ? context.tr('正在暂停…', 'Pausing…')
-                        : context.tr('暂停转写', 'Pause transcription'),
-                    icon: _pausingPodcastTranscription
-                        ? const SizedBox.square(
-                            dimension: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.pause_circle_outline, size: 22),
-                    onPressed: _pausingPodcastTranscription
-                        ? null
-                        : _pausePodcastTranscription,
-                  )
-                else if (hasTranscript)
-                  IconButton(
-                    key: const ValueKey('podcast-transcript-restart'),
-                    tooltip: _transcriptPaused(episode)
-                        ? context.tr('继续转写', 'Resume transcription')
-                        : context.tr('重新转写', 'Transcribe again'),
-                    icon: Icon(
-                      _transcriptPaused(episode)
-                          ? Icons.play_circle_outline
-                          : Icons.auto_awesome_rounded,
-                      size: 20,
-                    ),
-                    onPressed: _transcriptPaused(episode)
-                        ? _startPodcastTranscription
-                        : _restartPodcastTranscription,
-                  ),
-                if (hasTranscript)
-                  IconButton(
-                    key: const ValueKey('podcast-transcript-delete'),
-                    tooltip: context.tr('删除字幕', 'Delete transcript'),
-                    icon: const Icon(Icons.delete_outline_rounded, size: 20),
-                    onPressed: _deletePodcastTranscript,
-                  ),
                 if (hasTranscript)
                   IconButton(
                     tooltip: context.tr('全屏字幕', 'Full-screen transcript'),
@@ -2399,8 +2255,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       final paragraphs = transcript?.paragraphs ?? const <drift_db.Paragraph>[];
       final currentProgress = _transcriptionProgress;
       if (paragraphs.isEmpty) {
-        final failed = episode.transcriptStatus == 'failed';
-        final paused = _transcriptPaused(episode);
+        final statusMessage =
+            episode.transcriptStatus == podcastTranscriptPausedStatus &&
+                episode.transcriptProgressMs > 0
+            ? context.tr('转写已暂停', 'Transcription paused')
+            : episode.transcriptStatus == 'failed'
+            ? context.tr('上次转写未完成', 'Last transcription stopped')
+            : context.tr('这个单集还没有字幕', 'No transcript yet');
         return Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -2419,11 +2280,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   _transcribingPodcast
                       ? currentProgress?.message ??
                             context.tr('正在本地转写', 'Transcribing locally')
-                      : paused
-                      ? context.tr('转写已暂停', 'Transcription paused')
-                      : failed
-                      ? context.tr('上次转写未完成', 'Last transcription stopped')
-                      : context.tr('这个单集还没有字幕', 'No transcript yet'),
+                      : '$statusMessage · ${context.tr('请长按 Podcast 单集管理字幕', 'Long-press the podcast episode to manage its transcript')}',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: context.appTextPrimary,
@@ -2433,38 +2290,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 if (_transcribingPodcast) ...[
                   const SizedBox(height: 12),
                   LinearProgressIndicator(value: currentProgress?.progress),
-                  const SizedBox(height: 8),
-                  TextButton.icon(
-                    key: const ValueKey('podcast-transcript-pause-inline'),
-                    onPressed: _pausingPodcastTranscription
-                        ? null
-                        : _pausePodcastTranscription,
-                    icon: const Icon(Icons.pause_rounded, size: 18),
-                    label: Text(
-                      _pausingPodcastTranscription
-                          ? context.tr('正在暂停…', 'Pausing…')
-                          : context.tr('暂停', 'Pause'),
-                    ),
-                  ),
-                ] else ...[
-                  const SizedBox(height: 12),
-                  FilledButton.icon(
-                    onPressed: _startPodcastTranscription,
-                    icon: Icon(
-                      paused
-                          ? Icons.play_arrow_rounded
-                          : Icons.auto_awesome_rounded,
-                      size: 18,
-                    ),
-                    label: Text(
-                      paused
-                          ? context.tr('继续转写', 'Resume transcription')
-                          : context.tr(
-                              '使用本地 Whisper 转写',
-                              'Transcribe on device',
-                            ),
-                    ),
-                  ),
                 ],
               ],
             ),
