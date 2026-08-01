@@ -3175,54 +3175,97 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           ],
         ),
         if (showPodcastActions) ...[
-          SizedBox(height: design.spaceSm),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildPodcastActionButton(
-                key: const ValueKey('player-transcript-toggle'),
-                icon: _podcastTranscriptMode
-                    ? Icons.keyboard_arrow_down_rounded
-                    : Icons.chat_bubble_outline_rounded,
-                label: _podcastTranscriptMode
-                    ? context.tr('封面', 'Cover')
-                    : context.tr('转录', 'Transcript'),
-                onPressed: () =>
-                    _setPodcastTranscriptMode(!_podcastTranscriptMode),
-              ),
-              SizedBox(width: design.spaceXs),
-              _buildPodcastActionButton(
-                key: const ValueKey('player-playlist-toggle'),
-                icon: Icons.queue_music_rounded,
-                label: context.tr('列表', 'Playlist'),
-                onPressed: () => _showPodcastPlaylist(handler),
-              ),
-            ],
+          SizedBox(height: design.spaceXl),
+          Padding(
+            // The three actions sit further in than the transport row above
+            // them, so they read as a secondary tier rather than as more
+            // playback controls. This is on top of the page gutter the
+            // controls already carry, landing them at the mock's inset.
+            padding: EdgeInsets.symmetric(horizontal: design.spaceXxl),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildPodcastActionButton(
+                  key: const ValueKey('player-transcript-toggle'),
+                  icon: Icons.chat_bubble_outline_rounded,
+                  tooltip: _podcastTranscriptMode
+                      ? context.tr('返回封面', 'Back to cover')
+                      : context.tr('转录', 'Transcript'),
+                  chip: true,
+                  active: _podcastTranscriptMode,
+                  onPressed: () =>
+                      _setPodcastTranscriptMode(!_podcastTranscriptMode),
+                ),
+                _buildPodcastActionButton(
+                  key: const ValueKey('player-output-toggle'),
+                  icon: Icons.airplay_rounded,
+                  tooltip: context.tr('输出', 'Output'),
+                  // Route picking needs an AVRoutePickerView platform view,
+                  // which this app does not have yet. The affordance holds its
+                  // place in the row and reads as unavailable rather than
+                  // pretending to work.
+                  onPressed: null,
+                ),
+                _buildPodcastActionButton(
+                  key: const ValueKey('player-playlist-toggle'),
+                  icon: Icons.format_list_bulleted_rounded,
+                  tooltip: context.tr('列表', 'Playlist'),
+                  onPressed: () => _showPodcastPlaylist(handler),
+                ),
+              ],
+            ),
           ),
         ],
       ],
     );
   }
 
+  /// An icon-only secondary action. [chip] gives the button a standing pill so
+  /// the transcript toggle reads as a switch rather than a one-shot action;
+  /// [active] deepens that pill while transcript mode is on. A null
+  /// [onPressed] renders the icon as unavailable.
   Widget _buildPodcastActionButton({
     required Key key,
     required IconData icon,
-    required String label,
-    required VoidCallback onPressed,
+    required String tooltip,
+    required VoidCallback? onPressed,
+    bool chip = false,
+    bool active = false,
   }) {
-    return Semantics(
-      button: true,
-      label: label,
-      child: TextButton.icon(
-        key: key,
-        onPressed: onPressed,
-        icon: Icon(icon, size: 18),
-        label: Text(label),
-        style: TextButton.styleFrom(
-          foregroundColor: context.appTextPrimary,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          minimumSize: const Size(0, 40),
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    final design = context.appDesign;
+    final enabled = onPressed != null;
+    final radius = BorderRadius.circular(design.radiusMedium);
+    final foreground = !enabled
+        ? context.appTextSecondary.withValues(alpha: 0.4)
+        : active
+        ? context.appTextPrimary
+        : context.appTextSecondary;
+    return Tooltip(
+      message: tooltip,
+      child: Semantics(
+        button: true,
+        enabled: enabled,
+        label: tooltip,
+        child: InkWell(
+          key: key,
+          onTap: onPressed,
+          borderRadius: radius,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOutCubic,
+            width: 46,
+            height: 34,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: chip
+                  ? context.appTextPrimary.withValues(
+                      alpha: active ? 0.09 : 0.06,
+                    )
+                  : Colors.transparent,
+              borderRadius: radius,
+            ),
+            child: Icon(icon, size: 21, color: foreground),
+          ),
         ),
       ),
     );
