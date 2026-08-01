@@ -445,6 +445,74 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
+  testWidgets('cover and transcript cross-fade instead of cutting', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final handler = _PodcastTestAudioHandler();
+    final sleepTimer = SleepTimerService();
+    final service = _FakeTranscriptionService(database, null);
+    addTearDown(database.close);
+    addTearDown(handler.dispose);
+    addTearDown(sleepTimer.dispose);
+    addTearDown(service.dispose);
+
+    await _insertPodcast(
+      database,
+      episodeId: 'episode-fade',
+      transcriptStatus: 'complete',
+      transcriptJson:
+          '[{"text":"A cached sentence.","startMs":0,"endMs":1200}]',
+    );
+
+    await tester.pumpWidget(
+      _podcastApp(
+        database: database,
+        handler: handler,
+        sleepTimer: sleepTimer,
+        service: service,
+        episodeId: 'episode-fade',
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final coverScroll = find.byKey(
+      const ValueKey('podcast-player-scroll-view'),
+    );
+    final transcriptScroll = find.byKey(
+      const ValueKey('podcast-transcript-scroll-view'),
+    );
+    expect(coverScroll, findsOneWidget);
+    expect(transcriptScroll, findsNothing);
+
+    final transcriptToggle = find.byKey(
+      const ValueKey('player-transcript-toggle'),
+    );
+    await tester.ensureVisible(transcriptToggle);
+    await tester.tap(transcriptToggle);
+
+    // Part way through the switch both panels are mounted — that is what makes
+    // it a cross-fade rather than a cut. It also pins down that the two scroll
+    // views hold separate controllers; sharing one throws once both attach.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 120));
+    expect(coverScroll, findsOneWidget);
+    expect(transcriptScroll, findsOneWidget);
+
+    await tester.pumpAndSettle();
+    expect(coverScroll, findsNothing);
+    expect(transcriptScroll, findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump(const Duration(milliseconds: 1));
+  });
+
   testWidgets('transcript mode idles its chrome away and taps it back', (
     tester,
   ) async {

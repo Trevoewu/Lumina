@@ -231,10 +231,41 @@ void main() {
       await tester.pump();
 
       expect(find.text('Chapter One'), findsOneWidget);
+      // The chapter text now lives behind the reading toggle rather than in a
+      // card on the cover face, but it must still be reachable with no audio
+      // cached at all — reading is the whole point of an ungenerated chapter.
+      final readingToggle = find.byKey(
+        const ValueKey('player-transcript-toggle'),
+      );
+      await tester.ensureVisible(readingToggle);
+      await tester.tap(readingToggle);
+      await tester.pumpAndSettle();
       expect(
         find.text('This text is readable before any audio is cached.'),
         findsOneWidget,
       );
+      expect(
+        find.byKey(const ValueKey('synced-lyrics-virtualized-list')),
+        findsOneWidget,
+      );
+      // Reading mode renders on the player's own light background, so it must
+      // keep the theme text colour rather than the dark sheet's white.
+      final transcriptLineStyle = tester
+          .widget<AnimatedDefaultTextStyle>(
+            find
+                .ancestor(
+                  of: find.text(
+                    'This text is readable before any audio is cached.',
+                  ),
+                  matching: find.byType(AnimatedDefaultTextStyle),
+                )
+                .first,
+          )
+          .style;
+      expect(transcriptLineStyle.color, isNot(Colors.white));
+      await tester.tap(readingToggle);
+      await tester.pumpAndSettle();
+
       expect(find.byIcon(Icons.play_arrow), findsOneWidget);
       expect(find.byIcon(Icons.download_rounded), findsNothing);
       expect(find.byIcon(Icons.downloading_rounded), findsNothing);
@@ -283,39 +314,22 @@ void main() {
       );
       expect(find.byKey(const ValueKey('book-information-card')), findsNothing);
       expect(find.byKey(const ValueKey('ai-summary-card')), findsOneWidget);
-      expect(find.byKey(const ValueKey('book-text-card')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('transcript-pointer-card')),
+        findsOneWidget,
+      );
       expect(
         tester.getTopLeft(find.byKey(const ValueKey('ai-summary-card'))).dy,
         lessThan(
-          tester.getTopLeft(find.byKey(const ValueKey('book-text-card'))).dy,
+          tester
+              .getTopLeft(find.byKey(const ValueKey('transcript-pointer-card')))
+              .dy,
         ),
       );
-      expect(find.text('Synchronized text'), findsOneWidget);
       final lightOnSurface = AppTheme.lightTheme().colorScheme.onSurface;
       expect(
         tester.widget<Text>(find.text('AI Summary')).style?.color,
         lightOnSurface,
-      );
-      expect(
-        tester.widget<Text>(find.text('Synchronized text')).style?.color,
-        lightOnSurface,
-      );
-      final transcriptLineStyle = tester
-          .widget<AnimatedDefaultTextStyle>(
-            find
-                .ancestor(
-                  of: find.text(
-                    'This text is readable before any audio is cached.',
-                  ),
-                  matching: find.byType(AnimatedDefaultTextStyle),
-                )
-                .first,
-          )
-          .style;
-      expect(transcriptLineStyle.color, isNot(Colors.white));
-      expect(
-        find.byKey(const ValueKey('synced-lyrics-virtualized-list')),
-        findsOneWidget,
       );
       expect(find.byIcon(Icons.more_horiz_rounded), findsOneWidget);
       expect(find.byIcon(Icons.timer_outlined), findsOneWidget);
@@ -331,6 +345,17 @@ void main() {
           (color) => color.computeLuminance() > 0.8,
         ),
         isTrue,
+      );
+      expect(
+        find.ancestor(
+          of: find.byType(Scaffold),
+          matching: find.byKey(const ValueKey('player-immersive-background')),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        tester.widget<Scaffold>(find.byType(Scaffold)).backgroundColor,
+        Colors.transparent,
       );
       final primaryButtonMaterial = tester.widget<Material>(
         find
@@ -371,8 +396,19 @@ void main() {
         findsNothing,
       );
       expect(find.byKey(const ValueKey('lyrics-card')), findsNothing);
-      expect(find.byKey(const ValueKey('book-text-card')), findsOneWidget);
-      expect(find.text('Synchronized text'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('transcript-pointer-card')),
+        findsOneWidget,
+      );
+
+      // Several sentences of context around the current one stay on screen,
+      // which is the whole point of the lyric-style reading panel.
+      final playingToggle = find.byKey(
+        const ValueKey('player-transcript-toggle'),
+      );
+      await tester.ensureVisible(playingToggle);
+      await tester.tap(playingToggle);
+      await tester.pumpAndSettle();
       expect(
         find.text('The story continues across several visible lines.'),
         findsOneWidget,
@@ -385,6 +421,8 @@ void main() {
         find.text('Nearby sentences remain visible for context.'),
         findsOneWidget,
       );
+      await tester.tap(playingToggle);
+      await tester.pumpAndSettle();
       final compactArtwork = tester.getSize(
         find.byKey(const ValueKey('player-artwork')),
       );
@@ -430,13 +468,7 @@ void main() {
         findsWidgets,
       );
       expect(
-        find.byKey(const ValueKey('book-text-card')).hitTestable(),
-        findsOneWidget,
-      );
-      expect(
-        find
-            .text('The current sentence stays bright while it is spoken.')
-            .hitTestable(),
+        find.byKey(const ValueKey('transcript-pointer-card')).hitTestable(),
         findsOneWidget,
       );
       await tester.drag(
