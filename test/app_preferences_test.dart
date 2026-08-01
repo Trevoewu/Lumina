@@ -52,4 +52,46 @@ void main() {
     expect(await database.getSetting('general_language'), 'english');
     expect(await database.getSetting('general_theme_mode'), 'dark');
   });
+
+  test('reading scroll speed restores, persists, and stays in range', () async {
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final container = ProviderContainer(
+      overrides: [appDatabaseProvider.overrideWithValue(database)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(database.close);
+
+    await database.setSetting('reading_scroll_speed', '1.50');
+    final controller = container.read(appPreferencesProvider.notifier);
+    await controller.load();
+
+    expect(container.read(appPreferencesProvider).readingScrollSpeed, 1.5);
+
+    await controller.setReadingScrollSpeed(2.5);
+
+    expect(container.read(appPreferencesProvider).readingScrollSpeed, 2.0);
+    expect(await database.getSetting('reading_scroll_speed'), '2.00');
+  });
+
+  test(
+    'lyric sweep preference restores, persists, and defaults on bad data',
+    () async {
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      final container = ProviderContainer(
+        overrides: [appDatabaseProvider.overrideWithValue(database)],
+      );
+      addTearDown(container.dispose);
+      addTearDown(database.close);
+
+      await database.setSetting('reading_lyric_sweep_enabled', 'false');
+      final controller = container.read(appPreferencesProvider.notifier);
+      await controller.load();
+
+      expect(container.read(appPreferencesProvider).lyricSweepEnabled, isFalse);
+
+      await controller.setLyricSweepEnabled(true);
+      expect(container.read(appPreferencesProvider).lyricSweepEnabled, isTrue);
+      expect(await database.getSetting('reading_lyric_sweep_enabled'), 'true');
+    },
+  );
 }

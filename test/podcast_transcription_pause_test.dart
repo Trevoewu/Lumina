@@ -74,6 +74,27 @@ void main() {
       expect(plan.first.startMs, 120000);
       expect(plan.last.startMs, 300000);
     });
+
+    test('adds extraction context without moving logical chunk boundaries', () {
+      final plan = planPodcastChunks(
+        durationMs: 500000,
+        startFromMs: 0,
+        chunkDurationMs: 180000,
+        overlapMs: 10000,
+      );
+
+      expect(plan.map((window) => window.startMs), [0, 180000, 360000]);
+      expect(plan.map((window) => window.extractionStartMs), [
+        0,
+        170000,
+        350000,
+      ]);
+      expect(plan.map((window) => window.extractionDurationMs), [
+        190000,
+        200000,
+        150000,
+      ]);
+    });
   });
 
   group('transcript watermark', () {

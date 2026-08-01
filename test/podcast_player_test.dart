@@ -97,6 +97,26 @@ void main() {
       );
     });
 
+    test('keeps a newly cached chunk from reflowing the previous tail', () {
+      expect(
+        joinPodcastTranscriptLines([
+          AudioTextTiming(
+            text: 'The unfinished sentence',
+            startMs: 179000,
+            endMs: 180000,
+            chunkStartMs: 0,
+          ),
+          AudioTextTiming(
+            text: 'continues in the next chunk.',
+            startMs: 180200,
+            endMs: 181000,
+            chunkStartMs: 180000,
+          ),
+        ]),
+        'The unfinished sentence\ncontinues in the next chunk.',
+      );
+    });
+
     test('bounds speech that Whisper transcribed without punctuation', () {
       final merged = joinPodcastTranscriptLines([
         for (var index = 0; index < 12; index++) timing('word ' * 5),

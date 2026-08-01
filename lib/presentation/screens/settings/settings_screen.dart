@@ -41,6 +41,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _loadPlaybackSettings() async {
+    await ref.read(appPreferencesProvider.notifier).load();
     final value = await ref
         .read(appDatabaseProvider)
         .getSetting('audio_fade_in_enabled');
@@ -215,6 +216,31 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 value: _fadeInEnabled,
                 onChanged: _setFadeInEnabled,
+              ),
+              SettingValueRow(
+                rowKey: const ValueKey('reading-scroll-speed-settings'),
+                icon: Icons.swap_vert_rounded,
+                title: context.tr('文字滚动速度', 'Text scroll speed'),
+                subtitle: context.tr(
+                  '控制同步正文自动定位动画的快慢',
+                  'Control how quickly synchronized text moves into view',
+                ),
+                value: _readingScrollSpeedLabel(preferences.readingScrollSpeed),
+                onTap: _showReadingScrollSpeedSheet,
+              ),
+              SettingValueRow(
+                rowKey: const ValueKey('lyric-sweep-settings'),
+                icon: Icons.auto_awesome_outlined,
+                title: context.tr('歌词渐进高亮', 'Lyric sweep highlight'),
+                trailing: Switch(
+                  value: preferences.lyricSweepEnabled,
+                  onChanged: ref
+                      .read(appPreferencesProvider.notifier)
+                      .setLyricSweepEnabled,
+                ),
+                onTap: () => ref
+                    .read(appPreferencesProvider.notifier)
+                    .setLyricSweepEnabled(!preferences.lyricSweepEnabled),
               ),
               StreamBuilder(
                 stream: ref.watch(sleepTimerServiceProvider).stream,
@@ -485,6 +511,90 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         .read(appDatabaseProvider)
         .setSetting('audio_fade_in_enabled', '$enabled');
     if (mounted) setState(() => _fadeInEnabled = enabled);
+  }
+
+  String _readingScrollSpeedLabel(double speed) {
+    return '${speed.toStringAsFixed(1)}×';
+  }
+
+  void _showReadingScrollSpeedSheet() {
+    var value = ref.read(appPreferencesProvider).readingScrollSpeed;
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (_) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          final scheme = Theme.of(context).colorScheme;
+          return SafeArea(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                context.appDesign.spaceXl,
+                context.appDesign.spaceXl,
+                context.appDesign.spaceXl,
+                context.appDesign.spaceLg,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    context.tr('文字滚动速度', 'Text scroll speed'),
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  SizedBox(height: context.appDesign.spaceXs),
+                  Text(
+                    context.tr(
+                      '速度越高，句子切换时的定位动画越快。',
+                      'Higher speeds move to the next sentence faster.',
+                    ),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                  SizedBox(height: context.appDesign.spaceMd),
+                  Row(
+                    children: [
+                      Text(
+                        '0.5×',
+                        style: Theme.of(context).textTheme.labelMedium,
+                      ),
+                      Expanded(
+                        child: Slider(
+                          key: const ValueKey('reading-scroll-speed-slider'),
+                          min: 0.5,
+                          max: 2.0,
+                          divisions: 15,
+                          value: value,
+                          label: _readingScrollSpeedLabel(value),
+                          onChanged: (next) {
+                            setSheetState(() => value = next);
+                            ref
+                                .read(appPreferencesProvider.notifier)
+                                .setReadingScrollSpeed(next);
+                          },
+                        ),
+                      ),
+                      Text(
+                        '2.0×',
+                        style: Theme.of(context).textTheme.labelMedium,
+                      ),
+                    ],
+                  ),
+                  Center(
+                    child: Text(
+                      _readingScrollSpeedLabel(value),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: scheme.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   void _showSleepTimerSheet() {

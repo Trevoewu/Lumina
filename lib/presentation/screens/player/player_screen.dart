@@ -11,6 +11,7 @@ import '../../../ai/transcript_tool.dart';
 import '../../../core/app_colors.dart';
 import '../../../core/app_design_tokens.dart';
 import '../../../core/app_localizations.dart';
+import '../../../core/app_preferences.dart';
 import '../../../core/providers.dart';
 import '../../../core/service_settings_controllers.dart';
 import '../../../data/database/app_database.dart' as drift_db;
@@ -253,12 +254,14 @@ String joinPodcastTranscriptLines(
 }) {
   final buffer = StringBuffer();
   var pending = '';
+  int? pendingChunkStartMs;
 
   void flush() {
     if (pending.isEmpty) return;
     if (buffer.isNotEmpty) buffer.write('\n');
     buffer.write(pending);
     pending = '';
+    pendingChunkStartMs = null;
   }
 
   for (final timing in timings) {
@@ -266,12 +269,19 @@ String joinPodcastTranscriptLines(
     if (text.isEmpty) continue;
     if (pending.isEmpty) {
       pending = text;
+      pendingChunkStartMs = timing.chunkStartMs;
       continue;
     }
-    if (_endsPodcastSentence(pending) ||
+    final crossedChunkBoundary =
+        pendingChunkStartMs != null &&
+        timing.chunkStartMs != null &&
+        pendingChunkStartMs != timing.chunkStartMs;
+    if (crossedChunkBoundary ||
+        _endsPodcastSentence(pending) ||
         pending.length + text.length > maxMergedChars) {
       flush();
       pending = text;
+      pendingChunkStartMs = timing.chunkStartMs;
       continue;
     }
     pending = '$pending${_transcriptJoinSeparator(pending, text)}$text';
@@ -310,7 +320,10 @@ _PodcastTranscriptContent _buildPodcastTranscriptContent(
   final timings = PodcastTranscriptionService.decodeTranscript(
     episode.transcriptJson,
   );
-  final transcriptEndMs = timings.isEmpty ? 0 : timings.last.endMs;
+  final transcriptEndMs = timings.fold<int>(
+    0,
+    (maximum, timing) => math.max(maximum, timing.endMs),
+  );
   final manifest = ChapterManifest(
     chapterId: episode.id,
     bookId: 'podcast:${data.show.id}',
@@ -376,6 +389,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   PodcastTranscriptionProgress? _transcriptionProgress;
   bool _autoplayHandled = false;
   bool _showFullPodcastNotes = false;
+  double _readingScrollSpeed = 1.0;
+  bool _lyricSweepEnabled = true;
 
   bool get _isPodcast => widget.podcast != null;
 
@@ -790,7 +805,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   bool _isSelectedChapterLoaded(LuminaAudioHandler handler) {
     if (_isPodcast) {
-      return handler.currentPodcastEpisodeId == _podcastEpisode?.id;
+      if (handler.currentPodcastEpisodeId != _podcastEpisode?.id) {
+        return false;
+      }
+      final localPath = _podcastEpisode?.localAudioPath;
+      if (localPath == null || !File(localPath).existsSync()) return true;
+      // Transcription timestamps are generated from the cached file. A queue
+      // that still points to the feed URL is not equivalent, especially for
+      // feeds with redirects or dynamic ad insertion.
+      return handler.mediaItem.valueOrNull?.extras?['audioUrl'] ==
+          File(localPath).uri.toString();
     }
     final chapter = widget.initialChapter;
     if (chapter == null) return handler.currentBookId == widget.book.id;
@@ -1207,6 +1231,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final preferences = ref.watch(appPreferencesProvider);
+    _readingScrollSpeed = preferences.readingScrollSpeed;
+    _lyricSweepEnabled = preferences.lyricSweepEnabled;
     final handlerAsync = ref.watch(luminaAudioHandlerProvider);
     final theme = Theme.of(context);
     final topTint = theme.colorScheme.surfaceContainer;
@@ -2368,6 +2395,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         bookId: widget.book.id,
         chapterId: episode.id,
         virtualized: true,
+        scrollSpeed: _readingScrollSpeed,
+        sweepEnabled: _lyricSweepEnabled,
       );
       // The progress row appears and disappears around the same list, so the
       // list has to keep its place in the tree. Swapping between a bare list
@@ -2431,6 +2460,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           bookId: widget.book.id,
           chapterId: chapterId,
           virtualized: true,
+          scrollSpeed: _readingScrollSpeed,
+          sweepEnabled: _lyricSweepEnabled,
         );
       },
     );
@@ -2993,6 +3024,12 @@ class _FullScreenLyricsSheetState
   Widget build(BuildContext context) {
     final db = ref.watch(appDatabaseProvider);
     final handlerAsync = ref.watch(luminaAudioHandlerProvider);
+    final readingScrollSpeed = ref
+        .watch(appPreferencesProvider)
+        .readingScrollSpeed;
+    final lyricSweepEnabled = ref
+        .watch(appPreferencesProvider)
+        .lyricSweepEnabled;
     Widget buildLyrics(
       List<drift_db.Paragraph> paragraphs,
       ChapterManifest? manifest,
@@ -3028,6 +3065,8 @@ class _FullScreenLyricsSheetState
           bookTitle: widget.bookTitle,
           chapterTitle: widget.chapterTitle,
           virtualized: true,
+          scrollSpeed: readingScrollSpeed,
+          sweepEnabled: lyricSweepEnabled,
         ),
       );
     }

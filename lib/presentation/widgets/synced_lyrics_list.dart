@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/app_colors.dart';
@@ -15,12 +18,136 @@ import '../../domain/models/vocabulary_entry.dart';
 import '../../services/lumina_audio_handler.dart';
 import 'dictionary_lookup_sheet.dart';
 
+/// Speech-friendly tuning knobs for the karaoke-style renderer.
+const syncedLyricsSweepLeadMs = 80;
+const syncedLyricsSweepFeatherEm = 0.5;
+const _syncedLyricsBlurSigmaCap = 4.0;
+
+/// A frame-rate playback clock anchored to just_audio's coarse position stream.
+///
+/// The real position is authoritative for seeks and pause transitions. Small
+/// backwards corrections are ignored while playing so a 5 Hz stream cannot
+/// make the highlight visibly reverse; the next ticker frames catch up.
+class SyncedLyricsClock extends ChangeNotifier {
+  SyncedLyricsClock({TickerProvider? vsync}) {
+    if (vsync != null) _ticker = vsync.createTicker(_onTick);
+  }
+
+  Ticker? _ticker;
+  Duration _position = Duration.zero;
+  Duration _lastTickElapsed = Duration.zero;
+  int _correctionUs = 0;
+  bool _playing = false;
+  bool _enabled = true;
+  double _speed = 1.0;
+  bool _initialized = false;
+
+  Duration get position => _position;
+  int get positionMs => _position.inMilliseconds;
+  bool get playing => _playing;
+  double get speed => _speed;
+
+  void reanchor(
+    Duration realPosition, {
+    required bool playing,
+    double speed = 1.0,
+  }) {
+    final nextSpeed = speed.clamp(0.5, 3.0).toDouble();
+    final driftUs = realPosition.inMicroseconds - _position.inMicroseconds;
+    final largeDrift = !_initialized || driftUs.abs() >= 250000;
+    final shouldMoveForward = driftUs >= 0;
+    final positionChanged = !playing || largeDrift || shouldMoveForward;
+    _playing = playing;
+    _speed = nextSpeed;
+    _initialized = true;
+    if (largeDrift || !playing) _correctionUs = 0;
+    if (!largeDrift && playing && driftUs > 0) {
+      _correctionUs = math.max(_correctionUs, driftUs);
+    }
+    if (positionChanged &&
+        _position != realPosition &&
+        (largeDrift || !playing)) {
+      _position = realPosition;
+      notifyListeners();
+    }
+    _syncTicker();
+  }
+
+  void setPlaybackState({required bool playing, double speed = 1.0}) {
+    _playing = playing;
+    _speed = speed.clamp(0.5, 3.0).toDouble();
+    _syncTicker();
+  }
+
+  void setEnabled(bool enabled) {
+    if (_enabled == enabled) return;
+    _enabled = enabled;
+    _syncTicker();
+  }
+
+  /// Advances the clock without requiring a Flutter ticker. This is also used
+  /// by unit tests to verify extrapolation and drift behavior.
+  void advance(Duration delta) {
+    if (!_playing || !_enabled || delta <= Duration.zero) return;
+    var advanceUs = (delta.inMicroseconds * _speed).round();
+    if (_correctionUs > 0) {
+      final correction = math.min(
+        _correctionUs,
+        math.max(1000, (_correctionUs * 0.18).round()),
+      );
+      advanceUs += correction;
+      _correctionUs -= correction;
+    }
+    _position += Duration(microseconds: advanceUs);
+    notifyListeners();
+  }
+
+  void _onTick(Duration elapsed) {
+    final delta = elapsed - _lastTickElapsed;
+    _lastTickElapsed = elapsed;
+    advance(delta);
+  }
+
+  void _syncTicker() {
+    final ticker = _ticker;
+    if (ticker == null) return;
+    final shouldTick = _enabled && _playing;
+    if (shouldTick && !ticker.isActive) {
+      _lastTickElapsed = Duration.zero;
+      ticker.start();
+    } else if (!shouldTick && ticker.isActive) {
+      ticker.stop(canceled: false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _ticker?.dispose();
+    super.dispose();
+  }
+}
+
+class SyncedLyricWord {
+  final String text;
+  final String leadingWhitespace;
+  final int startMs;
+  final int endMs;
+
+  const SyncedLyricWord({
+    required this.text,
+    required this.leadingWhitespace,
+    required this.startMs,
+    required this.endMs,
+  });
+}
+
 class SyncedLyricLine {
   final String id;
   final String paragraphId;
   final String text;
   final int startMs;
   final int endMs;
+  final List<SyncedLyricWord> words;
 
   const SyncedLyricLine({
     required this.id,
@@ -28,8 +155,11 @@ class SyncedLyricLine {
     required this.text,
     required this.startMs,
     required this.endMs,
+    this.words = const [],
   });
 }
+
+typedef _PositionedTiming = ({AudioTextTiming timing, int start, int end});
 
 class SelectableTextToken {
   final String text;
@@ -100,9 +230,19 @@ List<SyncedLyricLine> buildSyncedLyricLines(
     final segment = segments[paragraph.id];
     final durationMs = segment?.durationMs ?? 0;
     final timings = segment?.timings ?? const <AudioTextTiming>[];
-    final ranges = _timingRanges(paragraph.content, parts, timings, durationMs);
+    final positionedTimings = _positionTimings(paragraph.content, timings);
+    final ranges = _timingRanges(
+      paragraph.content,
+      parts,
+      timings,
+      durationMs,
+      positionedTimings: positionedTimings,
+    );
 
+    var normalizedOffset = 0;
     for (var index = 0; index < parts.length; index++) {
+      final normalizedLength = _normalizeForAlignment(parts[index]).length;
+      final endOffset = normalizedOffset + normalizedLength;
       lines.add(
         SyncedLyricLine(
           id: '${paragraph.id}:$index',
@@ -110,8 +250,17 @@ List<SyncedLyricLine> buildSyncedLyricLines(
           text: parts[index],
           startMs: ranges[index].$1,
           endMs: ranges[index].$2,
+          words: _buildLyricWords(
+            parts[index],
+            lineStartMs: ranges[index].$1,
+            lineEndMs: ranges[index].$2,
+            lineStartOffset: normalizedOffset,
+            lineEndOffset: endOffset,
+            positionedTimings: positionedTimings,
+          ),
         ),
       );
+      normalizedOffset = endOffset;
     }
   }
   return lines;
@@ -257,34 +406,24 @@ List<(int, int)> _timingRanges(
   String paragraph,
   List<String> parts,
   List<AudioTextTiming> timings,
-  int durationMs,
-) {
+  int durationMs, {
+  List<_PositionedTiming>? positionedTimings,
+}) {
   final fallback = _estimatedRanges(parts, durationMs);
   if (timings.isEmpty) return fallback;
 
   final normalizedParagraph = _normalizeForAlignment(paragraph);
   if (normalizedParagraph.isEmpty) return fallback;
 
-  final positionedTimings = <({AudioTextTiming timing, int start, int end})>[];
-  var searchFrom = 0;
-  for (final timing in timings) {
-    final token = _normalizeForAlignment(timing.text);
-    if (token.isEmpty) continue;
-    var start = normalizedParagraph.indexOf(token, searchFrom);
-    if (start < 0) start = normalizedParagraph.indexOf(token);
-    if (start < 0) continue;
-    final end = start + token.length;
-    positionedTimings.add((timing: timing, start: start, end: end));
-    searchFrom = end;
-  }
-  if (positionedTimings.isEmpty) return fallback;
+  final positioned = positionedTimings ?? _positionTimings(paragraph, timings);
+  if (positioned.isEmpty) return fallback;
 
   final ranges = <(int, int)>[];
   var normalizedOffset = 0;
   for (var index = 0; index < parts.length; index++) {
     final length = _normalizeForAlignment(parts[index]).length;
     final endOffset = normalizedOffset + length;
-    final matches = positionedTimings.where(
+    final matches = positioned.where(
       (item) => item.end > normalizedOffset && item.start < endOffset,
     );
     if (matches.isEmpty) {
@@ -304,12 +443,140 @@ List<(int, int)> _timingRanges(
     }
     normalizedOffset = endOffset;
   }
-  final effectiveDurationMs = positionedTimings.fold<int>(
+  final effectiveDurationMs = positioned.fold<int>(
     durationMs,
     (maximum, item) =>
         item.timing.endMs > maximum ? item.timing.endMs : maximum,
   );
   return _makeRangesMonotonic(ranges, effectiveDurationMs);
+}
+
+List<_PositionedTiming> _positionTimings(
+  String paragraph,
+  List<AudioTextTiming> timings,
+) {
+  final normalizedParagraph = _normalizeForAlignment(paragraph);
+  if (normalizedParagraph.isEmpty || timings.isEmpty) return const [];
+
+  final positioned = <_PositionedTiming>[];
+  var searchFrom = 0;
+  for (final timing in timings) {
+    final token = _normalizeForAlignment(timing.text);
+    if (token.isEmpty) continue;
+    var start = normalizedParagraph.indexOf(token, searchFrom);
+    if (start < 0) start = normalizedParagraph.indexOf(token);
+    if (start < 0) continue;
+    final end = start + token.length;
+    positioned.add((timing: timing, start: start, end: end));
+    searchFrom = end;
+  }
+  return positioned;
+}
+
+List<SyncedLyricWord> _buildLyricWords(
+  String text, {
+  required int lineStartMs,
+  required int lineEndMs,
+  required int lineStartOffset,
+  required int lineEndOffset,
+  required List<_PositionedTiming> positionedTimings,
+}) {
+  final ranges = _lyricWordRanges(text);
+  if (ranges.isEmpty) {
+    return [
+      SyncedLyricWord(
+        text: text,
+        leadingWhitespace: '',
+        startMs: lineStartMs,
+        endMs: lineEndMs,
+      ),
+    ];
+  }
+
+  final normalizedLineLength = math.max(1, lineEndOffset - lineStartOffset);
+  var previousEndMs = lineStartMs;
+  final words = <SyncedLyricWord>[];
+  var sourceEnd = 0;
+  for (final range in ranges) {
+    final word = text.substring(range.start, range.end);
+    final leadingWhitespace = text.substring(sourceEnd, range.start);
+    sourceEnd = range.end;
+    final wordStartOffset =
+        lineStartOffset +
+        _normalizeForAlignment(text.substring(0, range.start)).length;
+    final wordEndOffset =
+        lineStartOffset +
+        _normalizeForAlignment(text.substring(0, range.end)).length;
+    final matches = positionedTimings.where(
+      (item) => item.end > wordStartOffset && item.start < wordEndOffset,
+    );
+
+    int startMs;
+    int endMs;
+    if (matches.isNotEmpty) {
+      final first = matches.first;
+      final last = matches.last;
+      startMs = _interpolateTiming(
+        first,
+        wordStartOffset.clamp(first.start, first.end),
+      );
+      endMs = _interpolateTiming(
+        last,
+        wordEndOffset.clamp(last.start, last.end),
+      );
+    } else {
+      final startRatio =
+          (wordStartOffset - lineStartOffset) / normalizedLineLength;
+      final endRatio = (wordEndOffset - lineStartOffset) / normalizedLineLength;
+      startMs = lineStartMs + ((lineEndMs - lineStartMs) * startRatio).round();
+      endMs = lineStartMs + ((lineEndMs - lineStartMs) * endRatio).round();
+    }
+    startMs = math.max(previousEndMs, startMs);
+    endMs = math.max(startMs + 1, endMs);
+    words.add(
+      SyncedLyricWord(
+        text: word,
+        leadingWhitespace: leadingWhitespace,
+        startMs: startMs,
+        endMs: endMs,
+      ),
+    );
+    previousEndMs = endMs;
+  }
+  return words;
+}
+
+List<({int start, int end})> _lyricWordRanges(String text) {
+  final pattern = RegExp(
+    r"[A-Za-z\u00c0-\u02af\u1e00-\u1eff\u3400-\u9fff]+(?:['’\-][A-Za-z\u00c0-\u02af\u1e00-\u1eff\u3400-\u9fff]+)*|\d+(?:[.,]\d+)*|[^\s]",
+    unicode: true,
+  );
+  final ranges = <({int start, int end})>[];
+  for (final match in pattern.allMatches(text)) {
+    final token = match.group(0)!;
+    final alignmentToken = _normalizeForAlignment(token).isNotEmpty;
+    final characterTimedScript = RegExp(
+      r'^[\u3040-\u30ff\u3130-\u318f\u3400-\u9fff\uac00-\ud7af]+$',
+      unicode: true,
+    ).hasMatch(token);
+    if (!alignmentToken) {
+      if (ranges.isNotEmpty && ranges.last.end == match.start) {
+        final previous = ranges.removeLast();
+        ranges.add((start: previous.start, end: match.end));
+      } else {
+        ranges.add((start: match.start, end: match.end));
+      }
+      continue;
+    }
+    if (!characterTimedScript) {
+      ranges.add((start: match.start, end: match.end));
+      continue;
+    }
+    for (var index = 0; index < token.length; index++) {
+      ranges.add((start: match.start + index, end: match.start + index + 1));
+    }
+  }
+  return ranges;
 }
 
 int _interpolateTiming(
@@ -357,8 +624,137 @@ List<(int, int)> _estimatedRanges(List<String> parts, int durationMs) {
   return ranges;
 }
 
+final _alignmentNoisePattern = RegExp(
+  r'[^a-z0-9\u00c0-\u02af\u0300-\u036f\u0370-\u052f\u0590-\u08ff\u0900-\u0fff\u1100-\u1fff\u3040-\u30ff\u3130-\u318f\u3400-\u9fff\ua000-\ua4cf\ua960-\ua97f\uac00-\ud7af\uf900-\ufaff\uff00-\uffef]+',
+  unicode: true,
+);
+
 String _normalizeForAlignment(String text) =>
-    text.toLowerCase().replaceAll(RegExp(r'[^a-z0-9\u3400-\u9fff]+'), '');
+    text.toLowerCase().replaceAll(_alignmentNoisePattern, '');
+
+class _LyricSweepPainter extends CustomPainter {
+  final SyncedLyricLine line;
+  final TextStyle style;
+  final TextDirection textDirection;
+  final TextScaler textScaler;
+  final int positionMs;
+
+  const _LyricSweepPainter({
+    required this.line,
+    required this.style,
+    required this.textDirection,
+    required this.textScaler,
+    required this.positionMs,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final dimColor = (style.color ?? Colors.white).withValues(alpha: 0.46);
+    final painter = TextPainter(
+      text: TextSpan(
+        text: line.text,
+        style: style.copyWith(color: dimColor),
+      ),
+      textDirection: textDirection,
+      textScaler: textScaler,
+    )..layout(maxWidth: size.width);
+    painter.paint(canvas, Offset.zero);
+
+    final ranges = _lyricWordRanges(line.text);
+    if (ranges.isEmpty || line.words.isEmpty) {
+      painter.dispose();
+      return;
+    }
+    final effectivePosition = positionMs + syncedLyricsSweepLeadMs;
+    var wordIndex = -1;
+    for (var index = 0; index < line.words.length; index++) {
+      final word = line.words[index];
+      if (effectivePosition < word.startMs) {
+        wordIndex = index;
+        break;
+      }
+      wordIndex = index;
+      if (effectivePosition <= word.endMs) break;
+    }
+    if (wordIndex < 0 || wordIndex >= ranges.length) {
+      painter.dispose();
+      return;
+    }
+    final range = ranges[wordIndex];
+    final boxes = painter.getBoxesForSelection(
+      TextSelection(baseOffset: range.start, extentOffset: range.end),
+    );
+    if (boxes.isEmpty) {
+      painter.dispose();
+      return;
+    }
+    final box = boxes.first;
+    final word = line.words[wordIndex];
+    final progress =
+        ((effectivePosition - word.startMs) /
+                math.max(1, word.endMs - word.startMs))
+            .clamp(0.0, 1.0)
+            .toDouble();
+    final center = box.left + (box.right - box.left) * progress;
+    final feather = (style.fontSize ?? 18) * syncedLyricsSweepFeatherEm;
+    final bright = style.color ?? Colors.white;
+    final brightPainter = TextPainter(
+      text: TextSpan(
+        text: line.text,
+        style: style.copyWith(
+          color: null,
+          foreground: Paint()
+            ..shader = center >= size.width
+                ? null
+                : _sweepShader(
+                    bright: bright,
+                    center: center,
+                    feather: feather,
+                    width: size.width,
+                  )
+            ..color = center >= size.width ? bright : Colors.white,
+        ),
+      ),
+      textDirection: textDirection,
+      textScaler: textScaler,
+    )..layout(maxWidth: size.width);
+    brightPainter.paint(canvas, Offset.zero);
+    brightPainter.dispose();
+    painter.dispose();
+  }
+
+  Shader _sweepShader({
+    required Color bright,
+    required double center,
+    required double feather,
+    required double width,
+  }) {
+    final safeWidth = math.max(width, 1.0);
+    final leading = ((center - feather) / safeWidth).clamp(0.0, 1.0);
+    final trailing = ((center + feather) / safeWidth)
+        .clamp(leading + 0.001, 1.0)
+        .toDouble();
+    return LinearGradient(
+      begin: Alignment.centerLeft,
+      end: Alignment.centerRight,
+      colors: [
+        bright,
+        bright,
+        bright.withValues(alpha: 0.35),
+        Colors.transparent,
+      ],
+      stops: [0, leading, trailing, 1],
+    ).createShader(Offset.zero & Size(safeWidth, 1));
+  }
+
+  @override
+  bool shouldRepaint(covariant _LyricSweepPainter oldDelegate) =>
+      oldDelegate.line != line ||
+      oldDelegate.positionMs != positionMs ||
+      oldDelegate.style != style ||
+      oldDelegate.textDirection != textDirection ||
+      oldDelegate.textScaler != textScaler;
+}
 
 class SyncedLyricsList extends StatefulWidget {
   final List<drift_db.Paragraph> paragraphs;
@@ -372,6 +768,8 @@ class SyncedLyricsList extends StatefulWidget {
   final String? bookId;
   final String? chapterId;
   final bool virtualized;
+  final double scrollSpeed;
+  final bool sweepEnabled;
 
   const SyncedLyricsList({
     super.key,
@@ -386,21 +784,27 @@ class SyncedLyricsList extends StatefulWidget {
     this.bookId,
     this.chapterId,
     this.virtualized = false,
+    this.scrollSpeed = 1.0,
+    this.sweepEnabled = true,
   });
 
   @override
   State<SyncedLyricsList> createState() => _SyncedLyricsListState();
 }
 
-class _SyncedLyricsListState extends State<SyncedLyricsList> {
+class _SyncedLyricsListState extends State<SyncedLyricsList>
+    with TickerProviderStateMixin {
   final ScrollController _scrollController = ScrollController();
   final GlobalKey<SelectionAreaState> _selectionAreaKey =
       GlobalKey<SelectionAreaState>();
   final Map<String, GlobalKey> _lineKeys = {};
   StreamSubscription<String?>? _paragraphSub;
   StreamSubscription<Duration>? _positionSub;
+  StreamSubscription? _playbackStateSub;
   Timer? _scrollDebounce;
   Timer? _manualScrollResume;
+  late final SyncedLyricsClock _clock;
+  AnimationController? _scrollAnimation;
   List<SyncedLyricLine> _lines = const [];
   Map<String, List<SyncedLyricLine>> _linesByParagraph = const {};
   Map<String, int> _lineIndexById = const {};
@@ -426,15 +830,30 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
   bool _pointerDidDrag = false;
   String? _pressedLineId;
   bool _manuallyScrolling = false;
-
+  bool _tickerModeEnabled = true;
   bool get _selectionActive =>
       _wordSelectionLineId != null || _selectedText.isNotEmpty;
+
+  bool get _hasAnimatedTimings =>
+      widget.manifest?.segments.any((segment) => segment.timings.isNotEmpty) ??
+      false;
+
+  bool get _clockEnabled =>
+      widget.playbackEnabled && _hasAnimatedTimings && _tickerModeEnabled;
 
   @override
   void initState() {
     super.initState();
+    _clock = SyncedLyricsClock(vsync: this)..addListener(_handleClockTick);
     _rebuildLines();
     _bindHandler();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _tickerModeEnabled = TickerMode.valuesOf(context).enabled;
+    _clock.setEnabled(_clockEnabled);
   }
 
   @override
@@ -469,6 +888,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
     }
     _linesByParagraph = linesByParagraph;
     _lineIndexById = lineIndexById;
+    _clock.setEnabled(_clockEnabled);
     _lineKeys.removeWhere((id, _) => !lineIndexById.containsKey(id));
     _invalidateVirtualMetrics();
     if (_wordSelectionLineId != null &&
@@ -485,32 +905,76 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
   void _bindHandler() {
     _paragraphSub?.cancel();
     _positionSub?.cancel();
+    _playbackStateSub?.cancel();
     if (!widget.playbackEnabled) {
       _paragraphId = null;
       _activeLineId = null;
+      _clock.reanchor(
+        widget.handler.position,
+        playing: false,
+        speed: widget.handler.playbackState.value.speed,
+      );
       return;
     }
     _paragraphId = widget.handler.currentParagraphId;
     _paragraphSub = widget.handler.currentParagraphIdStream.listen((id) {
       _paragraphId = id;
-      _sync(widget.handler.position, forceScroll: true);
+      // A paragraph notification is a state update, not necessarily a seek.
+      // Let the normal line-change path animate from the current offset.
+      _sync(widget.handler.position);
     });
-    _positionSub = widget.handler.positionStream.listen(_sync);
+    _positionSub = widget.handler.positionStream.listen(_handleRealPosition);
+    _playbackStateSub = widget.handler.playbackState.listen((state) {
+      _clock.reanchor(
+        widget.handler.position,
+        playing: _clockEnabled && state.playing,
+        speed: state.speed,
+      );
+      _handleClockTick();
+    });
     _sync(widget.handler.position, forceScroll: true);
   }
 
   void _sync(Duration position, {bool forceScroll = false}) {
     if (!mounted) return;
+    final playbackState = widget.handler.playbackState.value;
+    _clock.reanchor(
+      position,
+      playing: _clockEnabled && playbackState.playing,
+      speed: playbackState.speed,
+    );
     if (!widget.playbackEnabled) {
-      if (_activeLineId != null) setState(() => _activeLineId = null);
+      if (_activeLineId != null) {
+        setState(() => _activeLineId = null);
+      }
       return;
     }
+    _updateActiveLine(forceScroll: forceScroll);
+  }
+
+  void _handleRealPosition(Duration position) {
+    if (!mounted) return;
+    final playbackState = widget.handler.playbackState.value;
+    _clock.reanchor(
+      position,
+      playing: _clockEnabled && playbackState.playing,
+      speed: playbackState.speed,
+    );
+    _handleClockTick();
+  }
+
+  void _handleClockTick() {
+    if (!mounted || !widget.playbackEnabled || _selectionActive) return;
+    _updateActiveLine();
+  }
+
+  void _updateActiveLine({bool forceScroll = false}) {
     final paragraphLines = _linesByParagraph[_paragraphId] ?? const [];
-    final active = _activeLineAt(paragraphLines, position.inMilliseconds);
-    if (_selectionActive) return;
-    if (!forceScroll && active?.id == _activeLineId) return;
+    final active = _activeLineAt(paragraphLines, _clock.positionMs);
+    final lineChanged = active?.id != _activeLineId;
+    if (!forceScroll && !lineChanged) return;
     setState(() => _activeLineId = active?.id);
-    if (active != null && !_manuallyScrolling) {
+    if ((forceScroll || lineChanged) && active != null && !_manuallyScrolling) {
       _scrollTo(active.id, force: forceScroll);
     }
   }
@@ -537,7 +1001,9 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
     _pendingScrollLineId = lineId;
     _pendingForceScroll = _pendingForceScroll || force;
     _scrollDebounce?.cancel();
-    _scrollDebounce = Timer(const Duration(milliseconds: 70), () {
+    // Position streams can emit every 16 ms. A single frame of coalescing is
+    // enough to let the active line settle without adding a visible lyric lag.
+    _scrollDebounce = Timer(const Duration(milliseconds: 16), () {
       if (!mounted || _selectionActive || _manuallyScrolling) return;
       final pendingLineId = _pendingScrollLineId;
       final pendingForce = _pendingForceScroll;
@@ -584,15 +1050,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
     final distance = (target - position.pixels).abs();
     final tolerance = math.max(16.0, position.viewportDimension * 0.04);
     if (!force && distance <= tolerance) return;
-
-    final viewportExtent = math.max(position.viewportDimension, 1.0);
-    final screenDistance = (distance / viewportExtent).clamp(0.0, 1.75);
-    final durationMs = (420 + screenDistance * 260).round().clamp(420, 875);
-    _scrollController.animateTo(
-      target,
-      duration: Duration(milliseconds: durationMs),
-      curve: Curves.easeInOutCubic,
-    );
+    _scrollToTarget(target, distance: distance, lineId: lineId, force: force);
   }
 
   void _animateToVirtualizedLine(String lineId, {required bool force}) {
@@ -621,21 +1079,73 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
     final distance = (target - position.pixels).abs();
     final tolerance = math.max(12.0, position.viewportDimension * 0.035);
     if (!force && distance <= tolerance) return;
+    _scrollToTarget(target, distance: distance, lineId: lineId, force: force);
+  }
 
-    // Large seeks and the initial restore should land immediately. Nearby
-    // transcript lines use a short animation so playback tracking stays calm.
-    if (force || distance > position.viewportDimension * 1.25) {
+  void _scrollToTarget(
+    double target, {
+    required double distance,
+    required String lineId,
+    required bool force,
+  }) {
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    final largeMove =
+        force || distance > math.max(position.viewportDimension, 1.0) * 1.25;
+    if (largeMove) {
+      _stopScrollAnimation();
       _scrollController.jumpTo(target);
       return;
     }
-    final viewportExtent = math.max(position.viewportDimension, 1.0);
-    final screenDistance = (distance / viewportExtent).clamp(0.0, 1.0);
-    final durationMs = (220 + screenDistance * 180).round();
-    _scrollController.animateTo(
-      target,
-      duration: Duration(milliseconds: durationMs),
-      curve: Curves.easeOutCubic,
+
+    final lineIndex = _lineIndexById[lineId];
+    final previousIndex = lineIndex == null ? null : lineIndex - 1;
+    final interval =
+        lineIndex == null || previousIndex == null || previousIndex < 0
+        ? 500.0
+        : (_lines[lineIndex].startMs - _lines[previousIndex].startMs)
+              .clamp(100, 800)
+              .toDouble();
+    final ratio = math
+        .pow((1 - (interval - 100) / 700).clamp(0.0, 1.0), 0.2)
+        .toDouble();
+    final baseStiffness = 170 + ratio * 50;
+    final speed = widget.scrollSpeed.clamp(0.5, 2.0).toDouble();
+    final description = SpringDescription(
+      mass: 0.9,
+      stiffness: baseStiffness * speed * speed,
+      damping: math.sqrt(baseStiffness) * 2.2 * speed,
     );
+    _ensureScrollAnimation();
+    final animation = _scrollAnimation!;
+    animation.stop();
+    animation.value = position.pixels;
+    unawaited(
+      animation.animateWith(
+        SpringSimulation(description, position.pixels, target, 0),
+      ),
+    );
+  }
+
+  void _ensureScrollAnimation() {
+    _scrollAnimation ??= AnimationController.unbounded(vsync: this)
+      ..addListener(_applyScrollAnimation);
+  }
+
+  void _applyScrollAnimation() {
+    final animation = _scrollAnimation;
+    if (animation == null || !_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    final value = animation.value
+        .clamp(position.minScrollExtent, position.maxScrollExtent)
+        .toDouble();
+    if ((value - position.pixels).abs() > 0.01) {
+      _scrollController.jumpTo(value);
+    }
+  }
+
+  void _stopScrollAnimation() {
+    _scrollAnimation?.stop();
   }
 
   void _invalidateVirtualMetrics() {
@@ -688,6 +1198,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
     _scrollDebounce = null;
     _pendingScrollLineId = null;
     _pendingForceScroll = false;
+    _stopScrollAnimation();
     if (!stopCurrentMotion || !_scrollController.hasClients) return;
     final position = _scrollController.position;
     _scrollController.jumpTo(
@@ -926,8 +1437,11 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
   void dispose() {
     _paragraphSub?.cancel();
     _positionSub?.cancel();
+    _playbackStateSub?.cancel();
     _scrollDebounce?.cancel();
     _manualScrollResume?.cancel();
+    _scrollAnimation?.dispose();
+    _clock.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -1067,8 +1581,66 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
 
   Widget _buildLyricLine(SyncedLyricLine line, {required bool enabled}) {
     final highlighted = line.id == _activeLineId;
+    final lineIndex = _lineIndexById[line.id] ?? -1;
+    final activeIndex = _activeLineId == null
+        ? -1
+        : (_lineIndexById[_activeLineId!] ?? -1);
+    final nearActive =
+        widget.playbackEnabled &&
+        activeIndex >= 0 &&
+        lineIndex >= 0 &&
+        (lineIndex - activeIndex).abs() <= 2;
+    Widget buildFrame(int positionMs) => _buildLyricLineFrame(
+      line,
+      enabled: enabled,
+      highlighted: highlighted,
+      positionMs: positionMs,
+      lineIndex: lineIndex,
+      activeIndex: activeIndex,
+    );
+
+    final content = nearActive
+        ? AnimatedBuilder(
+            animation: _clock,
+            builder: (_, _) => buildFrame(_clock.positionMs),
+          )
+        : buildFrame(_clock.positionMs);
+    return RepaintBoundary(child: content);
+  }
+
+  Widget _buildLyricLineFrame(
+    SyncedLyricLine line, {
+    required bool enabled,
+    required bool highlighted,
+    required int positionMs,
+    required int lineIndex,
+    required int activeIndex,
+  }) {
     final pressed = line.id == _pressedLineId;
     final primaryTextColor = _primaryLyricTextColor;
+    final text = AnimatedDefaultTextStyle(
+      duration: const Duration(milliseconds: 220),
+      style: _lineTextStyle(
+        color: _lineBaseColor(
+          line,
+          highlighted: highlighted,
+          enabled: enabled,
+          positionMs: positionMs,
+        ),
+      ),
+      child: _buildLyricText(
+        line,
+        highlighted: highlighted,
+        enabled: enabled,
+        primaryTextColor: primaryTextColor,
+        positionMs: positionMs,
+      ),
+    );
+    final blurred = _depthFilteredLine(
+      text,
+      lineIndex: lineIndex,
+      activeIndex: activeIndex,
+    );
     return Listener(
       onPointerDown: enabled ? (_) => _selectionLineId = line.id : null,
       child: InkWell(
@@ -1088,9 +1660,9 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
         splashColor: Colors.transparent,
         highlightColor: Colors.transparent,
         child: AnimatedScale(
-          scale: pressed ? 0.985 : 1,
+          scale: (highlighted ? 1.025 : 1) * (pressed ? 0.985 : 1),
           alignment: Alignment.centerLeft,
-          duration: const Duration(milliseconds: 160),
+          duration: const Duration(milliseconds: 260),
           curve: Curves.easeOutCubic,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
@@ -1102,27 +1674,129 @@ class _SyncedLyricsListState extends State<SyncedLyricsList> {
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: AnimatedDefaultTextStyle(
-              duration: const Duration(milliseconds: 220),
-              style: _lineTextStyle(
-                color: enabled
-                    ? highlighted
-                          ? primaryTextColor
-                          : primaryTextColor.withValues(
-                              alpha: widget.focusMode
-                                  ? 0.56
-                                  : widget.expanded
-                                  ? 0.42
-                                  : 0.3,
-                            )
-                    : primaryTextColor.withValues(alpha: 0.16),
-              ),
-              child: Text(line.text),
-            ),
+            child: blurred,
           ),
         ),
       ),
     );
+  }
+
+  Widget _depthFilteredLine(
+    Widget child, {
+    required int lineIndex,
+    required int activeIndex,
+  }) {
+    if ((!widget.expanded && !widget.focusMode) ||
+        lineIndex < 0 ||
+        activeIndex < 0) {
+      return child;
+    }
+    final distance = (lineIndex - activeIndex).abs();
+    if (distance == 0 || distance > 3) return child;
+    final sigma = math.min(_syncedLyricsBlurSigmaCap, 0.8 * (distance + 1));
+    return ImageFiltered(
+      imageFilter: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+      child: child,
+    );
+  }
+
+  Widget _buildLyricText(
+    SyncedLyricLine line, {
+    required bool highlighted,
+    required bool enabled,
+    required Color primaryTextColor,
+    required int positionMs,
+  }) {
+    // Disabled transcript lists are also used for static selection/search
+    // views. Keep them as a plain Text widget; only the active player needs
+    // the extra RichText spans for live word progress.
+    if (line.words.isEmpty || !enabled || !widget.playbackEnabled) {
+      return Text(line.text);
+    }
+    if (widget.sweepEnabled && highlighted) {
+      final style = _lineTextStyle(color: primaryTextColor);
+      return CustomPaint(
+        foregroundPainter: _LyricSweepPainter(
+          line: line,
+          style: style,
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+          positionMs: positionMs,
+        ),
+        child: Text(
+          line.text,
+          style: style.copyWith(color: Colors.transparent),
+        ),
+      );
+    }
+    return Text.rich(
+      TextSpan(
+        children: [
+          for (final word in line.words)
+            TextSpan(
+              text: '${word.leadingWhitespace}${word.text}',
+              style: TextStyle(
+                color: _wordColor(
+                  word,
+                  line: line,
+                  highlighted: highlighted,
+                  enabled: enabled,
+                  primaryTextColor: primaryTextColor,
+                  positionMs: positionMs,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Color _lineBaseColor(
+    SyncedLyricLine line, {
+    required bool highlighted,
+    required bool enabled,
+    required int positionMs,
+  }) {
+    final primaryTextColor = _primaryLyricTextColor;
+    if (!enabled) return primaryTextColor.withValues(alpha: 0.16);
+    if (highlighted) return primaryTextColor;
+    final passed = line.endMs > line.startMs && line.endMs <= positionMs;
+    final alpha = passed
+        ? 0.22
+        : widget.focusMode
+        ? 0.56
+        : widget.expanded
+        ? 0.42
+        : 0.3;
+    return primaryTextColor.withValues(alpha: alpha);
+  }
+
+  Color _wordColor(
+    SyncedLyricWord word, {
+    required SyncedLyricLine line,
+    required bool highlighted,
+    required bool enabled,
+    required Color primaryTextColor,
+    required int positionMs,
+  }) {
+    if (!enabled || !highlighted) {
+      return _lineBaseColor(
+        line,
+        highlighted: highlighted,
+        enabled: enabled,
+        positionMs: positionMs,
+      );
+    }
+    final progress = _wordProgress(word, positionMs);
+    final inactive = primaryTextColor.withValues(alpha: 0.46);
+    return Color.lerp(inactive, primaryTextColor, progress)!;
+  }
+
+  double _wordProgress(SyncedLyricWord word, int positionMs) {
+    if (positionMs <= word.startMs) return 0;
+    if (positionMs >= word.endMs) return 1;
+    final duration = math.max(1, word.endMs - word.startMs);
+    return ((positionMs - word.startMs) / duration).clamp(0.0, 1.0);
   }
 
   Widget _buildWordSelectionLine(SyncedLyricLine line) {

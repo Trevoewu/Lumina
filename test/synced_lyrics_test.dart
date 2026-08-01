@@ -9,6 +9,52 @@ import 'package:lumina/presentation/widgets/synced_lyrics_list.dart';
 import 'package:lumina/services/lumina_audio_handler.dart';
 
 void main() {
+  test('synced lyrics clock extrapolates at playback speed', () {
+    final clock = SyncedLyricsClock();
+    addTearDown(clock.dispose);
+
+    clock.reanchor(Duration.zero, playing: true, speed: 1.5);
+    clock.advance(const Duration(milliseconds: 200));
+
+    expect(clock.position, const Duration(milliseconds: 300));
+  });
+
+  test('synced lyrics clock never runs backwards on small stream drift', () {
+    final clock = SyncedLyricsClock();
+    addTearDown(clock.dispose);
+
+    clock.reanchor(const Duration(milliseconds: 1000), playing: true);
+    clock.advance(const Duration(milliseconds: 200));
+    clock.reanchor(const Duration(milliseconds: 1100), playing: true);
+
+    expect(clock.position, const Duration(milliseconds: 1200));
+  });
+
+  test('synced lyrics clock eases a small forward correction', () {
+    final clock = SyncedLyricsClock();
+    addTearDown(clock.dispose);
+
+    clock.reanchor(const Duration(milliseconds: 1000), playing: true);
+    clock.reanchor(const Duration(milliseconds: 1100), playing: true);
+    expect(clock.position, const Duration(milliseconds: 1000));
+
+    clock.advance(const Duration(milliseconds: 16));
+    expect(clock.position.inMilliseconds, greaterThan(1016));
+    expect(clock.position.inMilliseconds, lessThan(1100));
+  });
+
+  test('synced lyrics clock snaps large seeks and pauses', () {
+    final clock = SyncedLyricsClock();
+    addTearDown(clock.dispose);
+
+    clock.reanchor(const Duration(milliseconds: 1000), playing: true);
+    clock.reanchor(const Duration(milliseconds: 5000), playing: true);
+    expect(clock.position, const Duration(milliseconds: 5000));
+
+    clock.reanchor(const Duration(milliseconds: 4800), playing: false);
+    expect(clock.position, const Duration(milliseconds: 4800));
+  });
+
   test('tokenizes words, hyphenated phrases, numbers, and punctuation', () {
     final tokens = tokenizeSelectableText(
       'The mind-bender costs 3.07 MB, really.',
@@ -148,7 +194,49 @@ void main() {
     expect(lines.map((line) => line.text), ['Hello world.', 'Again.']);
     expect((lines.first.startMs, lines.first.endMs), (100, 900));
     expect((lines.last.startMs, lines.last.endMs), (1100, 1600));
+    expect(lines.first.words.map((word) => word.text), ['Hello', 'world.']);
+    expect(lines.first.words.map((word) => (word.startMs, word.endMs)), [
+      (100, 400),
+      (450, 900),
+    ]);
   });
+
+  test(
+    'aligns Japanese kana instead of falling back to full-duration timing',
+    () {
+      const paragraph = Paragraph(
+        id: 'ja',
+        chapterId: 'c1',
+        bookId: 'b1',
+        paragraphIndex: 0,
+        content: 'これはテストです。',
+      );
+      final manifest = ChapterManifest(
+        chapterId: 'c1',
+        bookId: 'b1',
+        providerId: 'whisper-local',
+        voiceId: '',
+        speed: 1,
+        updatedAt: 1,
+        segments: const [
+          SegmentEntry(
+            paragraphId: 'ja',
+            audioFile: 'episode.mp3',
+            durationMs: 5000,
+            state: ParagraphAudioState.ready,
+            timings: [
+              AudioTextTiming(text: 'これはテストです', startMs: 800, endMs: 1600),
+            ],
+          ),
+        ],
+      );
+
+      final lines = buildSyncedLyricLines([paragraph], manifest);
+
+      expect(lines, hasLength(1));
+      expect((lines.single.startMs, lines.single.endMs), (800, 1600));
+    },
+  );
 
   test('interpolates lines that share one Fish timing segment', () {
     const paragraph = Paragraph(

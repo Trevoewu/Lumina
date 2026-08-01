@@ -34,8 +34,16 @@ const podcastTranscriptPausedStatus = 'paused';
 class PodcastChunkWindow {
   final int startMs;
   final int durationMs;
+  final int extractionStartMs;
+  final int extractionDurationMs;
 
-  const PodcastChunkWindow({required this.startMs, required this.durationMs});
+  const PodcastChunkWindow({
+    required this.startMs,
+    required this.durationMs,
+    int? extractionStartMs,
+    int? extractionDurationMs,
+  }) : extractionStartMs = extractionStartMs ?? startMs,
+       extractionDurationMs = extractionDurationMs ?? durationMs;
 
   @override
   String toString() => 'PodcastChunkWindow($startMs, $durationMs)';
@@ -53,25 +61,43 @@ List<PodcastChunkWindow> planPodcastChunks({
   required int startFromMs,
   required int chunkDurationMs,
   int maxUnknownChunks = 480,
+  int overlapMs = 0,
 }) {
   if (chunkDurationMs <= 0) return const [];
   final start = math.max(0, startFromMs);
+  final overlap = math.max(0, overlapMs);
   if (durationMs <= 0) {
-    return [
-      for (var index = 0; index < maxUnknownChunks; index++)
+    final windows = <PodcastChunkWindow>[];
+    for (var index = 0; index < maxUnknownChunks; index++) {
+      final logicalStart = start + index * chunkDurationMs;
+      final extractionStart = math.max(0, logicalStart - overlap);
+      windows.add(
         PodcastChunkWindow(
-          startMs: start + index * chunkDurationMs,
+          startMs: logicalStart,
           durationMs: chunkDurationMs,
+          extractionStartMs: extractionStart,
+          extractionDurationMs:
+              chunkDurationMs + logicalStart - extractionStart,
         ),
-    ];
+      );
+    }
+    return windows;
   }
 
   final windows = <PodcastChunkWindow>[];
   for (var offset = start; offset < durationMs; offset += chunkDurationMs) {
+    final logicalDuration = math.min(chunkDurationMs, durationMs - offset);
+    final extractionStart = math.max(0, offset - overlap);
+    final extractionEnd = math.min(
+      durationMs,
+      offset + logicalDuration + overlap,
+    );
     windows.add(
       PodcastChunkWindow(
         startMs: offset,
-        durationMs: math.min(chunkDurationMs, durationMs - offset),
+        durationMs: logicalDuration,
+        extractionStartMs: extractionStart,
+        extractionDurationMs: extractionEnd - extractionStart,
       ),
     );
   }
@@ -135,6 +161,7 @@ class PodcastAsrModelInfo {
 class PodcastTranscriptionService {
   static const WhisperModel defaultModel = WhisperModel.base;
   static const defaultChunkMinutes = 3;
+  static const _chunkOverlapMs = 10000;
   static const chunkMinutesSettingKey = 'asr_chunk_minutes';
   static const languagePreferenceSettingKey = 'asr_language_preference';
   static const podcastLanguagePreference = 'podcast';
@@ -444,6 +471,7 @@ class PodcastTranscriptionService {
       startFromMs: startFromMs,
       chunkDurationMs: chunkDurationMs,
       maxUnknownChunks: _maximumUnknownDurationChunks,
+      overlapMs: _chunkOverlapMs,
     );
     final knownChunkCount = durationMs <= 0 ? null : plan.length;
     final output = <AudioTextTiming>[...cachedSegments];
@@ -471,8 +499,8 @@ class PodcastTranscriptionService {
       final hasAudio = await _extractAudioChunk(
         sourcePath: audioPath,
         targetPath: chunkPath,
-        startMs: startMs,
-        durationMs: requestedDurationMs,
+        startMs: window.extractionStartMs,
+        durationMs: window.extractionDurationMs,
       );
       if (!hasAudio) {
         if (knownChunkCount == null && chunkIndex > 0) break;
@@ -500,6 +528,10 @@ class PodcastTranscriptionService {
           audioPath: chunkPath,
           lang: language,
           withSegments: true,
+          // whisper_ggml exposes the same timestamp stream at word
+          // granularity. Keeping phrase-level markers here forces the UI to
+          // invent word timings by character count.
+          splitOnWord: true,
           suppressNonSpeechTokens: true,
           onProgress: (percent) {
             emit(
@@ -514,21 +546,31 @@ class PodcastTranscriptionService {
         }
 
         final response = result.transcription;
+        final responseSegments = response.segments ?? const [];
         final chunkSegments = <AudioTextTiming>[
-          for (final segment in response.segments ?? const [])
-            if (segment.text.trim().isNotEmpty)
+          for (final segment in responseSegments)
+            if (segment.text.trim().isNotEmpty &&
+                startMs + requestedDurationMs >
+                    window.extractionStartMs + segment.fromTs.inMilliseconds &&
+                startMs <=
+                    window.extractionStartMs + segment.fromTs.inMilliseconds)
               AudioTextTiming(
                 text: segment.text.trim(),
-                startMs: (startMs + segment.fromTs.inMilliseconds).toInt(),
-                endMs: (startMs + segment.toTs.inMilliseconds).toInt(),
+                startMs:
+                    (window.extractionStartMs + segment.fromTs.inMilliseconds)
+                        .toInt(),
+                endMs: (window.extractionStartMs + segment.toTs.inMilliseconds)
+                    .toInt(),
+                chunkStartMs: startMs,
               ),
         ];
-        if (chunkSegments.isEmpty && response.text.trim().isNotEmpty) {
+        if (responseSegments.isEmpty && response.text.trim().isNotEmpty) {
           chunkSegments.add(
             AudioTextTiming(
               text: response.text.trim(),
               startMs: startMs,
               endMs: startMs + requestedDurationMs,
+              chunkStartMs: startMs,
             ),
           );
         }
@@ -774,10 +816,19 @@ class PodcastTranscriptionService {
     if (source == null || source.isEmpty) return const [];
     try {
       final values = jsonDecode(source) as List<dynamic>;
-      return [
+      final decoded = <AudioTextTiming>[
         for (final value in values)
           AudioTextTiming.fromJson(Map<String, dynamic>.from(value as Map)),
       ];
+      decoded.removeWhere(
+        (timing) =>
+            timing.text.trim().isEmpty || timing.endMs <= timing.startMs,
+      );
+      decoded.sort((a, b) {
+        final byStart = a.startMs.compareTo(b.startMs);
+        return byStart != 0 ? byStart : a.endMs.compareTo(b.endMs);
+      });
+      return decoded;
     } catch (_) {
       return const [];
     }
