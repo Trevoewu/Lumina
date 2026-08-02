@@ -21,45 +21,42 @@ import 'package:lumina/services/lumina_audio_handler.dart';
 import 'package:lumina/services/sleep_timer_service.dart';
 
 void main() {
-  testWidgets('home section animation colors follow the active accent', (
-    tester,
-  ) async {
-    const accent = Color(0xFFFF6B6B);
-    final database = AppDatabase.forTesting(NativeDatabase.memory());
-    addTearDown(database.close);
+  testWidgets(
+    'home section tabs mark the active section with ink, not accent',
+    (tester) async {
+      const accent = Color(0xFFFF6B6B);
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(database.close);
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [appDatabaseProvider.overrideWithValue(database)],
-        child: MaterialApp(
-          theme: AppTheme.darkTheme(accentColor: accent),
-          home: const LibraryScreen(),
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [appDatabaseProvider.overrideWithValue(database)],
+          child: MaterialApp(
+            theme: AppTheme.darkTheme(accentColor: accent),
+            home: const LibraryScreen(),
+          ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    final allChip = tester.widget<ChoiceChip>(
-      find.byKey(const ValueKey('home-section-all')),
-    );
-    final chipContext = tester.element(
-      find.byKey(const ValueKey('home-section-all')),
-    );
-    final colors = Theme.of(chipContext).colorScheme;
+      final tabContext = tester.element(
+        find.byKey(const ValueKey('home-section-all')),
+      );
+      final colors = Theme.of(tabContext).colorScheme;
 
-    expect(allChip.selectedColor, accent);
-    expect(colors.surfaceTint, accent);
-    expect(colors.secondaryContainer, isNot(const Color(0xFF1DB954)));
+      expect(colors.surfaceTint, accent);
+      expect(colors.secondaryContainer, isNot(const Color(0xFF1DB954)));
+      expect(_tabStyle(tester, 'all').color, colors.onSurface);
+      expect(_tabStyle(tester, 'all').fontWeight, FontWeight.w800);
+      expect(_tabStyle(tester, 'books').color, isNot(accent));
+      expect(_tabStyle(tester, 'books').fontWeight, FontWeight.w600);
 
-    await tester.tap(find.byKey(const ValueKey('home-section-books')));
-    await tester.pumpAndSettle();
-    expect(
-      tester
-          .widget<ChoiceChip>(find.byKey(const ValueKey('home-section-books')))
-          .selectedColor,
-      accent,
-    );
-  });
+      await tester.tap(find.byKey(const ValueKey('home-section-books')));
+      await tester.pumpAndSettle();
+      expect(_tabStyle(tester, 'books').fontWeight, FontWeight.w800);
+      expect(_tabStyle(tester, 'all').fontWeight, FontWeight.w600);
+    },
+  );
 
   testWidgets('home header stays fixed through full all-page scrolls', (
     tester,
@@ -107,7 +104,10 @@ void main() {
     expect(find.byIcon(Icons.play_circle_fill_rounded), findsNothing);
     expect(find.byType(NestedScrollView), findsNothing);
     expect(find.byKey(const ValueKey('collapsing-page-title')), findsNothing);
-    expect(find.byType(BookListCard), findsNWidgets(5));
+    expect(find.byKey(const ValueKey('home-overview-hero')), findsOneWidget);
+    expect(find.byType(BookListCard), findsNothing);
+    expect(_overviewRows(), findsNWidgets(6));
+    expect(find.byKey(const ValueKey('home-overview-see-all')), findsOneWidget);
     expect(
       find.descendant(
         of: find.byKey(const ValueKey('home-section-selector')),
@@ -163,6 +163,11 @@ void main() {
       scrollable.position.pixels,
       closeTo(scrollable.position.minScrollExtent, 0.5),
     );
+    await tester.tap(find.byKey(const ValueKey('home-overview-see-all')));
+    await tester.pumpAndSettle();
+    expect(_overviewRows(), findsNWidgets(12));
+    expect(find.byKey(const ValueKey('home-overview-see-all')), findsNothing);
+
     await tester.tap(find.byKey(const ValueKey('home-section-books')));
     await tester.pumpAndSettle();
     expect(find.byType(BookListCard), findsNWidgets(5));
@@ -196,9 +201,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    bool isSelected(String section) => tester
-        .widget<ChoiceChip>(find.byKey(ValueKey('home-section-$section')))
-        .selected;
+    bool isSelected(String section) => _tabSelected(tester, section);
 
     final pages = find.byKey(const ValueKey('home-section-pages'));
     expect(pages, findsOneWidget);
@@ -451,6 +454,23 @@ void main() {
     expect(find.text('RSS URL'), findsOneWidget);
   });
 }
+
+Finder _overviewRows() => find.byWidgetPredicate((widget) {
+  final key = widget.key;
+  return key is ValueKey<String> && key.value.startsWith('home-overview-row-');
+});
+
+TextStyle _tabStyle(WidgetTester tester, String section) => tester
+    .widget<AnimatedDefaultTextStyle>(
+      find.descendant(
+        of: find.byKey(ValueKey('home-section-$section')),
+        matching: find.byType(AnimatedDefaultTextStyle),
+      ),
+    )
+    .style;
+
+bool _tabSelected(WidgetTester tester, String section) =>
+    _tabStyle(tester, section).fontWeight == FontWeight.w800;
 
 Future<void> _seedScrollableHome(AppDatabase database) async {
   for (var index = 0; index < 5; index++) {

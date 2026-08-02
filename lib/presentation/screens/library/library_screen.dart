@@ -52,34 +52,88 @@ class _HomeSectionSelector extends StatelessWidget {
       _HomeSection.podcasts: 'Podcast',
     };
     return SizedBox(
-      height: 56,
+      height: 44,
       child: ListView.separated(
         key: const ValueKey('home-section-selector'),
-        padding: EdgeInsets.fromLTRB(inset, 5, design.spaceXs, 5),
+        padding: EdgeInsets.fromLTRB(inset + 6, 0, design.spaceXs, 0),
         scrollDirection: Axis.horizontal,
         primary: false,
         itemCount: _HomeSection.values.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 10),
+        separatorBuilder: (_, _) => const SizedBox(width: 22),
         itemBuilder: (context, index) {
           final section = _HomeSection.values[index];
-          return ChoiceChip(
+          return _HomeSectionTab(
             key: ValueKey('home-section-${section.name}'),
-            label: Text(labels[section]!),
+            label: labels[section]!,
             selected: selected == section,
-            showCheckmark: false,
-            onSelected: (_) => onSelected(section),
-            labelStyle: TextStyle(
-              color: selected == section
-                  ? Theme.of(context).colorScheme.onPrimary
-                  : context.appTextPrimary,
-              fontWeight: FontWeight.w700,
-            ),
-            selectedColor: Theme.of(context).colorScheme.primary,
-            backgroundColor: context.appSurfaceHighlight,
-            side: BorderSide.none,
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            onTap: () => onSelected(section),
           );
         },
+      ),
+    );
+  }
+}
+
+/// Underline tab from the Lumina home design: weight, opacity and a 2px rule
+/// carry the selected state instead of a filled chip.
+class _HomeSectionTab extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _HomeSectionTab({
+    super.key,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ink = context.appTextPrimary;
+
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: IntrinsicWidth(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOut,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                  color: selected ? ink : ink.withValues(alpha: 0.35),
+                ),
+                child: Text(label),
+              ),
+              const SizedBox(height: 7),
+              AnimatedScale(
+                duration: const Duration(milliseconds: 300),
+                curve: const Cubic(0.2, 0.7, 0.2, 1),
+                alignment: Alignment.centerLeft,
+                scale: selected ? 1 : 0.3,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 250),
+                  opacity: selected ? 1 : 0,
+                  child: Container(
+                    height: 2,
+                    decoration: BoxDecoration(
+                      color: ink,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -130,44 +184,76 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             Material(
               key: const ValueKey('home-fixed-header'),
               color: context.appBackground,
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: _HomeSectionSelector(
-                      selected: _section,
-                      onSelected: _selectSection,
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      inset + 6,
+                      14,
+                      design.spaceXs,
+                      0,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Lumina',
+                            style: TextStyle(
+                              fontSize: 19,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.38,
+                              color: context.appTextPrimary,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          key: const ValueKey('home-search-action'),
+                          tooltip: _section == _HomeSection.podcasts
+                              ? context.tr(
+                                  '搜索 Podcast Index',
+                                  'Search Podcast Index',
+                                )
+                              : context.tr('搜索书籍', 'Search books'),
+                          onPressed: _openSearch,
+                          icon: Icon(
+                            Icons.search,
+                            size: 22,
+                            color: context.appTextPrimary,
+                          ),
+                        ),
+                        IconButton(
+                          key: const ValueKey('home-add-action'),
+                          tooltip: _section == _HomeSection.podcasts
+                              ? context.tr('添加 Podcast', 'Add podcast')
+                              : _section == _HomeSection.books
+                              ? context.tr('导入书籍', 'Import book')
+                              : context.tr('添加内容', 'Add content'),
+                          onPressed: _importing || _addingPodcast
+                              ? null
+                              : _handleAddAction,
+                          icon: _importing || _addingPodcast
+                              ? SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                    color: accent,
+                                  ),
+                                )
+                              : Icon(
+                                  Icons.add,
+                                  size: 22,
+                                  color: context.appTextPrimary,
+                                ),
+                        ),
+                      ],
                     ),
                   ),
-                  IconButton(
-                    key: const ValueKey('home-search-action'),
-                    tooltip: _section == _HomeSection.podcasts
-                        ? context.tr('搜索 Podcast Index', 'Search Podcast Index')
-                        : context.tr('搜索书籍', 'Search books'),
-                    onPressed: _openSearch,
-                    icon: Icon(Icons.search, color: context.appTextPrimary),
+                  _HomeSectionSelector(
+                    selected: _section,
+                    onSelected: _selectSection,
                   ),
-                  IconButton(
-                    key: const ValueKey('home-add-action'),
-                    tooltip: _section == _HomeSection.podcasts
-                        ? context.tr('添加 Podcast', 'Add podcast')
-                        : _section == _HomeSection.books
-                        ? context.tr('导入书籍', 'Import book')
-                        : context.tr('添加内容', 'Add content'),
-                    onPressed: _importing || _addingPodcast
-                        ? null
-                        : _handleAddAction,
-                    icon: _importing || _addingPodcast
-                        ? SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              color: accent,
-                            ),
-                          )
-                        : Icon(Icons.add, color: context.appTextPrimary),
-                  ),
-                  SizedBox(width: design.spaceXs),
                 ],
               ),
             ),

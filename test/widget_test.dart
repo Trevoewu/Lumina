@@ -153,7 +153,7 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 500));
 
-    var bookCard = find.byType(BookListCard);
+    var bookCard = find.byKey(const ValueKey('home-overview-hero'));
     expect(bookCard, findsOneWidget);
     expect(find.textContaining('0% read'), findsOneWidget);
     await tester.longPress(bookCard);

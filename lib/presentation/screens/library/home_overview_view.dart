@@ -7,9 +7,13 @@ import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart';
 import '../../widgets/book_card_metadata.dart';
-import '../../widgets/book_list_card.dart';
+import '../../widgets/book_cover.dart';
+import '../../widgets/podcast_artwork.dart';
 import '../podcast/podcast_episode_screen.dart';
-import '../podcast/podcast_episode_tile.dart';
+import '../podcast/podcast_formatters.dart';
+
+/// Number of feed rows shown before the "see all" link appears.
+const int _collapsedFeedLength = 6;
 
 class HomeOverviewView extends ConsumerStatefulWidget {
   final int reloadToken;
@@ -77,7 +81,7 @@ class _HomeOverviewViewState extends ConsumerState<HomeOverviewView> {
     final results = await Future.wait<Object>([
       database.getAllBooks(),
       database.getPodcastShows(),
-      database.getRecentPodcastEpisodes(limit: 8),
+      database.getRecentPodcastEpisodes(limit: 12),
       database.getFinishedChapterIndexesByBook(),
     ]);
     final books = results[0] as List<Book>;
@@ -99,7 +103,7 @@ class _HomeOverviewViewState extends ConsumerState<HomeOverviewView> {
   }
 }
 
-class _HomeOverviewContent extends StatelessWidget {
+class _HomeOverviewContent extends StatefulWidget {
   final _HomeOverviewData data;
   final ScrollController scrollController;
   final VoidCallback onImportBook;
@@ -119,120 +123,594 @@ class _HomeOverviewContent extends StatelessWidget {
   });
 
   @override
+  State<_HomeOverviewContent> createState() => _HomeOverviewContentState();
+}
+
+class _HomeOverviewContentState extends State<_HomeOverviewContent> {
+  bool _feedExpanded = false;
+
+  @override
   Widget build(BuildContext context) {
     final design = context.appDesign;
-    final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
-    final recentBooks = data.books.take(5).toList(growable: false);
+    final listGutter = design.pageInsetFor(MediaQuery.sizeOf(context).width);
+    final gutter = listGutter + 6;
+    final entries = _buildEntries(context);
+
+    if (entries.isEmpty) {
+      return _EmptyHome(
+        scrollController: widget.scrollController,
+        gutter: gutter,
+        onImportBook: widget.onImportBook,
+        onAddPodcast: widget.onAddPodcast,
+        onSearchPodcastIndex: widget.onSearchPodcastIndex,
+      );
+    }
+
+    // The hero resumes whatever was touched last; if nothing has been started
+    // it introduces the newest item instead.
+    final heroIndex = entries.indexWhere((entry) => entry.started);
+    final hero = entries[heroIndex < 0 ? 0 : heroIndex];
+    final feed = [
+      for (var index = 0; index < entries.length; index++)
+        if (entries[index] != hero) entries[index],
+    ];
+    final visibleFeed = _feedExpanded
+        ? feed
+        : feed.take(_collapsedFeedLength).toList(growable: false);
+    final hasHiddenRows = visibleFeed.length < feed.length;
 
     return ListView(
       key: const PageStorageKey('home-overview-list'),
-      controller: scrollController,
+      controller: widget.scrollController,
       primary: false,
-      padding: EdgeInsets.fromLTRB(inset, design.spaceLg, inset, 120),
+      padding: EdgeInsets.only(top: design.spaceLg, bottom: 120),
       children: [
-        if (data.books.isEmpty && data.episodes.isEmpty) ...[
-          Text(
-            context.tr('开始收听', 'Start listening'),
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              color: context.appTextPrimary,
-              fontWeight: FontWeight.w800,
-            ),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: gutter),
+          child: _HeroBlock(entry: hero),
+        ),
+        if (feed.isNotEmpty) ...[
+          Padding(
+            padding: EdgeInsets.fromLTRB(listGutter, 34, listGutter, 0),
+            child: const _HairlineDivider(),
           ),
-          SizedBox(height: design.spaceMd),
-          _StartCard(
-            icon: Icons.auto_stories_rounded,
-            title: context.tr('导入一本书', 'Import a book'),
-            subtitle: context.tr('支持 EPUB 和 TXT', 'EPUB and TXT supported'),
-            onTap: onImportBook,
-          ),
-          SizedBox(height: design.spaceMd),
-          _StartCard(
-            icon: Icons.travel_explore_rounded,
-            title: context.tr('发现 Podcast', 'Discover podcasts'),
-            subtitle: context.tr(
-              '通过 Podcast Index 搜索开放目录',
-              'Search the open directory with Podcast Index',
-            ),
-            onTap: onSearchPodcastIndex,
-          ),
-          SizedBox(height: design.spaceMd),
-          _StartCard(
-            icon: Icons.rss_feed,
-            title: context.tr('通过 RSS 添加', 'Add with RSS'),
-            subtitle: context.tr(
-              '粘贴已知的节目 Feed 地址',
-              'Paste a podcast feed you already know',
-            ),
-            onTap: onAddPodcast,
-          ),
-        ],
-        if (recentBooks.isNotEmpty) ...[
-          Text(
-            context.tr('继续阅读', 'Continue reading'),
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: context.appTextPrimary,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 8),
-          for (final book in recentBooks)
-            BookListCard(
-              title: book.title,
-              subtitle: book.author ?? context.tr('未知作者', 'Unknown author'),
-              localCoverPath: book.coverPath,
-              metadata: [
-                BookListCardMeta(
-                  icon: Icons.trending_up_outlined,
-                  label: bookReadingProgressLabel(
-                    context,
-                    book,
-                    finishedChapterIndexes:
-                        data.finishedChapterIndexesByBook[book.id] ??
-                        const <int>{},
+          Padding(
+            padding: EdgeInsets.fromLTRB(gutter, 22, gutter, 0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Expanded(
+                  child: Text(
+                    context.tr('最新', 'LATEST'),
+                    style: _kickerStyle(context),
                   ),
                 ),
-                BookListCardMeta(
-                  icon: Icons.library_books_outlined,
-                  label: context.tr(
-                    '${book.chapterCount} 章',
-                    '${book.chapterCount} chapters',
+                if (hasHiddenRows)
+                  GestureDetector(
+                    key: const ValueKey('home-overview-see-all'),
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => setState(() => _feedExpanded = true),
+                    child: Text(
+                      context.tr('全部', 'See all'),
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
                   ),
-                ),
               ],
-              onTap: () => onOpenBook(book),
-              onLongPress: () => onBookLongPress(book),
-            ),
-        ],
-        if (data.episodes.isNotEmpty) ...[
-          SizedBox(height: recentBooks.isEmpty ? 0 : design.spaceXl),
-          Text(
-            context.tr('Podcast 最新单集', 'Latest podcast episodes'),
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: context.appTextPrimary,
-              fontWeight: FontWeight.w800,
             ),
           ),
-          const SizedBox(height: 8),
-          for (final episode in data.episodes)
-            PodcastEpisodeTile(
-              episode: episode,
-              showTitle: data.showsById[episode.showId]?.title,
-              onTap: () =>
-                  openPodcastEpisodePlayer(context, episodeId: episode.id),
+          Padding(
+            padding: EdgeInsets.fromLTRB(listGutter, 6, listGutter, 0),
+            child: Column(
+              children: [
+                for (final (index, entry) in visibleFeed.indexed)
+                  _FeedRow(
+                    key: ValueKey('home-overview-row-$index'),
+                    entry: entry,
+                  ),
+              ],
             ),
+          ),
         ],
+      ],
+    );
+  }
+
+  /// Merges books and podcast episodes into one recency-ordered feed.
+  ///
+  /// The first entry becomes the hero "continue" block, so started items are
+  /// ranked ahead of untouched ones.
+  List<_HomeEntry> _buildEntries(BuildContext context) {
+    final data = widget.data;
+    final entries = <_HomeEntry>[];
+
+    for (final book in data.books) {
+      final percent = estimatedBookReadingProgress(
+        book,
+        finishedChapterIndexes:
+            data.finishedChapterIndexesByBook[book.id] ?? const <int>{},
+      );
+      final started = book.lastReadAt > 0;
+      final progressLabel = context.tr('进度 $percent%', '$percent% read');
+      entries.add(
+        _HomeEntry(
+          title: book.title,
+          subtitle: book.author ?? context.tr('未知作者', 'Unknown author'),
+          meta: context.tr('${book.chapterCount} 章', '${book.chapterCount} ch'),
+          when: progressLabel,
+          heroKicker: started
+              ? context.tr('继续阅读', 'CONTINUE READING')
+              : context.tr('开始阅读', 'START READING'),
+          heroPosition: progressLabel,
+          heroLeft: context.tr(
+            '${book.chapterCount} 章',
+            '${book.chapterCount} chapters',
+          ),
+          heroRight: started
+              ? _relativeDate(context, book.lastReadAt)
+              : context.tr('未开始', 'Not started'),
+          progress: percent / 100,
+          isPodcast: false,
+          localCoverPath: book.coverPath,
+          started: started,
+          sortKey: started ? book.lastReadAt : book.importedAt,
+          onTap: () => widget.onOpenBook(book),
+          onLongPress: () => widget.onBookLongPress(book),
+        ),
+      );
+    }
+
+    for (final episode in data.episodes) {
+      final show = data.showsById[episode.showId];
+      final duration = Duration(milliseconds: episode.durationMs);
+      final position = Duration(milliseconds: episode.playbackPositionMs);
+      final started =
+          episode.lastPlayedAt > 0 || episode.playbackPositionMs > 0;
+      final remaining = duration - position;
+      entries.add(
+        _HomeEntry(
+          title: episode.title,
+          subtitle: show?.title ?? 'Podcast',
+          meta: _durationLabel(context, episode.durationMs),
+          when: _relativeDate(context, episode.publishedAt),
+          heroKicker: started
+              ? context.tr('继续收听', 'CONTINUE LISTENING')
+              : context.tr('开始收听', 'START LISTENING'),
+          heroPosition: episode.durationMs > 0
+              ? '${formatPlaybackTime(position)} / '
+                    '${formatPlaybackTime(duration)}'
+              : _relativeDate(context, episode.publishedAt),
+          // The show name is already the hero subtitle, so the footer carries
+          // the publish date instead of repeating it.
+          heroLeft: _relativeDate(context, episode.publishedAt),
+          heroRight: episode.isPlayed
+              ? context.tr('已听完', 'Finished')
+              : remaining > Duration.zero
+              ? context.tr(
+                  '剩余 ${formatPlaybackTime(remaining)}',
+                  '${formatPlaybackTime(remaining)} left',
+                )
+              : _durationLabel(context, episode.durationMs),
+          progress: episode.durationMs <= 0
+              ? 0
+              : (episode.playbackPositionMs / episode.durationMs).clamp(
+                  0.0,
+                  1.0,
+                ),
+          isPodcast: true,
+          remoteImageUrl: episode.imageUrl,
+          started: started,
+          sortKey: started && episode.lastPlayedAt > 0
+              ? episode.lastPlayedAt
+              : episode.publishedAt,
+          onTap: () => openPodcastEpisodePlayer(context, episodeId: episode.id),
+        ),
+      );
+    }
+
+    entries.sort((left, right) => right.sortKey.compareTo(left.sortKey));
+    return entries;
+  }
+}
+
+class _HeroBlock extends StatelessWidget {
+  final _HomeEntry entry;
+
+  const _HeroBlock({required this.entry});
+
+  @override
+  Widget build(BuildContext context) {
+    final ink = context.appTextPrimary;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(entry.heroKicker, style: _kickerStyle(context)),
+        const SizedBox(height: 14),
+        GestureDetector(
+          key: const ValueKey('home-overview-hero'),
+          behavior: HitTestBehavior.opaque,
+          onTap: entry.onTap,
+          onLongPress: entry.onLongPress,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _EntryArtwork(entry: entry, size: 104, borderRadius: 14),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        entry.title,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 22,
+                          height: 1.22,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.33,
+                          color: ink,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        entry.subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w400,
+                          color: ink.withValues(alpha: 0.45),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        entry.heroPosition,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: _technicalStyle(
+                          context,
+                          size: 12.5,
+                          alpha: 0.45,
+                          weight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            _PlayButton(onTap: entry.onTap),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _ProgressTrack(
+                    value: entry.progress,
+                    height: 4,
+                    trackAlpha: 0.14,
+                  ),
+                  const SizedBox(height: 9),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          entry.heroLeft,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: _technicalStyle(context, size: 12, alpha: 0.4),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        entry.heroRight,
+                        maxLines: 1,
+                        style: _technicalStyle(context, size: 12, alpha: 0.4),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }
 }
 
-class _StartCard extends StatelessWidget {
+class _FeedRow extends StatelessWidget {
+  final _HomeEntry entry;
+
+  const _FeedRow({super.key, required this.entry});
+
+  @override
+  Widget build(BuildContext context) {
+    final ink = context.appTextPrimary;
+    final meta = [
+      entry.meta,
+      entry.when,
+    ].where((value) => value.trim().isNotEmpty).join('  ·  ');
+
+    return InkWell(
+      onTap: entry.onTap,
+      onLongPress: entry.onLongPress,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 13),
+        child: Row(
+          children: [
+            _EntryArtwork(entry: entry, size: 54, borderRadius: 12),
+            const SizedBox(width: 13),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    entry.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 15.5,
+                      height: 1.3,
+                      fontWeight: FontWeight.w700,
+                      color: ink,
+                    ),
+                  ),
+                  if (meta.isNotEmpty) ...[
+                    const SizedBox(height: 5),
+                    Text(
+                      meta,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: _technicalStyle(
+                        context,
+                        size: 12.5,
+                        alpha: 0.42,
+                        weight: FontWeight.w400,
+                      ),
+                    ),
+                  ],
+                  if (entry.progress > 0) ...[
+                    const SizedBox(height: 9),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 150),
+                      child: _ProgressTrack(
+                        value: entry.progress,
+                        height: 3,
+                        trackAlpha: 0.10,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: ink.withValues(alpha: 0.06),
+              ),
+              child: Icon(Icons.play_arrow_rounded, size: 18, color: ink),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EntryArtwork extends StatelessWidget {
+  final _HomeEntry entry;
+  final double size;
+  final double borderRadius;
+
+  const _EntryArtwork({
+    required this.entry,
+    required this.size,
+    required this.borderRadius,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(borderRadius),
+        boxShadow: size >= 90
+            ? [
+                BoxShadow(
+                  color: const Color(0xFF141E32).withValues(alpha: 0.24),
+                  blurRadius: 26,
+                  offset: const Offset(0, 12),
+                ),
+              ]
+            : null,
+      ),
+      child: entry.isPodcast
+          ? PodcastArtwork(
+              imageUrl: entry.remoteImageUrl,
+              size: size,
+              borderRadius: borderRadius,
+            )
+          : BookCover(
+              coverPath: entry.localCoverPath,
+              borderRadius: borderRadius,
+              iconSize: size * 0.34,
+              placeholderIcon: Icons.auto_stories_outlined,
+            ),
+    );
+  }
+}
+
+class _PlayButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _PlayButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final ink = context.appTextPrimary;
+
+    return GestureDetector(
+      key: const ValueKey('home-overview-hero-play'),
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        width: 56,
+        height: 56,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: ink,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.22),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Icon(
+          Icons.play_arrow_rounded,
+          size: 30,
+          color: context.appBackground,
+        ),
+      ),
+    );
+  }
+}
+
+class _ProgressTrack extends StatelessWidget {
+  final double value;
+  final double height;
+  final double trackAlpha;
+
+  const _ProgressTrack({
+    required this.value,
+    required this.height,
+    required this.trackAlpha,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ink = context.appTextPrimary;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(height),
+      child: SizedBox(
+        height: height,
+        child: LinearProgressIndicator(
+          value: value.clamp(0.0, 1.0),
+          minHeight: height,
+          backgroundColor: ink.withValues(alpha: trackAlpha),
+          valueColor: AlwaysStoppedAnimation<Color>(ink),
+        ),
+      ),
+    );
+  }
+}
+
+class _HairlineDivider extends StatelessWidget {
+  const _HairlineDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    final line = context.appTextPrimary.withValues(alpha: 0.09);
+
+    return Container(
+      height: 1,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.transparent, line, line, Colors.transparent],
+          stops: const [0, 0.12, 0.88, 1],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyHome extends StatelessWidget {
+  final ScrollController scrollController;
+  final double gutter;
+  final VoidCallback onImportBook;
+  final VoidCallback onAddPodcast;
+  final VoidCallback onSearchPodcastIndex;
+
+  const _EmptyHome({
+    required this.scrollController,
+    required this.gutter,
+    required this.onImportBook,
+    required this.onAddPodcast,
+    required this.onSearchPodcastIndex,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final design = context.appDesign;
+
+    return ListView(
+      key: const PageStorageKey('home-overview-list'),
+      controller: scrollController,
+      primary: false,
+      padding: EdgeInsets.fromLTRB(gutter, design.spaceLg, gutter, 120),
+      children: [
+        Text(
+          context.tr('开始收听', 'START LISTENING'),
+          style: _kickerStyle(context),
+        ),
+        const SizedBox(height: 14),
+        _StartRow(
+          icon: Icons.auto_stories_outlined,
+          title: context.tr('导入一本书', 'Import a book'),
+          subtitle: context.tr('支持 EPUB 和 TXT', 'EPUB and TXT supported'),
+          onTap: onImportBook,
+        ),
+        _StartRow(
+          icon: Icons.travel_explore_outlined,
+          title: context.tr('发现 Podcast', 'Discover podcasts'),
+          subtitle: context.tr(
+            '通过 Podcast Index 搜索开放目录',
+            'Search the open directory with Podcast Index',
+          ),
+          onTap: onSearchPodcastIndex,
+        ),
+        _StartRow(
+          icon: Icons.rss_feed,
+          title: context.tr('通过 RSS 添加', 'Add with RSS'),
+          subtitle: context.tr(
+            '粘贴已知的节目 Feed 地址',
+            'Paste a podcast feed you already know',
+          ),
+          onTap: onAddPodcast,
+        ),
+      ],
+    );
+  }
+}
+
+class _StartRow extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
 
-  const _StartCard({
+  const _StartRow({
     required this.icon,
     required this.title,
     required this.subtitle,
@@ -241,47 +719,148 @@ class _StartCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Row(
-            children: [
-              Icon(
-                icon,
-                size: 42,
-                color: Theme.of(context).colorScheme.primary,
+    final ink = context.appTextPrimary;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        child: Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(13),
+                color: ink.withValues(alpha: 0.06),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                      ),
+              child: Icon(icon, size: 22, color: ink),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 15.5,
+                      height: 1.3,
+                      fontWeight: FontWeight.w700,
+                      color: ink,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: TextStyle(color: context.appTextSecondary),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.35,
+                      color: ink.withValues(alpha: 0.45),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              const Icon(Icons.chevron_right),
-            ],
-          ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              color: ink.withValues(alpha: 0.32),
+              size: 22,
+            ),
+          ],
         ),
       ),
     );
   }
+}
+
+/// Locale-aware episode length, matching [_relativeDate] beside it.
+String _durationLabel(BuildContext context, int milliseconds) {
+  if (milliseconds <= 0) return '';
+  if (context.usesChinese) return formatPodcastDuration(milliseconds);
+  final duration = Duration(milliseconds: milliseconds);
+  final hours = duration.inHours;
+  final minutes = duration.inMinutes.remainder(60);
+  if (hours > 0) return minutes == 0 ? '${hours}h' : '${hours}h ${minutes}m';
+  return '${duration.inMinutes.clamp(1, 9999)} min';
+}
+
+/// Locale-aware relative date for the hero footer and feed rows.
+///
+/// [formatPodcastDate] is Chinese-only, and these labels sit next to English
+/// copy on the home page.
+String _relativeDate(BuildContext context, int milliseconds) {
+  if (milliseconds <= 0) return '';
+  final date = DateTime.fromMillisecondsSinceEpoch(milliseconds).toLocal();
+  final difference = DateTime.now().difference(date);
+  if (!difference.isNegative) {
+    if (difference.inDays == 0) return context.tr('今天', 'Today');
+    if (difference.inDays == 1) return context.tr('昨天', 'Yesterday');
+    if (difference.inDays < 7) {
+      final days = difference.inDays;
+      return context.tr('$days 天前', '$days days ago');
+    }
+  }
+  return '${date.year}-${date.month.toString().padLeft(2, '0')}-'
+      '${date.day.toString().padLeft(2, '0')}';
+}
+
+TextStyle _kickerStyle(BuildContext context) => TextStyle(
+  fontSize: 10.5,
+  fontWeight: FontWeight.w600,
+  letterSpacing: 1.26,
+  color: context.appTextPrimary.withValues(alpha: 0.35),
+);
+
+TextStyle _technicalStyle(
+  BuildContext context, {
+  required double size,
+  required double alpha,
+  FontWeight weight = FontWeight.w500,
+}) => TextStyle(
+  fontSize: size,
+  fontWeight: weight,
+  color: context.appTextPrimary.withValues(alpha: alpha),
+  fontFeatures: const [FontFeature.tabularFigures()],
+);
+
+class _HomeEntry {
+  final String title;
+  final String subtitle;
+  final String meta;
+  final String when;
+  final String heroKicker;
+  final String heroPosition;
+  final String heroLeft;
+  final String heroRight;
+  final double progress;
+  final bool isPodcast;
+  final String? localCoverPath;
+  final String? remoteImageUrl;
+  final bool started;
+  final int sortKey;
+  final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+
+  const _HomeEntry({
+    required this.title,
+    required this.subtitle,
+    required this.meta,
+    required this.when,
+    required this.heroKicker,
+    required this.heroPosition,
+    required this.heroLeft,
+    required this.heroRight,
+    required this.progress,
+    required this.isPodcast,
+    required this.started,
+    required this.sortKey,
+    required this.onTap,
+    this.localCoverPath,
+    this.remoteImageUrl,
+    this.onLongPress,
+  });
 }
 
 class _HomeOverviewData {
