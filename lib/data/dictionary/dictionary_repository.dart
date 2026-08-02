@@ -17,11 +17,16 @@ class DictionaryLookupResult {
   final bool fromCache;
   final DictionaryLookupContext? context;
 
+  /// When this word was last opened, for "recently looked up" labels.
+  /// Zero for results that did not come from a cache row.
+  final int lastAccessedAt;
+
   const DictionaryLookupResult({
     required this.cacheId,
     required this.entry,
     required this.fromCache,
     this.context,
+    this.lastAccessedAt = 0,
   });
 }
 
@@ -236,15 +241,25 @@ class DictionaryRepository {
 
   Future<List<DictionaryLookupResult>> recent({int? limit}) async {
     final rows = await _database.getRecentDictionaryEntries(limit: limit);
-    return [
-      for (final row in rows)
-        DictionaryLookupResult(
-          cacheId: row.id,
-          entry: _fromRow(row),
-          fromCache: true,
-        ),
-    ];
+    return [for (final row in rows) _resultFromRow(row)];
   }
+
+  /// Cached words starting with [prefix], for as-you-type suggestions.
+  Future<List<DictionaryLookupResult>> suggest(
+    String prefix, {
+    int limit = 5,
+  }) async {
+    final rows = await _database.searchDictionaryEntries(prefix, limit: limit);
+    return [for (final row in rows) _resultFromRow(row)];
+  }
+
+  DictionaryLookupResult _resultFromRow(DictionaryEntry row) =>
+      DictionaryLookupResult(
+        cacheId: row.id,
+        entry: _fromRow(row),
+        fromCache: true,
+        lastAccessedAt: row.lastAccessedAt,
+      );
 
   Future<List<FavoriteVocabularyEntry>> favorites() async {
     final rows = await _database.getFavoriteWordEntries();
@@ -256,6 +271,7 @@ class DictionaryRepository {
             cacheId: row.entry.id,
             entry: _fromRow(row.entry),
             fromCache: true,
+            lastAccessedAt: row.entry.lastAccessedAt,
             context: row.favorite.contextText == null
                 ? null
                 : DictionaryLookupContext(

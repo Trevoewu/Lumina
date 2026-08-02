@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/app_colors.dart';
 import '../../../core/app_design_tokens.dart';
 import '../../../core/app_localizations.dart';
+import '../../../core/relative_time.dart';
 import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart';
 import '../../widgets/book_card_metadata.dart';
+import '../../widgets/design_system/editorial_type.dart';
 import '../../widgets/book_cover.dart';
 import '../../widgets/podcast_artwork.dart';
 import '../podcast/podcast_episode_screen.dart';
@@ -183,7 +185,7 @@ class _HomeOverviewContentState extends State<_HomeOverviewContent> {
                 Expanded(
                   child: Text(
                     context.tr('最新', 'LATEST'),
-                    style: _kickerStyle(context),
+                    style: kickerTextStyle(context),
                   ),
                 ),
                 if (hasHiddenRows)
@@ -251,7 +253,7 @@ class _HomeOverviewContentState extends State<_HomeOverviewContent> {
             '${book.chapterCount} chapters',
           ),
           heroRight: started
-              ? _relativeDate(context, book.lastReadAt)
+              ? relativeTimeLabel(context, book.lastReadAt)
               : context.tr('未开始', 'Not started'),
           progress: percent / 100,
           isPodcast: false,
@@ -276,17 +278,17 @@ class _HomeOverviewContentState extends State<_HomeOverviewContent> {
           title: episode.title,
           subtitle: show?.title ?? 'Podcast',
           meta: _durationLabel(context, episode.durationMs),
-          when: _relativeDate(context, episode.publishedAt),
+          when: relativeTimeLabel(context, episode.publishedAt),
           heroKicker: started
               ? context.tr('继续收听', 'CONTINUE LISTENING')
               : context.tr('开始收听', 'START LISTENING'),
           heroPosition: episode.durationMs > 0
               ? '${formatPlaybackTime(position)} / '
                     '${formatPlaybackTime(duration)}'
-              : _relativeDate(context, episode.publishedAt),
+              : relativeTimeLabel(context, episode.publishedAt),
           // The show name is already the hero subtitle, so the footer carries
           // the publish date instead of repeating it.
-          heroLeft: _relativeDate(context, episode.publishedAt),
+          heroLeft: relativeTimeLabel(context, episode.publishedAt),
           heroRight: episode.isPlayed
               ? context.tr('已听完', 'Finished')
               : remaining > Duration.zero
@@ -329,7 +331,7 @@ class _HeroBlock extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(entry.heroKicker, style: _kickerStyle(context)),
+        Text(entry.heroKicker, style: kickerTextStyle(context)),
         const SizedBox(height: 14),
         GestureDetector(
           key: const ValueKey('home-overview-hero'),
@@ -375,7 +377,7 @@ class _HeroBlock extends StatelessWidget {
                         entry.heroPosition,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: _technicalStyle(
+                        style: technicalTextStyle(
                           context,
                           size: 12.5,
                           alpha: 0.45,
@@ -411,14 +413,22 @@ class _HeroBlock extends StatelessWidget {
                           entry.heroLeft,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: _technicalStyle(context, size: 12, alpha: 0.4),
+                          style: technicalTextStyle(
+                            context,
+                            size: 12,
+                            alpha: 0.4,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 10),
                       Text(
                         entry.heroRight,
                         maxLines: 1,
-                        style: _technicalStyle(context, size: 12, alpha: 0.4),
+                        style: technicalTextStyle(
+                          context,
+                          size: 12,
+                          alpha: 0.4,
+                        ),
                       ),
                     ],
                   ),
@@ -476,7 +486,7 @@ class _FeedRow extends StatelessWidget {
                       meta,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: _technicalStyle(
+                      style: technicalTextStyle(
                         context,
                         size: 12.5,
                         alpha: 0.42,
@@ -672,7 +682,7 @@ class _EmptyHome extends StatelessWidget {
       children: [
         Text(
           context.tr('开始收听', 'START LISTENING'),
-          style: _kickerStyle(context),
+          style: kickerTextStyle(context),
         ),
         const SizedBox(height: 14),
         _StartRow(
@@ -775,7 +785,7 @@ class _StartRow extends StatelessWidget {
   }
 }
 
-/// Locale-aware episode length, matching [_relativeDate] beside it.
+/// Locale-aware episode length, matching [relativeTimeLabel] beside it.
 String _durationLabel(BuildContext context, int milliseconds) {
   if (milliseconds <= 0) return '';
   if (context.usesChinese) return formatPodcastDuration(milliseconds);
@@ -785,45 +795,6 @@ String _durationLabel(BuildContext context, int milliseconds) {
   if (hours > 0) return minutes == 0 ? '${hours}h' : '${hours}h ${minutes}m';
   return '${duration.inMinutes.clamp(1, 9999)} min';
 }
-
-/// Locale-aware relative date for the hero footer and feed rows.
-///
-/// [formatPodcastDate] is Chinese-only, and these labels sit next to English
-/// copy on the home page.
-String _relativeDate(BuildContext context, int milliseconds) {
-  if (milliseconds <= 0) return '';
-  final date = DateTime.fromMillisecondsSinceEpoch(milliseconds).toLocal();
-  final difference = DateTime.now().difference(date);
-  if (!difference.isNegative) {
-    if (difference.inDays == 0) return context.tr('今天', 'Today');
-    if (difference.inDays == 1) return context.tr('昨天', 'Yesterday');
-    if (difference.inDays < 7) {
-      final days = difference.inDays;
-      return context.tr('$days 天前', '$days days ago');
-    }
-  }
-  return '${date.year}-${date.month.toString().padLeft(2, '0')}-'
-      '${date.day.toString().padLeft(2, '0')}';
-}
-
-TextStyle _kickerStyle(BuildContext context) => TextStyle(
-  fontSize: 10.5,
-  fontWeight: FontWeight.w600,
-  letterSpacing: 1.26,
-  color: context.appTextPrimary.withValues(alpha: 0.35),
-);
-
-TextStyle _technicalStyle(
-  BuildContext context, {
-  required double size,
-  required double alpha,
-  FontWeight weight = FontWeight.w500,
-}) => TextStyle(
-  fontSize: size,
-  fontWeight: weight,
-  color: context.appTextPrimary.withValues(alpha: alpha),
-  fontFeatures: const [FontFeature.tabularFigures()],
-);
 
 class _HomeEntry {
   final String title;

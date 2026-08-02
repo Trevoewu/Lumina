@@ -201,14 +201,115 @@ void main() {
     expect(find.text('word2'), findsOneWidget);
     expect(find.text('word5'), findsOneWidget);
     expect(find.text('word1'), findsNothing);
-    expect(find.text('View All'), findsNWidgets(2));
+    expect(find.text('All'), findsNWidgets(2));
+    expect(find.text('SAVED · 5'), findsOneWidget);
+    expect(find.text('RECENT'), findsOneWidget);
 
-    await tester.tap(find.text('View All').first);
+    await tester.tap(find.text('All').first);
     await _pumpReady(tester);
 
     expect(find.text('Favorites'), findsOneWidget);
     expect(find.text('word0'), findsOneWidget);
     expect(find.text('word4'), findsOneWidget);
+  });
+
+  testWidgets('dictionary search lists cached matches for the typed prefix', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(430, 850);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final repository = DictionaryRepository(
+      database,
+      provider: _FakeProvider(),
+    );
+    addTearDown(database.close);
+    await repository.lookup('mulberry');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          dictionaryRepositoryProvider.overrideWithValue(repository),
+        ],
+        child: MaterialApp(
+          theme: ThemeData.dark(),
+          home: const DictionaryScreen(),
+        ),
+      ),
+    );
+    await _pumpReady(tester);
+
+    await tester.enterText(
+      find.byKey(const ValueKey('dictionary-search-field')),
+      'mul',
+    );
+    await _pumpReady(tester);
+
+    expect(find.text('MATCHES'), findsOneWidget);
+    expect(find.text('RECENT'), findsNothing);
+    expect(find.text('mulberry'), findsOneWidget);
+    // The typed prefix is not itself a cached word, so the online lookup row
+    // stays available underneath the match.
+    expect(
+      find.byKey(const ValueKey('dictionary-suggestion-lookup')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('mulberry'));
+    await _pumpReady(tester);
+    expect(
+      find.byKey(const ValueKey('dictionary-detail-search-field')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('dictionary history row saves a word to the vocabulary list', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(430, 850);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final repository = DictionaryRepository(
+      database,
+      provider: _FakeProvider(),
+    );
+    addTearDown(database.close);
+    final result = await repository.lookup('mulberry');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          dictionaryRepositoryProvider.overrideWithValue(repository),
+        ],
+        child: MaterialApp(
+          theme: ThemeData.dark(),
+          home: const DictionaryScreen(),
+        ),
+      ),
+    );
+    await _pumpReady(tester);
+
+    expect(find.text('SAVED · 1'), findsNothing);
+    expect(find.byIcon(Icons.bookmark), findsNothing);
+
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(ValueKey('dictionary-history-${result.cacheId}')),
+        matching: find.byIcon(Icons.bookmark_border),
+      ),
+    );
+    await _pumpReady(tester);
+
+    expect(await repository.isFavorite(result.cacheId), isTrue);
+    expect(find.text('SAVED · 1'), findsOneWidget);
   });
 
   testWidgets('context lookup opens in a reusable draggable sheet', (

@@ -926,6 +926,28 @@ class AppDatabase extends _$AppDatabase {
     return query.get();
   }
 
+  /// Cached words starting with [prefix], most recently used first.
+  Future<List<DictionaryEntry>> searchDictionaryEntries(
+    String prefix, {
+    int limit = 5,
+  }) {
+    final normalized = prefix.trim().toLowerCase();
+    if (normalized.isEmpty) return Future.value(const []);
+    return (select(dictionaryEntries)
+          ..where(
+            (row) =>
+                row.status.equals('success') &
+                row.provider.equals('vocabulary_com') &
+                row.normalizedTerm.like('${_escapeLike(normalized)}%'),
+          )
+          ..orderBy([(row) => OrderingTerm.desc(row.lastAccessedAt)])
+          ..limit(limit))
+        .get();
+  }
+
+  static String _escapeLike(String value) =>
+      value.replaceAll('%', '').replaceAll('_', '');
+
   // ── 收藏单词 ──
 
   Future<FavoriteWord?> getFavoriteForEntry(String dictionaryEntryId) =>
