@@ -527,7 +527,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
-  testWidgets('transcript mode idles its chrome away and taps it back', (
+  testWidgets('transcript mode keeps its chrome visible while playing', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -580,36 +580,13 @@ void main() {
     await tester.pumpAndSettle();
     expect(transcriptToggle.hitTestable(), findsOneWidget);
 
+    // Playing no longer starts an idle timer; both chrome bands stay visible.
     handler.setPlaying(true);
     await tester.pump();
-
-    // Playback enables the idle timer; once it elapses, the chrome drops out
-    // of the way, leaving the transcript and the wake-up hint.
-    await tester.pump(const Duration(seconds: 4));
-    await tester.pump(const Duration(milliseconds: 500));
-    expect(transcriptToggle.hitTestable(), findsOneWidget);
-    await tester.pump(const Duration(seconds: 2));
-    await tester.pump(const Duration(milliseconds: 500));
-    expect(
-      transcriptToggle.hitTestable(),
-      findsNothing,
-      reason: 'idle chrome must stop taking taps',
-    );
-    expect(
-      find.text('Tap anywhere to bring the controls back'),
-      findsOneWidget,
-    );
-
-    // The transcript itself never moves, so any touch is enough to wake it.
-    await tester.tapAt(const Offset(195, 420));
-    await tester.pump(const Duration(milliseconds: 1000));
-    expect(transcriptToggle.hitTestable(), findsOneWidget);
-
-    // Pausing after wake-up keeps the chrome visible and cancels future hides.
-    handler.setPlaying(false);
     await tester.pump(const Duration(seconds: 6));
     await tester.pump(const Duration(milliseconds: 500));
     expect(transcriptToggle.hitTestable(), findsOneWidget);
+    expect(find.text('Tap anywhere to bring the controls back'), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));

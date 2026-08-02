@@ -385,7 +385,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   static const _playerTransitionDuration = Duration(milliseconds: 480);
   static const _transcriptPageTransitionDuration = Duration(milliseconds: 720);
   static const _transcriptPageReverseDuration = Duration(milliseconds: 520);
-  static const _transcriptChromeAutoHideDelay = Duration(seconds: 5);
 
   final ScrollController _playerScrollController = ScrollController();
 
@@ -421,8 +420,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _transcriptPageActive = false;
   bool _transcriptRouteOpen = false;
   Timer? _transcriptPageActivationTimer;
-  final ValueNotifier<bool> _transcriptChromeVisible = ValueNotifier(true);
-  final ValueNotifier<int> _transcriptChromeInteraction = ValueNotifier(0);
   String? _ambientArtworkUrl;
   Future<Color?>? _ambientSeed;
 
@@ -464,8 +461,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       ..removeListener(_handlePlayerScroll)
       ..dispose();
     _transcriptScrollController.dispose();
-    _transcriptChromeVisible.dispose();
-    _transcriptChromeInteraction.dispose();
     _controlStateRevision.dispose();
     _transcriptPageRevision.dispose();
     super.dispose();
@@ -501,7 +496,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     required String chapterTitle,
   }) async {
     if (!mounted || (!_isPodcast && chapterId == null)) return;
-    _transcriptChromeVisible.value = true;
     _transcriptRouteOpen = true;
     if (_showStickyMiniPlayer) {
       setState(() => _showStickyMiniPlayer = false);
@@ -554,7 +548,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _transcriptPageActivationTimer = null;
     if (mounted) {
       setState(() => _transcriptPageActive = false);
-      _transcriptChromeVisible.value = true;
     }
   }
 
@@ -580,74 +573,32 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       Navigator.of(routeContext).pop();
     }
 
-    return Listener(
-      behavior: HitTestBehavior.opaque,
-      onPointerDown: (_) => _transcriptChromeInteraction.value++,
-      onPointerSignal: (_) => _transcriptChromeInteraction.value++,
-      child: DecoratedBox(
-        key: const ValueKey('player-transcript-page'),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [topTint, middleTint, pageBottom],
-            stops: const [0, 0.46, 1],
-          ),
+    return DecoratedBox(
+      key: const ValueKey('player-transcript-page'),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [topTint, middleTint, pageBottom],
+          stops: const [0, 0.46, 1],
         ),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            Positioned.fill(child: _buildPageAmbience()),
-            Scaffold(
-              resizeToAvoidBottomInset: false,
-              backgroundColor: Colors.transparent,
-              body: SafeArea(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final pageInset = context.appDesign.pageInsetFor(
-                      constraints.maxWidth,
-                    );
-                    if (_isPodcast) {
-                      final data = widget.podcast!;
-                      final episode = _podcastEpisode ?? data.episode;
-                      return _buildTranscriptModeBody(
-                        constraints: constraints,
-                        handler: handler,
-                        selectedLoaded: selectedLoaded,
-                        duration: duration,
-                        manifest: manifest,
-                        pageInset: pageInset,
-                        lyricsChapterId: episode.id,
-                        scrollKey: const ValueKey(
-                          'podcast-transcript-scroll-view',
-                        ),
-                        viewportKey: const ValueKey(
-                          'podcast-transcript-focus-viewport',
-                        ),
-                        miniHeader: _buildTranscriptMiniHeader(
-                          title: episode.title,
-                          subtitle: data.show.title,
-                          pageInset: pageInset,
-                          trailing: _buildPodcastTranscriptionActions(episode),
-                          onClose: closePage,
-                        ),
-                        belowFold: [
-                          _buildPodcastShownotesCard(
-                            episode: episode,
-                            handler: handler,
-                          ),
-                          SizedBox(height: context.appDesign.spaceMd),
-                          _buildAiSummaryCard(
-                            handler: handler,
-                            manifest: manifest,
-                          ),
-                        ],
-                        pageAnimation: pageAnimation,
-                        onExit: closePage,
-                      );
-                    }
-
-                    if (chapterId == null) return const SizedBox.shrink();
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Positioned.fill(child: _buildPageAmbience()),
+          Scaffold(
+            resizeToAvoidBottomInset: false,
+            backgroundColor: Colors.transparent,
+            body: SafeArea(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final pageInset = context.appDesign.pageInsetFor(
+                    constraints.maxWidth,
+                  );
+                  if (_isPodcast) {
+                    final data = widget.podcast!;
+                    final episode = _podcastEpisode ?? data.episode;
                     return _buildTranscriptModeBody(
                       constraints: constraints,
                       handler: handler,
@@ -655,18 +606,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       duration: duration,
                       manifest: manifest,
                       pageInset: pageInset,
-                      lyricsChapterId: chapterId,
-                      scrollKey: const ValueKey('book-transcript-scroll-view'),
+                      lyricsChapterId: episode.id,
+                      scrollKey: const ValueKey(
+                        'podcast-transcript-scroll-view',
+                      ),
                       viewportKey: const ValueKey(
-                        'book-transcript-focus-viewport',
+                        'podcast-transcript-focus-viewport',
                       ),
                       miniHeader: _buildTranscriptMiniHeader(
-                        title: chapterTitle,
-                        subtitle: widget.book.title,
+                        title: episode.title,
+                        subtitle: data.show.title,
                         pageInset: pageInset,
+                        trailing: _buildPodcastTranscriptionActions(episode),
                         onClose: closePage,
                       ),
                       belowFold: [
+                        _buildPodcastShownotesCard(
+                          episode: episode,
+                          handler: handler,
+                        ),
+                        SizedBox(height: context.appDesign.spaceMd),
                         _buildAiSummaryCard(
                           handler: handler,
                           manifest: manifest,
@@ -675,12 +634,38 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       pageAnimation: pageAnimation,
                       onExit: closePage,
                     );
-                  },
-                ),
+                  }
+
+                  if (chapterId == null) return const SizedBox.shrink();
+                  return _buildTranscriptModeBody(
+                    constraints: constraints,
+                    handler: handler,
+                    selectedLoaded: selectedLoaded,
+                    duration: duration,
+                    manifest: manifest,
+                    pageInset: pageInset,
+                    lyricsChapterId: chapterId,
+                    scrollKey: const ValueKey('book-transcript-scroll-view'),
+                    viewportKey: const ValueKey(
+                      'book-transcript-focus-viewport',
+                    ),
+                    miniHeader: _buildTranscriptMiniHeader(
+                      title: chapterTitle,
+                      subtitle: widget.book.title,
+                      pageInset: pageInset,
+                      onClose: closePage,
+                    ),
+                    belowFold: [
+                      _buildAiSummaryCard(handler: handler, manifest: manifest),
+                    ],
+                    pageAnimation: pageAnimation,
+                    onExit: closePage,
+                  );
+                },
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -2010,137 +1995,98 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // vacated by the cover, and the transport controls at the bottom.
     final stageHeight = math.max(360.0, constraints.maxHeight);
 
-    return _TranscriptChromeController(
-      handler: handler,
-      playbackEnabled: selectedLoaded,
-      visibility: _transcriptChromeVisible,
-      interaction: _transcriptChromeInteraction,
-      autoHideDelay: _transcriptChromeAutoHideDelay,
-      // Only real input wakes the chrome. The transcript auto-scrolls itself
-      // every line, so reacting to scroll notifications would keep the controls
-      // on screen for the whole episode.
-      child: SingleChildScrollView(
-        key: scrollKey,
-        controller: _transcriptScrollController,
-        physics: const BouncingScrollPhysics(),
-        padding: EdgeInsets.only(bottom: design.spaceXxl),
-        child: Column(
-          children: [
-            SizedBox(
-              height: stageHeight,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildTranscriptChromeVisibility(
-                        fromTop: true,
-                        child: miniHeader,
-                      ),
-                      Expanded(
-                        child: SizedBox.expand(
-                          child: KeyedSubtree(
-                            key: viewportKey,
-                            // Fading the transcript's own alpha at both ends
-                            // keeps lines inside the space vacated by the
-                            // cover, rather than under the fixed chrome.
-                            child: _buildTranscriptEnteringContent(
-                              animation: pageAnimation,
-                              child: ShaderMask(
-                                blendMode: BlendMode.dstIn,
-                                shaderCallback: (bounds) =>
-                                    const LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      colors: [
-                                        Colors.transparent,
-                                        Colors.black,
-                                        Colors.black,
-                                        Colors.transparent,
-                                      ],
-                                      stops: [0, 0.14, 0.7, 0.93],
-                                    ).createShader(bounds),
-                                child: _buildSyncedLyrics(
-                                  chapterId: lyricsChapterId,
-                                  handler: handler,
-                                  manifest: manifest,
-                                  playbackEnabled: selectedLoaded,
-                                  expanded: true,
-                                  focusMode: true,
-                                  listKey: ValueKey(
-                                    'transcript-focus:$lyricsChapterId',
-                                  ),
+    return SingleChildScrollView(
+      key: scrollKey,
+      controller: _transcriptScrollController,
+      physics: const BouncingScrollPhysics(),
+      padding: EdgeInsets.only(bottom: design.spaceXxl),
+      child: Column(
+        children: [
+          SizedBox(
+            height: stageHeight,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildTranscriptChromeBand(
+                      fromTop: true,
+                      child: miniHeader,
+                    ),
+                    Expanded(
+                      child: SizedBox.expand(
+                        child: KeyedSubtree(
+                          key: viewportKey,
+                          // Fading the transcript's own alpha at both ends
+                          // keeps lines inside the space vacated by the
+                          // cover, rather than under the fixed chrome.
+                          child: _buildTranscriptEnteringContent(
+                            animation: pageAnimation,
+                            child: ShaderMask(
+                              blendMode: BlendMode.dstIn,
+                              shaderCallback: (bounds) => const LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.transparent,
+                                  Colors.black,
+                                  Colors.black,
+                                  Colors.transparent,
+                                ],
+                                stops: [0, 0.14, 0.7, 0.93],
+                              ).createShader(bounds),
+                              child: _buildSyncedLyrics(
+                                chapterId: lyricsChapterId,
+                                handler: handler,
+                                manifest: manifest,
+                                playbackEnabled: selectedLoaded,
+                                expanded: true,
+                                focusMode: true,
+                                listKey: ValueKey(
+                                  'transcript-focus:$lyricsChapterId',
                                 ),
                               ),
                             ),
                           ),
                         ),
                       ),
-                      _buildTranscriptChromeVisibility(
-                        fromTop: false,
-                        child: Padding(
-                          padding: EdgeInsets.fromLTRB(
-                            pageInset,
-                            design.spaceXl,
-                            pageInset,
-                            design.spaceXl,
-                          ),
-                          child: _buildReactiveControls(
-                            handler: handler,
-                            fallbackDuration: duration,
-                            manifest: manifest,
-                            foregroundColor: context.appTextPrimary,
-                            showSecondaryActions: true,
-                            transcriptModeActive: true,
-                            onTranscriptToggle: onExit,
-                          ),
+                    ),
+                    _buildTranscriptChromeBand(
+                      fromTop: false,
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          pageInset,
+                          design.spaceXl,
+                          pageInset,
+                          design.spaceXl,
                         ),
-                      ),
-                    ],
-                  ),
-                  Positioned(
-                    bottom: design.spaceXl,
-                    left: 0,
-                    right: 0,
-                    child: ValueListenableBuilder<bool>(
-                      valueListenable: _transcriptChromeVisible,
-                      builder: (context, visible, _) => IgnorePointer(
-                        child: AnimatedOpacity(
-                          duration: const Duration(milliseconds: 320),
-                          opacity: visible ? 0 : 1,
-                          child: Text(
-                            context.tr(
-                              '轻触屏幕唤回控制',
-                              'Tap anywhere to bring the controls back',
-                            ),
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: context.appTextSecondary.withValues(
-                                alpha: 0.7,
-                              ),
-                            ),
-                          ),
+                        child: _buildReactiveControls(
+                          handler: handler,
+                          fallbackDuration: duration,
+                          manifest: manifest,
+                          foregroundColor: context.appTextPrimary,
+                          showSecondaryActions: true,
+                          transcriptModeActive: true,
+                          onTranscriptToggle: onExit,
                         ),
                       ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+              ],
             ),
-            Padding(
-              padding: EdgeInsets.fromLTRB(
-                pageInset,
-                design.spaceLg,
-                pageInset,
-                0,
-              ),
-              child: Column(children: belowFold),
+          ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              pageInset,
+              design.spaceLg,
+              pageInset,
+              0,
             ),
-          ],
-        ),
+            child: Column(children: belowFold),
+          ),
+        ],
       ),
     );
   }
@@ -2167,18 +2113,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
-  Widget _buildTranscriptChromeVisibility({
+  Widget _buildTranscriptChromeBand({
     required bool fromTop,
     required Widget child,
   }) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: _transcriptChromeVisible,
-      builder: (context, visible, _) => _buildTranscriptChrome(
-        visible: visible,
-        fromTop: fromTop,
-        child: child,
-      ),
-    );
+    return _buildTranscriptChrome(fromTop: fromTop, child: child);
   }
 
   /// Memoizes the artwork's dominant color per source. The future has to be
@@ -2252,40 +2191,30 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
-  /// Fades one of the floating chrome bands out of the way, keeping its scrim
-  /// so the transcript never runs into hard-edged text underneath. The band
-  /// stays in its slot while fading so showing it again never translates the
-  /// transcript or its filtered layers.
+  /// Draws one of the fixed chrome bands and its scrim. Keeping the band in
+  /// the layout at all times prevents the transcript from changing height or
+  /// colliding with the transport controls.
   Widget _buildTranscriptChrome({
-    required bool visible,
     required bool fromTop,
     required Widget child,
   }) {
     final scrim = fromTop
         ? Theme.of(context).colorScheme.surfaceContainer
         : Theme.of(context).colorScheme.surface;
-    return IgnorePointer(
-      ignoring: !visible,
-      child: AnimatedOpacity(
-        duration: const Duration(milliseconds: 320),
-        curve: Curves.easeOutCubic,
-        opacity: visible ? 1 : 0,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: fromTop ? Alignment.topCenter : Alignment.bottomCenter,
-              end: fromTop ? Alignment.bottomCenter : Alignment.topCenter,
-              colors: [
-                scrim,
-                scrim.withValues(alpha: 0.96),
-                scrim.withValues(alpha: 0),
-              ],
-              stops: const [0, 0.62, 1],
-            ),
-          ),
-          child: child,
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: fromTop ? Alignment.topCenter : Alignment.bottomCenter,
+          end: fromTop ? Alignment.bottomCenter : Alignment.topCenter,
+          colors: [
+            scrim,
+            scrim.withValues(alpha: 0.96),
+            scrim.withValues(alpha: 0),
+          ],
+          stops: const [0, 0.62, 1],
         ),
       ),
+      child: child,
     );
   }
 
@@ -4099,150 +4028,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         .setSetting('playback_speed', clamped.toStringAsFixed(2));
     if (!mounted) return;
     setState(() => _speed = clamped);
-  }
-}
-
-/// Owns the transcript chrome's interaction and timer without putting those
-/// state changes on [_PlayerScreenState]. Waking a hidden toolbar therefore
-/// only rebuilds the two chrome bands, leaving the filtered transcript layer
-/// and its scroll position untouched.
-class _TranscriptChromeController extends StatefulWidget {
-  final LuminaAudioHandler handler;
-  final bool playbackEnabled;
-  final ValueNotifier<bool> visibility;
-  final ValueNotifier<int> interaction;
-  final Duration autoHideDelay;
-  final Widget child;
-
-  const _TranscriptChromeController({
-    required this.handler,
-    required this.playbackEnabled,
-    required this.visibility,
-    required this.interaction,
-    required this.autoHideDelay,
-    required this.child,
-  });
-
-  @override
-  State<_TranscriptChromeController> createState() =>
-      _TranscriptChromeControllerState();
-}
-
-class _TranscriptChromeControllerState
-    extends State<_TranscriptChromeController> {
-  Timer? _hideTimer;
-  StreamSubscription? _playbackStateSubscription;
-  late bool _isPlaying;
-  late int _lastInteraction;
-
-  bool get _playbackIsActive =>
-      widget.playbackEnabled && widget.handler.playbackState.value.playing;
-
-  @override
-  void initState() {
-    super.initState();
-    _isPlaying = _playbackIsActive;
-    _lastInteraction = widget.interaction.value;
-    widget.interaction.addListener(_handleInteraction);
-    _bindPlaybackState();
-    if (_isPlaying) _scheduleHide();
-  }
-
-  @override
-  void didUpdateWidget(covariant _TranscriptChromeController oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    final handlerChanged = oldWidget.handler != widget.handler;
-    if (handlerChanged) {
-      _hideTimer?.cancel();
-      unawaited(_playbackStateSubscription?.cancel());
-      _isPlaying = _playbackIsActive;
-      _bindPlaybackState();
-      if (_isPlaying) {
-        _scheduleHide();
-      } else {
-        _showAndCancel();
-      }
-    }
-
-    if (oldWidget.interaction != widget.interaction) {
-      oldWidget.interaction.removeListener(_handleInteraction);
-      _lastInteraction = widget.interaction.value;
-      widget.interaction.addListener(_handleInteraction);
-    }
-
-    if (!handlerChanged &&
-        oldWidget.playbackEnabled != widget.playbackEnabled) {
-      final playbackIsActive = _playbackIsActive;
-      if (playbackIsActive != _isPlaying) {
-        _handlePlaybackState(playbackIsActive);
-      }
-    }
-  }
-
-  void _bindPlaybackState() {
-    _playbackStateSubscription = widget.handler.playbackState.listen((state) {
-      _handlePlaybackState(widget.playbackEnabled && state.playing);
-    });
-  }
-
-  void _handleInteraction() {
-    final interaction = widget.interaction.value;
-    if (interaction == _lastInteraction) return;
-    _lastInteraction = interaction;
-    _wake();
-  }
-
-  void _handlePlaybackState(bool playbackIsActive) {
-    if (_isPlaying == playbackIsActive) return;
-    _isPlaying = playbackIsActive;
-    if (_isPlaying) {
-      _scheduleHide();
-    } else {
-      _showAndCancel();
-    }
-  }
-
-  void _scheduleHide() {
-    _hideTimer?.cancel();
-    if (!_isPlaying || !_playbackIsActive) return;
-    _hideTimer = Timer(widget.autoHideDelay, () {
-      if (!mounted || !_isPlaying || !_playbackIsActive) return;
-      widget.visibility.value = false;
-    });
-  }
-
-  void _showAndCancel() {
-    _hideTimer?.cancel();
-    _hideTimer = null;
-    if (widget.visibility.value) return;
-    widget.visibility.value = true;
-  }
-
-  void _wake() {
-    if (!_playbackIsActive) {
-      _showAndCancel();
-      return;
-    }
-    if (!widget.visibility.value) widget.visibility.value = true;
-    _scheduleHide();
-  }
-
-  @override
-  void dispose() {
-    _hideTimer?.cancel();
-    unawaited(_playbackStateSubscription?.cancel());
-    widget.interaction.removeListener(_handleInteraction);
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Listener(
-      behavior: HitTestBehavior.translucent,
-      onPointerDown: (_) => _wake(),
-      onPointerSignal: (_) => _wake(),
-      child: widget.child,
-    );
   }
 }
 
