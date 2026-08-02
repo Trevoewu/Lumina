@@ -284,6 +284,7 @@ Future<ChapterManifest> repairManifestWavDurations(
     providerId: manifest.providerId,
     voiceId: manifest.voiceId,
     speed: manifest.speed,
+    configurationFingerprint: manifest.configurationFingerprint,
     segments: repairedSegments,
     updatedAt: manifest.updatedAt,
   );

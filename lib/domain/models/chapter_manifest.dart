@@ -47,6 +47,13 @@ class SegmentEntry {
   /// Text alignment relative to the beginning of this paragraph audio.
   final List<AudioTextTiming> timings;
 
+  /// Fingerprint of the exact paragraph text used for synthesis.
+  ///
+  /// Older manifests may omit this field. They remain readable, but the
+  /// generator will not treat their audio as version-safe until it has been
+  /// regenerated once with a fingerprint.
+  final String? contentFingerprint;
+
   const SegmentEntry({
     required this.paragraphId,
     required this.audioFile,
@@ -57,6 +64,7 @@ class SegmentEntry {
     this.generatedAt,
     this.error,
     this.timings = const [],
+    this.contentFingerprint,
   });
 
   SegmentEntry copyWith({
@@ -69,6 +77,7 @@ class SegmentEntry {
     int? generatedAt,
     String? error,
     List<AudioTextTiming>? timings,
+    String? contentFingerprint,
   }) {
     return SegmentEntry(
       paragraphId: paragraphId ?? this.paragraphId,
@@ -80,6 +89,7 @@ class SegmentEntry {
       generatedAt: generatedAt ?? this.generatedAt,
       error: error ?? this.error,
       timings: timings ?? this.timings,
+      contentFingerprint: contentFingerprint ?? this.contentFingerprint,
     );
   }
 
@@ -94,6 +104,7 @@ class SegmentEntry {
       'generatedAt': generatedAt,
       'error': error,
       'timings': timings.map((timing) => timing.toJson()).toList(),
+      'contentFingerprint': contentFingerprint,
     };
   }
 
@@ -116,6 +127,7 @@ class SegmentEntry {
               )
               .toList(growable: false) ??
           const [],
+      contentFingerprint: json['contentFingerprint'] as String?,
     );
   }
 }
@@ -138,6 +150,9 @@ class ChapterManifest {
   /// 生成时使用的语速。
   final double speed;
 
+  /// Provider model/profile identity used for this audio version.
+  final String? configurationFingerprint;
+
   /// 段落音频记录（按段落顺序）。
   final List<SegmentEntry> segments;
 
@@ -152,6 +167,7 @@ class ChapterManifest {
     required this.speed,
     required this.segments,
     required this.updatedAt,
+    this.configurationFingerprint,
   });
 
   /// 计算到某段落的累计偏移（毫秒）。
@@ -202,6 +218,7 @@ class ChapterManifest {
       'providerId': providerId,
       'voiceId': voiceId,
       'speed': speed,
+      'configurationFingerprint': configurationFingerprint,
       'segments': segments.map((s) => s.toJson()).toList(),
       'updatedAt': updatedAt,
     };
@@ -218,6 +235,7 @@ class ChapterManifest {
           .map((s) => SegmentEntry.fromJson(s as Map<String, dynamic>))
           .toList(),
       updatedAt: json['updatedAt'] as int,
+      configurationFingerprint: json['configurationFingerprint'] as String?,
     );
   }
 }

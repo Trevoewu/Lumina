@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
@@ -11,6 +12,7 @@ import '../tts/models/tts_chunk.dart';
 import '../tts/models/tts_voice.dart';
 import '../tts/tts_provider.dart';
 import 'app_log_service.dart';
+import 'generation_task_store.dart';
 import 'manifest_store.dart';
 
 /// 章节生成进度。
@@ -55,11 +57,16 @@ class GenerationProgress {
 class GenerationOrchestrator {
   final db.AppDatabase database;
   final ManifestStore manifestStore;
+  final GenerationTaskStore taskStore;
   final Map<String, _ChapterGenerationJob> _activeChapterJobs = {};
   final Set<String> _blockedBooks = {};
   bool _allBooksBlocked = false;
 
-  GenerationOrchestrator({required this.database, required this.manifestStore});
+  GenerationOrchestrator({
+    required this.database,
+    required this.manifestStore,
+    GenerationTaskStore? taskStore,
+  }) : taskStore = taskStore ?? GenerationTaskStore(database);
 
   /// 生成某章音频。若部分段落已生成，则断点续跑。
   Stream<GenerationProgress> generateChapter({
@@ -69,6 +76,8 @@ class GenerationOrchestrator {
     required TtsVoice voice,
     double speed = 1.0,
     int maxRetries = 3,
+    int? priorityParagraphIndex,
+    int prefetchCount = 3,
   }) {
     if (_allBooksBlocked || _blockedBooks.contains(bookId)) {
       return Stream<GenerationProgress>.error(
@@ -78,6 +87,9 @@ class GenerationOrchestrator {
     final generationKey = '$bookId\u0000$chapterId';
     final active = _activeChapterJobs[generationKey];
     if (active != null) {
+      if (priorityParagraphIndex != null) {
+        active.prioritize(priorityParagraphIndex, lookahead: prefetchCount);
+      }
       AppLogger.info(
         'Generation',
         '复用同章节已有生成任务 book=$bookId chapter=$chapterId',
@@ -86,6 +98,9 @@ class GenerationOrchestrator {
     }
 
     final job = _ChapterGenerationJob();
+    if (priorityParagraphIndex != null) {
+      job.prioritize(priorityParagraphIndex, lookahead: prefetchCount);
+    }
     _activeChapterJobs[generationKey] = job;
     unawaited(
       _runChapterGenerationJob(
@@ -97,9 +112,25 @@ class GenerationOrchestrator {
         voice: voice,
         speed: speed,
         maxRetries: maxRetries,
+        priorityParagraphIndex: priorityParagraphIndex,
+        prefetchCount: prefetchCount,
       ),
     );
     return job.stream;
+  }
+
+  /// Promotes the current listening position and a small safety buffer while
+  /// an existing chapter job is running. It never creates a hidden job.
+  bool prioritizeChapter({
+    required String bookId,
+    required String chapterId,
+    required int paragraphIndex,
+    int lookahead = 3,
+  }) {
+    final job = _activeChapterJobs['$bookId\u0000$chapterId'];
+    if (job == null) return false;
+    job.prioritize(paragraphIndex, lookahead: lookahead);
+    return true;
   }
 
   /// 订阅一个已经存在的章节生成任务，不会创建新的生成任务。
@@ -196,6 +227,8 @@ class GenerationOrchestrator {
     required TtsVoice voice,
     required double speed,
     required int maxRetries,
+    required int? priorityParagraphIndex,
+    required int prefetchCount,
   }) async {
     try {
       await for (final progress in _generateChapterUnlocked(
@@ -206,6 +239,8 @@ class GenerationOrchestrator {
         voice: voice,
         speed: speed,
         maxRetries: maxRetries,
+        priorityParagraphIndex: priorityParagraphIndex,
+        prefetchCount: prefetchCount,
       )) {
         job.add(progress);
       }
@@ -230,6 +265,8 @@ class GenerationOrchestrator {
     required TtsVoice voice,
     required double speed,
     required int maxRetries,
+    required int? priorityParagraphIndex,
+    required int prefetchCount,
   }) async* {
     job.throwIfCancelled();
     final book = await database.getBook(bookId);
@@ -241,6 +278,61 @@ class GenerationOrchestrator {
     }
 
     final paragraphs = await database.getParagraphs(chapterId);
+    final paragraphFingerprints = [
+      for (final paragraph in paragraphs)
+        generationFingerprint([paragraph.id, paragraph.content]),
+    ];
+    final contentFingerprint = generationFingerprint(paragraphFingerprints);
+    final providerConfiguration = provider is TtsGenerationConfiguration
+        ? await (provider as TtsGenerationConfiguration)
+              .generationConfigurationFingerprint
+        : provider.id;
+    final configJson = ttsConfigJson(
+      providerId: provider.id,
+      voiceId: voice.id,
+      speed: speed,
+      providerConfiguration: providerConfiguration,
+    );
+    final configFingerprint = generationFingerprint([
+      provider.id,
+      voice.id,
+      speed.toStringAsFixed(4),
+      providerConfiguration,
+    ]);
+    final taskId = generationTaskId(
+      kind: GenerationTaskKind.tts,
+      parentId: bookId,
+      scopeId: chapterId,
+      contentFingerprint: contentFingerprint,
+      configFingerprint: configFingerprint,
+    );
+    final taskSpecs = [
+      for (var index = 0; index < paragraphs.length; index++)
+        GenerationChunkSpec(
+          id: '$taskId:paragraph:${paragraphs[index].id}',
+          chunkIndex: index,
+          sourceKey: paragraphs[index].id,
+          startMs: 0,
+          endMs: 0,
+          inputFingerprint: paragraphFingerprints[index],
+        ),
+    ];
+    await taskStore.ensureTask(
+      spec: GenerationTaskSpec(
+        id: taskId,
+        kind: GenerationTaskKind.tts,
+        parentId: bookId,
+        scopeId: chapterId,
+        contentFingerprint: contentFingerprint,
+        configFingerprint: configFingerprint,
+        configJson: configJson,
+        priority: priorityParagraphIndex ?? 0,
+      ),
+      chunks: taskSpecs,
+    );
+    await taskStore.startTask(taskId, priority: priorityParagraphIndex ?? 0);
+    var taskChunks = await taskStore.chunks(taskId);
+
     final existing = await manifestStore.load(bookId, chapterId);
     final fadeInEnabled =
         await database.getSetting('audio_fade_in_enabled') != 'false';
@@ -250,15 +342,30 @@ class GenerationOrchestrator {
         existing.providerId == provider.id &&
         existing.voiceId == voice.id &&
         existing.speed == speed &&
+        existing.configurationFingerprint == configFingerprint &&
         existing.segments.length == paragraphs.length) {
-      segments = [...existing.segments];
+      segments = [
+        for (var index = 0; index < paragraphs.length; index++)
+          existing.segments[index].contentFingerprint ==
+                  paragraphFingerprints[index]
+              ? existing.segments[index]
+              : SegmentEntry(
+                  paragraphId: paragraphs[index].id,
+                  audioFile: '$chapterId/${paragraphs[index].id}.mp3',
+                  durationMs: 0,
+                  state: ParagraphAudioState.notGenerated,
+                  contentFingerprint: paragraphFingerprints[index],
+                ),
+      ];
     } else {
       segments = paragraphs.map((p) {
+        final index = paragraphs.indexOf(p);
         return SegmentEntry(
           paragraphId: p.id,
           audioFile: '$chapterId/${p.id}.mp3',
           durationMs: 0,
           state: ParagraphAudioState.notGenerated,
+          contentFingerprint: paragraphFingerprints[index],
         );
       }).toList();
     }
@@ -269,6 +376,7 @@ class GenerationOrchestrator {
       providerId: provider.id,
       voiceId: voice.id,
       speed: speed,
+      configurationFingerprint: configFingerprint,
       segments: segments,
       updatedAt: DateTime.now().millisecondsSinceEpoch,
     );
@@ -283,13 +391,71 @@ class GenerationOrchestrator {
     );
 
     final pendingIndexes = <int>[];
+    var restoredFromTaskResults = false;
     for (var i = 0; i < paragraphs.length; i++) {
       final current = segments[i];
-      if (current.state == ParagraphAudioState.ready &&
-          await File(await _absoluteSegmentPath(bookId, current)).exists()) {
+      final taskChunk = taskChunks.firstWhere((chunk) => chunk.chunkIndex == i);
+      final fileExists =
+          current.state == ParagraphAudioState.ready &&
+          await File(await _absoluteSegmentPath(bookId, current)).exists();
+      if (fileExists &&
+          current.contentFingerprint == paragraphFingerprints[i]) {
+        if (taskChunk.status != GenerationChunkStatus.complete.name) {
+          await taskStore.completeChunk(
+            taskChunk.id,
+            resultRef: current.audioFile,
+          );
+        }
         continue;
       }
+
+      // The task row is written immediately after the atomic audio write. If
+      // the process is killed in the small window before the manifest update,
+      // the durable chunk metadata is still enough to restore the segment
+      // without submitting the TTS request again.
+      final durableSegment = _segmentFromTaskChunk(
+        taskChunk,
+        paragraphId: paragraphs[i].id,
+        contentFingerprint: paragraphFingerprints[i],
+      );
+      if (durableSegment != null &&
+          await File(
+            await _absoluteSegmentPath(bookId, durableSegment),
+          ).exists()) {
+        segments[i] = durableSegment;
+        restoredFromTaskResults = true;
+        continue;
+      }
+
+      if (current.state == ParagraphAudioState.ready) {
+        segments[i] = current.copyWith(
+          durationMs: 0,
+          state: ParagraphAudioState.notGenerated,
+          error: null,
+        );
+      }
+      if (taskChunk.status == GenerationChunkStatus.complete.name) {
+        await taskStore.resetChunk(taskChunk.id);
+      }
       pendingIndexes.add(i);
+    }
+    taskChunks = await taskStore.chunks(taskId);
+
+    if (priorityParagraphIndex != null) {
+      _sortPendingIndexes(
+        pendingIndexes,
+        priorityParagraphIndex,
+        lookahead: prefetchCount,
+      );
+    }
+    await manifestStore.save(manifest());
+    if (restoredFromTaskResults) {
+      yield _progressFromSegments(
+        chapterId: chapterId,
+        providerId: provider.id,
+        voiceId: voice.id,
+        segments: segments,
+      );
     }
 
     var concurrency = 1;
@@ -323,27 +489,55 @@ class GenerationOrchestrator {
         while (stopGenerationError == null &&
             active.length < concurrency &&
             nextPending < pendingIndexes.length) {
+          if (job.priorityParagraphIndex != null) {
+            _sortPendingIndexes(
+              pendingIndexes,
+              job.priorityParagraphIndex!,
+              lookahead: job.prefetchCount,
+              startAt: nextPending,
+            );
+          }
           final index = pendingIndexes[nextPending++];
           final paragraph = paragraphs[index];
           final current = segments[index];
+          final taskChunk = taskChunks.firstWhere(
+            (chunk) => chunk.chunkIndex == index,
+          );
+          await taskStore.startChunk(taskChunk.id);
 
           segments[index] = current.copyWith(
             state: ParagraphAudioState.generating,
             error: null,
           );
-          active[index] = _generateParagraph(
-            job: job,
-            index: index,
-            bookId: bookId,
-            chapterId: chapterId,
-            paragraph: paragraph,
-            current: current,
-            provider: provider,
-            voice: voice,
-            speed: speed,
-            maxRetries: maxRetries,
-            fadeInEnabled: fadeInEnabled,
-          );
+          active[index] =
+              _generateParagraph(
+                job: job,
+                index: index,
+                bookId: bookId,
+                chapterId: chapterId,
+                paragraph: paragraph,
+                current: current,
+                provider: provider,
+                voice: voice,
+                speed: speed,
+                maxRetries: maxRetries,
+                fadeInEnabled: fadeInEnabled,
+                contentFingerprint: paragraphFingerprints[index],
+              ).then((result) async {
+                if (result.segment.state == ParagraphAudioState.ready) {
+                  await taskStore.completeChunk(
+                    taskChunk.id,
+                    resultRef: result.segment.audioFile,
+                    resultJson: jsonEncode(result.segment.toJson()),
+                  );
+                } else if (result.segment.state == ParagraphAudioState.failed) {
+                  await taskStore.failChunk(
+                    taskChunk.id,
+                    result.segment.error ?? 'TTS 分片生成失败',
+                  );
+                }
+                return result;
+              });
           launchedIndexes.add(index);
         }
 
@@ -404,10 +598,19 @@ class GenerationOrchestrator {
         );
       }
       if (stopGenerationError != null) {
+        await taskStore.failTask(taskId, stopGenerationError);
         Error.throwWithStackTrace(
           stopGenerationError,
           stopGenerationStackTrace ?? StackTrace.current,
         );
+      }
+      final failedCount = segments
+          .where((segment) => segment.state == ParagraphAudioState.failed)
+          .length;
+      if (failedCount == 0) {
+        await taskStore.completeTask(taskId);
+      } else {
+        await taskStore.failTask(taskId, '有 $failedCount 个 TTS 分片可重试');
       }
     } finally {
       // Future.any only waits for the first request. A cancelled job must not be
@@ -438,6 +641,7 @@ class GenerationOrchestrator {
     required double speed,
     required int maxRetries,
     required bool fadeInEnabled,
+    required String contentFingerprint,
   }) async {
     try {
       final chunks = await _synthesizePossiblySplit(
@@ -505,6 +709,7 @@ class GenerationOrchestrator {
           billedCharacters: billed == 0 ? null : billed,
           generatedAt: DateTime.now().millisecondsSinceEpoch,
           timings: safeTimings,
+          contentFingerprint: contentFingerprint,
         ),
       );
     } on _GenerationCancelled {
@@ -532,6 +737,7 @@ class GenerationOrchestrator {
         segment: current.copyWith(
           state: ParagraphAudioState.failed,
           error: error.toString(),
+          contentFingerprint: contentFingerprint,
         ),
       );
     }
@@ -562,6 +768,29 @@ class GenerationOrchestrator {
       currentParagraphIndex: currentParagraphIndex,
       error: error,
     );
+  }
+
+  SegmentEntry? _segmentFromTaskChunk(
+    db.GenerationTaskChunk taskChunk, {
+    required String paragraphId,
+    required String contentFingerprint,
+  }) {
+    if (taskChunk.status != GenerationChunkStatus.complete.name ||
+        taskChunk.resultJson?.isNotEmpty != true) {
+      return null;
+    }
+    try {
+      final json = jsonDecode(taskChunk.resultJson!) as Map<dynamic, dynamic>;
+      final segment = SegmentEntry.fromJson(json.cast<String, dynamic>());
+      if (segment.paragraphId != paragraphId ||
+          segment.contentFingerprint != contentFingerprint ||
+          segment.state != ParagraphAudioState.ready) {
+        return null;
+      }
+      return segment;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// 将多段 WAV 文件的 PCM 数据拼接成单个合法 WAV。
@@ -812,6 +1041,8 @@ class _ChapterGenerationJob {
   Completer<void>? _resumeCompleter;
   final Completer<void> _done = Completer<void>();
   bool _cancelled = false;
+  int? priorityParagraphIndex;
+  int prefetchCount = 3;
 
   Future<void> get done => _done.future;
   bool get isCancelled => _cancelled;
@@ -848,6 +1079,11 @@ class _ChapterGenerationJob {
     resume();
   }
 
+  void prioritize(int paragraphIndex, {int lookahead = 3}) {
+    priorityParagraphIndex = paragraphIndex;
+    prefetchCount = lookahead.clamp(0, 32).toInt();
+  }
+
   void throwIfCancelled() {
     if (_cancelled) throw const _GenerationCancelled();
   }
@@ -872,6 +1108,30 @@ class _ChapterGenerationJob {
   }
 
   Future<void> close() => _controller.close();
+}
+
+void _sortPendingIndexes(
+  List<int> indexes,
+  int priorityIndex, {
+  required int lookahead,
+  int startAt = 0,
+}) {
+  if (startAt >= indexes.length) return;
+  final boundedLookahead = lookahead.clamp(0, 32).toInt();
+  final remaining = indexes.sublist(startAt)
+    ..sort((a, b) {
+      int rank(int value) {
+        if (value == priorityIndex) return 0;
+        final distance = value - priorityIndex;
+        if (distance > 0 && distance <= boundedLookahead) return distance;
+        if (distance > 0) return 100 + distance;
+        return 1000 + (priorityIndex - value);
+      }
+
+      final byRank = rank(a).compareTo(rank(b));
+      return byRank != 0 ? byRank : a.compareTo(b);
+    });
+  indexes.setRange(startAt, indexes.length, remaining);
 }
 
 class _GenerationCancelled implements Exception {

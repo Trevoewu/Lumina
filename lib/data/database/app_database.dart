@@ -322,6 +322,63 @@ class AiMessages extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+/// Durable parent record for long-running local/cloud generation.
+///
+/// The task row deliberately stores the effective configuration and content
+/// fingerprint. A task therefore represents one immutable generation version;
+/// changing the source text, voice, provider, or ASR configuration creates a
+/// new task instead of allowing an old result to be mixed into a new one.
+class GenerationTasks extends Table {
+  TextColumn get id => text()();
+  TextColumn get kind => text()(); // 'tts' | 'whisper'
+  TextColumn get parentId => text()(); // book id | show id
+  TextColumn get scopeId => text()(); // chapter id | episode id
+  TextColumn get contentFingerprint => text()();
+  TextColumn get configFingerprint => text()();
+  TextColumn get configJson => text().withDefault(const Constant('{}'))();
+  TextColumn get status => text().withDefault(const Constant('pending'))();
+  IntColumn get priority => integer().withDefault(const Constant(0))();
+  IntColumn get createdAt => integer()();
+  IntColumn get updatedAt => integer()();
+  IntColumn get startedAt => integer().nullable()();
+  IntColumn get completedAt => integer().nullable()();
+  TextColumn get lastError => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// Durable unit of work belonging to a [GenerationTasks] row.
+///
+/// `id` and `inputFingerprint` are stable across retries. `resultRef` points
+/// at an audio file for TTS; `resultJson` contains one Whisper chunk result.
+class GenerationTaskChunks extends Table {
+  TextColumn get id => text()();
+  TextColumn get taskId => text()();
+  IntColumn get chunkIndex => integer()();
+  TextColumn get sourceKey => text()(); // paragraph id | logical start ms
+  IntColumn get startMs => integer().withDefault(const Constant(0))();
+  IntColumn get endMs => integer().withDefault(const Constant(0))();
+  TextColumn get inputFingerprint => text()();
+  TextColumn get status => text().withDefault(const Constant('pending'))();
+  IntColumn get attempts => integer().withDefault(const Constant(0))();
+  IntColumn get priority => integer().withDefault(const Constant(0))();
+  TextColumn get resultRef => text().nullable()();
+  TextColumn get resultJson => text().nullable()();
+  TextColumn get error => text().nullable()();
+  IntColumn get updatedAt => integer()();
+  IntColumn get startedAt => integer().nullable()();
+  IntColumn get completedAt => integer().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+    {taskId, chunkIndex},
+  ];
+}
+
 // ─────────────────────────────────────────────
 // 数据库
 // ─────────────────────────────────────────────
@@ -343,6 +400,8 @@ class AiMessages extends Table {
     PodcastEpisodes,
     AiThreads,
     AiMessages,
+    GenerationTasks,
+    GenerationTaskChunks,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -353,7 +412,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e) : _repairPathsOnOpen = false;
 
   @override
-  int get schemaVersion => 16;
+  int get schemaVersion => 17;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -469,6 +528,10 @@ class AppDatabase extends _$AppDatabase {
         } else {
           await m.createTable(podcastEpisodes);
         }
+      }
+      if (from < 17) {
+        await m.createTable(generationTasks);
+        await m.createTable(generationTaskChunks);
       }
     },
     beforeOpen: (_) async {
@@ -1149,6 +1212,148 @@ class AppDatabase extends _$AppDatabase {
             : Value(progressMs),
       ),
     );
+  }
+
+  // ── 可恢复生成任务 ──
+
+  Future<GenerationTask?> getGenerationTask(String id) => (select(
+    generationTasks,
+  )..where((task) => task.id.equals(id))).getSingleOrNull();
+
+  Future<List<GenerationTask>> getGenerationTasks({
+    String? kind,
+    String? parentId,
+    String? scopeId,
+  }) async {
+    final query = select(generationTasks)
+      ..orderBy([
+        (task) => OrderingTerm.desc(task.updatedAt),
+        (task) => OrderingTerm.desc(task.createdAt),
+      ]);
+    final filters = <Expression<bool>>[];
+    if (kind != null) {
+      filters.add(generationTasks.kind.equals(kind));
+    }
+    if (parentId != null) {
+      filters.add(generationTasks.parentId.equals(parentId));
+    }
+    if (scopeId != null) {
+      filters.add(generationTasks.scopeId.equals(scopeId));
+    }
+    if (filters.isNotEmpty) {
+      query.where((_) => filters.reduce((left, right) => left & right));
+    }
+    return query.get();
+  }
+
+  Future<GenerationTask?> getLatestGenerationTask({
+    required String kind,
+    required String parentId,
+    required String scopeId,
+  }) async {
+    final tasks = await getGenerationTasks(
+      kind: kind,
+      parentId: parentId,
+      scopeId: scopeId,
+    );
+    return tasks.firstOrNull;
+  }
+
+  Future<void> upsertGenerationTask(GenerationTasksCompanion task) =>
+      into(generationTasks).insertOnConflictUpdate(task);
+
+  Future<void> updateGenerationTask(
+    String id, {
+    String? status,
+    int? priority,
+    String? error,
+    int? startedAt,
+    int? completedAt,
+  }) async {
+    await (update(generationTasks)..where((task) => task.id.equals(id))).write(
+      GenerationTasksCompanion(
+        status: status == null ? const Value.absent() : Value(status),
+        priority: priority == null ? const Value.absent() : Value(priority),
+        lastError: Value(error),
+        startedAt: startedAt == null ? const Value.absent() : Value(startedAt),
+        completedAt: completedAt == null
+            ? const Value.absent()
+            : Value(completedAt),
+        updatedAt: Value(DateTime.now().millisecondsSinceEpoch),
+      ),
+    );
+  }
+
+  Future<List<GenerationTaskChunk>> getGenerationTaskChunks(
+    String taskId,
+  ) async {
+    return (select(generationTaskChunks)
+          ..where((chunk) => chunk.taskId.equals(taskId))
+          ..orderBy([(chunk) => OrderingTerm.asc(chunk.chunkIndex)]))
+        .get();
+  }
+
+  Future<GenerationTaskChunk?> getGenerationTaskChunk(String id) => (select(
+    generationTaskChunks,
+  )..where((chunk) => chunk.id.equals(id))).getSingleOrNull();
+
+  Future<void> upsertGenerationTaskChunk(GenerationTaskChunksCompanion chunk) =>
+      into(generationTaskChunks).insertOnConflictUpdate(chunk);
+
+  Future<void> updateGenerationTaskChunk(
+    String id, {
+    required String status,
+    int? attempts,
+    int? priority,
+    String? resultRef,
+    String? resultJson,
+    String? error,
+    int? startedAt,
+    int? completedAt,
+  }) async {
+    await (update(
+      generationTaskChunks,
+    )..where((chunk) => chunk.id.equals(id))).write(
+      GenerationTaskChunksCompanion(
+        status: Value(status),
+        attempts: attempts == null ? const Value.absent() : Value(attempts),
+        priority: priority == null ? const Value.absent() : Value(priority),
+        resultRef: resultRef == null ? const Value.absent() : Value(resultRef),
+        resultJson: resultJson == null
+            ? const Value.absent()
+            : Value(resultJson),
+        error: Value(error),
+        startedAt: startedAt == null ? const Value.absent() : Value(startedAt),
+        completedAt: completedAt == null
+            ? const Value.absent()
+            : Value(completedAt),
+        updatedAt: Value(DateTime.now().millisecondsSinceEpoch),
+      ),
+    );
+  }
+
+  Future<void> deleteGenerationTask(String id) async {
+    await transaction(() async {
+      await (delete(
+        generationTaskChunks,
+      )..where((chunk) => chunk.taskId.equals(id))).go();
+      await (delete(generationTasks)..where((task) => task.id.equals(id))).go();
+    });
+  }
+
+  Future<void> deleteGenerationTasks({
+    String? kind,
+    String? parentId,
+    String? scopeId,
+  }) async {
+    final tasks = await getGenerationTasks(
+      kind: kind,
+      parentId: parentId,
+      scopeId: scopeId,
+    );
+    for (final task in tasks) {
+      await deleteGenerationTask(task.id);
+    }
   }
 
   // ── AI threads ──

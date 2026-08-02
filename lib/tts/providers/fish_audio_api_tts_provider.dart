@@ -57,7 +57,11 @@ enum FishAudioGenerationProfile {
 ///
 /// 使用 raw REST API，适配 Flutter/Dart 环境。API Key 存在系统安全存储中。
 class FishAudioApiTtsProvider
-    implements TtsProvider, TtsConcurrencyPolicy, TtsModelCatalog {
+    implements
+        TtsProvider,
+        TtsConcurrencyPolicy,
+        TtsModelCatalog,
+        TtsGenerationConfiguration {
   static const String idValue = 'fish_audio_api';
   static const String defaultModel = 's2-pro';
   static const String _baseUrl = 'https://api.fish.audio';
@@ -206,6 +210,10 @@ class FishAudioApiTtsProvider
         ? selected!.trim()
         : defaultModel;
   }
+
+  @override
+  Future<String> get generationConfigurationFingerprint async =>
+      'model:${await selectedModel};profile:${(await generationProfile).value}';
 
   @override
   Future<bool> validate() async {

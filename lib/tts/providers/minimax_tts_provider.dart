@@ -21,7 +21,8 @@ import '../tts_provider.dart';
 ///
 /// 能力：presetVoices ✅ | voiceCloning ✅ | voiceDescription ✅
 /// 计费：按字符计费（paid = true）。
-class MinimaxTtsProvider implements TtsProvider, TtsModelCatalog {
+class MinimaxTtsProvider
+    implements TtsProvider, TtsModelCatalog, TtsGenerationConfiguration {
   static const String idValue = 'minimax';
   static const String defaultModel = 'speech-2.8-hd';
 
@@ -167,6 +168,10 @@ class MinimaxTtsProvider implements TtsProvider, TtsModelCatalog {
         ? selected!.trim()
         : defaultModel;
   }
+
+  @override
+  Future<String> get generationConfigurationFingerprint async =>
+      'model:${await selectedModel}';
 
   @override
   Future<bool> validate() async {

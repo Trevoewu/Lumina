@@ -1,6 +1,7 @@
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lumina/data/database/app_database.dart';
+import 'package:lumina/domain/models/audio_text_timing.dart';
 import 'package:lumina/services/podcast_transcription_service.dart';
 
 void main() {
@@ -95,6 +96,27 @@ void main() {
         150000,
       ]);
     });
+  });
+
+  test('Whisper result merge is idempotent at a chunk boundary', () {
+    const first = AudioTextTiming(
+      text: 'First line.',
+      startMs: 0,
+      endMs: 900,
+      chunkStartMs: 0,
+    );
+    const second = AudioTextTiming(
+      text: 'Second line.',
+      startMs: 180000,
+      endMs: 180900,
+      chunkStartMs: 180000,
+    );
+
+    final merged = mergePodcastTranscriptSegments(
+      [first, second],
+      [first, second],
+    );
+    expect(merged, [first, second]);
   });
 
   group('transcript watermark', () {

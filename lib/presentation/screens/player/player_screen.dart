@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -22,6 +23,7 @@ import '../../../services/app_log_service.dart';
 import '../../../services/book_playback_queue.dart';
 import '../../../services/cover_palette_service.dart';
 import '../../../services/generation_orchestrator.dart';
+import '../../../services/generation_task_store.dart';
 import '../../../services/image_disk_cache.dart';
 import '../../../services/lumina_audio_handler.dart';
 import '../../../services/podcast_transcription_service.dart';
@@ -410,6 +412,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   _PodcastTranscriptContent? _podcastTranscript;
   StreamSubscription<drift_db.PodcastEpisode?>? _podcastEpisodeSubscription;
   StreamSubscription<PodcastTranscriptionProgress>? _transcriptionSubscription;
+  StreamSubscription<String?>? _playbackParagraphSubscription;
   bool _transcribingPodcast = false;
   bool _pausingPodcastTranscription = false;
   PodcastTranscriptionProgress? _transcriptionProgress;
@@ -444,6 +447,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       if (_isPodcast) {
         _watchPodcastEpisode();
         _watchTranscriptionProgress();
+        unawaited(_resumeInterruptedPodcastTranscription());
         unawaited(_autoplayIfRequested());
       } else {
         unawaited(_loadSelectedChapterState());
@@ -456,6 +460,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     unawaited(_generationSubscription?.cancel());
     unawaited(_podcastEpisodeSubscription?.cancel());
     unawaited(_transcriptionSubscription?.cancel());
+    unawaited(_playbackParagraphSubscription?.cancel());
     _transcriptPageActivationTimer?.cancel();
     _playerScrollController
       ..removeListener(_handlePlayerScroll)
@@ -757,7 +762,65 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (activeGeneration != null) {
       _listenToGeneration(activeGeneration);
     }
+    unawaited(_resumeInterruptedAudiobookGeneration());
+    unawaited(_watchPlaybackGenerationPriority());
     await _autoplayIfRequested();
+  }
+
+  Future<void> _resumeInterruptedAudiobookGeneration() async {
+    final chapter = widget.initialChapter;
+    if (chapter == null) return;
+    final task = await ref
+        .read(appDatabaseProvider)
+        .getLatestGenerationTask(
+          kind: GenerationTaskKind.tts.name,
+          parentId: widget.book.id,
+          scopeId: chapter.id,
+        );
+    if (!mounted ||
+        task == null ||
+        task.status == GenerationChunkStatus.complete.name ||
+        _generationSubscription != null) {
+      return;
+    }
+    final manifest = _selectedManifest;
+    final savedParagraphIndex =
+        _chapterPlaybackProgress?.paragraphIndex ??
+        (widget.book.currentChapterId == chapter.id
+            ? widget.book.currentParagraphIndex
+            : null);
+    await _ensureChapterCachingStarted(
+      priorityParagraphIndex: manifest == null || manifest.segments.isEmpty
+          ? savedParagraphIndex
+          : savedParagraphIndex?.clamp(0, manifest.segments.length - 1).toInt(),
+      recoveryTask: task,
+      silent: true,
+    );
+  }
+
+  Future<void> _watchPlaybackGenerationPriority() async {
+    if (_isPodcast) return;
+    final handler = await ref.read(luminaAudioHandlerProvider.future);
+    if (!mounted || _isPodcast) return;
+    await _playbackParagraphSubscription?.cancel();
+    _playbackParagraphSubscription = handler.currentParagraphIdStream.listen((
+      paragraphId,
+    ) {
+      if (paragraphId == null) return;
+      final chapter = widget.initialChapter;
+      final index = _selectedManifest?.segments.indexWhere(
+        (segment) => segment.paragraphId == paragraphId,
+      );
+      if (chapter == null || index == null || index < 0) return;
+      ref
+          .read(generationOrchestratorProvider)
+          .prioritizeChapter(
+            bookId: widget.book.id,
+            chapterId: chapter.id,
+            paragraphIndex: index,
+            lookahead: 3,
+          );
+    });
   }
 
   Future<void> _autoplayIfRequested() async {
@@ -847,15 +910,41 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _setStreamPlaybackRequested(false);
   }
 
-  Future<bool> _ensureChapterCachingStarted() async {
+  Future<bool> _ensureChapterCachingStarted({
+    int? priorityParagraphIndex,
+    drift_db.GenerationTask? recoveryTask,
+    bool silent = false,
+  }) async {
     final chapter = widget.initialChapter;
     if (chapter == null) return false;
-    if (_generationSubscription != null) return true;
+    if (_generationSubscription != null) {
+      if (priorityParagraphIndex != null) {
+        ref
+            .read(generationOrchestratorProvider)
+            .prioritizeChapter(
+              bookId: widget.book.id,
+              chapterId: chapter.id,
+              paragraphIndex: priorityParagraphIndex,
+              lookahead: 3,
+            );
+      }
+      return true;
+    }
     if (_preparingStream) return false;
 
     setState(() => _preparingStream = true);
     try {
-      var provider = ref.read(activeTtsProviderProvider);
+      final recoveryConfig = recoveryTask == null
+          ? const <String, dynamic>{}
+          : ((jsonDecode(recoveryTask.configJson) as Map?)
+                    ?.cast<String, dynamic>() ??
+                const <String, dynamic>{});
+      final recoveryProviderId = recoveryConfig['providerId'] as String?;
+      TtsProvider provider =
+          (recoveryProviderId == null
+              ? null
+              : ref.read(providerRegistryProvider).get(recoveryProviderId)) ??
+          ref.read(activeTtsProviderProvider);
       var selections = ref.read(providerSelectionRepositoryProvider);
       var providerConnected = await provider.validate();
       var selectedModel = await selections.selectedTtsModel(provider.id);
@@ -863,6 +952,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       if (!providerConnected ||
           selectedModel == null ||
           selectedVoice == null) {
+        if (silent) return false;
         if (!mounted ||
             !await _openTtsSetupPrompt(
               provider.displayName,
@@ -888,16 +978,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         provider,
         database,
         selections,
-        chapterVoiceId: chapter.voiceId,
+        chapterVoiceId: recoveryConfig['voiceId'] as String? ?? chapter.voiceId,
       );
       if (!mounted) return false;
       if (voice == null) {
-        _showSnackBar(
-          context.tr(
-            '${provider.displayName} 没有可用音色',
-            '${provider.displayName} has no available voice',
-          ),
-        );
+        if (!silent) {
+          _showSnackBar(
+            context.tr(
+              '${provider.displayName} 没有可用音色',
+              '${provider.displayName} has no available voice',
+            ),
+          );
+        }
         return false;
       }
 
@@ -908,6 +1000,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             chapterId: chapter.id,
             provider: provider,
             voice: voice,
+            speed: (recoveryConfig['speed'] as num?)?.toDouble() ?? 1.0,
+            priorityParagraphIndex: priorityParagraphIndex,
+            prefetchCount: 3,
           );
       _listenToGeneration(stream);
       return true;
@@ -918,7 +1013,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         error: error,
         stackTrace: stackTrace,
       );
-      if (mounted) {
+      if (mounted && !silent) {
         _showSnackBar(
           context.tr('无法开始缓存：$error', 'Unable to start caching: $error'),
         );
@@ -1102,6 +1197,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       providerId: manifest.providerId,
       voiceId: manifest.voiceId,
       speed: manifest.speed,
+      configurationFingerprint: manifest.configurationFingerprint,
       segments: playable,
       updatedAt: manifest.updatedAt,
     );
@@ -1150,6 +1246,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
     _setStreamPlaybackRequested(true);
     final manifest = _selectedManifest;
+    final savedParagraphIndex =
+        _chapterPlaybackProgress?.paragraphIndex ??
+        (widget.book.currentChapterId == chapter.id
+            ? widget.book.currentParagraphIndex
+            : null);
+    final priorityParagraphIndex = manifest == null || manifest.segments.isEmpty
+        ? savedParagraphIndex
+        : savedParagraphIndex?.clamp(0, manifest.segments.length - 1).toInt();
     final hasPlayablePrefix =
         manifest != null && _playablePrefix(manifest).segments.isNotEmpty;
     var startedPlayback = false;
@@ -1160,7 +1264,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final needsCaching = manifest == null || !manifest.isReady;
     var caching = _generationSubscription != null;
     if (needsCaching && !caching) {
-      caching = await _ensureChapterCachingStarted();
+      caching = await _ensureChapterCachingStarted(
+        priorityParagraphIndex: priorityParagraphIndex,
+      );
+    } else if (caching && priorityParagraphIndex != null) {
+      ref
+          .read(generationOrchestratorProvider)
+          .prioritizeChapter(
+            bookId: widget.book.id,
+            chapterId: chapter.id,
+            paragraphIndex: priorityParagraphIndex,
+            lookahead: 3,
+          );
     }
     if (!mounted) return;
 
@@ -1224,6 +1339,36 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     });
   }
 
+  Future<void> _resumeInterruptedPodcastTranscription() async {
+    final episode = _podcastEpisode;
+    final data = widget.podcast;
+    if (episode == null ||
+        data == null ||
+        episode.transcriptStatus == 'complete') {
+      return;
+    }
+    final database = ref.read(appDatabaseProvider);
+    final task = await database.getLatestGenerationTask(
+      kind: GenerationTaskKind.whisper.name,
+      parentId: episode.showId,
+      scopeId: episode.id,
+    );
+    final hasLegacyResume =
+        episode.transcriptProgressMs > 0 &&
+        (episode.transcriptStatus == podcastTranscriptPausedStatus ||
+            episode.transcriptStatus == 'failed' ||
+            episode.transcriptStatus == 'running');
+    if (!mounted || (task == null && !hasLegacyResume)) return;
+    final service = ref.read(podcastTranscriptionServiceProvider);
+    if (service.activeEpisodeId == episode.id ||
+        !(await service.isModelInstalled())) {
+      return;
+    }
+    unawaited(
+      _startPodcastTranscription(allowSetup: false, pausePlayback: false),
+    );
+  }
+
   bool _transcriptPaused(drift_db.PodcastEpisode episode) =>
       episode.transcriptStatus == podcastTranscriptPausedStatus &&
       episode.transcriptProgressMs > 0;
@@ -1253,15 +1398,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
   }
 
-  Future<void> _startPodcastTranscription() async {
+  Future<void> _startPodcastTranscription({
+    bool allowSetup = true,
+    bool pausePlayback = true,
+  }) async {
     final data = widget.podcast;
     final episode = _podcastEpisode;
     if (data == null || episode == null || _transcribingPodcast) return;
 
-    if (!await _ensureWhisperModelReady()) return;
+    if (allowSetup) {
+      if (!await _ensureWhisperModelReady()) return;
+    } else if (!await ref
+        .read(podcastTranscriptionServiceProvider)
+        .isModelInstalled()) {
+      return;
+    }
     if (!mounted) return;
     final handler = await ref.read(luminaAudioHandlerProvider.future);
-    if (handler.playbackState.value.playing) await handler.pause();
+    if (pausePlayback && handler.playbackState.value.playing) {
+      await handler.pause();
+    }
     if (!mounted) return;
     setState(() {
       _transcribingPodcast = true;

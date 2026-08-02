@@ -63,6 +63,15 @@ abstract interface class TtsConcurrencyPolicy {
   Future<int> get generationConcurrency;
 }
 
+/// Optional provider-specific configuration identity used by resumable TTS.
+///
+/// Providers should include the selected model/profile here. Implementations
+/// that do not expose a mutable model can omit the interface and the
+/// orchestrator will fall back to the provider id.
+abstract interface class TtsGenerationConfiguration {
+  Future<String> get generationConfigurationFingerprint;
+}
+
 abstract interface class TtsModelCatalog {
   TtsModelCatalogSource get modelCatalogSource;
 

@@ -8,6 +8,7 @@ import 'package:lumina/data/database/app_database.dart';
 import 'package:lumina/domain/models/audio_text_timing.dart';
 import 'package:lumina/domain/models/chapter_manifest.dart';
 import 'package:lumina/services/generation_orchestrator.dart';
+import 'package:lumina/services/generation_task_store.dart';
 import 'package:lumina/services/manifest_store.dart';
 import 'package:lumina/tts/models/tts_capabilities.dart';
 import 'package:lumina/tts/models/tts_chunk.dart';
@@ -110,6 +111,129 @@ void main() {
       expect(provider.synthesisRequests, 5);
       expect(results.first.last.ready, 5);
       expect(results.last.last.ready, 5);
+    },
+  );
+
+  test(
+    'a restarted generation reuses completed files and task chunks',
+    () async {
+      final temp = await Directory.systemTemp.createTemp('lumina_task_resume_');
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      final store = _TestManifestStore(temp);
+      const voice = TtsVoice(
+        id: 'voice',
+        name: 'Test voice',
+        providerId: 'parallel_test',
+        type: VoiceType.preset,
+        providerVoiceId: 'voice',
+        createdAt: 1,
+      );
+      addTearDown(() async {
+        await database.close();
+        if (await temp.exists()) await temp.delete(recursive: true);
+      });
+
+      await _insertBookFixture(database);
+      final firstProvider = _ConcurrentTestProvider(concurrency: 1);
+      await GenerationOrchestrator(database: database, manifestStore: store)
+          .generateChapter(
+            bookId: 'book',
+            chapterId: 'chapter',
+            provider: firstProvider,
+            voice: voice,
+          )
+          .drain();
+
+      final task = await database.getLatestGenerationTask(
+        kind: GenerationTaskKind.tts.name,
+        parentId: 'book',
+        scopeId: 'chapter',
+      );
+      expect(task?.status, GenerationChunkStatus.complete.name);
+      expect(
+        (await database.getGenerationTaskChunks(task!.id)).every(
+          (chunk) => chunk.status == GenerationChunkStatus.complete.name,
+        ),
+        isTrue,
+      );
+
+      // Simulate a process stop after the durable chunk result was written but
+      // before the manifest reached disk. The next foreground run must rebuild
+      // the ready segments from task metadata without calling the provider.
+      final interruptedManifest = store.saved!;
+      store.saved = ChapterManifest(
+        chapterId: interruptedManifest.chapterId,
+        bookId: interruptedManifest.bookId,
+        providerId: interruptedManifest.providerId,
+        voiceId: interruptedManifest.voiceId,
+        speed: interruptedManifest.speed,
+        configurationFingerprint: interruptedManifest.configurationFingerprint,
+        segments: interruptedManifest.segments
+            .map(
+              (segment) => segment.copyWith(
+                durationMs: 0,
+                state: ParagraphAudioState.notGenerated,
+              ),
+            )
+            .toList(),
+        updatedAt: interruptedManifest.updatedAt,
+      );
+
+      final secondProvider = _ConcurrentTestProvider(concurrency: 1);
+      final restartedProgress =
+          await GenerationOrchestrator(database: database, manifestStore: store)
+              .generateChapter(
+                bookId: 'book',
+                chapterId: 'chapter',
+                provider: secondProvider,
+                voice: voice,
+              )
+              .toList();
+
+      expect(secondProvider.synthesisRequests, 0);
+      expect(restartedProgress.last.ready, 5);
+    },
+  );
+
+  test(
+    'priority scheduling fills the current paragraph safety buffer first',
+    () async {
+      final temp = await Directory.systemTemp.createTemp(
+        'lumina_task_priority_',
+      );
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      final store = _TestManifestStore(temp);
+      final provider = _ConcurrentTestProvider(concurrency: 1);
+      const voice = TtsVoice(
+        id: 'voice',
+        name: 'Test voice',
+        providerId: 'parallel_test',
+        type: VoiceType.preset,
+        providerVoiceId: 'voice',
+        createdAt: 1,
+      );
+      addTearDown(() async {
+        await database.close();
+        if (await temp.exists()) await temp.delete(recursive: true);
+      });
+
+      await _insertBookFixture(database);
+      await GenerationOrchestrator(database: database, manifestStore: store)
+          .generateChapter(
+            bookId: 'book',
+            chapterId: 'chapter',
+            provider: provider,
+            voice: voice,
+            priorityParagraphIndex: 3,
+            prefetchCount: 2,
+          )
+          .drain();
+
+      expect(provider.synthesisOrder.take(3), [
+        'Paragraph 3.',
+        'Paragraph 4.',
+        'Paragraph 2.',
+      ]);
     },
   );
 
@@ -479,6 +603,7 @@ class _ConcurrentTestProvider implements TtsProvider, TtsConcurrencyPolicy {
   int activeRequests = 0;
   int maxActiveRequests = 0;
   int synthesisRequests = 0;
+  final List<String> synthesisOrder = [];
 
   _ConcurrentTestProvider({required this.concurrency});
 
@@ -516,6 +641,7 @@ class _ConcurrentTestProvider implements TtsProvider, TtsConcurrencyPolicy {
     double speed = 1,
   }) async {
     synthesisRequests++;
+    synthesisOrder.add(text);
     activeRequests++;
     if (activeRequests > maxActiveRequests) {
       maxActiveRequests = activeRequests;

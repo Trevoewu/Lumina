@@ -15,6 +15,7 @@ import 'package:whisper_ggml/whisper_ggml.dart';
 import '../data/database/app_database.dart';
 import '../domain/models/audio_text_timing.dart';
 import 'app_log_service.dart';
+import 'generation_task_store.dart';
 
 enum PodcastTranscriptionStage {
   preparing,
@@ -116,6 +117,13 @@ class _ChunkRun {
   });
 }
 
+class _WhisperPrefix {
+  final List<AudioTextTiming> segments;
+  final int endMs;
+
+  const _WhisperPrefix({required this.segments, required this.endMs});
+}
+
 class _ActiveTranscription {
   final String episodeId;
   final Completer<void> finished = Completer<void>();
@@ -174,12 +182,14 @@ class PodcastTranscriptionService {
   static const _baseModelSha1 = '465707469ff3a37a2b9b8d8f89f2f99de7299dac';
 
   final AppDatabase database;
+  late final GenerationTaskStore taskStore = GenerationTaskStore(database);
   final Dio _dio;
   final WhisperController _controller;
   final Map<String, Future<String>> _audioDownloads = {};
   final StreamController<PodcastTranscriptionProgress> _progressController =
       StreamController<PodcastTranscriptionProgress>.broadcast();
   _ActiveTranscription? _active;
+  Future<List<AudioTextTiming>>? _activeFuture;
   bool _installingModel = false;
 
   PodcastTranscriptionService(
@@ -264,7 +274,69 @@ class PodcastTranscriptionService {
     }
   }
 
+  _WhisperPrefix _completedWhisperPrefix(List<GenerationTaskChunk> chunks) {
+    final output = <AudioTextTiming>[];
+    var endMs = 0;
+    for (final chunk in chunks) {
+      if (chunk.status != GenerationChunkStatus.complete.name ||
+          chunk.resultJson?.isNotEmpty != true ||
+          chunk.startMs != endMs) {
+        break;
+      }
+      output.addAll(decodeTranscript(chunk.resultJson));
+      endMs = chunk.endMs;
+    }
+    return _WhisperPrefix(
+      segments: mergePodcastTranscriptSegments(const [], output),
+      endMs: endMs,
+    );
+  }
+
   Future<List<AudioTextTiming>> transcribe(
+    PodcastEpisode episode, {
+    String? languageHint,
+    void Function(PodcastTranscriptionProgress progress)? onProgress,
+  }) {
+    final running = _activeFuture;
+    if (running != null) {
+      // A repeated tap, a player reopen, and a recovery trigger may all race
+      // during the same foreground frame. Reuse the first future instead of
+      // pausing and submitting the same episode again.
+      if (_active == null || _active?.episodeId == episode.id) return running;
+      return running.then(
+        (_) => transcribe(
+          episode,
+          languageHint: languageHint,
+          onProgress: onProgress,
+        ),
+        onError: (Object _, StackTrace _) => transcribe(
+          episode,
+          languageHint: languageHint,
+          onProgress: onProgress,
+        ),
+      );
+    }
+
+    final future = _transcribeInternal(
+      episode,
+      languageHint: languageHint,
+      onProgress: onProgress,
+    );
+    _activeFuture = future;
+    unawaited(
+      future.then<void>(
+        (_) {
+          if (identical(_activeFuture, future)) _activeFuture = null;
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          if (identical(_activeFuture, future)) _activeFuture = null;
+        },
+      ),
+    );
+    return future;
+  }
+
+  Future<List<AudioTextTiming>> _transcribeInternal(
     PodcastEpisode episode, {
     String? languageHint,
     void Function(PodcastTranscriptionProgress progress)? onProgress,
@@ -290,6 +362,8 @@ class PodcastTranscriptionService {
     }
 
     try {
+      final storedBeforeRun =
+          await database.getPodcastEpisode(episode.id) ?? episode;
       await database.updatePodcastTranscript(
         episode.id,
         status: 'running',
@@ -334,15 +408,111 @@ class PodcastTranscriptionService {
         1,
         10,
       );
-      // The row carries how far an earlier run got. Resuming replays only the
-      // audio after that point and keeps the chunks it already cached.
-      final stored = await database.getPodcastEpisode(episode.id) ?? episode;
-      final resumeFromMs = stored.transcriptStatus == 'complete'
-          ? 0
+      final stored = storedBeforeRun;
+      final sourceEpisode =
+          await database.getPodcastEpisode(episode.id) ?? episode;
+      final audioFile = File(cachedAudioPath);
+      final audioLength = await audioFile.exists()
+          ? await audioFile.length()
+          : 0;
+      final audioModified = await audioFile.exists()
+          ? (await audioFile.lastModified()).millisecondsSinceEpoch
+          : 0;
+      final sourceFingerprint = generationFingerprint([
+        episode.id,
+        sourceEpisode.audioUrl,
+        sourceEpisode.localAudioPath ?? '',
+        durationMs.toString(),
+        audioLength.toString(),
+        audioModified.toString(),
+      ]);
+      final configFingerprint = generationFingerprint([
+        defaultModel.name,
+        language,
+        chunkMinutes.toString(),
+        _chunkOverlapMs.toString(),
+      ]);
+      final taskId = generationTaskId(
+        kind: GenerationTaskKind.whisper,
+        parentId: episode.showId,
+        scopeId: episode.id,
+        contentFingerprint: sourceFingerprint,
+        configFingerprint: configFingerprint,
+      );
+      final taskPlan = planPodcastChunks(
+        durationMs: durationMs,
+        startFromMs: 0,
+        chunkDurationMs: Duration(minutes: chunkMinutes).inMilliseconds,
+        maxUnknownChunks: _maximumUnknownDurationChunks,
+        overlapMs: _chunkOverlapMs,
+      );
+      final taskSpecs = [
+        for (var index = 0; index < taskPlan.length; index++)
+          GenerationChunkSpec(
+            id: '$taskId:chunk:${taskPlan[index].startMs}',
+            chunkIndex: index,
+            sourceKey: taskPlan[index].startMs.toString(),
+            startMs: taskPlan[index].startMs,
+            endMs: taskPlan[index].startMs + taskPlan[index].durationMs,
+            inputFingerprint: generationFingerprint([
+              sourceFingerprint,
+              language,
+              taskPlan[index].startMs.toString(),
+              taskPlan[index].durationMs.toString(),
+            ]),
+          ),
+      ];
+      final latestTask = await database.getLatestGenerationTask(
+        kind: GenerationTaskKind.whisper.name,
+        parentId: episode.showId,
+        scopeId: episode.id,
+      );
+
+      // A completed transcript is a cache hit. Do not redownload the model or
+      // submit the same Whisper work merely because the player was reopened.
+      if (stored.transcriptStatus == 'complete' &&
+          (latestTask == null ||
+              (latestTask.id == taskId &&
+                  latestTask.status != GenerationChunkStatus.failed.name))) {
+        return decodeTranscript(stored.transcriptJson);
+      }
+      if (latestTask != null && latestTask.id != taskId) {
+        // Feed/audio or language configuration changed. Never merge results
+        // from the previous version into the new source.
+        await database.clearPodcastTranscript(episode.id);
+      }
+
+      await taskStore.ensureTask(
+        spec: GenerationTaskSpec(
+          id: taskId,
+          kind: GenerationTaskKind.whisper,
+          parentId: episode.showId,
+          scopeId: episode.id,
+          contentFingerprint: sourceFingerprint,
+          configFingerprint: configFingerprint,
+          configJson: jsonEncode({
+            'model': defaultModel.name,
+            'language': language,
+            'chunkMinutes': chunkMinutes,
+            'overlapMs': _chunkOverlapMs,
+          }),
+        ),
+        chunks: taskSpecs,
+      );
+      await taskStore.startTask(taskId);
+      final taskChunks = await taskStore.chunks(taskId);
+
+      // Prefer durable chunk results. The episode watermark remains a legacy
+      // fallback for databases created before the task tables existed.
+      final prefix = _completedWhisperPrefix(taskChunks);
+      final resumeFromMs = prefix.endMs > 0
+          ? prefix.endMs
           : stored.transcriptProgressMs
                 .clamp(0, math.max(0, durationMs))
                 .toInt();
-      final cached = resumeFromMs > 0
+      final cached = prefix.segments.isNotEmpty
+          ? prefix.segments
+          : resumeFromMs > 0
           ? decodeTranscript(stored.transcriptJson)
           : const <AudioTextTiming>[];
 
@@ -355,6 +525,9 @@ class PodcastTranscriptionService {
         startFromMs: resumeFromMs,
         cachedSegments: cached,
         chunkDuration: Duration(minutes: chunkMinutes),
+        taskStore: taskStore,
+        taskId: taskId,
+        taskChunks: taskChunks,
         emit: emit,
       );
 
@@ -373,6 +546,11 @@ class PodcastTranscriptionService {
           PodcastTranscriptionStage.paused,
           '本地转写已暂停',
           progress: durationMs <= 0 ? null : run.completedMs / durationMs,
+        );
+        await database.updateGenerationTask(
+          taskId,
+          status: GenerationChunkStatus.pending.name,
+          error: null,
         );
         AppLogger.info(
           'Podcast',
@@ -396,6 +574,7 @@ class PodcastTranscriptionService {
         error: null,
         progressMs: run.completedMs,
       );
+      await taskStore.completeTask(taskId);
       emit(PodcastTranscriptionStage.complete, '本地转写完成', progress: 1);
       AppLogger.info(
         'Podcast',
@@ -404,6 +583,15 @@ class PodcastTranscriptionService {
       );
       return run.segments;
     } catch (error, stackTrace) {
+      final latestTask = await database.getLatestGenerationTask(
+        kind: GenerationTaskKind.whisper.name,
+        parentId: episode.showId,
+        scopeId: episode.id,
+      );
+      if (latestTask != null &&
+          latestTask.status == GenerationChunkStatus.running.name) {
+        await taskStore.failTask(latestTask.id, error);
+      }
       await database.updatePodcastTranscript(
         episode.id,
         status: 'failed',
@@ -452,6 +640,9 @@ class PodcastTranscriptionService {
     required int startFromMs,
     required List<AudioTextTiming> cachedSegments,
     required Duration chunkDuration,
+    required GenerationTaskStore taskStore,
+    required String taskId,
+    required List<GenerationTaskChunk> taskChunks,
     required void Function(
       PodcastTranscriptionStage stage,
       String message, {
@@ -491,6 +682,24 @@ class PodcastTranscriptionService {
       final window = plan[chunkIndex];
       final startMs = window.startMs;
       final requestedDurationMs = window.durationMs;
+      // Databases created before chunk tasks used an arbitrary transcript
+      // watermark. That watermark may fall inside the canonical plan, so the
+      // first resumed window has no task row yet. Keep the legacy watermark
+      // as the source of truth for that one window and persist all canonical
+      // windows normally.
+      final taskChunk = taskChunks
+          .where((chunk) => chunk.startMs == startMs)
+          .firstOrNull;
+      if (taskChunk != null && taskChunk.taskId != taskId) {
+        throw StateError('Whisper 分片不属于当前任务');
+      }
+      if (taskChunk != null &&
+          taskChunk.status == GenerationChunkStatus.complete.name &&
+          taskChunk.resultJson?.isNotEmpty == true) {
+        output.addAll(decodeTranscript(taskChunk.resultJson));
+        completedMs = math.max(completedMs, taskChunk.endMs);
+        continue;
+      }
 
       final chunkPath = p.join(
         chunkDirectory.path,
@@ -523,6 +732,7 @@ class PodcastTranscriptionService {
       );
 
       try {
+        if (taskChunk != null) await taskStore.startChunk(taskChunk.id);
         final result = await _controller.transcribe(
           model: defaultModel,
           audioPath: chunkPath,
@@ -547,23 +757,33 @@ class PodcastTranscriptionService {
 
         final response = result.transcription;
         final responseSegments = response.segments ?? const [];
-        final chunkSegments = <AudioTextTiming>[
-          for (final segment in responseSegments)
-            if (segment.text.trim().isNotEmpty &&
-                startMs + requestedDurationMs >
-                    window.extractionStartMs + segment.fromTs.inMilliseconds &&
-                startMs <=
-                    window.extractionStartMs + segment.fromTs.inMilliseconds)
-              AudioTextTiming(
-                text: segment.text.trim(),
-                startMs:
-                    (window.extractionStartMs + segment.fromTs.inMilliseconds)
-                        .toInt(),
-                endMs: (window.extractionStartMs + segment.toTs.inMilliseconds)
-                    .toInt(),
-                chunkStartMs: startMs,
-              ),
-        ];
+        final logicalEndMs = startMs + requestedDurationMs;
+        final chunkSegments = <AudioTextTiming>[];
+        for (final segment in responseSegments) {
+          final absoluteStart =
+              window.extractionStartMs + segment.fromTs.inMilliseconds;
+          final absoluteEnd =
+              window.extractionStartMs + segment.toTs.inMilliseconds;
+          // Overlap is context only. Ownership is determined by the segment
+          // start: a phrase crossing this boundary belongs to the previous
+          // logical chunk, so the next chunk cannot duplicate it. Its end is
+          // still clamped to protect the persisted result from bad timestamps.
+          if (segment.text.trim().isEmpty ||
+              absoluteStart < startMs ||
+              absoluteStart >= logicalEndMs) {
+            continue;
+          }
+          final end = math.min(logicalEndMs, absoluteEnd);
+          if (end <= absoluteStart) continue;
+          chunkSegments.add(
+            AudioTextTiming(
+              text: segment.text.trim(),
+              startMs: absoluteStart,
+              endMs: end,
+              chunkStartMs: startMs,
+            ),
+          );
+        }
         if (responseSegments.isEmpty && response.text.trim().isNotEmpty) {
           chunkSegments.add(
             AudioTextTiming(
@@ -574,8 +794,20 @@ class PodcastTranscriptionService {
             ),
           );
         }
-        output.addAll(chunkSegments);
+        final merged = mergePodcastTranscriptSegments(output, chunkSegments);
+        output
+          ..clear()
+          ..addAll(merged);
         completedMs = startMs + requestedDurationMs;
+
+        if (taskChunk != null) {
+          await taskStore.completeChunk(
+            taskChunk.id,
+            resultJson: jsonEncode([
+              for (final segment in chunkSegments) segment.toJson(),
+            ]),
+          );
+        }
 
         // Each completed chunk is durable immediately. Database watchers can
         // render these lines as lyrics while later chunks are still running,
@@ -590,6 +822,9 @@ class PodcastTranscriptionService {
           error: null,
           progressMs: completedMs,
         );
+      } catch (error) {
+        if (taskChunk != null) await taskStore.failChunk(taskChunk.id, error);
+        rethrow;
       } finally {
         await _deletePreparedAudio(chunkPath);
       }
@@ -729,6 +964,10 @@ class PodcastTranscriptionService {
       p.join(support.path, 'podcasts', 'audio', '${episode.id}$extension'),
     );
     await target.parent.create(recursive: true);
+    if (await target.exists() && await target.length() > 0) {
+      await database.updatePodcastLocalAudioPath(episode.id, target.path);
+      return target.path;
+    }
 
     final partial = File('${target.path}.partial');
     await _dio.download(
@@ -833,6 +1072,26 @@ class PodcastTranscriptionService {
       return const [];
     }
   }
+}
+
+/// Merges Whisper results idempotently while preserving chronological order.
+/// A retry of the same logical chunk cannot add a duplicate timing row.
+List<AudioTextTiming> mergePodcastTranscriptSegments(
+  Iterable<AudioTextTiming> existing,
+  Iterable<AudioTextTiming> incoming,
+) {
+  final byIdentity = <String, AudioTextTiming>{};
+  for (final timing in [...existing, ...incoming]) {
+    if (timing.text.trim().isEmpty || timing.endMs <= timing.startMs) continue;
+    final key = '${timing.startMs}:${timing.endMs}:${timing.text.trim()}';
+    byIdentity[key] = timing;
+  }
+  final merged = byIdentity.values.toList()
+    ..sort((a, b) {
+      final byStart = a.startMs.compareTo(b.startMs);
+      return byStart != 0 ? byStart : a.endMs.compareTo(b.endMs);
+    });
+  return merged;
 }
 
 const _whisperLanguageCodes = <String>{

@@ -9848,6 +9848,1722 @@ class AiMessagesCompanion extends UpdateCompanion<AiMessage> {
   }
 }
 
+class $GenerationTasksTable extends GenerationTasks
+    with TableInfo<$GenerationTasksTable, GenerationTask> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $GenerationTasksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _parentIdMeta = const VerificationMeta(
+    'parentId',
+  );
+  @override
+  late final GeneratedColumn<String> parentId = GeneratedColumn<String>(
+    'parent_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _scopeIdMeta = const VerificationMeta(
+    'scopeId',
+  );
+  @override
+  late final GeneratedColumn<String> scopeId = GeneratedColumn<String>(
+    'scope_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _contentFingerprintMeta =
+      const VerificationMeta('contentFingerprint');
+  @override
+  late final GeneratedColumn<String> contentFingerprint =
+      GeneratedColumn<String>(
+        'content_fingerprint',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _configFingerprintMeta = const VerificationMeta(
+    'configFingerprint',
+  );
+  @override
+  late final GeneratedColumn<String> configFingerprint =
+      GeneratedColumn<String>(
+        'config_fingerprint',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _configJsonMeta = const VerificationMeta(
+    'configJson',
+  );
+  @override
+  late final GeneratedColumn<String> configJson = GeneratedColumn<String>(
+    'config_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('{}'),
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('pending'),
+  );
+  static const VerificationMeta _priorityMeta = const VerificationMeta(
+    'priority',
+  );
+  @override
+  late final GeneratedColumn<int> priority = GeneratedColumn<int>(
+    'priority',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _startedAtMeta = const VerificationMeta(
+    'startedAt',
+  );
+  @override
+  late final GeneratedColumn<int> startedAt = GeneratedColumn<int>(
+    'started_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _completedAtMeta = const VerificationMeta(
+    'completedAt',
+  );
+  @override
+  late final GeneratedColumn<int> completedAt = GeneratedColumn<int>(
+    'completed_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastErrorMeta = const VerificationMeta(
+    'lastError',
+  );
+  @override
+  late final GeneratedColumn<String> lastError = GeneratedColumn<String>(
+    'last_error',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    kind,
+    parentId,
+    scopeId,
+    contentFingerprint,
+    configFingerprint,
+    configJson,
+    status,
+    priority,
+    createdAt,
+    updatedAt,
+    startedAt,
+    completedAt,
+    lastError,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'generation_tasks';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<GenerationTask> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('parent_id')) {
+      context.handle(
+        _parentIdMeta,
+        parentId.isAcceptableOrUnknown(data['parent_id']!, _parentIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_parentIdMeta);
+    }
+    if (data.containsKey('scope_id')) {
+      context.handle(
+        _scopeIdMeta,
+        scopeId.isAcceptableOrUnknown(data['scope_id']!, _scopeIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_scopeIdMeta);
+    }
+    if (data.containsKey('content_fingerprint')) {
+      context.handle(
+        _contentFingerprintMeta,
+        contentFingerprint.isAcceptableOrUnknown(
+          data['content_fingerprint']!,
+          _contentFingerprintMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_contentFingerprintMeta);
+    }
+    if (data.containsKey('config_fingerprint')) {
+      context.handle(
+        _configFingerprintMeta,
+        configFingerprint.isAcceptableOrUnknown(
+          data['config_fingerprint']!,
+          _configFingerprintMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_configFingerprintMeta);
+    }
+    if (data.containsKey('config_json')) {
+      context.handle(
+        _configJsonMeta,
+        configJson.isAcceptableOrUnknown(data['config_json']!, _configJsonMeta),
+      );
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    if (data.containsKey('priority')) {
+      context.handle(
+        _priorityMeta,
+        priority.isAcceptableOrUnknown(data['priority']!, _priorityMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('started_at')) {
+      context.handle(
+        _startedAtMeta,
+        startedAt.isAcceptableOrUnknown(data['started_at']!, _startedAtMeta),
+      );
+    }
+    if (data.containsKey('completed_at')) {
+      context.handle(
+        _completedAtMeta,
+        completedAt.isAcceptableOrUnknown(
+          data['completed_at']!,
+          _completedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_error')) {
+      context.handle(
+        _lastErrorMeta,
+        lastError.isAcceptableOrUnknown(data['last_error']!, _lastErrorMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  GenerationTask map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return GenerationTask(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      parentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}parent_id'],
+      )!,
+      scopeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scope_id'],
+      )!,
+      contentFingerprint: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content_fingerprint'],
+      )!,
+      configFingerprint: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}config_fingerprint'],
+      )!,
+      configJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}config_json'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      priority: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}priority'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      startedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}started_at'],
+      ),
+      completedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}completed_at'],
+      ),
+      lastError: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_error'],
+      ),
+    );
+  }
+
+  @override
+  $GenerationTasksTable createAlias(String alias) {
+    return $GenerationTasksTable(attachedDatabase, alias);
+  }
+}
+
+class GenerationTask extends DataClass implements Insertable<GenerationTask> {
+  final String id;
+  final String kind;
+  final String parentId;
+  final String scopeId;
+  final String contentFingerprint;
+  final String configFingerprint;
+  final String configJson;
+  final String status;
+  final int priority;
+  final int createdAt;
+  final int updatedAt;
+  final int? startedAt;
+  final int? completedAt;
+  final String? lastError;
+  const GenerationTask({
+    required this.id,
+    required this.kind,
+    required this.parentId,
+    required this.scopeId,
+    required this.contentFingerprint,
+    required this.configFingerprint,
+    required this.configJson,
+    required this.status,
+    required this.priority,
+    required this.createdAt,
+    required this.updatedAt,
+    this.startedAt,
+    this.completedAt,
+    this.lastError,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['kind'] = Variable<String>(kind);
+    map['parent_id'] = Variable<String>(parentId);
+    map['scope_id'] = Variable<String>(scopeId);
+    map['content_fingerprint'] = Variable<String>(contentFingerprint);
+    map['config_fingerprint'] = Variable<String>(configFingerprint);
+    map['config_json'] = Variable<String>(configJson);
+    map['status'] = Variable<String>(status);
+    map['priority'] = Variable<int>(priority);
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    if (!nullToAbsent || startedAt != null) {
+      map['started_at'] = Variable<int>(startedAt);
+    }
+    if (!nullToAbsent || completedAt != null) {
+      map['completed_at'] = Variable<int>(completedAt);
+    }
+    if (!nullToAbsent || lastError != null) {
+      map['last_error'] = Variable<String>(lastError);
+    }
+    return map;
+  }
+
+  GenerationTasksCompanion toCompanion(bool nullToAbsent) {
+    return GenerationTasksCompanion(
+      id: Value(id),
+      kind: Value(kind),
+      parentId: Value(parentId),
+      scopeId: Value(scopeId),
+      contentFingerprint: Value(contentFingerprint),
+      configFingerprint: Value(configFingerprint),
+      configJson: Value(configJson),
+      status: Value(status),
+      priority: Value(priority),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      startedAt: startedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(startedAt),
+      completedAt: completedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(completedAt),
+      lastError: lastError == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastError),
+    );
+  }
+
+  factory GenerationTask.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return GenerationTask(
+      id: serializer.fromJson<String>(json['id']),
+      kind: serializer.fromJson<String>(json['kind']),
+      parentId: serializer.fromJson<String>(json['parentId']),
+      scopeId: serializer.fromJson<String>(json['scopeId']),
+      contentFingerprint: serializer.fromJson<String>(
+        json['contentFingerprint'],
+      ),
+      configFingerprint: serializer.fromJson<String>(json['configFingerprint']),
+      configJson: serializer.fromJson<String>(json['configJson']),
+      status: serializer.fromJson<String>(json['status']),
+      priority: serializer.fromJson<int>(json['priority']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+      startedAt: serializer.fromJson<int?>(json['startedAt']),
+      completedAt: serializer.fromJson<int?>(json['completedAt']),
+      lastError: serializer.fromJson<String?>(json['lastError']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'kind': serializer.toJson<String>(kind),
+      'parentId': serializer.toJson<String>(parentId),
+      'scopeId': serializer.toJson<String>(scopeId),
+      'contentFingerprint': serializer.toJson<String>(contentFingerprint),
+      'configFingerprint': serializer.toJson<String>(configFingerprint),
+      'configJson': serializer.toJson<String>(configJson),
+      'status': serializer.toJson<String>(status),
+      'priority': serializer.toJson<int>(priority),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+      'startedAt': serializer.toJson<int?>(startedAt),
+      'completedAt': serializer.toJson<int?>(completedAt),
+      'lastError': serializer.toJson<String?>(lastError),
+    };
+  }
+
+  GenerationTask copyWith({
+    String? id,
+    String? kind,
+    String? parentId,
+    String? scopeId,
+    String? contentFingerprint,
+    String? configFingerprint,
+    String? configJson,
+    String? status,
+    int? priority,
+    int? createdAt,
+    int? updatedAt,
+    Value<int?> startedAt = const Value.absent(),
+    Value<int?> completedAt = const Value.absent(),
+    Value<String?> lastError = const Value.absent(),
+  }) => GenerationTask(
+    id: id ?? this.id,
+    kind: kind ?? this.kind,
+    parentId: parentId ?? this.parentId,
+    scopeId: scopeId ?? this.scopeId,
+    contentFingerprint: contentFingerprint ?? this.contentFingerprint,
+    configFingerprint: configFingerprint ?? this.configFingerprint,
+    configJson: configJson ?? this.configJson,
+    status: status ?? this.status,
+    priority: priority ?? this.priority,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    startedAt: startedAt.present ? startedAt.value : this.startedAt,
+    completedAt: completedAt.present ? completedAt.value : this.completedAt,
+    lastError: lastError.present ? lastError.value : this.lastError,
+  );
+  GenerationTask copyWithCompanion(GenerationTasksCompanion data) {
+    return GenerationTask(
+      id: data.id.present ? data.id.value : this.id,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      parentId: data.parentId.present ? data.parentId.value : this.parentId,
+      scopeId: data.scopeId.present ? data.scopeId.value : this.scopeId,
+      contentFingerprint: data.contentFingerprint.present
+          ? data.contentFingerprint.value
+          : this.contentFingerprint,
+      configFingerprint: data.configFingerprint.present
+          ? data.configFingerprint.value
+          : this.configFingerprint,
+      configJson: data.configJson.present
+          ? data.configJson.value
+          : this.configJson,
+      status: data.status.present ? data.status.value : this.status,
+      priority: data.priority.present ? data.priority.value : this.priority,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      startedAt: data.startedAt.present ? data.startedAt.value : this.startedAt,
+      completedAt: data.completedAt.present
+          ? data.completedAt.value
+          : this.completedAt,
+      lastError: data.lastError.present ? data.lastError.value : this.lastError,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GenerationTask(')
+          ..write('id: $id, ')
+          ..write('kind: $kind, ')
+          ..write('parentId: $parentId, ')
+          ..write('scopeId: $scopeId, ')
+          ..write('contentFingerprint: $contentFingerprint, ')
+          ..write('configFingerprint: $configFingerprint, ')
+          ..write('configJson: $configJson, ')
+          ..write('status: $status, ')
+          ..write('priority: $priority, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('completedAt: $completedAt, ')
+          ..write('lastError: $lastError')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    kind,
+    parentId,
+    scopeId,
+    contentFingerprint,
+    configFingerprint,
+    configJson,
+    status,
+    priority,
+    createdAt,
+    updatedAt,
+    startedAt,
+    completedAt,
+    lastError,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is GenerationTask &&
+          other.id == this.id &&
+          other.kind == this.kind &&
+          other.parentId == this.parentId &&
+          other.scopeId == this.scopeId &&
+          other.contentFingerprint == this.contentFingerprint &&
+          other.configFingerprint == this.configFingerprint &&
+          other.configJson == this.configJson &&
+          other.status == this.status &&
+          other.priority == this.priority &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.startedAt == this.startedAt &&
+          other.completedAt == this.completedAt &&
+          other.lastError == this.lastError);
+}
+
+class GenerationTasksCompanion extends UpdateCompanion<GenerationTask> {
+  final Value<String> id;
+  final Value<String> kind;
+  final Value<String> parentId;
+  final Value<String> scopeId;
+  final Value<String> contentFingerprint;
+  final Value<String> configFingerprint;
+  final Value<String> configJson;
+  final Value<String> status;
+  final Value<int> priority;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int?> startedAt;
+  final Value<int?> completedAt;
+  final Value<String?> lastError;
+  final Value<int> rowid;
+  const GenerationTasksCompanion({
+    this.id = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.parentId = const Value.absent(),
+    this.scopeId = const Value.absent(),
+    this.contentFingerprint = const Value.absent(),
+    this.configFingerprint = const Value.absent(),
+    this.configJson = const Value.absent(),
+    this.status = const Value.absent(),
+    this.priority = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.startedAt = const Value.absent(),
+    this.completedAt = const Value.absent(),
+    this.lastError = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  GenerationTasksCompanion.insert({
+    required String id,
+    required String kind,
+    required String parentId,
+    required String scopeId,
+    required String contentFingerprint,
+    required String configFingerprint,
+    this.configJson = const Value.absent(),
+    this.status = const Value.absent(),
+    this.priority = const Value.absent(),
+    required int createdAt,
+    required int updatedAt,
+    this.startedAt = const Value.absent(),
+    this.completedAt = const Value.absent(),
+    this.lastError = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       kind = Value(kind),
+       parentId = Value(parentId),
+       scopeId = Value(scopeId),
+       contentFingerprint = Value(contentFingerprint),
+       configFingerprint = Value(configFingerprint),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<GenerationTask> custom({
+    Expression<String>? id,
+    Expression<String>? kind,
+    Expression<String>? parentId,
+    Expression<String>? scopeId,
+    Expression<String>? contentFingerprint,
+    Expression<String>? configFingerprint,
+    Expression<String>? configJson,
+    Expression<String>? status,
+    Expression<int>? priority,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? startedAt,
+    Expression<int>? completedAt,
+    Expression<String>? lastError,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (kind != null) 'kind': kind,
+      if (parentId != null) 'parent_id': parentId,
+      if (scopeId != null) 'scope_id': scopeId,
+      if (contentFingerprint != null) 'content_fingerprint': contentFingerprint,
+      if (configFingerprint != null) 'config_fingerprint': configFingerprint,
+      if (configJson != null) 'config_json': configJson,
+      if (status != null) 'status': status,
+      if (priority != null) 'priority': priority,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (startedAt != null) 'started_at': startedAt,
+      if (completedAt != null) 'completed_at': completedAt,
+      if (lastError != null) 'last_error': lastError,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  GenerationTasksCompanion copyWith({
+    Value<String>? id,
+    Value<String>? kind,
+    Value<String>? parentId,
+    Value<String>? scopeId,
+    Value<String>? contentFingerprint,
+    Value<String>? configFingerprint,
+    Value<String>? configJson,
+    Value<String>? status,
+    Value<int>? priority,
+    Value<int>? createdAt,
+    Value<int>? updatedAt,
+    Value<int?>? startedAt,
+    Value<int?>? completedAt,
+    Value<String?>? lastError,
+    Value<int>? rowid,
+  }) {
+    return GenerationTasksCompanion(
+      id: id ?? this.id,
+      kind: kind ?? this.kind,
+      parentId: parentId ?? this.parentId,
+      scopeId: scopeId ?? this.scopeId,
+      contentFingerprint: contentFingerprint ?? this.contentFingerprint,
+      configFingerprint: configFingerprint ?? this.configFingerprint,
+      configJson: configJson ?? this.configJson,
+      status: status ?? this.status,
+      priority: priority ?? this.priority,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      startedAt: startedAt ?? this.startedAt,
+      completedAt: completedAt ?? this.completedAt,
+      lastError: lastError ?? this.lastError,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (parentId.present) {
+      map['parent_id'] = Variable<String>(parentId.value);
+    }
+    if (scopeId.present) {
+      map['scope_id'] = Variable<String>(scopeId.value);
+    }
+    if (contentFingerprint.present) {
+      map['content_fingerprint'] = Variable<String>(contentFingerprint.value);
+    }
+    if (configFingerprint.present) {
+      map['config_fingerprint'] = Variable<String>(configFingerprint.value);
+    }
+    if (configJson.present) {
+      map['config_json'] = Variable<String>(configJson.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (priority.present) {
+      map['priority'] = Variable<int>(priority.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (startedAt.present) {
+      map['started_at'] = Variable<int>(startedAt.value);
+    }
+    if (completedAt.present) {
+      map['completed_at'] = Variable<int>(completedAt.value);
+    }
+    if (lastError.present) {
+      map['last_error'] = Variable<String>(lastError.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GenerationTasksCompanion(')
+          ..write('id: $id, ')
+          ..write('kind: $kind, ')
+          ..write('parentId: $parentId, ')
+          ..write('scopeId: $scopeId, ')
+          ..write('contentFingerprint: $contentFingerprint, ')
+          ..write('configFingerprint: $configFingerprint, ')
+          ..write('configJson: $configJson, ')
+          ..write('status: $status, ')
+          ..write('priority: $priority, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('completedAt: $completedAt, ')
+          ..write('lastError: $lastError, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $GenerationTaskChunksTable extends GenerationTaskChunks
+    with TableInfo<$GenerationTaskChunksTable, GenerationTaskChunk> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $GenerationTaskChunksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _taskIdMeta = const VerificationMeta('taskId');
+  @override
+  late final GeneratedColumn<String> taskId = GeneratedColumn<String>(
+    'task_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _chunkIndexMeta = const VerificationMeta(
+    'chunkIndex',
+  );
+  @override
+  late final GeneratedColumn<int> chunkIndex = GeneratedColumn<int>(
+    'chunk_index',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sourceKeyMeta = const VerificationMeta(
+    'sourceKey',
+  );
+  @override
+  late final GeneratedColumn<String> sourceKey = GeneratedColumn<String>(
+    'source_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _startMsMeta = const VerificationMeta(
+    'startMs',
+  );
+  @override
+  late final GeneratedColumn<int> startMs = GeneratedColumn<int>(
+    'start_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _endMsMeta = const VerificationMeta('endMs');
+  @override
+  late final GeneratedColumn<int> endMs = GeneratedColumn<int>(
+    'end_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _inputFingerprintMeta = const VerificationMeta(
+    'inputFingerprint',
+  );
+  @override
+  late final GeneratedColumn<String> inputFingerprint = GeneratedColumn<String>(
+    'input_fingerprint',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('pending'),
+  );
+  static const VerificationMeta _attemptsMeta = const VerificationMeta(
+    'attempts',
+  );
+  @override
+  late final GeneratedColumn<int> attempts = GeneratedColumn<int>(
+    'attempts',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _priorityMeta = const VerificationMeta(
+    'priority',
+  );
+  @override
+  late final GeneratedColumn<int> priority = GeneratedColumn<int>(
+    'priority',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _resultRefMeta = const VerificationMeta(
+    'resultRef',
+  );
+  @override
+  late final GeneratedColumn<String> resultRef = GeneratedColumn<String>(
+    'result_ref',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _resultJsonMeta = const VerificationMeta(
+    'resultJson',
+  );
+  @override
+  late final GeneratedColumn<String> resultJson = GeneratedColumn<String>(
+    'result_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _errorMeta = const VerificationMeta('error');
+  @override
+  late final GeneratedColumn<String> error = GeneratedColumn<String>(
+    'error',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _startedAtMeta = const VerificationMeta(
+    'startedAt',
+  );
+  @override
+  late final GeneratedColumn<int> startedAt = GeneratedColumn<int>(
+    'started_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _completedAtMeta = const VerificationMeta(
+    'completedAt',
+  );
+  @override
+  late final GeneratedColumn<int> completedAt = GeneratedColumn<int>(
+    'completed_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    taskId,
+    chunkIndex,
+    sourceKey,
+    startMs,
+    endMs,
+    inputFingerprint,
+    status,
+    attempts,
+    priority,
+    resultRef,
+    resultJson,
+    error,
+    updatedAt,
+    startedAt,
+    completedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'generation_task_chunks';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<GenerationTaskChunk> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('task_id')) {
+      context.handle(
+        _taskIdMeta,
+        taskId.isAcceptableOrUnknown(data['task_id']!, _taskIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_taskIdMeta);
+    }
+    if (data.containsKey('chunk_index')) {
+      context.handle(
+        _chunkIndexMeta,
+        chunkIndex.isAcceptableOrUnknown(data['chunk_index']!, _chunkIndexMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_chunkIndexMeta);
+    }
+    if (data.containsKey('source_key')) {
+      context.handle(
+        _sourceKeyMeta,
+        sourceKey.isAcceptableOrUnknown(data['source_key']!, _sourceKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceKeyMeta);
+    }
+    if (data.containsKey('start_ms')) {
+      context.handle(
+        _startMsMeta,
+        startMs.isAcceptableOrUnknown(data['start_ms']!, _startMsMeta),
+      );
+    }
+    if (data.containsKey('end_ms')) {
+      context.handle(
+        _endMsMeta,
+        endMs.isAcceptableOrUnknown(data['end_ms']!, _endMsMeta),
+      );
+    }
+    if (data.containsKey('input_fingerprint')) {
+      context.handle(
+        _inputFingerprintMeta,
+        inputFingerprint.isAcceptableOrUnknown(
+          data['input_fingerprint']!,
+          _inputFingerprintMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_inputFingerprintMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    if (data.containsKey('attempts')) {
+      context.handle(
+        _attemptsMeta,
+        attempts.isAcceptableOrUnknown(data['attempts']!, _attemptsMeta),
+      );
+    }
+    if (data.containsKey('priority')) {
+      context.handle(
+        _priorityMeta,
+        priority.isAcceptableOrUnknown(data['priority']!, _priorityMeta),
+      );
+    }
+    if (data.containsKey('result_ref')) {
+      context.handle(
+        _resultRefMeta,
+        resultRef.isAcceptableOrUnknown(data['result_ref']!, _resultRefMeta),
+      );
+    }
+    if (data.containsKey('result_json')) {
+      context.handle(
+        _resultJsonMeta,
+        resultJson.isAcceptableOrUnknown(data['result_json']!, _resultJsonMeta),
+      );
+    }
+    if (data.containsKey('error')) {
+      context.handle(
+        _errorMeta,
+        error.isAcceptableOrUnknown(data['error']!, _errorMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('started_at')) {
+      context.handle(
+        _startedAtMeta,
+        startedAt.isAcceptableOrUnknown(data['started_at']!, _startedAtMeta),
+      );
+    }
+    if (data.containsKey('completed_at')) {
+      context.handle(
+        _completedAtMeta,
+        completedAt.isAcceptableOrUnknown(
+          data['completed_at']!,
+          _completedAtMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {taskId, chunkIndex},
+  ];
+  @override
+  GenerationTaskChunk map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return GenerationTaskChunk(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      taskId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}task_id'],
+      )!,
+      chunkIndex: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}chunk_index'],
+      )!,
+      sourceKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_key'],
+      )!,
+      startMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}start_ms'],
+      )!,
+      endMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}end_ms'],
+      )!,
+      inputFingerprint: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}input_fingerprint'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      attempts: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}attempts'],
+      )!,
+      priority: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}priority'],
+      )!,
+      resultRef: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}result_ref'],
+      ),
+      resultJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}result_json'],
+      ),
+      error: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}error'],
+      ),
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      startedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}started_at'],
+      ),
+      completedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}completed_at'],
+      ),
+    );
+  }
+
+  @override
+  $GenerationTaskChunksTable createAlias(String alias) {
+    return $GenerationTaskChunksTable(attachedDatabase, alias);
+  }
+}
+
+class GenerationTaskChunk extends DataClass
+    implements Insertable<GenerationTaskChunk> {
+  final String id;
+  final String taskId;
+  final int chunkIndex;
+  final String sourceKey;
+  final int startMs;
+  final int endMs;
+  final String inputFingerprint;
+  final String status;
+  final int attempts;
+  final int priority;
+  final String? resultRef;
+  final String? resultJson;
+  final String? error;
+  final int updatedAt;
+  final int? startedAt;
+  final int? completedAt;
+  const GenerationTaskChunk({
+    required this.id,
+    required this.taskId,
+    required this.chunkIndex,
+    required this.sourceKey,
+    required this.startMs,
+    required this.endMs,
+    required this.inputFingerprint,
+    required this.status,
+    required this.attempts,
+    required this.priority,
+    this.resultRef,
+    this.resultJson,
+    this.error,
+    required this.updatedAt,
+    this.startedAt,
+    this.completedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['task_id'] = Variable<String>(taskId);
+    map['chunk_index'] = Variable<int>(chunkIndex);
+    map['source_key'] = Variable<String>(sourceKey);
+    map['start_ms'] = Variable<int>(startMs);
+    map['end_ms'] = Variable<int>(endMs);
+    map['input_fingerprint'] = Variable<String>(inputFingerprint);
+    map['status'] = Variable<String>(status);
+    map['attempts'] = Variable<int>(attempts);
+    map['priority'] = Variable<int>(priority);
+    if (!nullToAbsent || resultRef != null) {
+      map['result_ref'] = Variable<String>(resultRef);
+    }
+    if (!nullToAbsent || resultJson != null) {
+      map['result_json'] = Variable<String>(resultJson);
+    }
+    if (!nullToAbsent || error != null) {
+      map['error'] = Variable<String>(error);
+    }
+    map['updated_at'] = Variable<int>(updatedAt);
+    if (!nullToAbsent || startedAt != null) {
+      map['started_at'] = Variable<int>(startedAt);
+    }
+    if (!nullToAbsent || completedAt != null) {
+      map['completed_at'] = Variable<int>(completedAt);
+    }
+    return map;
+  }
+
+  GenerationTaskChunksCompanion toCompanion(bool nullToAbsent) {
+    return GenerationTaskChunksCompanion(
+      id: Value(id),
+      taskId: Value(taskId),
+      chunkIndex: Value(chunkIndex),
+      sourceKey: Value(sourceKey),
+      startMs: Value(startMs),
+      endMs: Value(endMs),
+      inputFingerprint: Value(inputFingerprint),
+      status: Value(status),
+      attempts: Value(attempts),
+      priority: Value(priority),
+      resultRef: resultRef == null && nullToAbsent
+          ? const Value.absent()
+          : Value(resultRef),
+      resultJson: resultJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(resultJson),
+      error: error == null && nullToAbsent
+          ? const Value.absent()
+          : Value(error),
+      updatedAt: Value(updatedAt),
+      startedAt: startedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(startedAt),
+      completedAt: completedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(completedAt),
+    );
+  }
+
+  factory GenerationTaskChunk.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return GenerationTaskChunk(
+      id: serializer.fromJson<String>(json['id']),
+      taskId: serializer.fromJson<String>(json['taskId']),
+      chunkIndex: serializer.fromJson<int>(json['chunkIndex']),
+      sourceKey: serializer.fromJson<String>(json['sourceKey']),
+      startMs: serializer.fromJson<int>(json['startMs']),
+      endMs: serializer.fromJson<int>(json['endMs']),
+      inputFingerprint: serializer.fromJson<String>(json['inputFingerprint']),
+      status: serializer.fromJson<String>(json['status']),
+      attempts: serializer.fromJson<int>(json['attempts']),
+      priority: serializer.fromJson<int>(json['priority']),
+      resultRef: serializer.fromJson<String?>(json['resultRef']),
+      resultJson: serializer.fromJson<String?>(json['resultJson']),
+      error: serializer.fromJson<String?>(json['error']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+      startedAt: serializer.fromJson<int?>(json['startedAt']),
+      completedAt: serializer.fromJson<int?>(json['completedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'taskId': serializer.toJson<String>(taskId),
+      'chunkIndex': serializer.toJson<int>(chunkIndex),
+      'sourceKey': serializer.toJson<String>(sourceKey),
+      'startMs': serializer.toJson<int>(startMs),
+      'endMs': serializer.toJson<int>(endMs),
+      'inputFingerprint': serializer.toJson<String>(inputFingerprint),
+      'status': serializer.toJson<String>(status),
+      'attempts': serializer.toJson<int>(attempts),
+      'priority': serializer.toJson<int>(priority),
+      'resultRef': serializer.toJson<String?>(resultRef),
+      'resultJson': serializer.toJson<String?>(resultJson),
+      'error': serializer.toJson<String?>(error),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+      'startedAt': serializer.toJson<int?>(startedAt),
+      'completedAt': serializer.toJson<int?>(completedAt),
+    };
+  }
+
+  GenerationTaskChunk copyWith({
+    String? id,
+    String? taskId,
+    int? chunkIndex,
+    String? sourceKey,
+    int? startMs,
+    int? endMs,
+    String? inputFingerprint,
+    String? status,
+    int? attempts,
+    int? priority,
+    Value<String?> resultRef = const Value.absent(),
+    Value<String?> resultJson = const Value.absent(),
+    Value<String?> error = const Value.absent(),
+    int? updatedAt,
+    Value<int?> startedAt = const Value.absent(),
+    Value<int?> completedAt = const Value.absent(),
+  }) => GenerationTaskChunk(
+    id: id ?? this.id,
+    taskId: taskId ?? this.taskId,
+    chunkIndex: chunkIndex ?? this.chunkIndex,
+    sourceKey: sourceKey ?? this.sourceKey,
+    startMs: startMs ?? this.startMs,
+    endMs: endMs ?? this.endMs,
+    inputFingerprint: inputFingerprint ?? this.inputFingerprint,
+    status: status ?? this.status,
+    attempts: attempts ?? this.attempts,
+    priority: priority ?? this.priority,
+    resultRef: resultRef.present ? resultRef.value : this.resultRef,
+    resultJson: resultJson.present ? resultJson.value : this.resultJson,
+    error: error.present ? error.value : this.error,
+    updatedAt: updatedAt ?? this.updatedAt,
+    startedAt: startedAt.present ? startedAt.value : this.startedAt,
+    completedAt: completedAt.present ? completedAt.value : this.completedAt,
+  );
+  GenerationTaskChunk copyWithCompanion(GenerationTaskChunksCompanion data) {
+    return GenerationTaskChunk(
+      id: data.id.present ? data.id.value : this.id,
+      taskId: data.taskId.present ? data.taskId.value : this.taskId,
+      chunkIndex: data.chunkIndex.present
+          ? data.chunkIndex.value
+          : this.chunkIndex,
+      sourceKey: data.sourceKey.present ? data.sourceKey.value : this.sourceKey,
+      startMs: data.startMs.present ? data.startMs.value : this.startMs,
+      endMs: data.endMs.present ? data.endMs.value : this.endMs,
+      inputFingerprint: data.inputFingerprint.present
+          ? data.inputFingerprint.value
+          : this.inputFingerprint,
+      status: data.status.present ? data.status.value : this.status,
+      attempts: data.attempts.present ? data.attempts.value : this.attempts,
+      priority: data.priority.present ? data.priority.value : this.priority,
+      resultRef: data.resultRef.present ? data.resultRef.value : this.resultRef,
+      resultJson: data.resultJson.present
+          ? data.resultJson.value
+          : this.resultJson,
+      error: data.error.present ? data.error.value : this.error,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      startedAt: data.startedAt.present ? data.startedAt.value : this.startedAt,
+      completedAt: data.completedAt.present
+          ? data.completedAt.value
+          : this.completedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GenerationTaskChunk(')
+          ..write('id: $id, ')
+          ..write('taskId: $taskId, ')
+          ..write('chunkIndex: $chunkIndex, ')
+          ..write('sourceKey: $sourceKey, ')
+          ..write('startMs: $startMs, ')
+          ..write('endMs: $endMs, ')
+          ..write('inputFingerprint: $inputFingerprint, ')
+          ..write('status: $status, ')
+          ..write('attempts: $attempts, ')
+          ..write('priority: $priority, ')
+          ..write('resultRef: $resultRef, ')
+          ..write('resultJson: $resultJson, ')
+          ..write('error: $error, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('completedAt: $completedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    taskId,
+    chunkIndex,
+    sourceKey,
+    startMs,
+    endMs,
+    inputFingerprint,
+    status,
+    attempts,
+    priority,
+    resultRef,
+    resultJson,
+    error,
+    updatedAt,
+    startedAt,
+    completedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is GenerationTaskChunk &&
+          other.id == this.id &&
+          other.taskId == this.taskId &&
+          other.chunkIndex == this.chunkIndex &&
+          other.sourceKey == this.sourceKey &&
+          other.startMs == this.startMs &&
+          other.endMs == this.endMs &&
+          other.inputFingerprint == this.inputFingerprint &&
+          other.status == this.status &&
+          other.attempts == this.attempts &&
+          other.priority == this.priority &&
+          other.resultRef == this.resultRef &&
+          other.resultJson == this.resultJson &&
+          other.error == this.error &&
+          other.updatedAt == this.updatedAt &&
+          other.startedAt == this.startedAt &&
+          other.completedAt == this.completedAt);
+}
+
+class GenerationTaskChunksCompanion
+    extends UpdateCompanion<GenerationTaskChunk> {
+  final Value<String> id;
+  final Value<String> taskId;
+  final Value<int> chunkIndex;
+  final Value<String> sourceKey;
+  final Value<int> startMs;
+  final Value<int> endMs;
+  final Value<String> inputFingerprint;
+  final Value<String> status;
+  final Value<int> attempts;
+  final Value<int> priority;
+  final Value<String?> resultRef;
+  final Value<String?> resultJson;
+  final Value<String?> error;
+  final Value<int> updatedAt;
+  final Value<int?> startedAt;
+  final Value<int?> completedAt;
+  final Value<int> rowid;
+  const GenerationTaskChunksCompanion({
+    this.id = const Value.absent(),
+    this.taskId = const Value.absent(),
+    this.chunkIndex = const Value.absent(),
+    this.sourceKey = const Value.absent(),
+    this.startMs = const Value.absent(),
+    this.endMs = const Value.absent(),
+    this.inputFingerprint = const Value.absent(),
+    this.status = const Value.absent(),
+    this.attempts = const Value.absent(),
+    this.priority = const Value.absent(),
+    this.resultRef = const Value.absent(),
+    this.resultJson = const Value.absent(),
+    this.error = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.startedAt = const Value.absent(),
+    this.completedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  GenerationTaskChunksCompanion.insert({
+    required String id,
+    required String taskId,
+    required int chunkIndex,
+    required String sourceKey,
+    this.startMs = const Value.absent(),
+    this.endMs = const Value.absent(),
+    required String inputFingerprint,
+    this.status = const Value.absent(),
+    this.attempts = const Value.absent(),
+    this.priority = const Value.absent(),
+    this.resultRef = const Value.absent(),
+    this.resultJson = const Value.absent(),
+    this.error = const Value.absent(),
+    required int updatedAt,
+    this.startedAt = const Value.absent(),
+    this.completedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       taskId = Value(taskId),
+       chunkIndex = Value(chunkIndex),
+       sourceKey = Value(sourceKey),
+       inputFingerprint = Value(inputFingerprint),
+       updatedAt = Value(updatedAt);
+  static Insertable<GenerationTaskChunk> custom({
+    Expression<String>? id,
+    Expression<String>? taskId,
+    Expression<int>? chunkIndex,
+    Expression<String>? sourceKey,
+    Expression<int>? startMs,
+    Expression<int>? endMs,
+    Expression<String>? inputFingerprint,
+    Expression<String>? status,
+    Expression<int>? attempts,
+    Expression<int>? priority,
+    Expression<String>? resultRef,
+    Expression<String>? resultJson,
+    Expression<String>? error,
+    Expression<int>? updatedAt,
+    Expression<int>? startedAt,
+    Expression<int>? completedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (taskId != null) 'task_id': taskId,
+      if (chunkIndex != null) 'chunk_index': chunkIndex,
+      if (sourceKey != null) 'source_key': sourceKey,
+      if (startMs != null) 'start_ms': startMs,
+      if (endMs != null) 'end_ms': endMs,
+      if (inputFingerprint != null) 'input_fingerprint': inputFingerprint,
+      if (status != null) 'status': status,
+      if (attempts != null) 'attempts': attempts,
+      if (priority != null) 'priority': priority,
+      if (resultRef != null) 'result_ref': resultRef,
+      if (resultJson != null) 'result_json': resultJson,
+      if (error != null) 'error': error,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (startedAt != null) 'started_at': startedAt,
+      if (completedAt != null) 'completed_at': completedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  GenerationTaskChunksCompanion copyWith({
+    Value<String>? id,
+    Value<String>? taskId,
+    Value<int>? chunkIndex,
+    Value<String>? sourceKey,
+    Value<int>? startMs,
+    Value<int>? endMs,
+    Value<String>? inputFingerprint,
+    Value<String>? status,
+    Value<int>? attempts,
+    Value<int>? priority,
+    Value<String?>? resultRef,
+    Value<String?>? resultJson,
+    Value<String?>? error,
+    Value<int>? updatedAt,
+    Value<int?>? startedAt,
+    Value<int?>? completedAt,
+    Value<int>? rowid,
+  }) {
+    return GenerationTaskChunksCompanion(
+      id: id ?? this.id,
+      taskId: taskId ?? this.taskId,
+      chunkIndex: chunkIndex ?? this.chunkIndex,
+      sourceKey: sourceKey ?? this.sourceKey,
+      startMs: startMs ?? this.startMs,
+      endMs: endMs ?? this.endMs,
+      inputFingerprint: inputFingerprint ?? this.inputFingerprint,
+      status: status ?? this.status,
+      attempts: attempts ?? this.attempts,
+      priority: priority ?? this.priority,
+      resultRef: resultRef ?? this.resultRef,
+      resultJson: resultJson ?? this.resultJson,
+      error: error ?? this.error,
+      updatedAt: updatedAt ?? this.updatedAt,
+      startedAt: startedAt ?? this.startedAt,
+      completedAt: completedAt ?? this.completedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (taskId.present) {
+      map['task_id'] = Variable<String>(taskId.value);
+    }
+    if (chunkIndex.present) {
+      map['chunk_index'] = Variable<int>(chunkIndex.value);
+    }
+    if (sourceKey.present) {
+      map['source_key'] = Variable<String>(sourceKey.value);
+    }
+    if (startMs.present) {
+      map['start_ms'] = Variable<int>(startMs.value);
+    }
+    if (endMs.present) {
+      map['end_ms'] = Variable<int>(endMs.value);
+    }
+    if (inputFingerprint.present) {
+      map['input_fingerprint'] = Variable<String>(inputFingerprint.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (attempts.present) {
+      map['attempts'] = Variable<int>(attempts.value);
+    }
+    if (priority.present) {
+      map['priority'] = Variable<int>(priority.value);
+    }
+    if (resultRef.present) {
+      map['result_ref'] = Variable<String>(resultRef.value);
+    }
+    if (resultJson.present) {
+      map['result_json'] = Variable<String>(resultJson.value);
+    }
+    if (error.present) {
+      map['error'] = Variable<String>(error.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (startedAt.present) {
+      map['started_at'] = Variable<int>(startedAt.value);
+    }
+    if (completedAt.present) {
+      map['completed_at'] = Variable<int>(completedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GenerationTaskChunksCompanion(')
+          ..write('id: $id, ')
+          ..write('taskId: $taskId, ')
+          ..write('chunkIndex: $chunkIndex, ')
+          ..write('sourceKey: $sourceKey, ')
+          ..write('startMs: $startMs, ')
+          ..write('endMs: $endMs, ')
+          ..write('inputFingerprint: $inputFingerprint, ')
+          ..write('status: $status, ')
+          ..write('attempts: $attempts, ')
+          ..write('priority: $priority, ')
+          ..write('resultRef: $resultRef, ')
+          ..write('resultJson: $resultJson, ')
+          ..write('error: $error, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('completedAt: $completedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -9870,6 +11586,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   );
   late final $AiThreadsTable aiThreads = $AiThreadsTable(this);
   late final $AiMessagesTable aiMessages = $AiMessagesTable(this);
+  late final $GenerationTasksTable generationTasks = $GenerationTasksTable(
+    this,
+  );
+  late final $GenerationTaskChunksTable generationTaskChunks =
+      $GenerationTaskChunksTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -9890,6 +11611,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     podcastEpisodes,
     aiThreads,
     aiMessages,
+    generationTasks,
+    generationTaskChunks,
   ];
 }
 
@@ -14583,6 +16306,824 @@ typedef $$AiMessagesTableProcessedTableManager =
       AiMessage,
       PrefetchHooks Function()
     >;
+typedef $$GenerationTasksTableCreateCompanionBuilder =
+    GenerationTasksCompanion Function({
+      required String id,
+      required String kind,
+      required String parentId,
+      required String scopeId,
+      required String contentFingerprint,
+      required String configFingerprint,
+      Value<String> configJson,
+      Value<String> status,
+      Value<int> priority,
+      required int createdAt,
+      required int updatedAt,
+      Value<int?> startedAt,
+      Value<int?> completedAt,
+      Value<String?> lastError,
+      Value<int> rowid,
+    });
+typedef $$GenerationTasksTableUpdateCompanionBuilder =
+    GenerationTasksCompanion Function({
+      Value<String> id,
+      Value<String> kind,
+      Value<String> parentId,
+      Value<String> scopeId,
+      Value<String> contentFingerprint,
+      Value<String> configFingerprint,
+      Value<String> configJson,
+      Value<String> status,
+      Value<int> priority,
+      Value<int> createdAt,
+      Value<int> updatedAt,
+      Value<int?> startedAt,
+      Value<int?> completedAt,
+      Value<String?> lastError,
+      Value<int> rowid,
+    });
+
+class $$GenerationTasksTableFilterComposer
+    extends Composer<_$AppDatabase, $GenerationTasksTable> {
+  $$GenerationTasksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get parentId => $composableBuilder(
+    column: $table.parentId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scopeId => $composableBuilder(
+    column: $table.scopeId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contentFingerprint => $composableBuilder(
+    column: $table.contentFingerprint,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get configFingerprint => $composableBuilder(
+    column: $table.configFingerprint,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get configJson => $composableBuilder(
+    column: $table.configJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get priority => $composableBuilder(
+    column: $table.priority,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastError => $composableBuilder(
+    column: $table.lastError,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$GenerationTasksTableOrderingComposer
+    extends Composer<_$AppDatabase, $GenerationTasksTable> {
+  $$GenerationTasksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get parentId => $composableBuilder(
+    column: $table.parentId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scopeId => $composableBuilder(
+    column: $table.scopeId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get contentFingerprint => $composableBuilder(
+    column: $table.contentFingerprint,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get configFingerprint => $composableBuilder(
+    column: $table.configFingerprint,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get configJson => $composableBuilder(
+    column: $table.configJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get priority => $composableBuilder(
+    column: $table.priority,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastError => $composableBuilder(
+    column: $table.lastError,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$GenerationTasksTableAnnotationComposer
+    extends Composer<_$AppDatabase, $GenerationTasksTable> {
+  $$GenerationTasksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get parentId =>
+      $composableBuilder(column: $table.parentId, builder: (column) => column);
+
+  GeneratedColumn<String> get scopeId =>
+      $composableBuilder(column: $table.scopeId, builder: (column) => column);
+
+  GeneratedColumn<String> get contentFingerprint => $composableBuilder(
+    column: $table.contentFingerprint,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get configFingerprint => $composableBuilder(
+    column: $table.configFingerprint,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get configJson => $composableBuilder(
+    column: $table.configJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<int> get priority =>
+      $composableBuilder(column: $table.priority, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get startedAt =>
+      $composableBuilder(column: $table.startedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastError =>
+      $composableBuilder(column: $table.lastError, builder: (column) => column);
+}
+
+class $$GenerationTasksTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $GenerationTasksTable,
+          GenerationTask,
+          $$GenerationTasksTableFilterComposer,
+          $$GenerationTasksTableOrderingComposer,
+          $$GenerationTasksTableAnnotationComposer,
+          $$GenerationTasksTableCreateCompanionBuilder,
+          $$GenerationTasksTableUpdateCompanionBuilder,
+          (
+            GenerationTask,
+            BaseReferences<
+              _$AppDatabase,
+              $GenerationTasksTable,
+              GenerationTask
+            >,
+          ),
+          GenerationTask,
+          PrefetchHooks Function()
+        > {
+  $$GenerationTasksTableTableManager(
+    _$AppDatabase db,
+    $GenerationTasksTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$GenerationTasksTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$GenerationTasksTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$GenerationTasksTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<String> parentId = const Value.absent(),
+                Value<String> scopeId = const Value.absent(),
+                Value<String> contentFingerprint = const Value.absent(),
+                Value<String> configFingerprint = const Value.absent(),
+                Value<String> configJson = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<int> priority = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int> updatedAt = const Value.absent(),
+                Value<int?> startedAt = const Value.absent(),
+                Value<int?> completedAt = const Value.absent(),
+                Value<String?> lastError = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => GenerationTasksCompanion(
+                id: id,
+                kind: kind,
+                parentId: parentId,
+                scopeId: scopeId,
+                contentFingerprint: contentFingerprint,
+                configFingerprint: configFingerprint,
+                configJson: configJson,
+                status: status,
+                priority: priority,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                startedAt: startedAt,
+                completedAt: completedAt,
+                lastError: lastError,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String kind,
+                required String parentId,
+                required String scopeId,
+                required String contentFingerprint,
+                required String configFingerprint,
+                Value<String> configJson = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<int> priority = const Value.absent(),
+                required int createdAt,
+                required int updatedAt,
+                Value<int?> startedAt = const Value.absent(),
+                Value<int?> completedAt = const Value.absent(),
+                Value<String?> lastError = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => GenerationTasksCompanion.insert(
+                id: id,
+                kind: kind,
+                parentId: parentId,
+                scopeId: scopeId,
+                contentFingerprint: contentFingerprint,
+                configFingerprint: configFingerprint,
+                configJson: configJson,
+                status: status,
+                priority: priority,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                startedAt: startedAt,
+                completedAt: completedAt,
+                lastError: lastError,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$GenerationTasksTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $GenerationTasksTable,
+      GenerationTask,
+      $$GenerationTasksTableFilterComposer,
+      $$GenerationTasksTableOrderingComposer,
+      $$GenerationTasksTableAnnotationComposer,
+      $$GenerationTasksTableCreateCompanionBuilder,
+      $$GenerationTasksTableUpdateCompanionBuilder,
+      (
+        GenerationTask,
+        BaseReferences<_$AppDatabase, $GenerationTasksTable, GenerationTask>,
+      ),
+      GenerationTask,
+      PrefetchHooks Function()
+    >;
+typedef $$GenerationTaskChunksTableCreateCompanionBuilder =
+    GenerationTaskChunksCompanion Function({
+      required String id,
+      required String taskId,
+      required int chunkIndex,
+      required String sourceKey,
+      Value<int> startMs,
+      Value<int> endMs,
+      required String inputFingerprint,
+      Value<String> status,
+      Value<int> attempts,
+      Value<int> priority,
+      Value<String?> resultRef,
+      Value<String?> resultJson,
+      Value<String?> error,
+      required int updatedAt,
+      Value<int?> startedAt,
+      Value<int?> completedAt,
+      Value<int> rowid,
+    });
+typedef $$GenerationTaskChunksTableUpdateCompanionBuilder =
+    GenerationTaskChunksCompanion Function({
+      Value<String> id,
+      Value<String> taskId,
+      Value<int> chunkIndex,
+      Value<String> sourceKey,
+      Value<int> startMs,
+      Value<int> endMs,
+      Value<String> inputFingerprint,
+      Value<String> status,
+      Value<int> attempts,
+      Value<int> priority,
+      Value<String?> resultRef,
+      Value<String?> resultJson,
+      Value<String?> error,
+      Value<int> updatedAt,
+      Value<int?> startedAt,
+      Value<int?> completedAt,
+      Value<int> rowid,
+    });
+
+class $$GenerationTaskChunksTableFilterComposer
+    extends Composer<_$AppDatabase, $GenerationTaskChunksTable> {
+  $$GenerationTaskChunksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get taskId => $composableBuilder(
+    column: $table.taskId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get chunkIndex => $composableBuilder(
+    column: $table.chunkIndex,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceKey => $composableBuilder(
+    column: $table.sourceKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get startMs => $composableBuilder(
+    column: $table.startMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get endMs => $composableBuilder(
+    column: $table.endMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get inputFingerprint => $composableBuilder(
+    column: $table.inputFingerprint,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get attempts => $composableBuilder(
+    column: $table.attempts,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get priority => $composableBuilder(
+    column: $table.priority,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get resultRef => $composableBuilder(
+    column: $table.resultRef,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get resultJson => $composableBuilder(
+    column: $table.resultJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get error => $composableBuilder(
+    column: $table.error,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$GenerationTaskChunksTableOrderingComposer
+    extends Composer<_$AppDatabase, $GenerationTaskChunksTable> {
+  $$GenerationTaskChunksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get taskId => $composableBuilder(
+    column: $table.taskId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get chunkIndex => $composableBuilder(
+    column: $table.chunkIndex,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceKey => $composableBuilder(
+    column: $table.sourceKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get startMs => $composableBuilder(
+    column: $table.startMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get endMs => $composableBuilder(
+    column: $table.endMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get inputFingerprint => $composableBuilder(
+    column: $table.inputFingerprint,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get attempts => $composableBuilder(
+    column: $table.attempts,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get priority => $composableBuilder(
+    column: $table.priority,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get resultRef => $composableBuilder(
+    column: $table.resultRef,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get resultJson => $composableBuilder(
+    column: $table.resultJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get error => $composableBuilder(
+    column: $table.error,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$GenerationTaskChunksTableAnnotationComposer
+    extends Composer<_$AppDatabase, $GenerationTaskChunksTable> {
+  $$GenerationTaskChunksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get taskId =>
+      $composableBuilder(column: $table.taskId, builder: (column) => column);
+
+  GeneratedColumn<int> get chunkIndex => $composableBuilder(
+    column: $table.chunkIndex,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sourceKey =>
+      $composableBuilder(column: $table.sourceKey, builder: (column) => column);
+
+  GeneratedColumn<int> get startMs =>
+      $composableBuilder(column: $table.startMs, builder: (column) => column);
+
+  GeneratedColumn<int> get endMs =>
+      $composableBuilder(column: $table.endMs, builder: (column) => column);
+
+  GeneratedColumn<String> get inputFingerprint => $composableBuilder(
+    column: $table.inputFingerprint,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<int> get attempts =>
+      $composableBuilder(column: $table.attempts, builder: (column) => column);
+
+  GeneratedColumn<int> get priority =>
+      $composableBuilder(column: $table.priority, builder: (column) => column);
+
+  GeneratedColumn<String> get resultRef =>
+      $composableBuilder(column: $table.resultRef, builder: (column) => column);
+
+  GeneratedColumn<String> get resultJson => $composableBuilder(
+    column: $table.resultJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get error =>
+      $composableBuilder(column: $table.error, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get startedAt =>
+      $composableBuilder(column: $table.startedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => column,
+  );
+}
+
+class $$GenerationTaskChunksTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $GenerationTaskChunksTable,
+          GenerationTaskChunk,
+          $$GenerationTaskChunksTableFilterComposer,
+          $$GenerationTaskChunksTableOrderingComposer,
+          $$GenerationTaskChunksTableAnnotationComposer,
+          $$GenerationTaskChunksTableCreateCompanionBuilder,
+          $$GenerationTaskChunksTableUpdateCompanionBuilder,
+          (
+            GenerationTaskChunk,
+            BaseReferences<
+              _$AppDatabase,
+              $GenerationTaskChunksTable,
+              GenerationTaskChunk
+            >,
+          ),
+          GenerationTaskChunk,
+          PrefetchHooks Function()
+        > {
+  $$GenerationTaskChunksTableTableManager(
+    _$AppDatabase db,
+    $GenerationTaskChunksTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$GenerationTaskChunksTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$GenerationTaskChunksTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$GenerationTaskChunksTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> taskId = const Value.absent(),
+                Value<int> chunkIndex = const Value.absent(),
+                Value<String> sourceKey = const Value.absent(),
+                Value<int> startMs = const Value.absent(),
+                Value<int> endMs = const Value.absent(),
+                Value<String> inputFingerprint = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<int> attempts = const Value.absent(),
+                Value<int> priority = const Value.absent(),
+                Value<String?> resultRef = const Value.absent(),
+                Value<String?> resultJson = const Value.absent(),
+                Value<String?> error = const Value.absent(),
+                Value<int> updatedAt = const Value.absent(),
+                Value<int?> startedAt = const Value.absent(),
+                Value<int?> completedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => GenerationTaskChunksCompanion(
+                id: id,
+                taskId: taskId,
+                chunkIndex: chunkIndex,
+                sourceKey: sourceKey,
+                startMs: startMs,
+                endMs: endMs,
+                inputFingerprint: inputFingerprint,
+                status: status,
+                attempts: attempts,
+                priority: priority,
+                resultRef: resultRef,
+                resultJson: resultJson,
+                error: error,
+                updatedAt: updatedAt,
+                startedAt: startedAt,
+                completedAt: completedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String taskId,
+                required int chunkIndex,
+                required String sourceKey,
+                Value<int> startMs = const Value.absent(),
+                Value<int> endMs = const Value.absent(),
+                required String inputFingerprint,
+                Value<String> status = const Value.absent(),
+                Value<int> attempts = const Value.absent(),
+                Value<int> priority = const Value.absent(),
+                Value<String?> resultRef = const Value.absent(),
+                Value<String?> resultJson = const Value.absent(),
+                Value<String?> error = const Value.absent(),
+                required int updatedAt,
+                Value<int?> startedAt = const Value.absent(),
+                Value<int?> completedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => GenerationTaskChunksCompanion.insert(
+                id: id,
+                taskId: taskId,
+                chunkIndex: chunkIndex,
+                sourceKey: sourceKey,
+                startMs: startMs,
+                endMs: endMs,
+                inputFingerprint: inputFingerprint,
+                status: status,
+                attempts: attempts,
+                priority: priority,
+                resultRef: resultRef,
+                resultJson: resultJson,
+                error: error,
+                updatedAt: updatedAt,
+                startedAt: startedAt,
+                completedAt: completedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$GenerationTaskChunksTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $GenerationTaskChunksTable,
+      GenerationTaskChunk,
+      $$GenerationTaskChunksTableFilterComposer,
+      $$GenerationTaskChunksTableOrderingComposer,
+      $$GenerationTaskChunksTableAnnotationComposer,
+      $$GenerationTaskChunksTableCreateCompanionBuilder,
+      $$GenerationTaskChunksTableUpdateCompanionBuilder,
+      (
+        GenerationTaskChunk,
+        BaseReferences<
+          _$AppDatabase,
+          $GenerationTaskChunksTable,
+          GenerationTaskChunk
+        >,
+      ),
+      GenerationTaskChunk,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -14620,4 +17161,8 @@ class $AppDatabaseManager {
       $$AiThreadsTableTableManager(_db, _db.aiThreads);
   $$AiMessagesTableTableManager get aiMessages =>
       $$AiMessagesTableTableManager(_db, _db.aiMessages);
+  $$GenerationTasksTableTableManager get generationTasks =>
+      $$GenerationTasksTableTableManager(_db, _db.generationTasks);
+  $$GenerationTaskChunksTableTableManager get generationTaskChunks =>
+      $$GenerationTaskChunksTableTableManager(_db, _db.generationTaskChunks);
 }

@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -13,6 +16,7 @@ import '../../../services/book_introduction_service.dart';
 import '../../../services/book_parser.dart';
 import '../../../services/cover_palette_service.dart';
 import '../../../services/generation_orchestrator.dart';
+import '../../../services/generation_task_store.dart';
 import '../../../services/manifest_store.dart';
 import '../../../tts/models/tts_voice.dart';
 import '../../../tts/provider_registry.dart';
@@ -57,6 +61,32 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     _currentParagraphIndex = widget.book.currentParagraphIndex;
     _playbackOffsetMs = widget.book.playbackOffsetMs;
     _isRead = widget.book.isRead;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_resumeInterruptedChapter());
+    });
+  }
+
+  Future<void> _resumeInterruptedChapter() async {
+    final chapterId = widget.initialChapterId ?? widget.book.currentChapterId;
+    if (chapterId == null) return;
+    final database = ref.read(appDatabaseProvider);
+    final task = await database.getLatestGenerationTask(
+      kind: GenerationTaskKind.tts.name,
+      parentId: widget.book.id,
+      scopeId: chapterId,
+    );
+    if (!mounted ||
+        task == null ||
+        task.status == GenerationChunkStatus.complete.name) {
+      return;
+    }
+    final chapters = await database.getChapters(widget.book.id);
+    final chapter = chapters.where((item) => item.id == chapterId).firstOrNull;
+    if (chapter == null || !mounted) return;
+    // A task stores the exact provider/voice chosen for the interrupted run.
+    // Recover with that configuration even if the user changed the active
+    // provider while the app was closed.
+    await _generateChapterAudio(chapter, recoveryTask: task, silent: true);
   }
 
   @override
@@ -253,8 +283,24 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     await _generateChapterAudio(chapter);
   }
 
-  Future<void> _generateChapterAudio(drift_db.Chapter chapter) async {
-    final provider = ref.read(activeTtsProviderProvider);
+  Future<void> _generateChapterAudio(
+    drift_db.Chapter chapter, {
+    drift_db.GenerationTask? recoveryTask,
+    bool silent = false,
+    int? priorityParagraphIndex,
+  }) async {
+    final registry = ref.read(providerRegistryProvider);
+    final recoveryConfig = recoveryTask == null
+        ? const <String, dynamic>{}
+        : (jsonDecode(recoveryTask.configJson) as Map?)
+                  ?.cast<String, dynamic>() ??
+              const <String, dynamic>{};
+    final recoveryProviderId = recoveryConfig['providerId'] as String?;
+    final TtsProvider provider =
+        (recoveryProviderId == null
+            ? null
+            : registry.get(recoveryProviderId)) ??
+        ref.read(activeTtsProviderProvider);
     final database = ref.read(appDatabaseProvider);
     final selections = ref.read(providerSelectionRepositoryProvider);
     final orchestrator = ref.read(generationOrchestratorProvider);
@@ -268,16 +314,18 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
         provider,
         database,
         selections,
-        chapterVoiceId: chapter.voiceId,
+        chapterVoiceId: recoveryConfig['voiceId'] as String? ?? chapter.voiceId,
       );
       if (voice == null) {
-        if (mounted) _showSnackBar('${provider.displayName} 没有可用音色');
+        if (mounted && !silent) _showSnackBar('${provider.displayName} 没有可用音色');
         return;
       }
 
       final valid = await provider.validate();
       if (!valid) {
-        if (mounted) _showSnackBar('${provider.displayName} 未配置完成，无法合成音频');
+        if (mounted && !silent) {
+          _showSnackBar('${provider.displayName} 未配置完成，无法合成音频');
+        }
         return;
       }
 
@@ -292,6 +340,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
         chapterId: chapter.id,
         provider: provider,
         voice: voice,
+        speed: (recoveryConfig['speed'] as num?)?.toDouble() ?? 1.0,
+        priorityParagraphIndex: priorityParagraphIndex,
       );
       if (_pausedChapterIds.contains(chapter.id)) {
         orchestrator.pauseChapter(
@@ -323,7 +373,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
         error: error,
         stackTrace: stackTrace,
       );
-      if (mounted) _showSnackBar('音频合成失败：$error');
+      if (mounted && !silent) _showSnackBar('音频合成失败：$error');
     } finally {
       if (mounted) {
         setState(() {

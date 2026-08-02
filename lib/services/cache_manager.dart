@@ -81,30 +81,39 @@ class CacheManager {
   }
 
   /// 清理整本书音频。
-  Future<void> clearBook(String bookId) => generationOrchestrator
-      .runBookExclusive(bookId, () => manifestStore.deleteBook(bookId));
+  Future<void> clearBook(String bookId) =>
+      generationOrchestrator.runBookExclusive(bookId, () async {
+        await manifestStore.deleteBook(bookId);
+        await database.deleteGenerationTasks(kind: 'tts', parentId: bookId);
+      });
 
   /// 清缓存后继续执行重解析或删书，整个过程保持生成封锁。
   Future<T> clearBookAndRun<T>(String bookId, Future<T> Function() action) =>
       generationOrchestrator.runBookExclusive(bookId, () async {
         await manifestStore.deleteBook(bookId);
+        await database.deleteGenerationTasks(kind: 'tts', parentId: bookId);
         return action();
       });
 
   /// 清理某章音频。
   Future<void> clearChapter(String bookId, String chapterId) =>
-      generationOrchestrator.runBookExclusive(
-        bookId,
-        () => manifestStore.deleteChapter(bookId, chapterId),
-      );
+      generationOrchestrator.runBookExclusive(bookId, () async {
+        await manifestStore.deleteChapter(bookId, chapterId);
+        await database.deleteGenerationTasks(
+          kind: 'tts',
+          parentId: bookId,
+          scopeId: chapterId,
+        );
+      });
 
   /// 清理全部生成音频。
   Future<void> clearAll() async {
     final dir = await getApplicationDocumentsDirectory();
     final audioRoot = Directory(p.join(dir.path, 'audio'));
-    await generationOrchestrator.runAllExclusive(
-      () => _deleteDirectoryContents(audioRoot, removeRoot: true),
-    );
+    await generationOrchestrator.runAllExclusive(() async {
+      await _deleteDirectoryContents(audioRoot, removeRoot: true);
+      await database.deleteGenerationTasks(kind: 'tts');
+    });
     await clearAllPodcastAudio();
   }
 
@@ -153,8 +162,10 @@ class CacheManager {
     return null;
   }
 
-  Future<void> clearPodcastEpisodeTranscript(String episodeId) =>
-      database.clearPodcastTranscript(episodeId);
+  Future<void> clearPodcastEpisodeTranscript(String episodeId) async {
+    await database.clearPodcastTranscript(episodeId);
+    await database.deleteGenerationTasks(kind: 'whisper', scopeId: episodeId);
+  }
 
   Future<void> clearPodcastEpisodeData(String episodeId) async {
     await clearPodcastEpisodeAudio(episodeId);
@@ -218,6 +229,7 @@ class CacheManager {
       providerId: manifest.providerId,
       voiceId: manifest.voiceId,
       speed: manifest.speed,
+      configurationFingerprint: manifest.configurationFingerprint,
       updatedAt: DateTime.now().millisecondsSinceEpoch,
       segments: manifest.segments
           .map(
