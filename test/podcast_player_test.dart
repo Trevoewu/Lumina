@@ -521,6 +521,27 @@ void main() {
       find.byKey(const ValueKey('player-transcript-page')),
       findsOneWidget,
     );
+    final closePlayer = find.byKey(
+      const ValueKey('player-transcript-close-player'),
+    );
+    expect(closePlayer, findsOneWidget);
+    final transcriptArtwork = find.descendant(
+      of: find.byKey(const ValueKey('player-transcript-page')),
+      matching: find.byKey(const ValueKey('player-artwork')),
+    );
+    expect(transcriptArtwork, findsOneWidget);
+    expect(
+      tester.getTopLeft(closePlayer).dx,
+      lessThan(tester.getTopLeft(transcriptArtwork).dx),
+    );
+    expect(
+      find.byKey(const ValueKey('podcast-transcript-close')),
+      findsNothing,
+    );
+
+    await tester.tap(closePlayer);
+    await tester.pumpAndSettle();
+    expect(find.byType(PlayerScreen), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));

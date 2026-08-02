@@ -573,6 +573,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       Navigator.of(routeContext).pop();
     }
 
+    void closePlayer() {
+      _transcriptRouteOpen = false;
+      _transcriptPageActivationTimer?.cancel();
+      _transcriptPageActivationTimer = null;
+      if (mounted) setState(() => _transcriptPageActive = false);
+      final navigator = Navigator.of(routeContext);
+      final transcriptRoute = ModalRoute.of(routeContext);
+      if (!navigator.canPop()) return;
+      navigator.pop();
+      if (transcriptRoute == null) {
+        navigator.pop();
+        return;
+      }
+      unawaited(
+        transcriptRoute.popped.then<void>((_) {
+          if (navigator.mounted) navigator.pop();
+        }),
+      );
+    }
+
     return DecoratedBox(
       key: const ValueKey('player-transcript-page'),
       decoration: BoxDecoration(
@@ -618,7 +638,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         subtitle: data.show.title,
                         pageInset: pageInset,
                         trailing: _buildPodcastTranscriptionActions(episode),
-                        onClose: closePage,
+                        onClosePlayer: closePlayer,
                       ),
                       belowFold: [
                         _buildPodcastShownotesCard(
@@ -653,7 +673,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       title: chapterTitle,
                       subtitle: widget.book.title,
                       pageInset: pageInset,
-                      onClose: closePage,
+                      onClosePlayer: closePlayer,
                     ),
                     belowFold: [
                       _buildAiSummaryCard(handler: handler, manifest: manifest),
@@ -2271,7 +2291,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     required String subtitle,
     required double pageInset,
     List<Widget> trailing = const [],
-    required VoidCallback onClose,
+    required VoidCallback onClosePlayer,
   }) {
     final design = context.appDesign;
     return Padding(
@@ -2283,6 +2303,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       ),
       child: Row(
         children: [
+          IconButton(
+            key: const ValueKey('player-transcript-close-player'),
+            tooltip: context.tr('收起播放器', 'Close player'),
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.keyboard_arrow_down_rounded),
+            color: context.appTextPrimary,
+            onPressed: onClosePlayer,
+          ),
           _buildTranscriptHeroArtwork(58, borderRadius: design.radiusMedium),
           SizedBox(width: design.spaceMd),
           Expanded(
@@ -2311,13 +2339,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             ),
           ),
           ...trailing,
-          IconButton(
-            key: const ValueKey('podcast-transcript-close'),
-            tooltip: context.tr('返回封面', 'Back to cover'),
-            icon: const Icon(Icons.crop_square_rounded),
-            color: context.appTextPrimary,
-            onPressed: onClose,
-          ),
         ],
       ),
     );
