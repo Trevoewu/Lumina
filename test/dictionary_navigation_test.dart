@@ -72,7 +72,11 @@ void main() {
       await _pumpReady(tester);
 
       expect(
-        find.byKey(const ValueKey('dictionary-detail-search-field')),
+        find.byKey(const ValueKey('dictionary-word-screen')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('dictionary-word-favorite')),
         findsOneWidget,
       );
 
@@ -84,7 +88,7 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.byKey(const ValueKey('dictionary-detail-search-field')),
+        find.byKey(const ValueKey('dictionary-word-screen')),
         findsNothing,
       );
     },
@@ -122,7 +126,7 @@ void main() {
     await tester.tap(find.text('mulberry'));
     await _pumpReady(tester);
     expect(
-      find.byKey(const ValueKey('dictionary-detail-search-field')),
+      find.byKey(const ValueKey('dictionary-word-screen')),
       findsOneWidget,
     );
 
@@ -133,10 +137,7 @@ void main() {
       find.byKey(const ValueKey('dictionary-search-field')),
       findsOneWidget,
     );
-    expect(
-      find.byKey(const ValueKey('dictionary-detail-search-field')),
-      findsNothing,
-    );
+    expect(find.byKey(const ValueKey('dictionary-word-screen')), findsNothing);
   });
 
   testWidgets('dictionary home previews top three and opens full collections', (
@@ -262,7 +263,7 @@ void main() {
     await tester.tap(find.text('mulberry'));
     await _pumpReady(tester);
     expect(
-      find.byKey(const ValueKey('dictionary-detail-search-field')),
+      find.byKey(const ValueKey('dictionary-word-screen')),
       findsOneWidget,
     );
   });
@@ -370,11 +371,11 @@ void main() {
       find.byKey(const ValueKey('dictionary-sheet-search-field')),
       findsNothing,
     );
-    expect(find.text('From your audiobook'), findsOneWidget);
+    expect(find.text('IN WHAT YOU HEARD'), findsOneWidget);
     expect(find.text('Play from 00:12'), findsOneWidget);
-    expect(find.text('Short explanation'), findsOneWidget);
+    expect(find.text('In one sentence'), findsOneWidget);
     expect(find.text('A concise explanation.'), findsOneWidget);
-    expect(find.text('Long explanation'), findsOneWidget);
+    expect(find.text('Origin & usage'), findsOneWidget);
     expect(find.text('A complete long explanation.'), findsOneWidget);
     expect(
       find.textContaining('a second definition', findRichText: true),
@@ -383,8 +384,8 @@ void main() {
     expect(find.byType(ExpansionTile), findsNothing);
     expect(find.byType(DictionaryWordScreen), findsNothing);
     expect(
-      tester.getTopLeft(find.text('Short explanation')).dy,
-      lessThan(tester.getTopLeft(find.text('From your audiobook')).dy),
+      tester.getTopLeft(find.text('In one sentence')).dy,
+      lessThan(tester.getTopLeft(find.text('IN WHAT YOU HEARD')).dy),
     );
 
     await tester.tap(find.byTooltip('Search another word'));
@@ -399,6 +400,17 @@ void main() {
       find.byKey(const ValueKey('dictionary-sheet-search-field')),
       findsNothing,
     );
+
+    expect(find.text('Read more'), findsOneWidget);
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('dictionary-long-explanation-toggle')),
+    );
+    await _pumpReady(tester);
+    await tester.tap(
+      find.byKey(const ValueKey('dictionary-long-explanation-toggle')),
+    );
+    await _pumpReady(tester);
+    expect(find.text('Show less'), findsOneWidget);
   });
 }
 

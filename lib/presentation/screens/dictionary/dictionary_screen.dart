@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
@@ -476,33 +478,44 @@ class DictionaryWordScreen extends ConsumerStatefulWidget {
 }
 
 class _DictionaryWordScreenState extends ConsumerState<DictionaryWordScreen> {
-  final _controller = TextEditingController();
+  /// The heading scrolls out of view around here; past it the top bar takes
+  /// over as the word's label.
+  static const _stickyThreshold = 74.0;
+
   final _audioPlayer = AudioPlayer();
+  final _scrollController = ScrollController();
   DictionaryLookupResult? _result;
   Object? _error;
+  String _term = '';
   bool _loading = false;
   bool _favorite = false;
+  bool _scrolled = false;
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     final result = widget.initialResult;
     if (result != null) {
       _result = result;
-      _controller.text = result.entry.word;
+      _term = result.entry.word;
       _loadFavorite(result);
       return;
     }
-    final initialQuery = widget.initialQuery!.trim();
-    _controller.text = initialQuery;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _lookup(initialQuery));
+    _term = widget.initialQuery!.trim();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _lookup(_term));
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _scrollController.dispose();
     _audioPlayer.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    final scrolled = _scrollController.offset > _stickyThreshold;
+    if (scrolled != _scrolled) setState(() => _scrolled = scrolled);
   }
 
   Future<void> _loadFavorite(DictionaryLookupResult result) async {
@@ -513,10 +526,9 @@ class _DictionaryWordScreenState extends ConsumerState<DictionaryWordScreen> {
   }
 
   Future<void> _lookup([String? query]) async {
-    final term = (query ?? _controller.text).trim();
+    final term = (query ?? _term).trim();
     if (term.isEmpty || _loading) return;
-    _controller.text = term;
-    FocusScope.of(context).unfocus();
+    _term = term;
     setState(() {
       _loading = true;
       _error = null;
@@ -570,45 +582,143 @@ class _DictionaryWordScreenState extends ConsumerState<DictionaryWordScreen> {
     }
   }
 
+  Future<void> _playContext() async {
+    final lookupContext = _result?.context;
+    final paragraphId = lookupContext?.paragraphId;
+    final audioStartMs = lookupContext?.audioStartMs;
+    if (paragraphId == null || audioStartMs == null) return;
+    final handler = await ref.read(luminaAudioHandlerProvider.future);
+    await handler.playFromParagraphOffset(
+      paragraphId,
+      Duration(milliseconds: audioStartMs),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final design = context.appDesign;
-    final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
-    return CollapsingPageScaffold(
-      title: context.tr('查词', 'Dictionary'),
-      showBackButton: widget.showBackButton,
-      compactHeader: true,
-      body: Column(
-        children: [
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-              inset,
-              design.spaceSm,
-              inset,
-              design.spaceMd,
+    final gutter = design.pageInsetFor(MediaQuery.sizeOf(context).width) + 6;
+    final ink = context.appTextPrimary;
+    final word = _result?.entry.word ?? widget.initialQuery?.trim() ?? '';
+
+    return Scaffold(
+      key: const ValueKey('dictionary-word-screen'),
+      backgroundColor: context.appBackground,
+      body: SafeArea(
+        bottom: false,
+        child: Stack(
+          children: [
+            _buildContent(gutter),
+            // Top bar: transparent over the big word, then a translucent bar
+            // with the word centered once that heading scrolls away.
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: ClipRect(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(
+                    sigmaX: _scrolled ? 14 : 0,
+                    sigmaY: _scrolled ? 14 : 0,
+                  ),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeOut,
+                    height: 44,
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    decoration: BoxDecoration(
+                      color: _scrolled
+                          ? context.appBackground.withValues(alpha: 0.92)
+                          : Colors.transparent,
+                      border: Border(
+                        bottom: BorderSide(
+                          color: _scrolled
+                              ? ink.withValues(alpha: 0.06)
+                              : Colors.transparent,
+                        ),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        if (widget.showBackButton)
+                          GestureDetector(
+                            key: const ValueKey('dictionary-word-back'),
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => Navigator.maybePop(context),
+                            child: SizedBox(
+                              width: 34,
+                              height: 34,
+                              child: Icon(
+                                Icons.arrow_back_ios_new,
+                                size: 19,
+                                color: ink,
+                              ),
+                            ),
+                          )
+                        else
+                          const SizedBox(width: 34),
+                        Expanded(
+                          child: AnimatedOpacity(
+                            duration: const Duration(milliseconds: 300),
+                            opacity: _scrolled ? 1 : 0,
+                            child: Text(
+                              word,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w800,
+                                color: ink,
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (_result != null)
+                          GestureDetector(
+                            key: const ValueKey('dictionary-word-favorite'),
+                            behavior: HitTestBehavior.opaque,
+                            onTap: _toggleFavorite,
+                            child: Tooltip(
+                              message: _favorite
+                                  ? context.tr('取消收藏', 'Remove favorite')
+                                  : context.tr('收藏', 'Save word'),
+                              child: SizedBox(
+                                width: 34,
+                                height: 34,
+                                child: Icon(
+                                  _favorite
+                                      ? Icons.bookmark
+                                      : Icons.bookmark_border,
+                                  size: 20,
+                                  color: _favorite
+                                      ? ink
+                                      : ink.withValues(alpha: 0.28),
+                                ),
+                              ),
+                            ),
+                          )
+                        else
+                          const SizedBox(width: 34),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             ),
-            child: AppSearchField(
-              fieldKey: const ValueKey('dictionary-detail-search-field'),
-              controller: _controller,
-              onSubmitted: _lookup,
-              onSearch: _loading ? null : _lookup,
-              loading: _loading,
-              hintText: context.tr('输入英文单词或短语', 'Enter an English word'),
-            ),
-          ),
-          Expanded(child: _buildContent()),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildContent() {
+  Widget _buildContent(double gutter) {
     final result = _result;
     if (result != null) {
-      final design = context.appDesign;
-      final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
       return ListView(
-        padding: EdgeInsets.fromLTRB(inset, design.spaceMd, inset, 120),
+        key: const PageStorageKey('dictionary-word-list'),
+        controller: _scrollController,
+        padding: EdgeInsets.fromLTRB(gutter, 56, gutter, 140),
         children: [
           DictionaryEntryContent(
             result: result,
@@ -616,6 +726,12 @@ class _DictionaryWordScreenState extends ConsumerState<DictionaryWordScreen> {
             onFavorite: _toggleFavorite,
             onPlayUs: () => _playPronunciation(british: false),
             onPlayUk: () => _playPronunciation(british: true),
+            onPlayContext:
+                result.context?.paragraphId != null &&
+                    result.context?.audioStartMs != null
+                ? _playContext
+                : null,
+            showFavoriteAction: false,
           ),
         ],
       );
