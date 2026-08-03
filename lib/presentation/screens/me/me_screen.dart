@@ -6,11 +6,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/app_colors.dart';
 import '../../../core/app_design_tokens.dart';
 import '../../../core/app_localizations.dart';
+import '../../../core/listening_goals.dart';
 import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart' as drift_db;
 import '../../../domain/models/listening_statistics.dart';
-import '../../widgets/collapsing_page_scaffold.dart';
+import '../../widgets/design_system/editorial_type.dart';
 import '../settings/settings_screen.dart';
+
+/// Weeks of history in the activity heat map.
+const _heatmapWeeks = 18;
 
 class MeScreen extends ConsumerStatefulWidget {
   const MeScreen({super.key});
@@ -22,6 +26,7 @@ class MeScreen extends ConsumerStatefulWidget {
 class _MeScreenState extends ConsumerState<MeScreen> {
   late final Stream<List<drift_db.ListeningDay>> _listeningDaysStream;
   late final Stream<List<drift_db.Book>> _booksStream;
+  int _savedWordCount = 0;
 
   @override
   void initState() {
@@ -29,133 +34,523 @@ class _MeScreenState extends ConsumerState<MeScreen> {
     final database = ref.read(appDatabaseProvider);
     _listeningDaysStream = database.watchListeningDays();
     _booksStream = database.watchAllBooks();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(listeningGoalsProvider.notifier).load();
+      _loadSavedWordCount();
+    });
+  }
+
+  Future<void> _loadSavedWordCount() async {
+    final favorites = await ref.read(dictionaryRepositoryProvider).favorites();
+    if (mounted) setState(() => _savedWordCount = favorites.length);
   }
 
   @override
   Widget build(BuildContext context) {
-    final accent = Theme.of(context).colorScheme.primary;
     final design = context.appDesign;
-    final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
+    final listGutter = design.pageInsetFor(MediaQuery.sizeOf(context).width);
+    final gutter = listGutter + 6;
+    final goals = ref.watch(listeningGoalsProvider);
 
-    return CollapsingPageScaffold(
-      title: context.tr('我的', 'Me'),
-      actions: [
-        Tooltip(
-          message: context.tr('设置', 'Settings'),
-          child: IconButton(
-            icon: Icon(Icons.settings_outlined, size: 28),
-            onPressed: () {
-              Navigator.of(
-                context,
-              ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
-            },
+    return Scaffold(
+      backgroundColor: context.appBackground,
+      body: SafeArea(
+        bottom: false,
+        child: StreamBuilder<List<drift_db.ListeningDay>>(
+          stream: _listeningDaysStream,
+          initialData: const [],
+          builder: (context, listeningSnapshot) {
+            final days = listeningSnapshot.data ?? const [];
+            final dailyMs = {
+              for (final day in days) day.dateKey: day.listenedMs,
+            };
+            final summary = ListeningSummary.fromDailyMs(dailyMs);
+
+            return StreamBuilder<List<drift_db.Book>>(
+              stream: _booksStream,
+              initialData: const [],
+              builder: (context, booksSnapshot) {
+                final books = booksSnapshot.data ?? const [];
+                final booksRead = books.where((book) => book.isRead).length;
+
+                return ListView(
+                  key: const PageStorageKey('me-overview-list'),
+                  padding: const EdgeInsets.only(top: 18, bottom: 140),
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: gutter),
+                      child: _Header(
+                        summary: summary,
+                        onSettings: _openSettings,
+                      ),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        listGutter,
+                        20,
+                        listGutter,
+                        0,
+                      ),
+                      child: _TodayCard(
+                        summary: summary,
+                        dailyMs: dailyMs,
+                        goals: goals,
+                        onAdjustGoals: _openGoals,
+                      ),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(gutter, 26, gutter, 0),
+                      child: _SectionHeader(
+                        label: context.tr(
+                          '${DateTime.now().year} 年度书目',
+                          '${DateTime.now().year} BOOKS',
+                        ),
+                        trailing: context.tr(
+                          '目标 ${goals.yearlyBooks} 本',
+                          'Goal ${goals.yearlyBooks}',
+                        ),
+                        onTrailingTap: _openGoals,
+                      ),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        listGutter,
+                        12,
+                        listGutter,
+                        0,
+                      ),
+                      child: _YearBooksCard(
+                        booksRead: booksRead,
+                        goal: goals.yearlyBooks,
+                      ),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(gutter, 26, gutter, 0),
+                      child: Text(
+                        context.tr('总览', 'OVERVIEW'),
+                        style: kickerTextStyle(context),
+                      ),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        listGutter,
+                        12,
+                        listGutter,
+                        0,
+                      ),
+                      child: _StatGrid(
+                        summary: summary,
+                        savedWordCount: _savedWordCount,
+                      ),
+                    ),
+                    ..._buildBadges(
+                      gutter,
+                      listGutter,
+                      summary: summary,
+                      booksRead: booksRead,
+                    ),
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(gutter, 26, gutter, 0),
+                      child: _SectionHeader(
+                        label: context.tr('收听记录', 'ACTIVITY'),
+                        trailing: context.tr(
+                          '${summary.activeDays} 天有记录',
+                          '${summary.activeDays} active days',
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        listGutter,
+                        12,
+                        listGutter,
+                        0,
+                      ),
+                      child: _HeatmapCard(
+                        dailyMs: dailyMs,
+                        goalMinutes: goals.dailyMinutes,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildBadges(
+    double gutter,
+    double listGutter, {
+    required ListeningSummary summary,
+    required int booksRead,
+  }) {
+    final badges = _badgesFor(
+      context,
+      summary: summary,
+      booksRead: booksRead,
+      savedWordCount: _savedWordCount,
+    );
+    final earned = badges.where((badge) => badge.earned).length;
+
+    return [
+      Padding(
+        padding: EdgeInsets.fromLTRB(gutter, 26, gutter, 0),
+        child: _SectionHeader(
+          label: context.tr('徽章', 'BADGES'),
+          trailing: '$earned / ${badges.length}',
+        ),
+      ),
+      SizedBox(
+        height: 132,
+        child: ListView.separated(
+          key: const ValueKey('me-badge-strip'),
+          scrollDirection: Axis.horizontal,
+          padding: EdgeInsets.fromLTRB(listGutter, 12, listGutter, 2),
+          itemCount: badges.length,
+          separatorBuilder: (_, _) => const SizedBox(width: 10),
+          itemBuilder: (context, index) => _BadgeCard(badge: badges[index]),
+        ),
+      ),
+    ];
+  }
+
+  void _openGoals() {
+    showModalBottomSheet<void>(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.28),
+      builder: (_) => const _GoalsSheet(),
+    );
+  }
+
+  void _openSettings() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
+  }
+}
+
+class _Header extends StatelessWidget {
+  final ListeningSummary summary;
+  final VoidCallback onSettings;
+
+  const _Header({required this.summary, required this.onSettings});
+
+  @override
+  Widget build(BuildContext context) {
+    final ink = context.appTextPrimary;
+    final hours = summary.totalMs ~/ 3600000;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                context.tr('我的', 'Me'),
+                style: TextStyle(
+                  fontSize: 32,
+                  height: 1.1,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.8,
+                  color: ink,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                context.tr(
+                  '连续 ${summary.currentStreak} 天 · 累计 $hours 小时',
+                  '${summary.currentStreak}-day streak · $hours h total',
+                ),
+                style: TextStyle(
+                  fontSize: 14,
+                  color: ink.withValues(alpha: 0.42),
+                ),
+              ),
+            ],
           ),
         ),
+        _SquareIconButton(
+          key: const ValueKey('me-settings-action'),
+          icon: Icons.settings_outlined,
+          tooltip: context.tr('设置', 'Settings'),
+          onTap: onSettings,
+        ),
       ],
-      body: StreamBuilder<List<drift_db.ListeningDay>>(
-        stream: _listeningDaysStream,
-        initialData: const [],
-        builder: (context, listeningSnapshot) {
-          final days = listeningSnapshot.data ?? const [];
-          final dailyMs = {for (final day in days) day.dateKey: day.listenedMs};
-          final summary = ListeningSummary.fromDailyMs(dailyMs);
+    );
+  }
+}
 
-          return StreamBuilder<List<drift_db.Book>>(
-            stream: _booksStream,
-            initialData: const [],
-            builder: (context, booksSnapshot) {
-              final books = booksSnapshot.data ?? const [];
-              return ListView(
-                padding: EdgeInsets.fromLTRB(inset, design.spaceLg, inset, 40),
-                children: [
-                  _TodaySummary(summary: summary, accent: accent),
-                  const SizedBox(height: 12),
-                  _StatisticsGrid(
-                    summary: summary,
-                    bookCount: books.length,
-                    accent: accent,
-                  ),
-                  SizedBox(height: design.spaceXl),
-                  _SectionTitle(
-                    title: context.tr('收听活动', 'Listening activity'),
-                    subtitle: context.tr(
-                      '${summary.activeDays} 个活跃日',
-                      '${summary.activeDays} active days',
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  _ListeningHeatmap(dailyMs: dailyMs, accent: accent),
-                  SizedBox(height: design.spaceXl),
-                  _ListeningOverview(summary: summary, accent: accent),
-                ],
-              );
-            },
-          );
-        },
+class _SquareIconButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _SquareIconButton({
+    super.key,
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ink = context.appTextPrimary;
+
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: ink.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(13),
+          ),
+          child: Icon(icon, size: 19, color: ink),
+        ),
       ),
     );
   }
 }
 
-class _TodaySummary extends StatelessWidget {
-  final ListeningSummary summary;
-  final Color accent;
+class _SectionHeader extends StatelessWidget {
+  final String label;
+  final String trailing;
+  final VoidCallback? onTrailingTap;
 
-  const _TodaySummary({required this.summary, required this.accent});
+  const _SectionHeader({
+    required this.label,
+    required this.trailing,
+    this.onTrailingTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: context.appSurface,
-        borderRadius: BorderRadius.circular(context.appDesign.radiusMedium),
+    final trailingText = Text(
+      trailing,
+      style: technicalTextStyle(
+        context,
+        size: 12.5,
+        alpha: 0.35,
+        weight: FontWeight.w400,
       ),
-      child: Row(
+    );
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: [
+        Expanded(child: Text(label, style: kickerTextStyle(context))),
+        if (onTrailingTap == null)
+          trailingText
+        else
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onTrailingTap,
+            child: trailingText,
+          ),
+      ],
+    );
+  }
+}
+
+class _TodayCard extends StatelessWidget {
+  final ListeningSummary summary;
+  final Map<String, int> dailyMs;
+  final ListeningGoals goals;
+  final VoidCallback onAdjustGoals;
+
+  const _TodayCard({
+    required this.summary,
+    required this.dailyMs,
+    required this.goals,
+    required this.onAdjustGoals,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ink = context.appTextPrimary;
+    final accent = Theme.of(context).colorScheme.primary;
+    final todayMinutes = summary.todayMs ~/ 60000;
+    final progress = (todayMinutes / goals.dailyMinutes).clamp(0.0, 1.0);
+    final done = todayMinutes >= goals.dailyMinutes;
+    final remaining = math.max(0, goals.dailyMinutes - todayMinutes);
+    final weekMinutes = summary.thisWeekMs ~/ 60000;
+
+    return _Card(
+      radius: 24,
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+      child: Stack(
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.16),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(Icons.headphones_rounded, color: accent, size: 26),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  context.tr('今天', 'Today'),
-                  style: TextStyle(
-                    color: context.appTextSecondary,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+          Positioned(
+            top: -70,
+            left: -40,
+            child: IgnorePointer(
+              child: Container(
+                width: 220,
+                height: 220,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      accent.withValues(alpha: done ? 0.22 : 0.10),
+                      accent.withValues(alpha: 0),
+                    ],
+                    stops: const [0, 0.66],
                   ),
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  _formatListeningTime(summary.todayMs),
-                  style: TextStyle(
-                    color: context.appTextPrimary,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
-          Icon(Icons.local_fire_department_outlined, color: accent),
-          const SizedBox(width: 6),
-          Text(
-            '${summary.currentStreak}',
-            style: TextStyle(
-              color: context.appTextPrimary,
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-            ),
+          Column(
+            children: [
+              Row(
+                children: [
+                  GestureDetector(
+                    key: const ValueKey('me-daily-ring'),
+                    behavior: HitTestBehavior.opaque,
+                    onTap: onAdjustGoals,
+                    child: SizedBox(
+                      width: 118,
+                      height: 118,
+                      child: CustomPaint(
+                        painter: _RingPainter(
+                          progress: progress,
+                          accent: accent,
+                          track: ink.withValues(alpha: 0.07),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              '$todayMinutes',
+                              style: TextStyle(
+                                fontSize: 30,
+                                height: 1,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.6,
+                                color: ink,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '/ ${goals.dailyMinutes} MIN',
+                              style: technicalTextStyle(
+                                context,
+                                size: 10.5,
+                                alpha: 0.35,
+                              ).copyWith(letterSpacing: 1.05),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 20),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          context.tr('今天', 'TODAY'),
+                          style: kickerTextStyle(context),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          done
+                              ? context.tr('今天目标已完成', 'Goal reached today')
+                              : context.tr(
+                                  '再听 $remaining 分钟达标',
+                                  '$remaining min to go',
+                                ),
+                          style: TextStyle(
+                            fontSize: 21,
+                            height: 1.3,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.21,
+                            color: ink,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          done
+                              ? context.tr(
+                                  '连续第 ${summary.currentStreak} 天达标，本周已听 $weekMinutes 分钟。',
+                                  'Day ${summary.currentStreak} of your streak · $weekMinutes min this week.',
+                                )
+                              : context.tr(
+                                  '已完成 ${(progress * 100).round()}%，本周已听 $weekMinutes 分钟。',
+                                  '${(progress * 100).round()}% done · $weekMinutes min this week.',
+                                ),
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            height: 1.5,
+                            color: ink.withValues(alpha: 0.45),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        GestureDetector(
+                          key: const ValueKey('me-adjust-goals'),
+                          behavior: HitTestBehavior.opaque,
+                          onTap: onAdjustGoals,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 7,
+                            ),
+                            decoration: BoxDecoration(
+                              color: ink.withValues(alpha: 0.06),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.north_east,
+                                  size: 13,
+                                  color: ink.withValues(alpha: 0.5),
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  context.tr('调整目标', 'Adjust goal'),
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: ink.withValues(alpha: 0.5),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 22),
+                child: Container(height: 1, color: ink.withValues(alpha: 0.06)),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 18),
+                child: _WeekRow(
+                  dailyMs: dailyMs,
+                  goalMinutes: goals.dailyMinutes,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -163,58 +558,256 @@ class _TodaySummary extends StatelessWidget {
   }
 }
 
-class _StatisticsGrid extends StatelessWidget {
-  final ListeningSummary summary;
-  final int bookCount;
-  final Color accent;
+class _WeekRow extends StatelessWidget {
+  final Map<String, int> dailyMs;
+  final int goalMinutes;
 
-  const _StatisticsGrid({
-    required this.summary,
-    required this.bookCount,
-    required this.accent,
-  });
+  const _WeekRow({required this.dailyMs, required this.goalMinutes});
 
   @override
   Widget build(BuildContext context) {
-    final items = [
-      _StatisticData(
-        label: context.tr('收听时长', 'Listening time'),
-        value: _formatListeningTime(summary.totalMs),
-        icon: Icons.schedule,
+    final ink = context.appTextPrimary;
+    final accent = Theme.of(context).colorScheme.primary;
+    final today = dateOnly(DateTime.now());
+    final monday = today.subtract(Duration(days: today.weekday - 1));
+    final labels = context.usesChinese
+        ? const ['一', '二', '三', '四', '五', '六', '日']
+        : const ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        for (var index = 0; index < 7; index++)
+          Builder(
+            builder: (context) {
+              final date = monday.add(Duration(days: index));
+              final minutes = (dailyMs[listeningDateKey(date)] ?? 0) ~/ 60000;
+              final progress = (minutes / goalMinutes).clamp(0.0, 1.0);
+              final hit = minutes >= goalMinutes;
+              return Column(
+                children: [
+                  Container(
+                    width: 30,
+                    height: 30,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(11),
+                      color: hit
+                          ? accent
+                          : progress > 0
+                          ? accent.withValues(alpha: 0.18 + progress * 0.2)
+                          : ink.withValues(alpha: 0.06),
+                    ),
+                    child: hit
+                        ? Icon(
+                            Icons.check,
+                            size: 15,
+                            color: Theme.of(context).colorScheme.onPrimary,
+                          )
+                        : null,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    labels[index],
+                    style: technicalTextStyle(
+                      context,
+                      size: 11.5,
+                      alpha: hit ? 1 : 0.35,
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+      ],
+    );
+  }
+}
+
+class _YearBooksCard extends StatelessWidget {
+  final int booksRead;
+  final int goal;
+
+  const _YearBooksCard({required this.booksRead, required this.goal});
+
+  @override
+  Widget build(BuildContext context) {
+    final ink = context.appTextPrimary;
+    final percent = goal <= 0
+        ? 0
+        : math.min(100, ((booksRead / goal) * 100).round());
+    final spineCount = math.min(24, math.max(goal, booksRead));
+
+    return _Card(
+      radius: 24,
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '$booksRead',
+                style: TextStyle(
+                  fontSize: 40,
+                  height: 1,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -1.2,
+                  color: ink,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 5),
+                child: Text(
+                  context.tr('本已读完', 'finished'),
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: ink.withValues(alpha: 0.42),
+                  ),
+                ),
+              ),
+              const Spacer(),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text(
+                  '$percent%',
+                  style: technicalTextStyle(context, size: 12.5, alpha: 0.35),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 56,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                for (var index = 0; index < spineCount; index++) ...[
+                  if (index > 0) const SizedBox(width: 5),
+                  Expanded(
+                    child: Container(
+                      height: index < booksRead
+                          ? 34 + ((index * 37) % 5) * 6
+                          : 26 + ((index * 37) % 5) * 6,
+                      decoration: BoxDecoration(
+                        color: index < booksRead
+                            ? ink
+                            : ink.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.schedule,
+                size: 14,
+                color: ink.withValues(alpha: 0.35),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _pacingLine(context, booksRead: booksRead, goal: goal),
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.45,
+                    color: ink.withValues(alpha: 0.45),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
-      _StatisticData(
-        label: context.tr('连续收听', 'Current streak'),
-        value: context.tr(
-          '${summary.currentStreak} 天',
-          '${summary.currentStreak} d',
-        ),
-        icon: Icons.local_fire_department_outlined,
+    );
+  }
+
+  /// Compares finished books against where the year's pace says you should be.
+  String _pacingLine(
+    BuildContext context, {
+    required int booksRead,
+    required int goal,
+  }) {
+    final now = DateTime.now();
+    final startOfYear = DateTime(now.year);
+    final endOfYear = DateTime(now.year + 1);
+    final yearFraction =
+        now.difference(startOfYear).inMinutes /
+        endOfYear.difference(startOfYear).inMinutes;
+    final expected = goal * yearFraction;
+    final difference = booksRead - expected;
+    final monthsLeft = math.max(0.5, 12 - yearFraction * 12);
+
+    if (difference >= 0) {
+      final projected = yearFraction <= 0
+          ? booksRead
+          : (booksRead / yearFraction).round();
+      return context.tr(
+        '领先计划 ${difference.toStringAsFixed(1)} 本，按当前节奏年底约 $projected 本。',
+        '${difference.toStringAsFixed(1)} books ahead — about $projected by year end at this pace.',
+      );
+    }
+    final perMonth = (goal - booksRead) / monthsLeft;
+    return context.tr(
+      '落后计划 ${(-difference).toStringAsFixed(1)} 本，每月 ${perMonth.toStringAsFixed(1)} 本可追平。',
+      '${(-difference).toStringAsFixed(1)} books behind — ${perMonth.toStringAsFixed(1)} a month catches up.',
+    );
+  }
+}
+
+class _StatGrid extends StatelessWidget {
+  final ListeningSummary summary;
+  final int savedWordCount;
+
+  const _StatGrid({required this.summary, required this.savedWordCount});
+
+  @override
+  Widget build(BuildContext context) {
+    final hours = summary.totalMs ~/ 3600000;
+    final items = <_StatData>[
+      _StatData(
+        label: context.tr('累计时长', 'TOTAL TIME'),
+        value: '$hours',
+        unit: context.tr('小时', 'h'),
       ),
-      _StatisticData(
-        label: context.tr('收听天数', 'Listening days'),
+      _StatData(
+        label: context.tr('最长连续', 'LONGEST STREAK'),
+        value: '${summary.longestStreak}',
+        unit: context.tr('天', 'd'),
+      ),
+      _StatData(
+        label: context.tr('收听天数', 'ACTIVE DAYS'),
         value: '${summary.activeDays}',
-        icon: Icons.calendar_today_outlined,
+        unit: context.tr('天', 'd'),
       ),
-      _StatisticData(
-        label: context.tr('书籍', 'Books'),
-        value: '$bookCount',
-        icon: Icons.library_books_outlined,
+      _StatData(
+        label: context.tr('生词本', 'SAVED WORDS'),
+        value: '$savedWordCount',
+        unit: context.tr('个', ''),
       ),
     ];
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final columns = constraints.maxWidth >= 720 ? 4 : 2;
-        final width = (constraints.maxWidth - (columns - 1) * 10) / columns;
+        final width = (constraints.maxWidth - (columns - 1) * 12) / columns;
         return Wrap(
-          spacing: 10,
-          runSpacing: 10,
+          spacing: 12,
+          runSpacing: 12,
           children: [
             for (final item in items)
               SizedBox(
                 width: width,
-                height: 112,
-                child: _StatisticTile(data: item, accent: accent),
+                child: _StatCard(data: item),
               ),
           ],
         );
@@ -223,63 +816,66 @@ class _StatisticsGrid extends StatelessWidget {
   }
 }
 
-class _StatisticData {
+class _StatData {
   final String label;
   final String value;
-  final IconData icon;
+  final String unit;
 
-  const _StatisticData({
+  const _StatData({
     required this.label,
     required this.value,
-    required this.icon,
+    required this.unit,
   });
 }
 
-class _StatisticTile extends StatelessWidget {
-  final _StatisticData data;
-  final Color accent;
+class _StatCard extends StatelessWidget {
+  final _StatData data;
 
-  const _StatisticTile({required this.data, required this.accent});
+  const _StatCard({required this.data});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: context.appSurface,
-        borderRadius: BorderRadius.circular(context.appDesign.radiusMedium),
-      ),
+    final ink = context.appTextPrimary;
+
+    return _Card(
+      radius: 20,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 15),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(data.icon, color: accent, size: 18),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  data.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: context.appTextSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const Spacer(),
           Text(
-            data.value,
+            data.label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: context.appTextPrimary,
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-            ),
+            style: kickerTextStyle(context).copyWith(letterSpacing: 1.05),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                data.value,
+                style: TextStyle(
+                  fontSize: 26,
+                  height: 1,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.52,
+                  color: ink,
+                ),
+              ),
+              if (data.unit.isNotEmpty) ...[
+                const SizedBox(width: 4),
+                Text(
+                  data.unit,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: ink.withValues(alpha: 0.38),
+                  ),
+                ),
+              ],
+            ],
           ),
         ],
       ),
@@ -287,60 +883,161 @@ class _StatisticTile extends StatelessWidget {
   }
 }
 
-class _SectionTitle extends StatelessWidget {
+class _Badge {
+  final IconData icon;
   final String title;
-  final String subtitle;
+  final String meta;
+  final bool earned;
 
-  const _SectionTitle({required this.title, required this.subtitle});
+  const _Badge({
+    required this.icon,
+    required this.title,
+    required this.meta,
+    required this.earned,
+  });
+}
+
+List<_Badge> _badgesFor(
+  BuildContext context, {
+  required ListeningSummary summary,
+  required int booksRead,
+  required int savedWordCount,
+}) {
+  return [
+    _Badge(
+      icon: Icons.local_fire_department_outlined,
+      title: context.tr('连续 7 天', '7-day streak'),
+      meta: summary.longestStreak >= 7
+          ? context.tr('已达成', 'Earned')
+          : context.tr(
+              '还差 ${7 - summary.longestStreak} 天',
+              '${7 - summary.longestStreak} days to go',
+            ),
+      earned: summary.longestStreak >= 7,
+    ),
+    _Badge(
+      icon: Icons.auto_stories_outlined,
+      title: context.tr('第一本读完', 'First book'),
+      meta: booksRead > 0
+          ? context.tr('已读完 $booksRead 本', '$booksRead finished')
+          : context.tr('还没有读完的书', 'None finished yet'),
+      earned: booksRead > 0,
+    ),
+    _Badge(
+      icon: Icons.bookmark_border,
+      title: context.tr('生词 100', '100 words'),
+      meta: savedWordCount >= 100
+          ? context.tr('已达成', 'Earned')
+          : context.tr(
+              '还差 ${100 - savedWordCount} 个',
+              '${100 - savedWordCount} to go',
+            ),
+      earned: savedWordCount >= 100,
+    ),
+    _Badge(
+      icon: Icons.emoji_events_outlined,
+      title: context.tr('连续 30 天', '30-day streak'),
+      meta: summary.longestStreak >= 30
+          ? context.tr('已达成', 'Earned')
+          : context.tr(
+              '还差 ${30 - summary.longestStreak} 天',
+              '${30 - summary.longestStreak} days to go',
+            ),
+      earned: summary.longestStreak >= 30,
+    ),
+  ];
+}
+
+class _BadgeCard extends StatelessWidget {
+  final _Badge badge;
+
+  const _BadgeCard({required this.badge});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            title,
-            style: TextStyle(
-              color: context.appTextPrimary,
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-            ),
+    final ink = context.appTextPrimary;
+    final accent = Theme.of(context).colorScheme.primary;
+
+    return Opacity(
+      opacity: badge.earned ? 1 : 0.6,
+      child: SizedBox(
+        width: 132,
+        child: _Card(
+          radius: 20,
+          padding: const EdgeInsets.fromLTRB(15, 16, 15, 15),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: badge.earned
+                      ? accent.withValues(alpha: 0.16)
+                      : ink.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  badge.icon,
+                  size: 21,
+                  color: badge.earned ? ink : ink.withValues(alpha: 0.4),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                badge.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: ink,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                badge.meta,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: technicalTextStyle(
+                  context,
+                  size: 11.5,
+                  alpha: 0.35,
+                  weight: FontWeight.w400,
+                ),
+              ),
+            ],
           ),
         ),
-        Text(
-          subtitle,
-          style: TextStyle(color: context.appTextSecondary, fontSize: 12),
-        ),
-      ],
+      ),
     );
   }
 }
 
-class _ListeningHeatmap extends StatelessWidget {
+class _HeatmapCard extends StatelessWidget {
   final Map<String, int> dailyMs;
-  final Color accent;
+  final int goalMinutes;
 
-  const _ListeningHeatmap({required this.dailyMs, required this.accent});
+  const _HeatmapCard({required this.dailyMs, required this.goalMinutes});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
-      decoration: BoxDecoration(
-        color: context.appSurface,
-        borderRadius: BorderRadius.circular(context.appDesign.radiusMedium),
-      ),
+    final ink = context.appTextPrimary;
+    final accent = Theme.of(context).colorScheme.primary;
+    final today = dateOnly(DateTime.now());
+    final start = today.subtract(
+      Duration(days: (_heatmapWeeks - 1) * 7 + today.weekday - 1),
+    );
+
+    return _Card(
+      radius: 20,
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 14),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final weekCount = (constraints.maxWidth / 20).floor().clamp(12, 26);
-          final gap = 3.0;
-          final cellSize = math.min(
-            16.0,
-            (constraints.maxWidth - (weekCount - 1) * gap) / weekCount,
-          );
-          final today = dateOnly(DateTime.now());
-          final start = today.subtract(
-            Duration(days: (weekCount - 1) * 7 + today.weekday - 1),
+          const gap = 4.0;
+          final cell = math.min(
+            14.0,
+            (constraints.maxWidth - (_heatmapWeeks - 1) * gap) / _heatmapWeeks,
           );
 
           return Column(
@@ -348,12 +1045,12 @@ class _ListeningHeatmap extends StatelessWidget {
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  for (var week = 0; week < weekCount; week++)
+                  for (var week = 0; week < _heatmapWeeks; week++)
                     Column(
                       children: [
                         for (var weekday = 0; weekday < 7; weekday++) ...[
+                          if (weekday > 0) const SizedBox(height: gap),
                           _HeatCell(
                             date: start.add(Duration(days: week * 7 + weekday)),
                             today: today,
@@ -362,10 +1059,9 @@ class _ListeningHeatmap extends StatelessWidget {
                                   start.add(Duration(days: week * 7 + weekday)),
                                 )] ??
                                 0,
-                            accent: accent,
-                            size: cellSize,
+                            goalMinutes: goalMinutes,
+                            size: cell,
                           ),
-                          if (weekday < 6) SizedBox(height: gap),
                         ],
                       ],
                     ),
@@ -376,31 +1072,45 @@ class _ListeningHeatmap extends StatelessWidget {
                 children: [
                   Text(
                     context.tr('少', 'Less'),
-                    style: TextStyle(
-                      color: context.appTextSecondary,
-                      fontSize: 11,
+                    style: technicalTextStyle(
+                      context,
+                      size: 11.5,
+                      alpha: 0.35,
+                      weight: FontWeight.w400,
                     ),
                   ),
-                  const SizedBox(width: 7),
-                  for (final opacity in const [0.08, 0.28, 0.5, 0.75, 1.0]) ...[
+                  const SizedBox(width: 6),
+                  for (final level in const [0, 1, 2, 3, 4]) ...[
                     Container(
-                      width: 10,
-                      height: 10,
+                      width: 11,
+                      height: 11,
                       decoration: BoxDecoration(
-                        color: opacity == 0.08
-                            ? context.appSurfaceHighlight
-                            : accent.withValues(alpha: opacity),
-                        borderRadius: BorderRadius.circular(2),
+                        color: level == 0
+                            ? ink.withValues(alpha: 0.07)
+                            : accent.withValues(alpha: 0.18 + level * 0.2),
+                        borderRadius: BorderRadius.circular(3.5),
                       ),
                     ),
                     const SizedBox(width: 4),
                   ],
-                  const SizedBox(width: 3),
+                  const SizedBox(width: 2),
                   Text(
                     context.tr('多', 'More'),
-                    style: TextStyle(
-                      color: context.appTextSecondary,
-                      fontSize: 11,
+                    style: technicalTextStyle(
+                      context,
+                      size: 11.5,
+                      alpha: 0.35,
+                      weight: FontWeight.w400,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    context.tr('达标日描边', 'Goal days ringed'),
+                    style: technicalTextStyle(
+                      context,
+                      size: 11.5,
+                      alpha: 0.35,
+                      weight: FontWeight.w400,
                     ),
                   ),
                 ],
@@ -417,124 +1127,439 @@ class _HeatCell extends StatelessWidget {
   final DateTime date;
   final DateTime today;
   final int listenedMs;
-  final Color accent;
+  final int goalMinutes;
   final double size;
 
   const _HeatCell({
     required this.date,
     required this.today,
     required this.listenedMs,
-    required this.accent,
+    required this.goalMinutes,
     required this.size,
   });
 
   @override
   Widget build(BuildContext context) {
+    final ink = context.appTextPrimary;
+    final accent = Theme.of(context).colorScheme.primary;
     final isFuture = date.isAfter(today);
     final minutes = listenedMs / 60000;
-    final opacity = minutes >= 60
-        ? 1.0
-        : minutes >= 30
-        ? 0.75
-        : minutes >= 15
-        ? 0.5
+    final level = minutes >= goalMinutes
+        ? 4
+        : minutes >= goalMinutes * 0.66
+        ? 3
+        : minutes >= goalMinutes * 0.33
+        ? 2
         : minutes > 0
-        ? 0.28
-        : 0.0;
-    final color = isFuture
-        ? Colors.transparent
-        : opacity == 0
-        ? context.appSurfaceHighlight
-        : accent.withValues(alpha: opacity);
+        ? 1
+        : 0;
 
     return Tooltip(
-      message:
-          '${listeningDateKey(date)} · ${_formatListeningTime(listenedMs)}',
+      message: '${listeningDateKey(date)} · ${formatListeningTime(listenedMs)}',
       child: Container(
         width: size,
         height: size,
         decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(3),
+          color: isFuture
+              ? Colors.transparent
+              : level == 0
+              ? ink.withValues(alpha: 0.07)
+              : accent.withValues(alpha: 0.18 + level * 0.2),
+          borderRadius: BorderRadius.circular(3.5),
+          border: level >= 4
+              ? Border.all(color: accent.withValues(alpha: 0.85), width: 1.5)
+              : null,
         ),
       ),
     );
   }
 }
 
-class _ListeningOverview extends StatelessWidget {
-  final ListeningSummary summary;
-  final Color accent;
-
-  const _ListeningOverview({required this.summary, required this.accent});
+class _GoalsSheet extends ConsumerWidget {
+  const _GoalsSheet();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ink = context.appTextPrimary;
+    final accent = Theme.of(context).colorScheme.primary;
+    final goals = ref.watch(listeningGoalsProvider);
+    final controller = ref.read(listeningGoalsProvider.notifier);
+    final yearlyHours = (goals.dailyMinutes * 365 / 60).round();
+
     return Container(
+      key: const ValueKey('me-goals-sheet'),
       decoration: BoxDecoration(
         color: context.appSurface,
-        borderRadius: BorderRadius.circular(context.appDesign.radiusMedium),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
       ),
-      child: Column(
-        children: [
-          _OverviewRow(
-            icon: Icons.date_range_outlined,
-            label: context.tr('本周', 'This week'),
-            value: _formatListeningTime(summary.thisWeekMs),
-            accent: accent,
-          ),
-          Divider(height: 1, color: context.appSurfaceHighlight),
-          _OverviewRow(
-            icon: Icons.emoji_events_outlined,
-            label: context.tr('最长连续收听', 'Longest streak'),
-            value: context.tr(
-              '${summary.longestStreak} 天',
-              '${summary.longestStreak} days',
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(0, 10, 0, 4),
+              child: Container(
+                width: 38,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: ink.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
             ),
-            accent: accent,
-          ),
-        ],
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                padding: const EdgeInsets.fromLTRB(22, 14, 22, 28),
+                children: [
+                  Text(
+                    context.tr('设定目标', 'Set your goals'),
+                    style: TextStyle(
+                      fontSize: 26,
+                      height: 1.15,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.52,
+                      color: ink,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    context.tr(
+                      '目标只影响提醒与进度环，不会限制你听多久。',
+                      'Goals only drive the ring and the pacing copy — they never limit your listening.',
+                    ),
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      height: 1.5,
+                      color: ink.withValues(alpha: 0.45),
+                    ),
+                  ),
+                  const SizedBox(height: 26),
+                  _GoalRow(
+                    label: context.tr('每日收听', 'DAILY LISTENING'),
+                    value: context.tr(
+                      '${goals.dailyMinutes} 分钟',
+                      '${goals.dailyMinutes} min',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final preset in dailyGoalPresets)
+                        _GoalChip(
+                          label: context.tr('$preset 分', '$preset'),
+                          selected: goals.dailyMinutes == preset,
+                          onTap: () => controller.setDailyMinutes(preset),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  _GoalStepper(
+                    key: const ValueKey('me-daily-goal-stepper'),
+                    progress:
+                        goals.dailyMinutes / ListeningGoals.maxDailyMinutes,
+                    onDecrease: () =>
+                        controller.setDailyMinutes(goals.dailyMinutes - 5),
+                    onIncrease: () =>
+                        controller.setDailyMinutes(goals.dailyMinutes + 5),
+                  ),
+                  const SizedBox(height: 30),
+                  _GoalRow(
+                    label: context.tr('年度书目', 'BOOKS THIS YEAR'),
+                    value: context.tr(
+                      '${goals.yearlyBooks} 本',
+                      '${goals.yearlyBooks}',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final preset in yearlyGoalPresets)
+                        _GoalChip(
+                          label: context.tr('$preset 本', '$preset'),
+                          selected: goals.yearlyBooks == preset,
+                          onTap: () => controller.setYearlyBooks(preset),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  _GoalStepper(
+                    key: const ValueKey('me-yearly-goal-stepper'),
+                    progress: goals.yearlyBooks / ListeningGoals.maxYearlyBooks,
+                    onDecrease: () =>
+                        controller.setYearlyBooks(goals.yearlyBooks - 2),
+                    onIncrease: () =>
+                        controller.setYearlyBooks(goals.yearlyBooks + 2),
+                  ),
+                  const SizedBox(height: 22),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 15,
+                    ),
+                    decoration: BoxDecoration(
+                      color: ink.withValues(alpha: 0.04),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      context.tr(
+                        '每天 ${goals.dailyMinutes} 分钟，一年约 $yearlyHours 小时。',
+                        '${goals.dailyMinutes} minutes a day adds up to about $yearlyHours hours a year.',
+                      ),
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        height: 1.55,
+                        color: ink.withValues(alpha: 0.5),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  GestureDetector(
+                    key: const ValueKey('me-goals-save'),
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => Navigator.of(context).pop(),
+                    child: Container(
+                      height: 52,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: accent,
+                        borderRadius: BorderRadius.circular(26),
+                      ),
+                      child: Text(
+                        context.tr('保存目标', 'Save goals'),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: Theme.of(context).colorScheme.onPrimary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _OverviewRow extends StatelessWidget {
-  final IconData icon;
+class _GoalRow extends StatelessWidget {
   final String label;
   final String value;
-  final Color accent;
 
-  const _OverviewRow({
-    required this.icon,
+  const _GoalRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: [
+        Expanded(child: Text(label, style: kickerTextStyle(context))),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 19,
+            fontWeight: FontWeight.w800,
+            color: context.appTextPrimary,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _GoalChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _GoalChip({
     required this.label,
-    required this.value,
-    required this.accent,
+    required this.selected,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      leading: Icon(icon, color: accent),
-      title: Text(
-        label,
-        style: TextStyle(
-          color: context.appTextPrimary,
-          fontWeight: FontWeight.w600,
+    final ink = context.appTextPrimary;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 9),
+        decoration: BoxDecoration(
+          color: selected ? ink : ink.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(999),
         ),
-      ),
-      trailing: Text(
-        value,
-        style: TextStyle(
-          color: context.appTextSecondary,
-          fontWeight: FontWeight.w700,
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: selected
+                ? context.appBackground
+                : ink.withValues(alpha: 0.55),
+          ),
         ),
       ),
     );
   }
 }
 
-String _formatListeningTime(int milliseconds) {
+class _GoalStepper extends StatelessWidget {
+  final double progress;
+  final VoidCallback onDecrease;
+  final VoidCallback onIncrease;
+
+  const _GoalStepper({
+    super.key,
+    required this.progress,
+    required this.onDecrease,
+    required this.onIncrease,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ink = context.appTextPrimary;
+
+    return Row(
+      children: [
+        _StepButton(icon: Icons.remove, onTap: onDecrease),
+        const SizedBox(width: 12),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: SizedBox(
+              height: 6,
+              child: LinearProgressIndicator(
+                value: progress.clamp(0.0, 1.0),
+                backgroundColor: ink.withValues(alpha: 0.08),
+                valueColor: AlwaysStoppedAnimation<Color>(ink),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        _StepButton(icon: Icons.add, onTap: onIncrease),
+      ],
+    );
+  }
+}
+
+class _StepButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _StepButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final ink = context.appTextPrimary;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          color: ink.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(13),
+        ),
+        child: Icon(icon, size: 18, color: ink),
+      ),
+    );
+  }
+}
+
+class _Card extends StatelessWidget {
+  final double radius;
+  final EdgeInsets padding;
+  final Widget child;
+
+  const _Card({
+    required this.radius,
+    required this.padding,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: padding,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: context.appSurface,
+        borderRadius: BorderRadius.circular(radius),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+}
+
+class _RingPainter extends CustomPainter {
+  final double progress;
+  final Color accent;
+  final Color track;
+
+  const _RingPainter({
+    required this.progress,
+    required this.accent,
+    required this.track,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const strokeWidth = 11.0;
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (math.min(size.width, size.height) - strokeWidth) / 2;
+
+    final trackPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..color = track;
+    canvas.drawCircle(center, radius, trackPaint);
+
+    if (progress <= 0) return;
+    final progressPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round
+      ..color = accent;
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      -math.pi / 2,
+      2 * math.pi * progress.clamp(0.0, 1.0),
+      false,
+      progressPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_RingPainter oldDelegate) =>
+      oldDelegate.progress != progress ||
+      oldDelegate.accent != accent ||
+      oldDelegate.track != track;
+}
+
+String formatListeningTime(int milliseconds) {
   if (milliseconds <= 0) return '0m';
   final duration = Duration(milliseconds: milliseconds);
   final hours = duration.inHours;

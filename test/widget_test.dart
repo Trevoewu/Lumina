@@ -228,7 +228,7 @@ void main() {
     await tester.tap(find.byIcon(Icons.person_outline));
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('Me'), findsWidgets);
-    expect(find.text('Listening activity'), findsOneWidget);
+    expect(find.text('TODAY'), findsOneWidget);
     await tester.tap(find.byTooltip('Settings'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
