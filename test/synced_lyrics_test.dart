@@ -766,6 +766,122 @@ void main() {
   });
 
   testWidgets(
+    'word selection preserves the active focus-line typography and wrapping',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 620);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final handler = _VirtualLyricsAudioHandler(
+        paragraphId: 'focus-line',
+        initialPosition: const Duration(milliseconds: 500),
+      );
+      addTearDown(handler.dispose);
+      const sentence =
+          'the managers found it impossible to fill my warehouse position '
+          'with a long-term employee.';
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme(),
+          home: Scaffold(
+            body: SizedBox(
+              width: 390,
+              height: 620,
+              child: SyncedLyricsList(
+                paragraphs: const [
+                  Paragraph(
+                    id: 'focus-line',
+                    chapterId: 'focus-line',
+                    bookId: 'focus-book',
+                    paragraphIndex: 0,
+                    content: sentence,
+                  ),
+                ],
+                manifest: const ChapterManifest(
+                  chapterId: 'focus-line',
+                  bookId: 'focus-book',
+                  providerId: 'test',
+                  voiceId: 'test',
+                  speed: 1,
+                  updatedAt: 1,
+                  segments: [
+                    SegmentEntry(
+                      paragraphId: 'focus-line',
+                      audioFile: 'focus.wav',
+                      durationMs: 2000,
+                      state: ParagraphAudioState.ready,
+                      timings: [
+                        AudioTextTiming(
+                          text: sentence,
+                          startMs: 0,
+                          endMs: 2000,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                handler: handler,
+                focusMode: true,
+                sweepEnabled: false,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final originalText = find.text(sentence);
+      expect(originalText, findsOneWidget);
+      final originalSize = tester.getSize(originalText);
+      final originalStyle = tester.widget<AnimatedDefaultTextStyle>(
+        find
+            .ancestor(
+              of: originalText,
+              matching: find.byType(AnimatedDefaultTextStyle),
+            )
+            .first,
+      );
+      expect(originalStyle.style.fontSize, 26);
+
+      final lineInkWell = tester.widget<InkWell>(
+        find.ancestor(of: originalText, matching: find.byType(InkWell)).first,
+      );
+      lineInkWell.onLongPress!();
+      await tester.pumpAndSettle();
+
+      final selection = find.byKey(
+        const ValueKey('word-selection-focus-line:0'),
+      );
+      expect(selection, findsOneWidget);
+      final selectionTextRoot = find.descendant(
+        of: selection,
+        matching: find.byKey(
+          const ValueKey('word-selection-text-focus-line:0'),
+        ),
+      );
+      final selectionText = find.descendant(
+        of: selectionTextRoot,
+        matching: find.byType(Text),
+      );
+      expect(tester.widget<Text>(selectionText).style?.fontSize, 26);
+      expect(
+        tester.getSize(selectionText).height,
+        closeTo(originalSize.height, 1),
+      );
+
+      await tester.tapAt(tester.getTopLeft(selectionText) + const Offset(8, 8));
+      await tester.pump();
+      expect(
+        tester
+            .widget<FilledButton>(find.widgetWithText(FilledButton, 'Ask AI'))
+            .onPressed,
+        isNotNull,
+      );
+    },
+  );
+
+  testWidgets(
     'long-press word selection preserves virtualized transcript position',
     (tester) async {
       tester.view.physicalSize = const Size(390, 500);

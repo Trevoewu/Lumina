@@ -1088,7 +1088,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
   String? _wordSelectionLineId;
   List<SelectableTextToken> _wordSelectionTokens = const [];
   final Set<int> _selectedTokenIndices = {};
-  final Map<int, GlobalKey> _tokenKeys = {};
+  final GlobalKey _wordSelectionTextKey = GlobalKey();
   int? _pointerStartToken;
   Offset? _pointerStartPosition;
   bool _pointerDidDrag = false;
@@ -1160,7 +1160,6 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
       _wordSelectionLineId = null;
       _wordSelectionTokens = const [];
       _selectedTokenIndices.clear();
-      _tokenKeys.clear();
       _resetSelectionPointer();
     }
     _sync(widget.handler.position, forceScroll: forceScroll);
@@ -1662,7 +1661,6 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
       _wordSelectionLineId = line.id;
       _wordSelectionTokens = tokens;
       _selectedTokenIndices.clear();
-      _tokenKeys.clear();
       _resetSelectionPointer();
     });
   }
@@ -1673,7 +1671,6 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
       _wordSelectionLineId = null;
       _wordSelectionTokens = const [];
       _selectedTokenIndices.clear();
-      _tokenKeys.clear();
       _resetSelectionPointer();
     });
     _sync(widget.handler.position);
@@ -1735,13 +1732,24 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
   }
 
   int? _tokenAt(Offset globalPosition) {
-    for (final entry in _tokenKeys.entries) {
-      final renderObject = entry.value.currentContext?.findRenderObject();
-      if (renderObject is! RenderBox || !renderObject.attached) continue;
-      final rect = renderObject.localToGlobal(Offset.zero) & renderObject.size;
-      if (rect.inflate(3).contains(globalPosition)) return entry.key;
+    final renderObject = _wordSelectionTextKey.currentContext
+        ?.findRenderObject();
+    if (renderObject is! RenderParagraph || !renderObject.attached) {
+      return null;
     }
-    return null;
+    final rect = renderObject.localToGlobal(Offset.zero) & renderObject.size;
+    if (!rect.inflate(3).contains(globalPosition)) return null;
+    final offset = renderObject
+        .getPositionForOffset(renderObject.globalToLocal(globalPosition))
+        .offset;
+    for (var index = 0; index < _wordSelectionTokens.length; index++) {
+      final token = _wordSelectionTokens[index];
+      if (offset < token.start) return math.max(0, index - 1);
+      if (offset < token.end) return index;
+    }
+    return _wordSelectionTokens.isEmpty
+        ? null
+        : _wordSelectionTokens.length - 1;
   }
 
   Future<void> _submitWordSelection({required bool askAi}) async {
@@ -2169,7 +2177,14 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
 
   Widget _buildWordSelectionLine(SyncedLyricLine line) {
     final accent = Theme.of(context).colorScheme.primary;
-    final tokenStyle = _lineTextStyle(color: context.appTextPrimary);
+    // Selection is an interaction layer over the current lyric line, not a
+    // different typography mode. In focus mode the active line is larger than
+    // its neighbours, so dropping `highlighted` here used to shrink it from
+    // 26px to 21px and reflow the sentence as soon as it was long-pressed.
+    final tokenStyle = _lineTextStyle(
+      color: context.appTextPrimary,
+      highlighted: line.id == _activeLineId,
+    );
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Column(
@@ -2181,42 +2196,19 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
             onPointerMove: _onTokenPointerMove,
             onPointerUp: _onTokenPointerUp,
             onPointerCancel: _onTokenPointerCancel,
-            child: Wrap(
-              spacing: 0,
-              runSpacing: 0,
-              children: [
-                for (
-                  var index = 0;
-                  index < _wordSelectionTokens.length;
-                  index++
-                )
-                  AnimatedContainer(
-                    key: _tokenKeys.putIfAbsent(index, GlobalKey.new),
-                    duration: const Duration(milliseconds: 140),
-                    curve: Curves.easeOutCubic,
-                    margin: EdgeInsets.only(
-                      right: _tokenTrailingSpaceWidth(
-                        line.text,
-                        index,
-                        tokenStyle,
-                      ),
-                    ),
-                    decoration: BoxDecoration(
-                      color: _selectedTokenIndices.contains(index)
-                          ? accent
-                          : context.appSurfaceHighlight.withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      _wordSelectionTokens[index].text,
-                      style: tokenStyle.copyWith(
-                        color: _selectedTokenIndices.contains(index)
-                            ? Colors.black
-                            : context.appTextPrimary,
-                      ),
-                    ),
+            child: KeyedSubtree(
+              key: ValueKey('word-selection-text-${line.id}'),
+              child: Text.rich(
+                key: _wordSelectionTextKey,
+                TextSpan(
+                  children: _wordSelectionSpans(
+                    line.text,
+                    tokenStyle: tokenStyle,
+                    accent: accent,
                   ),
-              ],
+                ),
+                style: tokenStyle,
+              ),
             ),
           ),
           const SizedBox(height: 10),
@@ -2224,6 +2216,38 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
         ],
       ),
     );
+  }
+
+  List<InlineSpan> _wordSelectionSpans(
+    String source, {
+    required TextStyle tokenStyle,
+    required Color accent,
+  }) {
+    final spans = <InlineSpan>[];
+    var cursor = 0;
+    for (var index = 0; index < _wordSelectionTokens.length; index++) {
+      final token = _wordSelectionTokens[index];
+      if (token.start > cursor) {
+        spans.add(TextSpan(text: source.substring(cursor, token.start)));
+      }
+      final selected = _selectedTokenIndices.contains(index);
+      spans.add(
+        TextSpan(
+          text: source.substring(token.start, token.end),
+          style: tokenStyle.copyWith(
+            color: selected ? Colors.black : context.appTextPrimary,
+            backgroundColor: selected
+                ? accent
+                : context.appSurfaceHighlight.withValues(alpha: 0.3),
+          ),
+        ),
+      );
+      cursor = token.end;
+    }
+    if (cursor < source.length) {
+      spans.add(TextSpan(text: source.substring(cursor)));
+    }
+    return spans;
   }
 
   Widget _buildWordSelectionToolbar() {
@@ -2303,19 +2327,4 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
   Color get _primaryLyricTextColor => widget.expanded && !widget.focusMode
       ? AppColors.lyricsTextPrimary
       : context.appTextPrimary;
-
-  double _tokenTrailingSpaceWidth(String source, int index, TextStyle style) {
-    if (index >= _wordSelectionTokens.length - 1) return 0;
-    final current = _wordSelectionTokens[index];
-    final next = _wordSelectionTokens[index + 1];
-    if (current.end >= next.start) return 0;
-    final whitespace = source.substring(current.end, next.start);
-    if (whitespace.isEmpty) return 0;
-    final painter = TextPainter(
-      text: TextSpan(text: whitespace, style: style),
-      textDirection: Directionality.of(context),
-      maxLines: 1,
-    )..layout();
-    return painter.width;
-  }
 }
