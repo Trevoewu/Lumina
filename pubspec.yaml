@@ -103,6 +103,7 @@ flutter:
 
   assets:
     - assets/reading_levels/cefrj-vocabulary-profile-1.5.csv
+    - assets/navigation_icons/
     - assets/provider_icons/
 
   fonts:

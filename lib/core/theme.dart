@@ -97,13 +97,31 @@ class AppTheme {
         iconTheme: IconThemeData(color: colorScheme.onSurface),
       ),
 
-      // 自定义 BottomNavigationBar
-      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+      // Compact tab bar content; NavigationBar still keeps the system bottom
+      // safe area outside this height so the home indicator is never covered.
+      navigationBarTheme: NavigationBarThemeData(
+        height: 46,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
         backgroundColor: colorScheme.surface,
-        selectedItemColor: accentColor,
-        unselectedItemColor: colorScheme.onSurfaceVariant,
-        type: BottomNavigationBarType.fixed,
-        elevation: 8,
+        elevation: 0,
+        indicatorColor: Colors.transparent,
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          return IconThemeData(
+            size: 22,
+            color: states.contains(WidgetState.selected)
+                ? accentColor
+                : colorScheme.onSurfaceVariant,
+          );
+        }),
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          return AppTextStyles.textTheme.labelSmall?.copyWith(
+            fontSize: 10,
+            height: 1,
+            color: states.contains(WidgetState.selected)
+                ? accentColor
+                : colorScheme.onSurfaceVariant,
+          );
+        }),
       ),
 
       // 自定义卡片

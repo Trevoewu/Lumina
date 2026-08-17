@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../core/app_localizations.dart';
 import '../../core/providers.dart';
@@ -77,13 +78,15 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
           ClipRect(
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-              child: BottomNavigationBar(
+              child: NavigationBar(
                 backgroundColor: Theme.of(
                   context,
                 ).colorScheme.surface.withValues(alpha: 0.86),
                 elevation: 0,
-                currentIndex: _currentIndex,
-                onTap: (index) {
+                height: 46,
+                labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
+                selectedIndex: _currentIndex,
+                onDestinationSelected: (index) {
                   if (index == _currentIndex) {
                     _navigatorKeys[index].currentState?.popUntil(
                       (route) => route.isFirst,
@@ -95,20 +98,32 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                     _currentIndex = index;
                   });
                 },
-                items: [
-                  BottomNavigationBarItem(
-                    icon: const Icon(Icons.home_outlined),
-                    activeIcon: const Icon(Icons.home),
+                destinations: [
+                  NavigationDestination(
+                    icon: const _NavigationSvgIcon(
+                      key: ValueKey('home-navigation-icon'),
+                      assetName: 'assets/navigation_icons/home_rounded.svg',
+                    ),
+                    selectedIcon: const _NavigationSvgIcon(
+                      key: ValueKey('home-navigation-active-icon'),
+                      assetName: 'assets/navigation_icons/home_rounded.svg',
+                    ),
                     label: context.tr('主页', 'Home'),
                   ),
-                  BottomNavigationBarItem(
-                    icon: const Icon(Icons.menu_book_outlined),
-                    activeIcon: const Icon(Icons.menu_book),
+                  NavigationDestination(
+                    icon: const _NavigationSvgIcon(
+                      key: ValueKey('dictionary-navigation-icon'),
+                      assetName: 'assets/navigation_icons/dictionary.svg',
+                    ),
+                    selectedIcon: const _NavigationSvgIcon(
+                      key: ValueKey('dictionary-navigation-active-icon'),
+                      assetName: 'assets/navigation_icons/dictionary.svg',
+                    ),
                     label: context.tr('查词', 'Dictionary'),
                   ),
-                  const BottomNavigationBarItem(
+                  const NavigationDestination(
                     icon: Icon(Icons.person_outline),
-                    activeIcon: Icon(Icons.person),
+                    selectedIcon: Icon(Icons.person),
                     label: 'Me',
                   ),
                 ],
@@ -116,6 +131,26 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _NavigationSvgIcon extends StatelessWidget {
+  final String assetName;
+
+  const _NavigationSvgIcon({super.key, required this.assetName});
+
+  @override
+  Widget build(BuildContext context) {
+    final iconTheme = IconTheme.of(context);
+    return SvgPicture.asset(
+      assetName,
+      width: iconTheme.size ?? 24,
+      height: iconTheme.size ?? 24,
+      colorFilter: ColorFilter.mode(
+        iconTheme.color ?? Theme.of(context).colorScheme.onSurface,
+        BlendMode.srcIn,
       ),
     );
   }

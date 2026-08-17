@@ -416,6 +416,7 @@ void main() {
     expect(find.text('Search Podcast Index'), findsOneWidget);
     expect(find.text('Paste RSS feed URL'), findsOneWidget);
     expect(find.byType(BottomNavigationBar), findsNothing);
+    expect(find.byType(NavigationBar), findsNothing);
 
     await tester.tap(find.byKey(const ValueKey('empty-podcast-index-search')));
     await tester.pumpAndSettle();

@@ -74,6 +74,18 @@ void main() {
       findsNothing,
     );
     expect(find.byType(MiniPlayer), findsNothing);
+    expect(
+      find.byKey(const ValueKey('home-navigation-active-icon')),
+      findsOneWidget,
+    );
+    expect(find.byIcon(Icons.home), findsNothing);
+    expect(find.byIcon(Icons.home_outlined), findsNothing);
+    expect(
+      find.byKey(const ValueKey('dictionary-navigation-icon')),
+      findsOneWidget,
+    );
+    expect(find.byIcon(Icons.menu_book), findsNothing);
+    expect(find.byIcon(Icons.menu_book_outlined), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));
   });
@@ -224,6 +236,15 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('Home'), findsWidgets);
+    expect(find.byType(NavigationBar), findsOneWidget);
+    final navigationBar = tester.widget<NavigationBar>(
+      find.byType(NavigationBar),
+    );
+    expect(
+      navigationBar.labelBehavior,
+      NavigationDestinationLabelBehavior.alwaysHide,
+    );
+    expect(tester.getSize(find.byType(NavigationBar)).height, 46);
 
     await tester.tap(find.byIcon(Icons.person_outline));
     await tester.pump(const Duration(milliseconds: 300));
