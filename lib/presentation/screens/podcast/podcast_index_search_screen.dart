@@ -10,6 +10,7 @@ import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
 import '../../../data/podcasts/podcast_index_repository.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
+import '../../widgets/design_system/app_search_field.dart';
 import '../../widgets/podcast_artwork.dart';
 import 'podcast_discovery_detail_screen.dart';
 
@@ -90,34 +91,16 @@ class _PodcastIndexSearchScreenState
         children: [
           Padding(
             padding: EdgeInsets.fromLTRB(inset, 8, inset, 4),
-            child: TextField(
-              key: const ValueKey('podcast-index-search-field'),
+            child: AppSearchField(
+              fieldKey: const ValueKey('podcast-index-search-field'),
               controller: _controller,
               autofocus: true,
-              textInputAction: TextInputAction.search,
               autocorrect: false,
+              enableSuggestions: false,
               onChanged: _onQueryChanged,
               onSubmitted: (_) => _runSearch(),
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: context.appSurface,
-                hintText: context.tr('搜索节目或创作者', 'Search shows or creators'),
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _controller.text.isEmpty
-                    ? null
-                    : IconButton(
-                        tooltip: context.tr('清空', 'Clear'),
-                        onPressed: () {
-                          _controller.clear();
-                          _onQueryChanged('');
-                        },
-                        icon: const Icon(Icons.close),
-                      ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide.none,
-                ),
-              ),
+              onSearch: _runSearch,
+              hintText: context.tr('搜索节目或创作者', 'Search shows or creators'),
             ),
           ),
           Padding(

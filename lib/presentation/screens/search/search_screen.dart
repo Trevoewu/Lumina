@@ -16,6 +16,7 @@ import '../../../services/book_playback_queue.dart';
 import '../../widgets/book_card_metadata.dart';
 import '../../widgets/book_list_card.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
+import '../../widgets/design_system/app_search_field.dart';
 import '../album/album_screen.dart';
 import '../library/gutendex_book_detail_screen.dart';
 
@@ -172,48 +173,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         children: [
           Padding(
             padding: EdgeInsets.fromLTRB(inset, 8, inset, 10),
-            child: TextField(
-              key: const ValueKey('library-search-field'),
+            child: AppSearchField(
+              fieldKey: const ValueKey('library-search-field'),
               controller: _controller,
               onChanged: _onQueryChanged,
               autofocus: false,
-              style: TextStyle(color: context.appTextPrimary),
-              textInputAction: TextInputAction.search,
+              loading: searching,
               onSubmitted: (_) => _runSearch(),
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: context.appSurface,
-                hintText: _scope == _SearchScope.online
-                    ? context.tr('搜索 Gutenberg 公版书', 'Search Gutenberg books')
-                    : context.tr(
-                        '搜索书籍、章节或正文',
-                        'Search books, chapters, or text',
-                      ),
-                hintStyle: TextStyle(color: context.appTextSecondary),
-                prefixIcon: Icon(Icons.search, color: context.appTextSecondary),
-                suffixIcon: searching
-                    ? const Padding(
-                        padding: EdgeInsets.all(14),
-                        child: SizedBox.square(
-                          dimension: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      )
-                    : _controller.text.isEmpty
-                    ? null
-                    : IconButton(
-                        tooltip: context.tr('清空', 'Clear'),
-                        icon: Icon(Icons.close),
-                        onPressed: () {
-                          _controller.clear();
-                          _runSearch();
-                        },
-                      ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide.none,
-                ),
-              ),
+              onSearch: _runSearch,
+              hintText: _scope == _SearchScope.online
+                  ? context.tr('搜索 Gutenberg 公版书', 'Search Gutenberg books')
+                  : context.tr('搜索书籍、章节或正文', 'Search books, chapters, or text'),
             ),
           ),
           Padding(

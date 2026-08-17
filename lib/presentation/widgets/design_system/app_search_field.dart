@@ -14,6 +14,8 @@ class AppSearchField extends StatelessWidget {
   final VoidCallback? onSearch;
   final bool loading;
   final bool autofocus;
+  final bool autocorrect;
+  final bool enableSuggestions;
 
   const AppSearchField({
     super.key,
@@ -25,6 +27,8 @@ class AppSearchField extends StatelessWidget {
     this.onSearch,
     this.loading = false,
     this.autofocus = false,
+    this.autocorrect = true,
+    this.enableSuggestions = true,
   });
 
   @override
@@ -54,6 +58,8 @@ class AppSearchField extends StatelessWidget {
               key: fieldKey,
               controller: controller,
               autofocus: autofocus,
+              autocorrect: autocorrect,
+              enableSuggestions: enableSuggestions,
               textInputAction: TextInputAction.search,
               onChanged: onChanged,
               onSubmitted: loading ? null : onSubmitted,
