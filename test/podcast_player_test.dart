@@ -521,6 +521,14 @@ void main() {
       find.byKey(const ValueKey('player-transcript-page')),
       findsOneWidget,
     );
+    final topChrome = tester.widget<KeyedSubtree>(
+      find.byKey(const ValueKey('player-transcript-top-chrome')),
+    );
+    expect(
+      topChrome.child,
+      isNot(isA<DecoratedBox>()),
+      reason: 'the mini player must let the page accent show through',
+    );
     final closePlayer = find.byKey(
       const ValueKey('player-transcript-close-player'),
     );

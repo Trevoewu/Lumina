@@ -2374,14 +2374,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     required bool fromTop,
     required Widget child,
   }) {
-    final scrim = fromTop
-        ? Theme.of(context).colorScheme.surfaceContainer
-        : Theme.of(context).colorScheme.surface;
+    // The page ambience already paints the cover-derived accent behind the
+    // entire transcript route. An opaque surfaceContainer here masked that
+    // tint only beneath the mini player and produced a hard white seam. Keep
+    // the top chrome transparent so it shares the exact same accent field as
+    // the reading viewport; only the lower transport chrome needs a scrim.
+    if (fromTop) {
+      return KeyedSubtree(
+        key: const ValueKey('player-transcript-top-chrome'),
+        child: child,
+      );
+    }
+    final scrim = Theme.of(context).colorScheme.surface;
     return DecoratedBox(
+      key: const ValueKey('player-transcript-bottom-chrome'),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          begin: fromTop ? Alignment.topCenter : Alignment.bottomCenter,
-          end: fromTop ? Alignment.bottomCenter : Alignment.topCenter,
+          begin: Alignment.bottomCenter,
+          end: Alignment.topCenter,
           colors: [
             scrim,
             scrim.withValues(alpha: 0.96),
