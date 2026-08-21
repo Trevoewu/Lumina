@@ -20,6 +20,7 @@ import '../../../data/settings/provider_selection_repository.dart';
 import '../../../domain/models/audio_text_timing.dart';
 import '../../../domain/models/chapter_manifest.dart';
 import '../../../services/app_log_service.dart';
+import '../../../services/audiobook_manifest_validator.dart';
 import '../../../services/book_playback_queue.dart';
 import '../../../services/cover_palette_service.dart';
 import '../../../services/generation_orchestrator.dart';
@@ -40,15 +41,15 @@ import '../../widgets/synced_lyrics_list.dart';
 import '../settings/dictionary_explanation_service_screen.dart';
 import '../settings/tts_service_screen.dart';
 
-enum PlayerPrimaryAudioAction { play, pause }
+enum PlayerPrimaryAudioAction { play, pause, loading }
 
 PlayerPrimaryAudioAction resolvePlayerPrimaryAudioAction({
   required bool playing,
   required bool playbackRequested,
 }) {
-  return playing || playbackRequested
-      ? PlayerPrimaryAudioAction.pause
-      : PlayerPrimaryAudioAction.play;
+  if (playing) return PlayerPrimaryAudioAction.pause;
+  if (playbackRequested) return PlayerPrimaryAudioAction.loading;
+  return PlayerPrimaryAudioAction.play;
 }
 
 int resolveAudiobookChapterPositionMs({
@@ -404,9 +405,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _preparingStream = false;
   bool _streamPlaybackRequested = false;
   bool _startingPlayback = false;
+  double? _progressDragValue;
+  int _progressDragSequence = 0;
   final ValueNotifier<int> _controlStateRevision = ValueNotifier<int>(0);
   final ValueNotifier<int> _transcriptPageRevision = ValueNotifier<int>(0);
   int _paragraphCount = 0;
+  List<drift_db.Paragraph> _audiobookParagraphs = const [];
   drift_db.ChapterPlaybackProgress? _chapterPlaybackProgress;
   drift_db.PodcastEpisode? _podcastEpisode;
   _PodcastTranscriptContent? _podcastTranscript;
@@ -747,12 +751,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       database.getChapterPlaybackProgress(chapter.id),
     ]);
     if (!mounted) return;
-    final manifest = results[0] as ChapterManifest?;
+    final storedManifest = results[0] as ChapterManifest?;
     final paragraphs = results[1] as List<drift_db.Paragraph>;
+    final manifest = storedManifest == null
+        ? null
+        : validateAudiobookManifest(storedManifest, paragraphs);
     final playbackProgress = results[2] as drift_db.ChapterPlaybackProgress?;
     setState(() {
       _selectedManifest = manifest;
       _paragraphCount = paragraphs.length;
+      _audiobookParagraphs = paragraphs;
       _chapterPlaybackProgress = playbackProgress;
     });
 
@@ -888,10 +896,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (!mounted) return;
     final chapter = widget.initialChapter;
     if (chapter == null) return;
-    final manifest = await ref
+    final storedManifest = await ref
         .read(manifestStoreProvider)
         .load(widget.book.id, chapter.id);
     if (!mounted) return;
+    final manifest = storedManifest == null
+        ? null
+        : validateAudiobookManifest(storedManifest, _audiobookParagraphs);
     setState(() {
       _generationProgress = progress;
       _selectedManifest = manifest ?? _selectedManifest;
@@ -908,11 +919,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // also start after the widget has been removed.
     if (!mounted) return;
     final chapter = widget.initialChapter;
-    final manifest = chapter == null
+    final storedManifest = chapter == null
         ? null
         : await ref
               .read(manifestStoreProvider)
               .load(widget.book.id, chapter.id);
+    final manifest = storedManifest == null
+        ? null
+        : validateAudiobookManifest(storedManifest, _audiobookParagraphs);
     if (!mounted || !identical(_generationSubscription, subscription)) return;
     setState(() {
       _selectedManifest = manifest ?? _selectedManifest;
@@ -1204,11 +1218,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   ChapterManifest _playablePrefix(ChapterManifest manifest) {
-    final playable = <SegmentEntry>[];
-    for (final segment in manifest.segments) {
-      if (segment.state != ParagraphAudioState.ready) break;
-      playable.add(segment);
-    }
+    final playable = contiguousPlayableSegments(manifest);
     return ChapterManifest(
       chapterId: manifest.chapterId,
       bookId: manifest.bookId,
@@ -1225,9 +1235,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     LuminaAudioHandler handler,
     bool playing,
   ) async {
-    if (playing || _streamPlaybackRequested || _startingPlayback) {
+    if (playing) {
       _setStreamPlaybackRequested(false);
       await handler.pause();
+      return;
+    }
+    // A request is already preparing its first playable segment. Ignore
+    // additional taps so they cannot start a second generation/cache flow.
+    if (_streamPlaybackRequested || _startingPlayback || _preparingStream) {
       return;
     }
 
@@ -1616,10 +1631,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       return true;
     }
 
-    final latestManifest =
+    var latestManifest =
         manifest ??
         await ref.read(manifestStoreProvider).load(widget.book.id, chapter.id);
     if (!mounted) return false;
+    if (latestManifest != null) {
+      final paragraphs = _audiobookParagraphs.isNotEmpty
+          ? _audiobookParagraphs
+          : await ref.read(appDatabaseProvider).getParagraphs(chapter.id);
+      if (!mounted) return false;
+      latestManifest = validateAudiobookManifest(latestManifest, paragraphs);
+    }
     final paragraphLabel = context.tr('段落', 'Paragraph', '段落');
     if (latestManifest != null &&
         !identical(latestManifest, _selectedManifest)) {
@@ -3049,6 +3071,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           'Pause',
                           '一時停止',
                         ),
+                        PlayerPrimaryAudioAction.loading => context.tr(
+                          '正在准备音频',
+                          'Preparing audio',
+                          '音声を準備中',
+                        ),
                       };
                       return IconButton(
                         key: const ValueKey('player-sticky-mini-player-action'),
@@ -3057,9 +3084,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           action: action,
                           color: context.appTextPrimary,
                         ),
-                        onPressed: () => unawaited(
-                          _handlePrimaryAudioAction(handler, playing),
-                        ),
+                        onPressed: action == PlayerPrimaryAudioAction.loading
+                            ? null
+                            : () => unawaited(
+                                _handlePrimaryAudioAction(handler, playing),
+                              ),
                       );
                     },
                   ),
@@ -3461,12 +3490,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final cacheColor = context.appTextSecondary.withValues(alpha: 0.46);
     final secondaryColor = context.appTextSecondary;
     final inactiveTrackColor = foregroundColor.withValues(alpha: 0.18);
+    final cacheFraction = _cacheFraction(manifest);
+    final dragValue = _progressDragValue;
+    final displayPosition = dragValue != null && cacheFraction > 0
+        ? Duration(
+            microseconds:
+                (duration.inMicroseconds *
+                        (dragValue.clamp(0.0, cacheFraction) / cacheFraction))
+                    .round(),
+          )
+        : position;
     final playbackFraction = duration.inMilliseconds <= 0
         ? 0.0
-        : (position.inMilliseconds / duration.inMilliseconds)
+        : (displayPosition.inMilliseconds / duration.inMilliseconds)
               .clamp(0.0, 1.0)
               .toDouble();
-    final cacheFraction = _cacheFraction(manifest);
     final hasCachedAudio = (manifest?.readyCount ?? 0) > 0;
     final primaryAction = resolvePlayerPrimaryAudioAction(
       playing: playing,
@@ -3475,8 +3513,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final primaryTooltip = switch (primaryAction) {
       PlayerPrimaryAudioAction.play => context.tr('播放', 'Play', '再生'),
       PlayerPrimaryAudioAction.pause => context.tr('暂停', 'Pause', '一時停止'),
+      PlayerPrimaryAudioAction.loading => context.tr(
+        '正在准备音频',
+        'Preparing audio',
+        '音声を準備中',
+      ),
     };
-    final remaining = duration - position;
+    final remaining = duration - displayPosition;
     final remainingLabel = duration.inMilliseconds <= 0
         ? _fmt(duration)
         : '-${_fmt(remaining.isNegative ? Duration.zero : remaining)}';
@@ -3517,17 +3560,55 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     animatedCacheFraction < playbackTrackProgress
                     ? playbackTrackProgress
                     : animatedCacheFraction,
+                onChangeStart:
+                    !selectedLoaded ||
+                        duration.inMilliseconds <= 0 ||
+                        cacheFraction <= 0
+                    ? null
+                    : (value) {
+                        _progressDragSequence++;
+                        setState(
+                          () => _progressDragValue = value.clamp(
+                            0.0,
+                            cacheFraction,
+                          ),
+                        );
+                      },
                 onChanged:
                     !selectedLoaded ||
                         duration.inMilliseconds <= 0 ||
                         cacheFraction <= 0
                     ? null
                     : (value) {
+                        setState(
+                          () => _progressDragValue = value.clamp(
+                            0.0,
+                            cacheFraction,
+                          ),
+                        );
+                      },
+                onChangeEnd:
+                    !selectedLoaded ||
+                        duration.inMilliseconds <= 0 ||
+                        cacheFraction <= 0
+                    ? null
+                    : (value) {
                         final cachedValue = value.clamp(0.0, cacheFraction);
+                        setState(() => _progressDragValue = cachedValue);
+                        final sequence = _progressDragSequence;
                         final seekFraction = cachedValue / cacheFraction;
-                        final seekMs = (seekFraction * duration.inMilliseconds)
-                            .round();
-                        handler.seek(Duration(milliseconds: seekMs));
+                        final target = Duration(
+                          microseconds: (seekFraction * duration.inMicroseconds)
+                              .round(),
+                        );
+                        unawaited(
+                          handler.seek(target).whenComplete(() {
+                            if (!mounted || sequence != _progressDragSequence) {
+                              return;
+                            }
+                            setState(() => _progressDragValue = null);
+                          }),
+                        );
                       },
               ),
             );
@@ -3537,7 +3618,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              _fmt(position),
+              _fmt(displayPosition),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: secondaryColor,
                 fontFeatures: const [FontFeature.tabularFigures()],
@@ -3600,8 +3681,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   child: InkWell(
                     key: const ValueKey('player-primary-audio-action'),
                     customBorder: const CircleBorder(),
-                    onTap: () =>
-                        unawaited(_handlePrimaryAudioAction(handler, playing)),
+                    onTap: primaryAction == PlayerPrimaryAudioAction.loading
+                        ? null
+                        : () => unawaited(
+                            _handlePrimaryAudioAction(handler, playing),
+                          ),
                     child: SizedBox.square(
                       dimension: design.spaceXxl * 2,
                       child: Center(
@@ -4089,6 +4173,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         Icons.pause,
         key: const ValueKey(PlayerPrimaryAudioAction.pause),
         size: 32,
+        color: color,
+      ),
+      PlayerPrimaryAudioAction.loading => Icon(
+        key: const ValueKey(PlayerPrimaryAudioAction.loading),
+        Icons.hourglass_top_rounded,
+        size: 28,
         color: color,
       ),
     };

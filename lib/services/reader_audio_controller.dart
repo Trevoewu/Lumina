@@ -131,18 +131,19 @@ class ReaderAudioController {
     if (manifest == null) return;
 
     int acc = 0;
-    for (var i = 0; i < manifest.segments.length; i++) {
-      final seg = manifest.segments[i];
+    var playableIndex = 0;
+    for (final seg in manifest.segments) {
       if (seg.state != ParagraphAudioState.ready) continue;
       final next = acc + seg.durationMs;
       if (offset.inMilliseconds < next) {
         await _player.seek(
           Duration(milliseconds: offset.inMilliseconds - acc),
-          index: i,
+          index: playableIndex,
         );
         return;
       }
       acc = next;
+      playableIndex++;
     }
   }
 

@@ -7,6 +7,7 @@ import 'package:just_audio/just_audio.dart';
 
 import '../domain/models/chapter_manifest.dart';
 import 'app_log_service.dart';
+import 'audiobook_manifest_validator.dart';
 
 class ChapterPlaybackSource {
   final ChapterManifest manifest;
@@ -207,12 +208,10 @@ class LuminaAudioHandler extends BaseAudioHandler
     var initialIndex = -1;
     for (final chapter in chapters) {
       final playable = <SegmentEntry>[];
-      for (final segment in chapter.manifest.segments) {
-        if (segment.state != ParagraphAudioState.ready) continue;
+      for (final segment in contiguousPlayableSegments(chapter.manifest)) {
         final file = File('$audioRoot/${segment.audioFile}');
-        if (await file.exists() && await file.length() > 64) {
-          playable.add(segment);
-        }
+        if (!await file.exists() || await file.length() <= 64) break;
+        playable.add(segment);
       }
       final chapterDurationMs = playable.fold<int>(
         0,
@@ -405,8 +404,7 @@ class LuminaAudioHandler extends BaseAudioHandler
     final existing = _queueEntries.sublist(chapterStart, chapterEnd);
 
     final playable = <SegmentEntry>[];
-    for (final segment in manifest.segments) {
-      if (segment.state != ParagraphAudioState.ready) break;
+    for (final segment in contiguousPlayableSegments(manifest)) {
       final file = File('$audioRoot/${segment.audioFile}');
       if (!await file.exists() || await file.length() <= 64) break;
       playable.add(segment);

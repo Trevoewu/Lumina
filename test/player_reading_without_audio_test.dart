@@ -586,19 +586,135 @@ void main() {
     expect(find.byType(TtsServiceScreen), findsOneWidget);
   });
 
-  test('primary audio action remains play or pause while streaming', () {
+  test('primary audio action shows preparation while streaming', () {
     expect(
       resolvePlayerPrimaryAudioAction(playing: false, playbackRequested: false),
       PlayerPrimaryAudioAction.play,
     );
     expect(
       resolvePlayerPrimaryAudioAction(playing: false, playbackRequested: true),
-      PlayerPrimaryAudioAction.pause,
+      PlayerPrimaryAudioAction.loading,
     );
     expect(
       resolvePlayerPrimaryAudioAction(playing: true, playbackRequested: false),
       PlayerPrimaryAudioAction.pause,
     );
+  });
+
+  testWidgets('progress slider follows drag and seeks only on release', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final temp = Directory.systemTemp.createTempSync('lumina_seek_test_');
+    final manifestStore = _TestManifestStore(temp);
+    final audioHandler = _TestAudioHandler();
+    addTearDown(database.close);
+    addTearDown(audioHandler.dispose);
+    addTearDown(() {
+      if (temp.existsSync()) temp.deleteSync(recursive: true);
+    });
+
+    const book = Book(
+      id: 'seek-book',
+      title: 'Seek Book',
+      format: 'epub',
+      sourcePath: '/tmp/seek.epub',
+      chapterCount: 1,
+      paragraphCount: 1,
+      currentParagraphIndex: 0,
+      playbackOffsetMs: 0,
+      importedAt: 1,
+      lastReadAt: 1,
+      isRead: false,
+      kind: 'book',
+      rightsStatus: 'user_uploaded',
+    );
+    const chapter = Chapter(
+      id: 'seek-chapter',
+      bookId: 'seek-book',
+      chapterIndex: 0,
+      title: 'Seek Chapter',
+      textOffset: 0,
+      isHidden: false,
+    );
+    const paragraph = Paragraph(
+      id: 'seek-paragraph',
+      chapterId: 'seek-chapter',
+      bookId: 'seek-book',
+      paragraphIndex: 0,
+      content: 'Seekable text.',
+    );
+    await database.replaceBookData(
+      book: book,
+      chapterEntries: const [chapter],
+      paragraphEntries: const [paragraph],
+    );
+    manifestStore.manifest = const ChapterManifest(
+      chapterId: 'seek-chapter',
+      bookId: 'seek-book',
+      providerId: 'tts',
+      voiceId: 'voice',
+      speed: 1,
+      updatedAt: 1,
+      segments: [
+        SegmentEntry(
+          paragraphId: 'seek-paragraph',
+          audioFile: 'seek-chapter/seek-paragraph.mp3',
+          durationMs: 1329000,
+          state: ParagraphAudioState.ready,
+        ),
+      ],
+    );
+    audioHandler.startLoadedChapter(
+      bookId: book.id,
+      chapterId: chapter.id,
+      paragraphId: paragraph.id,
+    );
+    audioHandler.pendingSeek = Completer<void>();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          manifestStoreProvider.overrideWithValue(manifestStore),
+          luminaAudioHandlerProvider.overrideWith((ref) async => audioHandler),
+        ],
+        child: const MaterialApp(
+          home: PlayerScreen(book: book, initialChapter: chapter),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final sliderFinder = find.byKey(
+      const ValueKey('player-cache-playback-progress'),
+    );
+    var slider = tester.widget<Slider>(sliderFinder);
+    slider.onChangeStart!(0);
+    slider.onChanged!(0.6);
+    await tester.pump();
+
+    slider = tester.widget<Slider>(sliderFinder);
+    expect(slider.value, closeTo(0.6, 0.001));
+    expect(audioHandler.seekCalls, 0);
+
+    slider.onChangeEnd!(0.6);
+    await tester.pump();
+    expect(audioHandler.seekCalls, 1);
+    expect(
+      audioHandler.soughtPosition,
+      const Duration(minutes: 13, seconds: 17, milliseconds: 400),
+    );
+    expect(tester.widget<Slider>(sliderFinder).value, closeTo(0.6, 0.001));
+
+    audioHandler.pendingSeek!.complete();
+    await tester.pump();
+    expect(tester.widget<Slider>(sliderFinder).value, closeTo(0.6, 0.001));
   });
 
   test('audiobook chapter position prefers per-chapter progress', () {
@@ -1042,6 +1158,9 @@ class _TestAudioHandler extends BaseAudioHandler implements LuminaAudioHandler {
   Duration _chapterDuration = Duration.zero;
   ChapterManifest? _manifest;
   int playCalls = 0;
+  int seekCalls = 0;
+  Duration? soughtPosition;
+  Completer<void>? pendingSeek;
   Duration? loadedInitialPosition;
   bool _disposed = false;
 
@@ -1192,6 +1311,16 @@ class _TestAudioHandler extends BaseAudioHandler implements LuminaAudioHandler {
         playing: false,
       ),
     );
+  }
+
+  @override
+  Future<void> seek(Duration position) async {
+    seekCalls++;
+    soughtPosition = position;
+    await pendingSeek?.future;
+    _position = position;
+    _positionController.add(position);
+    _chapterPositionController.add(position);
   }
 
   @override
