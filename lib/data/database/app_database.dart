@@ -977,12 +977,19 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
-  Future<List<DictionaryEntry>> getRecentDictionaryEntries({int? limit}) {
+  Future<List<DictionaryEntry>> getRecentDictionaryEntries({
+    required String language,
+    String? provider,
+    int? limit,
+  }) {
     final query = select(dictionaryEntries)
       ..where(
         (row) =>
             row.status.equals('success') &
-            row.provider.equals('vocabulary_com'),
+            row.language.equals(language) &
+            (provider == null
+                ? const Constant(true)
+                : row.provider.equals(provider)),
       )
       ..orderBy([(row) => OrderingTerm.desc(row.lastAccessedAt)]);
     if (limit != null) query.limit(limit);
@@ -992,6 +999,8 @@ class AppDatabase extends _$AppDatabase {
   /// Cached words starting with [prefix], most recently used first.
   Future<List<DictionaryEntry>> searchDictionaryEntries(
     String prefix, {
+    required String language,
+    String? provider,
     int limit = 5,
   }) {
     final normalized = prefix.trim().toLowerCase();
@@ -1000,7 +1009,10 @@ class AppDatabase extends _$AppDatabase {
           ..where(
             (row) =>
                 row.status.equals('success') &
-                row.provider.equals('vocabulary_com') &
+                row.language.equals(language) &
+                (provider == null
+                    ? const Constant(true)
+                    : row.provider.equals(provider)) &
                 row.normalizedTerm.like('${_escapeLike(normalized)}%'),
           )
           ..orderBy([(row) => OrderingTerm.desc(row.lastAccessedAt)])

@@ -184,7 +184,7 @@ class _HomeOverviewContentState extends State<_HomeOverviewContent> {
               children: [
                 Expanded(
                   child: Text(
-                    context.tr('最新', 'LATEST'),
+                    context.tr('最新', 'LATEST', '最新'),
                     style: kickerTextStyle(context),
                   ),
                 ),
@@ -194,7 +194,7 @@ class _HomeOverviewContentState extends State<_HomeOverviewContent> {
                     behavior: HitTestBehavior.opaque,
                     onTap: () => setState(() => _feedExpanded = true),
                     child: Text(
-                      context.tr('全部', 'See all'),
+                      context.tr('全部', 'See all', 'すべて表示'),
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
@@ -237,24 +237,33 @@ class _HomeOverviewContentState extends State<_HomeOverviewContent> {
             data.finishedChapterIndexesByBook[book.id] ?? const <int>{},
       );
       final started = book.lastReadAt > 0;
-      final progressLabel = context.tr('进度 $percent%', '$percent% read');
+      final progressLabel = context.tr(
+        '进度 $percent%',
+        '$percent% read',
+        '$percent% 読了',
+      );
       entries.add(
         _HomeEntry(
           title: book.title,
-          subtitle: book.author ?? context.tr('未知作者', 'Unknown author'),
-          meta: context.tr('${book.chapterCount} 章', '${book.chapterCount} ch'),
+          subtitle: book.author ?? context.tr('未知作者', 'Unknown author', '著者不明'),
+          meta: context.tr(
+            '${book.chapterCount} 章',
+            '${book.chapterCount} ch',
+            '${book.chapterCount}章',
+          ),
           when: progressLabel,
           heroKicker: started
-              ? context.tr('继续阅读', 'CONTINUE READING')
-              : context.tr('开始阅读', 'START READING'),
+              ? context.tr('继续阅读', 'CONTINUE READING', '続きを読む')
+              : context.tr('开始阅读', 'START READING', '読み始める'),
           heroPosition: progressLabel,
           heroLeft: context.tr(
             '${book.chapterCount} 章',
             '${book.chapterCount} chapters',
+            '${book.chapterCount}章',
           ),
           heroRight: started
               ? relativeTimeLabel(context, book.lastReadAt)
-              : context.tr('未开始', 'Not started'),
+              : context.tr('未开始', 'Not started', '未開始'),
           progress: percent / 100,
           isPodcast: false,
           localCoverPath: book.coverPath,
@@ -280,8 +289,8 @@ class _HomeOverviewContentState extends State<_HomeOverviewContent> {
           meta: _durationLabel(context, episode.durationMs),
           when: relativeTimeLabel(context, episode.publishedAt),
           heroKicker: started
-              ? context.tr('继续收听', 'CONTINUE LISTENING')
-              : context.tr('开始收听', 'START LISTENING'),
+              ? context.tr('继续收听', 'CONTINUE LISTENING', '続きを聴く')
+              : context.tr('开始收听', 'START LISTENING', '聴き始める'),
           heroPosition: episode.durationMs > 0
               ? '${formatPlaybackTime(position)} / '
                     '${formatPlaybackTime(duration)}'
@@ -290,11 +299,12 @@ class _HomeOverviewContentState extends State<_HomeOverviewContent> {
           // the publish date instead of repeating it.
           heroLeft: relativeTimeLabel(context, episode.publishedAt),
           heroRight: episode.isPlayed
-              ? context.tr('已听完', 'Finished')
+              ? context.tr('已听完', 'Finished', '聴き終わり')
               : remaining > Duration.zero
               ? context.tr(
                   '剩余 ${formatPlaybackTime(remaining)}',
                   '${formatPlaybackTime(remaining)} left',
+                  '残り ${formatPlaybackTime(remaining)}',
                 )
               : _durationLabel(context, episode.durationMs),
           progress: episode.durationMs <= 0
@@ -681,31 +691,37 @@ class _EmptyHome extends StatelessWidget {
       padding: EdgeInsets.fromLTRB(gutter, design.spaceLg, gutter, 120),
       children: [
         Text(
-          context.tr('开始收听', 'START LISTENING'),
+          context.tr('开始收听', 'START LISTENING', '聴き始める'),
           style: kickerTextStyle(context),
         ),
         const SizedBox(height: 14),
         _StartRow(
           icon: Icons.auto_stories_outlined,
-          title: context.tr('导入一本书', 'Import a book'),
-          subtitle: context.tr('支持 EPUB 和 TXT', 'EPUB and TXT supported'),
+          title: context.tr('导入一本书', 'Import a book', '本をインポート'),
+          subtitle: context.tr(
+            '支持 EPUB 和 TXT',
+            'EPUB and TXT supported',
+            'EPUBとTXTに対応',
+          ),
           onTap: onImportBook,
         ),
         _StartRow(
           icon: Icons.travel_explore_outlined,
-          title: context.tr('发现 Podcast', 'Discover podcasts'),
+          title: context.tr('发现 Podcast', 'Discover podcasts', 'ポッドキャストを探す'),
           subtitle: context.tr(
             '通过 Podcast Index 搜索开放目录',
             'Search the open directory with Podcast Index',
+            'Podcast Indexで公開ディレクトリを検索',
           ),
           onTap: onSearchPodcastIndex,
         ),
         _StartRow(
           icon: Icons.rss_feed,
-          title: context.tr('通过 RSS 添加', 'Add with RSS'),
+          title: context.tr('通过 RSS 添加', 'Add with RSS', 'RSSから追加'),
           subtitle: context.tr(
             '粘贴已知的节目 Feed 地址',
             'Paste a podcast feed you already know',
+            '知っているポッドキャストのフィードを貼り付け',
           ),
           onTap: onAddPodcast,
         ),

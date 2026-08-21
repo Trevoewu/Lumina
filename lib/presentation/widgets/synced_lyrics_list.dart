@@ -1563,14 +1563,14 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
       items.insert(
         items.isEmpty ? 0 : 1,
         ContextMenuButtonItem(
-          label: context.tr('查词', 'Look Up'),
+          label: context.tr('查词', 'Look Up', '調べる'),
           onPressed: () => _lookUpSelection(selectableRegionState),
         ),
       );
       items.insert(
         items.length < 2 ? items.length : 2,
         ContextMenuButtonItem(
-          label: context.tr('询问 AI', 'Ask AI'),
+          label: context.tr('询问 AI', 'Ask AI', 'AIに質問'),
           onPressed: () => _askAiAboutSelection(selectableRegionState),
         ),
       );
@@ -2264,7 +2264,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
           children: [
             IconButton(
               visualDensity: VisualDensity.compact,
-              tooltip: context.tr('取消', 'Cancel'),
+              tooltip: context.tr('取消', 'Cancel', 'キャンセル'),
               onPressed: _exitWordSelection,
               icon: const Icon(Icons.close),
             ),
@@ -2276,7 +2276,11 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
                         _wordSelectionTokens,
                         _selectedTokenIndices,
                       )
-                    : context.tr('点击或滑动选择', 'Tap or slide to select'),
+                    : context.tr(
+                        '点击或滑动选择',
+                        'Tap or slide to select',
+                        'タップまたはスライドして選択',
+                      ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(color: context.appTextSecondary, fontSize: 13),
@@ -2286,7 +2290,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
               onPressed: hasSelection
                   ? () => _submitWordSelection(askAi: false)
                   : null,
-              child: Text(context.tr('查词', 'Look Up')),
+              child: Text(context.tr('查词', 'Look Up', '調べる')),
             ),
             const SizedBox(width: 2),
             FilledButton(

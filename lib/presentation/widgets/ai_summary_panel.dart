@@ -124,7 +124,11 @@ class _AiSummaryPanelState extends ConsumerState<AiSummaryPanel> {
       _running = true;
       _expanded = false;
       _error = null;
-      _status = context.tr('正在读取 Transcript…', 'Reading transcript…');
+      _status = context.tr(
+        '正在读取 Transcript…',
+        'Reading transcript…',
+        '文字起こしを読み込み中…',
+      );
     });
     await _subscription?.cancel();
     if (!mounted) return;
@@ -203,7 +207,7 @@ class _AiSummaryPanelState extends ConsumerState<AiSummaryPanel> {
             if (hasSummary && !_running)
               IconButton(
                 key: const ValueKey('ai-summary-regenerate'),
-                tooltip: context.tr('重新生成', 'Generate again'),
+                tooltip: context.tr('重新生成', 'Generate again', '再生成'),
                 onPressed: _generate,
                 icon: const Icon(Icons.refresh_rounded, size: 20),
               ),
@@ -272,8 +276,8 @@ class _AiSummaryPanelState extends ConsumerState<AiSummaryPanel> {
             ),
             label: Text(
               _expanded
-                  ? context.tr('收起', 'Show less')
-                  : context.tr('查看完整摘要', 'Show full summary'),
+                  ? context.tr('收起', 'Show less', '折りたたむ')
+                  : context.tr('查看完整摘要', 'Show full summary', '概要をすべて表示'),
             ),
           ),
         ] else ...[
@@ -281,6 +285,7 @@ class _AiSummaryPanelState extends ConsumerState<AiSummaryPanel> {
             context.tr(
               '生成当前内容的简明摘要，并保留可跳转的 Transcript 引用。',
               'Generate a concise overview with references back to the transcript.',
+              '文字起こしへの参照付きで簡潔な概要を生成します。',
             ),
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               color: context.appTextSecondary,
@@ -304,7 +309,7 @@ class _AiSummaryPanelState extends ConsumerState<AiSummaryPanel> {
               key: const ValueKey('ai-summary-generate'),
               onPressed: _generate,
               icon: const Icon(Icons.auto_awesome_rounded, size: 18),
-              label: Text(context.tr('生成摘要', 'Generate summary')),
+              label: Text(context.tr('生成摘要', 'Generate summary', '概要を生成')),
             ),
           ),
         ],
@@ -336,6 +341,7 @@ class _AiServiceRequiredState extends StatelessWidget {
           context.tr(
             '连接 AI 模型后，可以生成摘要、询问内容并获得带引用的回答。',
             'Connect an AI model to create summaries and ask grounded questions with citations.',
+            'AIモデルに接続すると、概要の生成や引用付きの質問ができます。',
           ),
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
             color: context.appTextSecondary,
@@ -350,7 +356,9 @@ class _AiServiceRequiredState extends StatelessWidget {
               key: const ValueKey('ai-summary-configure-service'),
               onPressed: onPressed,
               icon: const Icon(Icons.hub_outlined, size: 18),
-              label: Text(context.tr('连接 AI 服务', 'Connect AI service')),
+              label: Text(
+                context.tr('连接 AI 服务', 'Connect AI service', 'AIサービスに接続'),
+              ),
             ),
           ),
         ],
@@ -373,6 +381,7 @@ class _TranscriptRequiredState extends StatelessWidget {
           context.tr(
             '需要 Transcript 才能生成可靠的摘要。',
             'A transcript is required for a grounded summary.',
+            '正確な概要を生成するには文字起こしが必要です。',
           ),
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
             color: context.appTextSecondary,
@@ -388,7 +397,11 @@ class _TranscriptRequiredState extends StatelessWidget {
               onPressed: onPressed,
               icon: const Icon(Icons.subtitles_rounded, size: 18),
               label: Text(
-                context.tr('先生成 Transcript', 'Create transcript first'),
+                context.tr(
+                  '先生成 Transcript',
+                  'Create transcript first',
+                  '先に文字起こしを作成',
+                ),
               ),
             ),
           ),
@@ -590,6 +603,7 @@ class _AiConversationSheetState extends ConsumerState<AiConversationSheet> {
                 'statusText': context.tr(
                   '正在核对 Transcript…',
                   'Checking transcript…',
+                  '文字起こしを確認中…',
                 ),
               },
               status: chat.MessageStatus.sending,
@@ -598,7 +612,11 @@ class _AiConversationSheetState extends ConsumerState<AiConversationSheet> {
             as chat.TextMessage;
     setState(() {
       _running = true;
-      _status = context.tr('正在核对 Transcript…', 'Checking transcript…');
+      _status = context.tr(
+        '正在核对 Transcript…',
+        'Checking transcript…',
+        '文字起こしを確認中…',
+      );
       _draftMessage = draft;
     });
     await _chatController.insertMessage(userMessage);
@@ -632,7 +650,8 @@ class _AiConversationSheetState extends ConsumerState<AiConversationSheet> {
         });
         await _loadMessages();
       case AiAgentUpdateType.failed:
-        final error = update.text ?? context.tr('请求失败', 'Request failed');
+        final error =
+            update.text ?? context.tr('请求失败', 'Request failed', 'リクエストに失敗しました');
         setState(() {
           _running = false;
           _status = null;
@@ -673,7 +692,7 @@ class _AiConversationSheetState extends ConsumerState<AiConversationSheet> {
   Future<chat.User?> _resolveUser(chat.UserID id) async {
     return chat.User(
       id: id,
-      name: id == _currentUserId ? context.tr('你', 'You') : 'Lumina AI',
+      name: id == _currentUserId ? context.tr('你', 'You', 'あなた') : 'Lumina AI',
     );
   }
 
@@ -758,7 +777,11 @@ class _AiConversationSheetState extends ConsumerState<AiConversationSheet> {
                     borderSide: BorderSide(color: context.appSurfaceHighlight),
                     borderRadius: BorderRadius.circular(design.radiusLarge),
                   ),
-                  hintText: context.tr('继续提问…', 'Ask a follow-up question…'),
+                  hintText: context.tr(
+                    '继续提问…',
+                    'Ask a follow-up question…',
+                    '続けて質問…',
+                  ),
                   hintColor: context.appTextSecondary,
                   textColor: context.appTextPrimary,
                   keyboardAppearance: Theme.of(context).brightness,
@@ -805,7 +828,11 @@ class _ConversationEmptyState extends StatelessWidget {
           ),
           SizedBox(height: design.spaceMd),
           Text(
-            context.tr('针对当前内容继续提问', 'Ask about the current content'),
+            context.tr(
+              '针对当前内容继续提问',
+              'Ask about the current content',
+              '現在の内容について質問',
+            ),
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               color: context.appTextPrimary,
@@ -817,6 +844,7 @@ class _ConversationEmptyState extends StatelessWidget {
             context.tr(
               '回答会基于 Transcript，并附上可查看的引用。',
               'Answers stay grounded in the transcript with tappable references.',
+              '回答は文字起こしに基づき、タップできる参照が付きます。',
             ),
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(

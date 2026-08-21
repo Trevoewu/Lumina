@@ -21,11 +21,11 @@ class _LogsScreenState extends State<LogsScreen> {
     final logger = AppLogService.instance;
 
     return CollapsingPageScaffold(
-      title: context.tr('日志', 'Logs'),
+      title: context.tr('日志', 'Logs', 'ログ'),
       showBackButton: true,
       actions: [
         Tooltip(
-          message: context.tr('清空日志', 'Clear Logs'),
+          message: context.tr('清空日志', 'Clear Logs', 'ログを消去'),
           child: IconButton(
             icon: Icon(Icons.delete_outline),
             onPressed: () => _confirmClear(context, logger),
@@ -67,7 +67,7 @@ class _LogsScreenState extends State<LogsScreen> {
               builder: (context, entries, _) {
                 if (entries.isEmpty) {
                   return _EmptyLogsMessage(
-                    message: context.tr('暂无日志', 'No logs yet'),
+                    message: context.tr('暂无日志', 'No logs yet', 'ログはありません'),
                   );
                 }
 
@@ -76,7 +76,11 @@ class _LogsScreenState extends State<LogsScreen> {
                     .toList(growable: false);
                 if (newestFirst.isEmpty) {
                   return _EmptyLogsMessage(
-                    message: context.tr('当前级别没有日志', 'No logs at this level'),
+                    message: context.tr(
+                      '当前级别没有日志',
+                      'No logs at this level',
+                      'このレベルのログはありません',
+                    ),
                   );
                 }
 
@@ -120,9 +124,9 @@ class _LogsScreenState extends State<LogsScreen> {
 
   String _levelLabel(BuildContext context, AppLogLevel level) {
     return switch (level) {
-      AppLogLevel.debug => context.tr('Debug', 'Debug'),
-      AppLogLevel.warning => context.tr('Warning', 'Warning'),
-      AppLogLevel.error => context.tr('Error', 'Error'),
+      AppLogLevel.debug => context.tr('Debug', 'Debug', 'デバッグ'),
+      AppLogLevel.warning => context.tr('Warning', 'Warning', '警告'),
+      AppLogLevel.error => context.tr('Error', 'Error', 'エラー'),
     };
   }
 
@@ -206,7 +210,7 @@ class _LogEntryView extends StatelessWidget {
               ),
             ),
             Tooltip(
-              message: context.tr('复制单条日志', 'Copy Log'),
+              message: context.tr('复制单条日志', 'Copy Log', 'ログをコピー'),
               child: IconButton(
                 visualDensity: VisualDensity.compact,
                 iconSize: 18,
@@ -236,8 +240,8 @@ class _LogEntryView extends StatelessWidget {
   Future<void> _copyEntry(BuildContext context) async {
     await Clipboard.setData(ClipboardData(text: entry.formatted));
     if (!context.mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(context.tr('日志已复制', 'Log copied'))));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(context.tr('日志已复制', 'Log copied', 'ログをコピーしました'))),
+    );
   }
 }

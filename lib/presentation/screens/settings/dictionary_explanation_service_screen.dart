@@ -37,7 +37,7 @@ class _DictionaryExplanationServiceScreenState
     final design = context.appDesign;
     final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
     return CollapsingPageScaffold(
-      title: context.tr('AI 模型', 'AI Model'),
+      title: context.tr('AI 模型', 'AI Model', 'AIモデル'),
       showBackButton: true,
       body: state.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -60,10 +60,16 @@ class _DictionaryExplanationServiceScreenState
             children: [
               ServiceStatusCard(
                 icon: Icons.auto_awesome_outlined,
-                title: context.tr('当前 AI 服务', 'Current AI service'),
+                title: context.tr(
+                  '当前 AI 服务',
+                  'Current AI service',
+                  '現在のAIサービス',
+                ),
                 provider:
-                    data.providerName ?? context.tr('未选择服务', 'No provider'),
-                selection: data.modelId ?? context.tr('未选择模型', 'No model'),
+                    data.providerName ??
+                    context.tr('未选择服务', 'No provider', 'サービス未選択'),
+                selection:
+                    data.modelId ?? context.tr('未选择模型', 'No model', 'モデル未選択'),
                 readiness: data.readiness,
                 onTap: () {},
               ),
@@ -71,7 +77,7 @@ class _DictionaryExplanationServiceScreenState
                 SizedBox(height: design.spaceMd),
                 SettingsFeedbackBanner(message: data.notice!.message),
               ],
-              AppSectionHeader(title: context.tr('配置', 'Configuration')),
+              AppSectionHeader(title: context.tr('配置', 'Configuration', '設定')),
               SettingsGroup(
                 children: [
                   SettingValueRow(
@@ -80,9 +86,11 @@ class _DictionaryExplanationServiceScreenState
                     subtitle: context.tr(
                       '选择服务后继续设置 API Key',
                       'Continue to API key setup after choosing',
+                      'サービスを選択してAPIキーを設定',
                     ),
                     value:
-                        data.providerName ?? context.tr('未选择', 'Not selected'),
+                        data.providerName ??
+                        context.tr('未选择', 'Not selected', '未選択'),
                     onTap: () => _openProviders(
                       context,
                       ref,
@@ -92,17 +100,21 @@ class _DictionaryExplanationServiceScreenState
                   SettingValueRow(
                     rowKey: const ValueKey('llm-model-settings'),
                     icon: Icons.psychology_outlined,
-                    title: context.tr('模型', 'Model'),
+                    title: context.tr('模型', 'Model', 'モデル'),
                     subtitle: data.providerId == null
                         ? context.tr(
                             '请先完成 Provider 和 API Key 设置',
                             'Set up a provider and API key first',
+                            'プロバイダーとAPIキーを先に設定してください',
                           )
                         : context.tr(
                             '同步供应商模型并选择',
                             'Sync provider models and choose one',
+                            'プロバイダーのモデルを同期して選択',
                           ),
-                    value: data.modelId ?? context.tr('未选择', 'Not selected'),
+                    value:
+                        data.modelId ??
+                        context.tr('未选择', 'Not selected', '未選択'),
                     onTap: data.providerId == null
                         ? null
                         : () =>
@@ -111,7 +123,7 @@ class _DictionaryExplanationServiceScreenState
                   if (data.providerId != null)
                     SettingValueRow(
                       icon: Icons.wifi_tethering_outlined,
-                      title: context.tr('测试连接', 'Test connection'),
+                      title: context.tr('测试连接', 'Test connection', '接続をテスト'),
                       onTap: () => _test(context, ref),
                     ),
                 ],
@@ -134,11 +146,11 @@ class _DictionaryExplanationServiceScreenState
       padding: EdgeInsets.fromLTRB(inset, design.spaceSm, inset, 120),
       children: [
         SetupProgressHeader(
-          title: context.tr('AI 设置进度', 'AI setup progress'),
+          title: context.tr('AI 设置进度', 'AI setup progress', 'AI設定の進捗'),
           steps: [
             'Provider',
-            context.tr('密钥', 'Key'),
-            context.tr('模型', 'Model'),
+            context.tr('密钥', 'Key', 'キー'),
+            context.tr('模型', 'Model', 'モデル'),
           ],
           currentStep: providerConnected ? 2 : 0,
         ),
@@ -152,18 +164,24 @@ class _DictionaryExplanationServiceScreenState
               ? Icons.psychology_outlined
               : Icons.hub_outlined,
           title: providerConnected
-              ? context.tr('选择 AI 模型', 'Choose an AI model')
-              : context.tr('选择 AI Provider', 'Choose an AI provider'),
+              ? context.tr('选择 AI 模型', 'Choose an AI model', 'AIモデルを選択')
+              : context.tr(
+                  '选择 AI Provider',
+                  'Choose an AI provider',
+                  'AIプロバイダーを選択',
+                ),
           description: providerConnected
               ? context.tr(
                   '${data.providerName ?? 'Provider'} 已连接。同步可用模型并选择 AI 功能使用的模型。',
                   '${data.providerName ?? 'Provider'} is connected. Sync available models and choose one for AI features.',
+                  '${data.providerName ?? 'Provider'}に接続済み。利用可能なモデルを同期してAI機能用に選択します。',
                 )
               : context.tr(
                   '选择 Provider，获取并设置 API Key。验证成功后会自动继续选择模型。',
                   'Choose a provider, get and set its API key. After verification, setup continues to model selection.',
+                  'プロバイダーを選び、APIキーを設定します。確認後にモデル選択へ進みます。',
                 ),
-          actionLabel: context.tr('继续设置', 'Continue setup'),
+          actionLabel: context.tr('继续设置', 'Continue setup', '設定を続ける'),
           actionKey: const ValueKey('continue-llm-setup'),
           onPressed: () => _resumeSetup(data),
         ),
@@ -282,8 +300,8 @@ class _LlmProviderPickerScreenState
           return data.providers.isEmpty
               ? SettingsEmptyState(
                   icon: Icons.hub_outlined,
-                  message: context.tr('尚未添加服务', 'No providers yet'),
-                  actionLabel: context.tr('添加服务', 'Add provider'),
+                  message: context.tr('尚未添加服务', 'No providers yet', 'サービス未追加'),
+                  actionLabel: context.tr('添加服务', 'Add provider', 'サービスを追加'),
                   onAction: () => setState(() => _addingInline = true),
                 )
               : ListView(
@@ -331,8 +349,12 @@ class _LlmProviderPickerScreenState
   }
 
   SetupProgressHeader _progress(BuildContext context) => SetupProgressHeader(
-    title: context.tr('AI 设置进度', 'AI setup progress'),
-    steps: ['Provider', context.tr('密钥', 'Key'), context.tr('模型', 'Model')],
+    title: context.tr('AI 设置进度', 'AI setup progress', 'AI設定の進捗'),
+    steps: [
+      'Provider',
+      context.tr('密钥', 'Key', 'キー'),
+      context.tr('模型', 'Model', 'モデル'),
+    ],
     currentStep: 0,
   );
 
@@ -376,7 +398,11 @@ class _LlmProviderPickerScreenState
                 SizedBox(height: design.spaceMd),
               ],
               AppSectionHeader(
-                title: context.tr('选择 AI Provider', 'Choose an AI provider'),
+                title: context.tr(
+                  '选择 AI Provider',
+                  'Choose an AI provider',
+                  'AIプロバイダーを選択',
+                ),
               ),
               SettingsGroup(
                 children: [
@@ -413,8 +439,8 @@ class _LlmProviderPickerScreenState
               design.spaceMd,
             ),
             child: SetupNavigationBar(
-              previousLabel: context.tr('上一步', 'Previous'),
-              nextLabel: context.tr('下一步', 'Next'),
+              previousLabel: context.tr('上一步', 'Previous', '戻る'),
+              nextLabel: context.tr('下一步', 'Next', '次へ'),
               onPrevious: () {
                 if (widget.guidedSetup) {
                   Navigator.of(context).maybePop();
@@ -513,6 +539,7 @@ class _LlmProviderPickerScreenState
             _feedback = context.tr(
               'Provider 已连接，请选择模型完成设置。',
               'The provider is connected. Choose a model to finish setup.',
+              'プロバイダーに接続済み。モデルを選択して設定を完了してください。',
             );
           });
           return;
@@ -526,6 +553,7 @@ class _LlmProviderPickerScreenState
         _feedback = context.tr(
           '无法使用此 Provider，请检查 API Key 和网络：$error',
           'Could not use this provider. Check its API key and connection: $error',
+          'このプロバイダーを使用できません。APIキーとネットワークを確認してください：$error',
         );
       });
     }
@@ -609,11 +637,15 @@ class _LlmProviderDetailsScreenState
               children: [
                 if (widget.guidedSetup) ...[
                   SetupProgressHeader(
-                    title: context.tr('AI 设置进度', 'AI setup progress'),
+                    title: context.tr(
+                      'AI 设置进度',
+                      'AI setup progress',
+                      'AI設定の進捗',
+                    ),
                     steps: [
                       'Provider',
-                      context.tr('密钥', 'Key'),
-                      context.tr('模型', 'Model'),
+                      context.tr('密钥', 'Key', 'キー'),
+                      context.tr('模型', 'Model', 'モデル'),
                     ],
                     currentStep: 1,
                   ),
@@ -622,6 +654,7 @@ class _LlmProviderDetailsScreenState
                     message: context.tr(
                       '先获取 API Key，粘贴并验证连接。成功后会自动同步模型。',
                       'Get an API key, paste it below, and verify the connection. Models will sync next.',
+                      'APIキーを取得して貼り付け、接続を確認します。成功するとモデルを同期します。',
                     ),
                   ),
                   SizedBox(height: design.spaceMd),
@@ -661,7 +694,7 @@ class _LlmProviderDetailsScreenState
                   FilledButton.icon(
                     onPressed: _saving ? null : _save,
                     icon: const Icon(Icons.save_outlined),
-                    label: Text(context.tr('保存', 'Save')),
+                    label: Text(context.tr('保存', 'Save', '保存')),
                   ),
                 if (_editing && !widget.guidedSetup) ...[
                   SizedBox(height: design.spaceMd),
@@ -703,8 +736,8 @@ class _LlmProviderDetailsScreenState
                   design.spaceMd,
                 ),
                 child: SetupNavigationBar(
-                  previousLabel: context.tr('上一步', 'Previous'),
-                  nextLabel: context.tr('下一步', 'Next'),
+                  previousLabel: context.tr('上一步', 'Previous', '戻る'),
+                  nextLabel: context.tr('下一步', 'Next', '次へ'),
                   busy: _saving,
                   onPrevious: () => Navigator.of(context).pop(false),
                   onNext: _save,
@@ -779,6 +812,7 @@ class _LlmProviderDetailsScreenState
         _feedback = context.tr(
           '连接成功，正在同步可用模型。',
           'Connected. Available models are syncing.',
+          '接続しました。利用可能なモデルを同期中です。',
         );
       });
       final selected = await Navigator.of(context).push<bool>(
@@ -794,6 +828,7 @@ class _LlmProviderDetailsScreenState
           _feedback = context.tr(
             'Provider 已连接，请选择一个模型完成设置。',
             'The provider is connected. Choose a model to finish setup.',
+            'プロバイダーに接続済み。モデルを1つ選択して設定を完了してください。',
           );
         });
       }
@@ -803,6 +838,7 @@ class _LlmProviderDetailsScreenState
           _feedback = context.tr(
             '连接失败，请检查 API Key、Base URL 和网络：$error',
             'Connection failed. Check the API key, Base URL, and network: $error',
+            '接続に失敗しました。APIキー、Base URL、ネットワークを確認してください: $error',
           );
           _feedbackIsError = true;
         });
@@ -913,7 +949,11 @@ class _LlmProviderDetailsScreenState
                 SizedBox(width: design.spaceSm),
                 Expanded(
                   child: Text(
-                    context.tr('在哪里获取 API Key？', 'Where do I get an API key?'),
+                    context.tr(
+                      '在哪里获取 API Key？',
+                      'Where do I get an API key?',
+                      'APIキーの入手先',
+                    ),
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
                 ),
@@ -927,6 +967,7 @@ class _LlmProviderDetailsScreenState
                           '并确认 Base URL 支持 /models 与 /chat/completions。',
                       'Create an API key in your OpenAI-compatible provider console and confirm '
                           'that the Base URL supports /models and /chat/completions.',
+                      'OpenAI互換サービスのコンソールでAPIキーを作成し、Base URLが/modelsと/chat/completionsに対応することを確認してください。',
                     )
                   : context.tr(
                       '1. 登录 ${widget.kind.displayName} 控制台\n'
@@ -935,6 +976,7 @@ class _LlmProviderDetailsScreenState
                       '1. Sign in to the ${widget.kind.displayName} console\n'
                           '2. Open API Keys and create a key\n'
                           '3. Copy the key and paste it above',
+                      '1. ${widget.kind.displayName}のコンソールにログイン\n2. API Keysを開いてキーを作成\n3. キーをコピーして上に貼り付け',
                     ),
               style: Theme.of(context).textTheme.bodySmall,
             ),
@@ -948,6 +990,7 @@ class _LlmProviderDetailsScreenState
                   context.tr(
                     '打开 ${widget.kind.displayName} API Keys',
                     'Open ${widget.kind.displayName} API Keys',
+                    '${widget.kind.displayName}のAPI Keysを開く',
                   ),
                 ),
               ),
@@ -956,6 +999,7 @@ class _LlmProviderDetailsScreenState
               context.tr(
                 '密钥只保存在此设备上。云服务可能产生费用。',
                 'The key stays on this device. Cloud usage may incur charges.',
+                'キーはこの端末にのみ保存されます。クラウド利用には料金が発生する場合があります。',
               ),
               style: Theme.of(
                 context,
@@ -980,6 +1024,7 @@ class _LlmProviderDetailsScreenState
           context.tr(
             '无法打开网页，请在浏览器中访问：$uri',
             'Could not open the page. Visit this address in a browser: $uri',
+            'ページを開けません。ブラウザで次のアドレスにアクセスしてください: $uri',
           ),
         ),
       ),
@@ -1026,7 +1071,7 @@ class _LlmModelPickerScreenState extends ConsumerState<LlmModelPickerScreen> {
     final design = context.appDesign;
     final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
     return CollapsingPageScaffold(
-      title: context.tr('模型', 'Model'),
+      title: context.tr('模型', 'Model', 'モデル'),
       showBackButton: true,
       actions: [
         IconButton(
@@ -1059,11 +1104,11 @@ class _LlmModelPickerScreenState extends ConsumerState<LlmModelPickerScreen> {
             children: [
               if (widget.guidedSelection) ...[
                 SetupProgressHeader(
-                  title: context.tr('AI 设置进度', 'AI setup progress'),
+                  title: context.tr('AI 设置进度', 'AI setup progress', 'AI設定の進捗'),
                   steps: [
                     'Provider',
-                    context.tr('密钥', 'Key'),
-                    context.tr('模型', 'Model'),
+                    context.tr('密钥', 'Key', 'キー'),
+                    context.tr('模型', 'Model', 'モデル'),
                   ],
                   currentStep: 2,
                 ),
@@ -1072,6 +1117,7 @@ class _LlmModelPickerScreenState extends ConsumerState<LlmModelPickerScreen> {
                   message: context.tr(
                     '已连接 ${group.provider.displayName}。请选择要用于 AI 功能的模型。',
                     '${group.provider.displayName} is connected. Choose the model to use for AI features.',
+                    '${group.provider.displayName}に接続済み。AI機能に使うモデルを選択してください。',
                   ),
                 ),
                 SizedBox(height: design.spaceMd),
@@ -1122,8 +1168,8 @@ class _LlmModelPickerScreenState extends ConsumerState<LlmModelPickerScreen> {
                     design.spaceMd,
                   ),
                   child: SetupNavigationBar(
-                    previousLabel: context.tr('上一步', 'Previous'),
-                    nextLabel: context.tr('完成', 'Finish'),
+                    previousLabel: context.tr('上一步', 'Previous', '戻る'),
+                    nextLabel: context.tr('完成', 'Finish', '完了'),
                     onPrevious: () => Navigator.of(context).pop(false),
                     onNext: displayedSelection == null
                         ? null

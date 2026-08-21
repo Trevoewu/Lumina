@@ -78,6 +78,7 @@ class _GutendexBookDetailScreenState
             context.tr(
               '已导入《${imported.title}》',
               'Imported "${imported.title}"',
+              '「${imported.title}」をインポートしました',
             ),
           ),
         ),
@@ -105,9 +106,14 @@ class _GutendexBookDetailScreenState
       return context.tr(
         '无法连接到 Project Gutenberg 下载服务器，请检查网络或代理后重试。',
         'Could not reach the Project Gutenberg download servers. Check your network or proxy and try again.',
+        'Project Gutenbergのダウンロードサーバーに接続できません。ネットワークまたはプロキシを確認して、もう一度お試しください。',
       );
     }
-    return context.tr('导入失败，请重试。', 'Import failed. Please try again.');
+    return context.tr(
+      '导入失败，请重试。',
+      'Import failed. Please try again.',
+      'インポートに失敗しました。もう一度お試しください。',
+    );
   }
 
   void _openBook(drift_db.Book book) {
@@ -125,7 +131,7 @@ class _GutendexBookDetailScreenState
     final summary = book.summary;
 
     return CollapsingPageScaffold(
-      title: context.tr('书籍详情', 'Book Details'),
+      title: context.tr('书籍详情', 'Book Details', '本の詳細'),
       body: ListView(
         padding: EdgeInsets.fromLTRB(inset, design.spaceLg, inset, 120),
         children: [
@@ -174,7 +180,11 @@ class _GutendexBookDetailScreenState
                         if (book.isPublicDomain)
                           _MetaChip(
                             icon: Icons.public,
-                            label: context.tr('公版', 'Public domain'),
+                            label: context.tr(
+                              '公版',
+                              'Public domain',
+                              'パブリックドメイン',
+                            ),
                           ),
                       ],
                     ),
@@ -196,7 +206,7 @@ class _GutendexBookDetailScreenState
           if (summary != null) ...[
             SizedBox(height: design.spaceXl),
             Text(
-              context.tr('内容简介', 'Summary'),
+              context.tr('内容简介', 'Summary', '概要'),
               style: TextStyle(
                 color: context.appTextPrimary,
                 fontSize: 18,
@@ -273,8 +283,8 @@ class _ImportProgressButton extends StatelessWidget {
     final label = importing
         ? _progressLabel(context)
         : imported
-        ? context.tr('打开书籍', 'Open Book')
-        : context.tr('导入书籍', 'Import Book');
+        ? context.tr('打开书籍', 'Open Book', '本を開く')
+        : context.tr('导入书籍', 'Import Book', '本をインポート');
     final icon = Icon(imported ? Icons.menu_book_outlined : Icons.add);
 
     return SizedBox(
@@ -338,11 +348,12 @@ class _ImportProgressButton extends StatelessWidget {
   String _progressLabel(BuildContext context) {
     final value = progress;
     if (value == null || value <= 0 || value >= 1) {
-      return context.tr('导入中', 'Importing');
+      return context.tr('导入中', 'Importing', 'インポート中');
     }
     return context.tr(
       '导入中 ${(value * 100).round()}%',
       'Importing ${(value * 100).round()}%',
+      'インポート中 ${(value * 100).round()}%',
     );
   }
 }

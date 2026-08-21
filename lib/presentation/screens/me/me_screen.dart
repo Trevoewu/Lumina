@@ -104,10 +104,12 @@ class _MeScreenState extends ConsumerState<MeScreen> {
                         label: context.tr(
                           '${DateTime.now().year} 年度书目',
                           '${DateTime.now().year} BOOKS',
+                          '${DateTime.now().year}年の読書数',
                         ),
                         trailing: context.tr(
                           '目标 ${goals.yearlyBooks} 本',
                           'Goal ${goals.yearlyBooks}',
+                          '目標: ${goals.yearlyBooks}冊',
                         ),
                         onTrailingTap: _openGoals,
                       ),
@@ -127,7 +129,7 @@ class _MeScreenState extends ConsumerState<MeScreen> {
                     Padding(
                       padding: EdgeInsets.fromLTRB(gutter, 26, gutter, 0),
                       child: Text(
-                        context.tr('总览', 'OVERVIEW'),
+                        context.tr('总览', 'OVERVIEW', '概要'),
                         style: kickerTextStyle(context),
                       ),
                     ),
@@ -152,10 +154,11 @@ class _MeScreenState extends ConsumerState<MeScreen> {
                     Padding(
                       padding: EdgeInsets.fromLTRB(gutter, 26, gutter, 0),
                       child: _SectionHeader(
-                        label: context.tr('收听记录', 'ACTIVITY'),
+                        label: context.tr('收听记录', 'ACTIVITY', '視聴履歴'),
                         trailing: context.tr(
                           '${summary.activeDays} 天有记录',
                           '${summary.activeDays} active days',
+                          '${summary.activeDays}日視聴',
                         ),
                       ),
                     ),
@@ -199,7 +202,7 @@ class _MeScreenState extends ConsumerState<MeScreen> {
       Padding(
         padding: EdgeInsets.fromLTRB(gutter, 26, gutter, 0),
         child: _SectionHeader(
-          label: context.tr('徽章', 'BADGES'),
+          label: context.tr('徽章', 'BADGES', 'バッジ'),
           trailing: '$earned / ${badges.length}',
         ),
       ),
@@ -255,7 +258,7 @@ class _Header extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                context.tr('我的', 'Me'),
+                context.tr('我的', 'Me', 'マイページ'),
                 style: TextStyle(
                   fontSize: 32,
                   height: 1.1,
@@ -269,6 +272,7 @@ class _Header extends StatelessWidget {
                 context.tr(
                   '连续 ${summary.currentStreak} 天 · 累计 $hours 小时',
                   '${summary.currentStreak}-day streak · $hours h total',
+                  '${summary.currentStreak}日連続 · 合計$hours時間',
                 ),
                 style: TextStyle(
                   fontSize: 14,
@@ -281,7 +285,7 @@ class _Header extends StatelessWidget {
         _SquareIconButton(
           key: const ValueKey('me-settings-action'),
           icon: Icons.settings_outlined,
-          tooltip: context.tr('设置', 'Settings'),
+          tooltip: context.tr('设置', 'Settings', '設定'),
           onTap: onSettings,
         ),
       ],
@@ -463,16 +467,21 @@ class _TodayCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          context.tr('今天', 'TODAY'),
+                          context.tr('今天', 'TODAY', '今日'),
                           style: kickerTextStyle(context),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           done
-                              ? context.tr('今天目标已完成', 'Goal reached today')
+                              ? context.tr(
+                                  '今天目标已完成',
+                                  'Goal reached today',
+                                  '今日の目標を達成しました',
+                                )
                               : context.tr(
                                   '再听 $remaining 分钟达标',
                                   '$remaining min to go',
+                                  'あと$remaining分で達成',
                                 ),
                           style: TextStyle(
                             fontSize: 21,
@@ -488,10 +497,12 @@ class _TodayCard extends StatelessWidget {
                               ? context.tr(
                                   '连续第 ${summary.currentStreak} 天达标，本周已听 $weekMinutes 分钟。',
                                   'Day ${summary.currentStreak} of your streak · $weekMinutes min this week.',
+                                  '連続${summary.currentStreak}日目を達成 · 今週$weekMinutes分',
                                 )
                               : context.tr(
                                   '已完成 ${(progress * 100).round()}%，本周已听 $weekMinutes 分钟。',
                                   '${(progress * 100).round()}% done · $weekMinutes min this week.',
+                                  '${(progress * 100).round()}%完了 · 今週$weekMinutes分',
                                 ),
                           style: TextStyle(
                             fontSize: 13.5,
@@ -523,7 +534,7 @@ class _TodayCard extends StatelessWidget {
                                 ),
                                 const SizedBox(width: 5),
                                 Text(
-                                  context.tr('调整目标', 'Adjust goal'),
+                                  context.tr('调整目标', 'Adjust goal', '目標を調整'),
                                   style: TextStyle(
                                     fontSize: 12.5,
                                     fontWeight: FontWeight.w700,
@@ -661,7 +672,7 @@ class _YearBooksCard extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(bottom: 5),
                 child: Text(
-                  context.tr('本已读完', 'finished'),
+                  context.tr('本已读完', 'finished', '読了'),
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
@@ -754,12 +765,14 @@ class _YearBooksCard extends StatelessWidget {
       return context.tr(
         '领先计划 ${difference.toStringAsFixed(1)} 本，按当前节奏年底约 $projected 本。',
         '${difference.toStringAsFixed(1)} books ahead — about $projected by year end at this pace.',
+        '計画より${difference.toStringAsFixed(1)}冊先行 · このペースなら年末に約$projected冊',
       );
     }
     final perMonth = (goal - booksRead) / monthsLeft;
     return context.tr(
       '落后计划 ${(-difference).toStringAsFixed(1)} 本，每月 ${perMonth.toStringAsFixed(1)} 本可追平。',
       '${(-difference).toStringAsFixed(1)} books behind — ${perMonth.toStringAsFixed(1)} a month catches up.',
+      '計画より${(-difference).toStringAsFixed(1)}冊遅れ · 毎月${perMonth.toStringAsFixed(1)}冊で追いつけます',
     );
   }
 }
@@ -775,24 +788,24 @@ class _StatGrid extends StatelessWidget {
     final hours = summary.totalMs ~/ 3600000;
     final items = <_StatData>[
       _StatData(
-        label: context.tr('累计时长', 'TOTAL TIME'),
+        label: context.tr('累计时长', 'TOTAL TIME', '合計時間'),
         value: '$hours',
-        unit: context.tr('小时', 'h'),
+        unit: context.tr('小时', 'h', '時間'),
       ),
       _StatData(
-        label: context.tr('最长连续', 'LONGEST STREAK'),
+        label: context.tr('最长连续', 'LONGEST STREAK', '最長連続'),
         value: '${summary.longestStreak}',
-        unit: context.tr('天', 'd'),
+        unit: context.tr('天', 'd', '日'),
       ),
       _StatData(
-        label: context.tr('收听天数', 'ACTIVE DAYS'),
+        label: context.tr('收听天数', 'ACTIVE DAYS', '視聴日数'),
         value: '${summary.activeDays}',
-        unit: context.tr('天', 'd'),
+        unit: context.tr('天', 'd', '日'),
       ),
       _StatData(
-        label: context.tr('生词本', 'SAVED WORDS'),
+        label: context.tr('生词本', 'SAVED WORDS', '単語帳'),
         value: '$savedWordCount',
-        unit: context.tr('个', ''),
+        unit: context.tr('个', '', '語'),
       ),
     ];
 
@@ -906,42 +919,49 @@ List<_Badge> _badgesFor(
   return [
     _Badge(
       icon: Icons.local_fire_department_outlined,
-      title: context.tr('连续 7 天', '7-day streak'),
+      title: context.tr('连续 7 天', '7-day streak', '7日連続'),
       meta: summary.longestStreak >= 7
-          ? context.tr('已达成', 'Earned')
+          ? context.tr('已达成', 'Earned', '達成済み')
           : context.tr(
               '还差 ${7 - summary.longestStreak} 天',
               '${7 - summary.longestStreak} days to go',
+              'あと${7 - summary.longestStreak}日',
             ),
       earned: summary.longestStreak >= 7,
     ),
     _Badge(
       icon: Icons.auto_stories_outlined,
-      title: context.tr('第一本读完', 'First book'),
+      title: context.tr('第一本读完', 'First book', '最初の1冊'),
       meta: booksRead > 0
-          ? context.tr('已读完 $booksRead 本', '$booksRead finished')
-          : context.tr('还没有读完的书', 'None finished yet'),
+          ? context.tr(
+              '已读完 $booksRead 本',
+              '$booksRead finished',
+              '$booksRead冊を読了',
+            )
+          : context.tr('还没有读完的书', 'None finished yet', '未読了の本はありません'),
       earned: booksRead > 0,
     ),
     _Badge(
       icon: Icons.bookmark_border,
-      title: context.tr('生词 100', '100 words'),
+      title: context.tr('生词 100', '100 words', '単語100個'),
       meta: savedWordCount >= 100
-          ? context.tr('已达成', 'Earned')
+          ? context.tr('已达成', 'Earned', '達成済み')
           : context.tr(
               '还差 ${100 - savedWordCount} 个',
               '${100 - savedWordCount} to go',
+              'あと${100 - savedWordCount}語',
             ),
       earned: savedWordCount >= 100,
     ),
     _Badge(
       icon: Icons.emoji_events_outlined,
-      title: context.tr('连续 30 天', '30-day streak'),
+      title: context.tr('连续 30 天', '30-day streak', '30日連続'),
       meta: summary.longestStreak >= 30
-          ? context.tr('已达成', 'Earned')
+          ? context.tr('已达成', 'Earned', '達成済み')
           : context.tr(
               '还差 ${30 - summary.longestStreak} 天',
               '${30 - summary.longestStreak} days to go',
+              'あと${30 - summary.longestStreak}日',
             ),
       earned: summary.longestStreak >= 30,
     ),
@@ -1071,7 +1091,7 @@ class _HeatmapCard extends StatelessWidget {
               Row(
                 children: [
                   Text(
-                    context.tr('少', 'Less'),
+                    context.tr('少', 'Less', '少ない'),
                     style: technicalTextStyle(
                       context,
                       size: 11.5,
@@ -1095,7 +1115,7 @@ class _HeatmapCard extends StatelessWidget {
                   ],
                   const SizedBox(width: 2),
                   Text(
-                    context.tr('多', 'More'),
+                    context.tr('多', 'More', '多い'),
                     style: technicalTextStyle(
                       context,
                       size: 11.5,
@@ -1105,7 +1125,7 @@ class _HeatmapCard extends StatelessWidget {
                   ),
                   const Spacer(),
                   Text(
-                    context.tr('达标日描边', 'Goal days ringed'),
+                    context.tr('达标日描边', 'Goal days ringed', '目標達成日を枠で表示'),
                     style: technicalTextStyle(
                       context,
                       size: 11.5,
@@ -1214,7 +1234,7 @@ class _GoalsSheet extends ConsumerWidget {
                 padding: const EdgeInsets.fromLTRB(22, 14, 22, 28),
                 children: [
                   Text(
-                    context.tr('设定目标', 'Set your goals'),
+                    context.tr('设定目标', 'Set your goals', '目標を設定'),
                     style: TextStyle(
                       fontSize: 26,
                       height: 1.15,
@@ -1228,6 +1248,7 @@ class _GoalsSheet extends ConsumerWidget {
                     context.tr(
                       '目标只影响提醒与进度环，不会限制你听多久。',
                       'Goals only drive the ring and the pacing copy — they never limit your listening.',
+                      '目標はリングと進捗表示にのみ反映され、視聴時間を制限しません。',
                     ),
                     style: TextStyle(
                       fontSize: 13.5,
@@ -1237,10 +1258,11 @@ class _GoalsSheet extends ConsumerWidget {
                   ),
                   const SizedBox(height: 26),
                   _GoalRow(
-                    label: context.tr('每日收听', 'DAILY LISTENING'),
+                    label: context.tr('每日收听', 'DAILY LISTENING', '毎日の視聴'),
                     value: context.tr(
                       '${goals.dailyMinutes} 分钟',
                       '${goals.dailyMinutes} min',
+                      '${goals.dailyMinutes}分',
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -1250,7 +1272,7 @@ class _GoalsSheet extends ConsumerWidget {
                     children: [
                       for (final preset in dailyGoalPresets)
                         _GoalChip(
-                          label: context.tr('$preset 分', '$preset'),
+                          label: context.tr('$preset 分', '$preset', '$preset分'),
                           selected: goals.dailyMinutes == preset,
                           onTap: () => controller.setDailyMinutes(preset),
                         ),
@@ -1268,10 +1290,11 @@ class _GoalsSheet extends ConsumerWidget {
                   ),
                   const SizedBox(height: 30),
                   _GoalRow(
-                    label: context.tr('年度书目', 'BOOKS THIS YEAR'),
+                    label: context.tr('年度书目', 'BOOKS THIS YEAR', '今年の読書数'),
                     value: context.tr(
                       '${goals.yearlyBooks} 本',
                       '${goals.yearlyBooks}',
+                      '${goals.yearlyBooks}冊',
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -1281,7 +1304,7 @@ class _GoalsSheet extends ConsumerWidget {
                     children: [
                       for (final preset in yearlyGoalPresets)
                         _GoalChip(
-                          label: context.tr('$preset 本', '$preset'),
+                          label: context.tr('$preset 本', '$preset', '$preset冊'),
                           selected: goals.yearlyBooks == preset,
                           onTap: () => controller.setYearlyBooks(preset),
                         ),
@@ -1310,6 +1333,7 @@ class _GoalsSheet extends ConsumerWidget {
                       context.tr(
                         '每天 ${goals.dailyMinutes} 分钟，一年约 $yearlyHours 小时。',
                         '${goals.dailyMinutes} minutes a day adds up to about $yearlyHours hours a year.',
+                        '毎日${goals.dailyMinutes}分で、年間約$yearlyHours時間になります。',
                       ),
                       style: TextStyle(
                         fontSize: 13.5,
@@ -1331,7 +1355,7 @@ class _GoalsSheet extends ConsumerWidget {
                         borderRadius: BorderRadius.circular(26),
                       ),
                       child: Text(
-                        context.tr('保存目标', 'Save goals'),
+                        context.tr('保存目标', 'Save goals', '目標を保存'),
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w800,

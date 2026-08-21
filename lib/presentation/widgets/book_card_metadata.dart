@@ -31,7 +31,7 @@ String bookLanguageLabel(BuildContext context, drift_db.Book book) {
   }
 
   return inferLanguageFromTitle(book.title) ??
-      context.tr('未知语言', 'Unknown language');
+      context.tr('未知语言', 'Unknown language', '言語不明');
 }
 
 String bookReadingProgressLabel(
@@ -43,7 +43,7 @@ String bookReadingProgressLabel(
     book,
     finishedChapterIndexes: finishedChapterIndexes,
   );
-  return context.tr('进度 $percent%', '$percent% read');
+  return context.tr('进度 $percent%', '$percent% read', '$percent% 読了');
 }
 
 String? bookReadingLevelLabel(BuildContext context, drift_db.Book book) {
@@ -52,9 +52,9 @@ String? bookReadingLevelLabel(BuildContext context, drift_db.Book book) {
 
   final source = book.readingLevelSource;
   if (source == estimatedReadingLevelSource) {
-    return context.tr('难度估算 $code', 'CEFR est. $code');
+    return context.tr('难度估算 $code', 'CEFR est. $code', 'CEFR推定 $code');
   }
-  return context.tr('难度 $code', 'CEFR $code');
+  return context.tr('难度 $code', 'CEFR $code', 'CEFR $code');
 }
 
 String? normalizeCefrReadingLevel(String? value) {

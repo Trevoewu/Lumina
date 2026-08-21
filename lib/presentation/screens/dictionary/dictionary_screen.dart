@@ -156,7 +156,7 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    context.tr('词典', 'Dictionary'),
+                    context.tr('词典', 'Dictionary', '辞書'),
                     style: TextStyle(
                       fontSize: 32,
                       height: 1.1,
@@ -170,6 +170,7 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
                     context.tr(
                       '查词、生词本，与你听过的段落相连',
                       'Look words up, keep them tied to what you heard',
+                      '単語を調べ、聴いた内容と一緒に保存',
                     ),
                     style: TextStyle(
                       fontSize: 14,
@@ -187,7 +188,11 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
                 onChanged: _onQueryChanged,
                 onSubmitted: _openLookup,
                 onSearch: _openLookup,
-                hintText: context.tr('输入一个英文单词', 'Enter an English word'),
+                hintText: context.tr(
+                  '输入一个英文单词',
+                  'Enter an English word',
+                  '英単語を入力',
+                ),
               ),
             ),
             if (searching)
@@ -206,7 +211,7 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
       Padding(
         padding: EdgeInsets.fromLTRB(gutter, 26, gutter, 8),
         child: Text(
-          context.tr('匹配结果', 'MATCHES'),
+          context.tr('匹配结果', 'MATCHES', '一致'),
           style: kickerTextStyle(context),
         ),
       ),
@@ -246,6 +251,7 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
             label: context.tr(
               '生词本 · ${_favorites.length}',
               'SAVED · ${_favorites.length}',
+              'お気に入り · ${_favorites.length}',
             ),
             onSeeAll: () =>
                 _openCollection(_DictionaryCollectionKind.favorites),
@@ -277,7 +283,7 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
         Padding(
           padding: EdgeInsets.fromLTRB(gutter, 22, gutter, 0),
           child: _SectionHeaderRow(
-            label: context.tr('最近查过', 'RECENT'),
+            label: context.tr('最近查过', 'RECENT', '最近の検索'),
             onSeeAll: () => _openCollection(_DictionaryCollectionKind.history),
           ),
         ),
@@ -313,7 +319,7 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
           ),
           SizedBox(height: design.spaceXl),
           Text(
-            context.tr('查询你的第一个单词', 'Look up your first word'),
+            context.tr('查询你的第一个单词', 'Look up your first word', '最初の単語を調べる'),
             style: TextStyle(
               color: context.appTextPrimary,
               fontSize: 20,
@@ -322,7 +328,11 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            context.tr('查询结果会永久保存在本地', 'Results are saved on this device'),
+            context.tr(
+              '查询结果会永久保存在本地',
+              'Results are saved on this device',
+              '検索結果はこの端末に保存されます',
+            ),
             style: TextStyle(
               color: context.appTextPrimary.withValues(alpha: 0.45),
             ),
@@ -394,8 +404,8 @@ class _DictionaryCollectionScreenState
     final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
     return CollapsingPageScaffold(
       title: favorites
-          ? context.tr('收藏单词', 'Favorites')
-          : context.tr('查询历史', 'History'),
+          ? context.tr('收藏单词', 'Favorites', 'お気に入り')
+          : context.tr('查询历史', 'History', '履歴'),
       showBackButton: true,
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -440,8 +450,16 @@ class _DictionaryCollectionScreenState
             const SizedBox(height: 14),
             Text(
               favorites
-                  ? context.tr('还没有收藏单词', 'No favorite words yet')
-                  : context.tr('还没有查询记录', 'No lookup history yet'),
+                  ? context.tr(
+                      '还没有收藏单词',
+                      'No favorite words yet',
+                      'お気に入りの単語はありません',
+                    )
+                  : context.tr(
+                      '还没有查询记录',
+                      'No lookup history yet',
+                      '検索履歴はありません',
+                    ),
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: context.appTextSecondary,
@@ -577,7 +595,11 @@ class _DictionaryWordScreenState extends ConsumerState<DictionaryWordScreen> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.tr('发音播放失败', 'Pronunciation failed'))),
+        SnackBar(
+          content: Text(
+            context.tr('发音播放失败', 'Pronunciation failed', '発音の再生に失敗しました'),
+          ),
+        ),
       );
     }
   }
@@ -681,8 +703,12 @@ class _DictionaryWordScreenState extends ConsumerState<DictionaryWordScreen> {
                             onTap: _toggleFavorite,
                             child: Tooltip(
                               message: _favorite
-                                  ? context.tr('取消收藏', 'Remove favorite')
-                                  : context.tr('收藏', 'Save word'),
+                                  ? context.tr(
+                                      '取消收藏',
+                                      'Remove favorite',
+                                      'お気に入りから削除',
+                                    )
+                                  : context.tr('收藏', 'Save word', '単語を保存'),
                               child: SizedBox(
                                 width: 34,
                                 height: 34,
@@ -756,8 +782,12 @@ class _DictionaryWordScreenState extends ConsumerState<DictionaryWordScreen> {
             const SizedBox(height: 16),
             Text(
               notFound
-                  ? context.tr('没有找到这个单词', 'Word not found')
-                  : context.tr('词典暂时不可用', 'Dictionary unavailable'),
+                  ? context.tr('没有找到这个单词', 'Word not found', '単語が見つかりません')
+                  : context.tr(
+                      '词典暂时不可用',
+                      'Dictionary unavailable',
+                      '辞書を利用できません',
+                    ),
               style: TextStyle(
                 color: context.appTextPrimary,
                 fontSize: 18,
@@ -773,7 +803,7 @@ class _DictionaryWordScreenState extends ConsumerState<DictionaryWordScreen> {
             const SizedBox(height: 16),
             OutlinedButton(
               onPressed: _lookup,
-              child: Text(context.tr('重试', 'Retry')),
+              child: Text(context.tr('重试', 'Retry', '再試行')),
             ),
           ],
         ),
@@ -804,7 +834,7 @@ class _SectionHeaderRow extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                context.tr('全部', 'All'),
+                context.tr('全部', 'All', 'すべて'),
                 style: TextStyle(
                   fontSize: 13,
                   color: ink.withValues(alpha: 0.45),
@@ -1070,7 +1100,7 @@ class _SuggestionRow extends StatelessWidget {
     final entry = result?.entry;
     final word = entry?.word ?? lookupTerm!;
     final gloss = entry == null
-        ? context.tr('在词典中查询', 'Look this word up')
+        ? context.tr('在词典中查询', 'Look this word up', 'この単語を調べる')
         : entry.definitions.firstOrNull?.meaning ??
               entry.shortExplanation ??
               '';

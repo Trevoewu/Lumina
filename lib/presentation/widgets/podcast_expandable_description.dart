@@ -64,8 +64,8 @@ class _PodcastExpandableDescriptionState
                 ),
                 child: Text(
                   _expanded
-                      ? context.tr('收起', 'Show less')
-                      : context.tr('展开介绍', 'Show more'),
+                      ? context.tr('收起', 'Show less', '折りたたむ')
+                      : context.tr('展开介绍', 'Show more', 'もっと見る'),
                 ),
               ),
             ],

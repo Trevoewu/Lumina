@@ -47,8 +47,8 @@ class _HomeSectionSelector extends StatelessWidget {
     final design = context.appDesign;
     final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
     final labels = <_HomeSection, String>{
-      _HomeSection.all: context.tr('全部', 'All'),
-      _HomeSection.books: context.tr('书籍', 'Books'),
+      _HomeSection.all: context.tr('全部', 'All', 'すべて'),
+      _HomeSection.books: context.tr('书籍', 'Books', '本'),
       _HomeSection.podcasts: 'Podcast',
     };
     return SizedBox(
@@ -213,8 +213,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                               ? context.tr(
                                   '搜索 Podcast Index',
                                   'Search Podcast Index',
+                                  'Podcast Indexを検索',
                                 )
-                              : context.tr('搜索书籍', 'Search books'),
+                              : context.tr('搜索书籍', 'Search books', '本を検索'),
                           onPressed: _openSearch,
                           icon: Icon(
                             Icons.search,
@@ -225,10 +226,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                         IconButton(
                           key: const ValueKey('home-add-action'),
                           tooltip: _section == _HomeSection.podcasts
-                              ? context.tr('添加 Podcast', 'Add podcast')
+                              ? context.tr(
+                                  '添加 Podcast',
+                                  'Add podcast',
+                                  'ポッドキャストを追加',
+                                )
                               : _section == _HomeSection.books
-                              ? context.tr('导入书籍', 'Import book')
-                              : context.tr('添加内容', 'Add content'),
+                              ? context.tr('导入书籍', 'Import book', '本をインポート')
+                              : context.tr('添加内容', 'Add content', 'コンテンツを追加'),
                           onPressed: _importing || _addingPodcast
                               ? null
                               : _handleAddAction,
@@ -408,40 +413,41 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       actions: [
         HalfScreenActionSheetItem(
           label: book.isRead
-              ? context.tr('标记为未读', 'Mark as unread')
-              : context.tr('标记为已读', 'Mark as read'),
+              ? context.tr('标记为未读', 'Mark as unread', '未読にする')
+              : context.tr('标记为已读', 'Mark as read', '既読にする'),
           icon: book.isRead
               ? Icons.remove_done_outlined
               : Icons.done_all_rounded,
           onPressed: () => _setBookReadStatus(book, !book.isRead),
         ),
         HalfScreenActionSheetItem(
-          label: context.tr('编辑', 'Edit'),
+          label: context.tr('编辑', 'Edit', '編集'),
           icon: Icons.edit_outlined,
           onPressed: () => _showEditBookSheet(book),
         ),
         HalfScreenActionSheetItem(
-          label: context.tr('重新解析', 'Reparse'),
+          label: context.tr('重新解析', 'Reparse', '再解析'),
           icon: Icons.auto_fix_high_outlined,
           onPressed: () => _confirmReparseBook(book),
         ),
         HalfScreenActionSheetItem(
           label: cacheProgress == null
-              ? context.tr('缓存整本书', 'Cache Entire Book')
+              ? context.tr('缓存整本书', 'Cache Entire Book', '本全体をキャッシュ')
               : context.tr(
                   '缓存中 ${(cacheProgress.percent * 100).round()}%',
                   'Caching ${(cacheProgress.percent * 100).round()}%',
+                  'キャッシュ中 ${(cacheProgress.percent * 100).round()}%',
                 ),
           icon: Icons.download_for_offline_outlined,
           onPressed: cacheProgress == null ? () => _cacheWholeBook(book) : null,
         ),
         HalfScreenActionSheetItem(
-          label: context.tr('清除音频', 'Clear Audio'),
+          label: context.tr('清除音频', 'Clear Audio', '音声を消去'),
           icon: Icons.cleaning_services_outlined,
           onPressed: () => _confirmClearBookCache(book),
         ),
         HalfScreenActionSheetItem(
-          label: context.tr('删除', 'Delete'),
+          label: context.tr('删除', 'Delete', '削除'),
           icon: Icons.delete_outline,
           onPressed: () => _confirmDeleteBook(book),
           destructive: true,
@@ -461,10 +467,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               ? context.tr(
                   '已标记《${book.title}》为已读',
                   'Marked “${book.title}” as read',
+                  '「${book.title}」を既読にしました',
                 )
               : context.tr(
                   '已标记《${book.title}》为未读',
                   'Marked “${book.title}” as unread',
+                  '「${book.title}」を未読にしました',
                 ),
         ),
       ),
@@ -481,22 +489,26 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.auto_stories_rounded),
-              title: Text(context.tr('导入书籍', 'Import book')),
+              title: Text(context.tr('导入书籍', 'Import book', '本をインポート')),
               subtitle: const Text('EPUB / TXT'),
               onTap: () =>
                   Navigator.pop(sheetContext, _HomeAddAction.importBook),
             ),
             ListTile(
               leading: const Icon(Icons.travel_explore_rounded),
-              title: Text(context.tr('发现 Podcast', 'Discover podcasts')),
+              title: Text(
+                context.tr('发现 Podcast', 'Discover podcasts', 'ポッドキャストを探す'),
+              ),
               subtitle: const Text('Podcast Index'),
               onTap: () =>
                   Navigator.pop(sheetContext, _HomeAddAction.discoverPodcast),
             ),
             ListTile(
               leading: const Icon(Icons.rss_feed),
-              title: Text(context.tr('通过 RSS 添加', 'Add with RSS')),
-              subtitle: Text(context.tr('粘贴 Feed 地址', 'Paste a feed URL')),
+              title: Text(context.tr('通过 RSS 添加', 'Add with RSS', 'RSSから追加')),
+              subtitle: Text(
+                context.tr('粘贴 Feed 地址', 'Paste a feed URL', 'フィードURLを貼り付け'),
+              ),
               onTap: () =>
                   Navigator.pop(sheetContext, _HomeAddAction.addPodcast),
             ),
@@ -531,7 +543,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final feedUrl = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(context.tr('添加 Podcast', 'Add podcast')),
+        title: Text(context.tr('添加 Podcast', 'Add podcast', 'ポッドキャストを追加')),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -548,12 +560,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: Text(context.tr('取消', 'Cancel')),
+            child: Text(context.tr('取消', 'Cancel', 'キャンセル')),
           ),
           FilledButton(
             onPressed: () =>
                 Navigator.pop(dialogContext, controller.text.trim()),
-            child: Text(context.tr('订阅', 'Subscribe')),
+            child: Text(context.tr('订阅', 'Subscribe', '購読')),
           ),
         ],
       ),
@@ -575,6 +587,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             context.tr(
               '已订阅 ${result.show.title}，获取 ${result.importedEpisodes} 个单集',
               'Subscribed to ${result.show.title} with ${result.importedEpisodes} episodes',
+              '「${result.show.title}」を購読しました（${result.importedEpisodes}エピソード）',
             ),
           ),
         ),
@@ -645,7 +658,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               ),
               const SizedBox(height: 24),
               Text(
-                context.tr('你的书架空空如也', 'Your library is empty'),
+                context.tr('你的书架空空如也', 'Your library is empty', '本棚は空です'),
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
@@ -657,6 +670,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 context.tr(
                   '导入 EPUB 或 TXT 文件，开启你的听书之旅',
                   'Import an EPUB or TXT file to start listening',
+                  'EPUBまたはTXTファイルをインポートして聴き始めましょう',
                 ),
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 14, color: context.appTextSecondary),
@@ -872,8 +886,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     if (!mounted) return;
     if (chapters.isEmpty) {
       await _showCacheMessage(
-        title: context.tr('无法缓存', 'Unable to cache'),
-        message: context.tr('这本书没有可缓存的章节。', 'This book has no chapters.'),
+        title: context.tr('无法缓存', 'Unable to cache', 'キャッシュできません'),
+        message: context.tr(
+          '这本书没有可缓存的章节。',
+          'This book has no chapters.',
+          'この本にはキャッシュできる章がありません。',
+        ),
       );
       return;
     }
@@ -884,10 +902,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       if (!mounted) return;
       if (voice == null) {
         await _showCacheMessage(
-          title: context.tr('没有可用音色', 'No voice available'),
+          title: context.tr('没有可用音色', 'No voice available', '利用できる音声がありません'),
           message: context.tr(
             '${provider.displayName} 没有可用于合成的音色。',
             '${provider.displayName} has no voice available for generation.',
+            '${provider.displayName}には生成に使える音声がありません。',
           ),
         );
         return;
@@ -896,10 +915,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       if (!mounted) return;
       if (!providerValid) {
         await _showCacheMessage(
-          title: context.tr('语音引擎未配置', 'TTS provider not configured'),
+          title: context.tr(
+            '语音引擎未配置',
+            'TTS provider not configured',
+            'TTSプロバイダーが未設定です',
+          ),
           message: context.tr(
             '请先完成 ${provider.displayName} 的模型或 API Key 配置。',
             'Configure the model or API key for ${provider.displayName} first.',
+            'まず${provider.displayName}のモデルまたはAPIキーを設定してください。',
           ),
         );
         return;
@@ -909,24 +933,27 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-          title: Text(context.tr('缓存整本书？', 'Cache the entire book?')),
+          title: Text(
+            context.tr('缓存整本书？', 'Cache the entire book?', '本全体をキャッシュしますか？'),
+          ),
           content: Text(
             context.tr(
               '将使用 ${provider.displayName} · ${voice.name} 依次缓存《${book.title}》的 '
                   '${chapters.length} 个章节。已完成的段落会自动跳过。',
               'Cache all ${chapters.length} chapters of “${book.title}” with '
                   '${provider.displayName} · ${voice.name}. Completed segments will be skipped.',
+              '${provider.displayName} · ${voice.name}で『${book.title}』の${chapters.length}章をキャッシュします。完了済みの部分はスキップされます。',
             ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: Text(context.tr('取消', 'Cancel')),
+              child: Text(context.tr('取消', 'Cancel', 'キャンセル')),
             ),
             FilledButton.icon(
               onPressed: () => Navigator.of(dialogContext).pop(true),
               icon: const Icon(Icons.download_for_offline_outlined),
-              label: Text(context.tr('开始缓存', 'Start caching')),
+              label: Text(context.tr('开始缓存', 'Start caching', 'キャッシュ開始')),
             ),
           ],
         ),
@@ -997,16 +1024,18 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       if (!mounted) return;
       await _showCacheMessage(
         title: failedChapters == 0
-            ? context.tr('缓存完成', 'Caching complete')
-            : context.tr('缓存部分完成', 'Caching partially complete'),
+            ? context.tr('缓存完成', 'Caching complete', 'キャッシュ完了')
+            : context.tr('缓存部分完成', 'Caching partially complete', 'キャッシュが一部完了'),
         message: failedChapters == 0
             ? context.tr(
                 '《${book.title}》的全部章节已缓存。',
                 'All chapters of “${book.title}” are cached.',
+                '「${book.title}」の全章をキャッシュしました。',
               )
             : context.tr(
                 '已处理 ${chapters.length} 个章节，其中 $failedChapters 个章节存在失败段落，可再次执行以重试。',
                 'Processed ${chapters.length} chapters. $failedChapters chapters contain failed segments; run caching again to retry.',
+                '${chapters.length}章を処理しました。$failedChapters章に失敗した部分があります。再度キャッシュしてお試しください。',
               ),
       );
     } catch (error, stackTrace) {
@@ -1018,7 +1047,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       );
       if (mounted) {
         await _showCacheMessage(
-          title: context.tr('缓存失败', 'Caching failed'),
+          title: context.tr('缓存失败', 'Caching failed', 'キャッシュに失敗しました'),
           message: error.toString(),
         );
       }
@@ -1103,7 +1132,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: Text(context.tr('完成', 'Done')),
+            child: Text(context.tr('完成', 'Done', '完了')),
           ),
         ],
       ),

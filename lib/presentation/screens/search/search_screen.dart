@@ -168,7 +168,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         : _localSearching;
 
     return CollapsingPageScaffold(
-      title: context.tr('搜索', 'Search'),
+      title: context.tr('搜索', 'Search', '検索'),
       body: Column(
         children: [
           Padding(
@@ -182,8 +182,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               onSubmitted: (_) => _runSearch(),
               onSearch: _runSearch,
               hintText: _scope == _SearchScope.online
-                  ? context.tr('搜索 Gutenberg 公版书', 'Search Gutenberg books')
-                  : context.tr('搜索书籍、章节或正文', 'Search books, chapters, or text'),
+                  ? context.tr(
+                      '搜索 Gutenberg 公版书',
+                      'Search Gutenberg books',
+                      'Gutenbergのパブリックドメイン本を検索',
+                    )
+                  : context.tr(
+                      '搜索书籍、章节或正文',
+                      'Search books, chapters, or text',
+                      '本・章・本文を検索',
+                    ),
             ),
           ),
           Padding(
@@ -195,11 +203,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 segments: [
                   ButtonSegment(
                     value: _SearchScope.online,
-                    label: Text(context.tr('在线书库', 'Online Library')),
+                    label: Text(
+                      context.tr('在线书库', 'Online Library', 'オンライン書庫'),
+                    ),
                   ),
                   ButtonSegment(
                     value: _SearchScope.library,
-                    label: Text(context.tr('书架', 'Library')),
+                    label: Text(context.tr('书架', 'Library', '本棚')),
                   ),
                 ],
                 selected: {_scope},
@@ -311,7 +321,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     if (books.isEmpty) {
       return Center(
         child: Text(
-          context.tr('没有找到可导入的公版书', 'No importable public-domain books found'),
+          context.tr(
+            '没有找到可导入的公版书',
+            'No importable public-domain books found',
+            'インポートできるパブリックドメイン本が見つかりません',
+          ),
           style: TextStyle(color: context.appTextSecondary),
         ),
       );
@@ -324,7 +338,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           return Center(
             child: OutlinedButton.icon(
               icon: const Icon(Icons.expand_more),
-              label: Text(context.tr('加载更多', 'Load More')),
+              label: Text(context.tr('加载更多', 'Load More', 'さらに読み込む')),
               onPressed: data.result.next == null
                   ? null
                   : () => setState(() {
@@ -353,7 +367,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             if (imported != null)
               BookListCardMeta(
                 icon: Icons.check_circle_outline,
-                label: context.tr('已导入', 'Imported'),
+                label: context.tr('已导入', 'Imported', 'インポート済み'),
               ),
             if (importedReadingLevel != null)
               BookListCardMeta(
@@ -389,7 +403,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       if (data.recentBooks.isEmpty) {
         return Center(
           child: Text(
-            context.tr('暂无书籍', 'No books yet'),
+            context.tr('暂无书籍', 'No books yet', '本はまだありません'),
             style: TextStyle(color: context.appTextSecondary),
           ),
         );
@@ -397,7 +411,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       return ListView(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 120),
         children: [
-          _section(context.tr('最近阅读', 'Recently Read')),
+          _section(context.tr('最近阅读', 'Recently Read', '最近読んだ本')),
           for (final book in data.recentBooks)
             _BookResultTile(
               book: book,
@@ -416,7 +430,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     if (empty) {
       return Center(
         child: Text(
-          context.tr('没有找到结果', 'No results found'),
+          context.tr('没有找到结果', 'No results found', '結果が見つかりません'),
           style: TextStyle(color: context.appTextSecondary),
         ),
       );
@@ -426,7 +440,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 120),
       children: [
         if (data.bookHits.isNotEmpty) ...[
-          _section(context.tr('书籍', 'Books')),
+          _section(context.tr('书籍', 'Books', '本')),
           for (final book in data.bookHits)
             _BookResultTile(
               book: book,
@@ -436,7 +450,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             ),
         ],
         if (data.chapterHits.isNotEmpty) ...[
-          _section(context.tr('章节', 'Chapters')),
+          _section(context.tr('章节', 'Chapters', '章')),
           for (final hit in data.chapterHits)
             _ResultTile(
               icon: Icons.queue_music_outlined,
@@ -446,7 +460,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             ),
         ],
         if (data.paragraphHits.isNotEmpty) ...[
-          _section(context.tr('正文', 'Text')),
+          _section(context.tr('正文', 'Text', '本文')),
           for (final hit in data.paragraphHits)
             _ResultTile(
               icon: Icons.notes_outlined,
@@ -498,7 +512,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final chapter = hit.chapter;
     if (book == null || chapter == null) return;
 
-    final paragraphLabel = context.tr('段落', 'Paragraph');
+    final paragraphLabel = context.tr('段落', 'Paragraph', '段落');
     final manifestStore = ref.read(manifestStoreProvider);
     final manifest = await manifestStore.load(book.id, chapter.id);
     if (manifest != null &&
@@ -534,6 +548,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               context.tr(
                 '播放缓存失败，请清除音频后重新生成',
                 'Unable to play cached audio. Clear it and generate it again.',
+                'キャッシュ済み音声を再生できません。消去して、もう一度生成してください。',
               ),
             ),
           ),
@@ -550,6 +565,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           context.tr(
             '这一段音频还未缓存，已打开对应章节',
             'This paragraph is not cached yet. Its chapter has been opened.',
+            'この段落はまだキャッシュされていません。章を開きました。',
           ),
         ),
       ),
@@ -616,7 +632,7 @@ class _OnlineErrorState extends StatelessWidget {
             OutlinedButton.icon(
               onPressed: onRetry,
               icon: const Icon(Icons.refresh),
-              label: Text(context.tr('重试', 'Retry')),
+              label: Text(context.tr('重试', 'Retry', '再試行')),
             ),
           ],
         ),

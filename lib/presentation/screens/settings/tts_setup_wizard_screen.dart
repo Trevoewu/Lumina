@@ -89,7 +89,7 @@ class _TtsSetupWizardScreenState extends ConsumerState<TtsSetupWizardScreen> {
     final design = context.appDesign;
     final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
     return CollapsingPageScaffold(
-      title: context.tr('语音设置', 'Voice Setup'),
+      title: context.tr('语音设置', 'Voice Setup', '音声設定'),
       showBackButton: true,
       body: _initializing
           ? const Center(child: CircularProgressIndicator())
@@ -103,11 +103,15 @@ class _TtsSetupWizardScreenState extends ConsumerState<TtsSetupWizardScreen> {
                     design.spaceMd,
                   ),
                   child: SetupProgressHeader(
-                    title: context.tr('语音设置进度', 'Voice setup progress'),
+                    title: context.tr(
+                      '语音设置进度',
+                      'Voice setup progress',
+                      '音声設定の進捗',
+                    ),
                     steps: [
                       'Provider',
-                      context.tr('密钥', 'Key'),
-                      context.tr('模型', 'Model'),
+                      context.tr('密钥', 'Key', 'キー'),
+                      context.tr('模型', 'Model', 'モデル'),
                       'Voice',
                     ],
                     currentStep: _step,
@@ -130,10 +134,10 @@ class _TtsSetupWizardScreenState extends ConsumerState<TtsSetupWizardScreen> {
                       design.spaceMd,
                     ),
                     child: SetupNavigationBar(
-                      previousLabel: context.tr('上一步', 'Previous'),
+                      previousLabel: context.tr('上一步', 'Previous', '戻る'),
                       nextLabel: _step == 3
-                          ? context.tr('完成', 'Finish')
-                          : context.tr('下一步', 'Next'),
+                          ? context.tr('完成', 'Finish', '完了')
+                          : context.tr('下一步', 'Next', '次へ'),
                       busy: _busy,
                       onPrevious: _previous,
                       onNext: _canContinue ? _next : null,
@@ -181,6 +185,7 @@ class _TtsSetupWizardScreenState extends ConsumerState<TtsSetupWizardScreen> {
         context.tr(
           '自然语音、声音克隆与流式合成',
           'Natural voices, voice cloning, and streaming synthesis',
+          '自然な音声、ボイスクローン、ストリーミング合成',
         ),
       ),
       (
@@ -189,6 +194,7 @@ class _TtsSetupWizardScreenState extends ConsumerState<TtsSetupWizardScreen> {
         context.tr(
           '高质量语音、声音克隆与声音设计',
           'High-quality speech, cloning, and voice design',
+          '高品質な音声、ボイスクローン、音声デザイン',
         ),
       ),
     ];
@@ -196,7 +202,7 @@ class _TtsSetupWizardScreenState extends ConsumerState<TtsSetupWizardScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         AppSectionHeader(
-          title: context.tr('选择语音服务', 'Choose a voice provider'),
+          title: context.tr('选择语音服务', 'Choose a voice provider', '音声サービスを選択'),
         ),
         SettingsGroup(
           children: [
@@ -243,12 +249,14 @@ class _TtsSetupWizardScreenState extends ConsumerState<TtsSetupWizardScreen> {
           title: context.tr(
             '连接 ${provider?.displayName ?? 'Provider'}',
             'Connect ${provider?.displayName ?? 'Provider'}',
+            '${provider?.displayName ?? 'Provider'}に接続',
           ),
         ),
         SettingsFeedbackBanner(
           message: context.tr(
             '先获取 API Key，粘贴并验证连接。成功后将在当前页面继续选择模型。',
             'Get an API key, paste it below, and verify the connection. Model selection continues on this page.',
+            'APIキーを取得して貼り付け、接続を確認します。成功するとこのページでモデルを選択できます。',
           ),
         ),
         const SizedBox(height: 16),
@@ -263,6 +271,7 @@ class _TtsSetupWizardScreenState extends ConsumerState<TtsSetupWizardScreen> {
             helperText: context.tr(
               '已保存过密钥时可留空',
               'Leave empty to use an already saved key',
+              '保存済みのキーがある場合は空欄で可',
             ),
           ),
         ),
@@ -274,7 +283,11 @@ class _TtsSetupWizardScreenState extends ConsumerState<TtsSetupWizardScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  context.tr('在哪里获取 API Key？', 'Where do I get an API key?'),
+                  context.tr(
+                    '在哪里获取 API Key？',
+                    'Where do I get an API key?',
+                    'APIキーの入手先',
+                  ),
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
                 const SizedBox(height: 8),
@@ -286,13 +299,18 @@ class _TtsSetupWizardScreenState extends ConsumerState<TtsSetupWizardScreen> {
                     '1. Sign in to the ${isFish ? 'Fish Audio' : 'MiniMax'} console\n'
                         '2. Open API Keys and create a key\n'
                         '3. Copy the key and paste it above',
+                    '1. ${isFish ? 'Fish Audio' : 'MiniMax'}のコンソールにログイン\n'
+                        '2. API Keysを開いてキーを作成\n'
+                        '3. キーをコピーして上に貼り付け',
                   ),
                 ),
                 TextButton.icon(
                   key: ValueKey('get-tts-api-key-$_providerId'),
                   onPressed: () => _openUrl(uri),
                   icon: const Icon(Icons.open_in_new),
-                  label: Text(context.tr('打开 API Keys', 'Open API Keys')),
+                  label: Text(
+                    context.tr('打开 API Keys', 'Open API Keys', 'APIキーを開く'),
+                  ),
                 ),
               ],
             ),
@@ -305,12 +323,18 @@ class _TtsSetupWizardScreenState extends ConsumerState<TtsSetupWizardScreen> {
   Widget _modelStep() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      AppSectionHeader(title: context.tr('选择语音模型', 'Choose a voice model')),
+      AppSectionHeader(
+        title: context.tr('选择语音模型', 'Choose a voice model', '音声モデルを選択'),
+      ),
       if (_models.isEmpty)
         SettingsEmptyState(
           icon: Icons.model_training_outlined,
-          message: context.tr('没有找到可用模型', 'No models are available'),
-          actionLabel: context.tr('重新同步', 'Sync again'),
+          message: context.tr(
+            '没有找到可用模型',
+            'No models are available',
+            '利用可能なモデルがありません',
+          ),
+          actionLabel: context.tr('重新同步', 'Sync again', '再同期'),
           onAction: () => _reloadModels(),
         )
       else
@@ -338,12 +362,18 @@ class _TtsSetupWizardScreenState extends ConsumerState<TtsSetupWizardScreen> {
   Widget _voiceStep() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      AppSectionHeader(title: context.tr('选择朗读音色', 'Choose a reading voice')),
+      AppSectionHeader(
+        title: context.tr('选择朗读音色', 'Choose a reading voice', '読み上げ音声を選択'),
+      ),
       if (_voices.isEmpty)
         SettingsEmptyState(
           icon: Icons.record_voice_over_outlined,
-          message: context.tr('没有找到可用音色', 'No voices are available'),
-          actionLabel: context.tr('重新同步', 'Sync again'),
+          message: context.tr(
+            '没有找到可用音色',
+            'No voices are available',
+            '利用可能な音声がありません',
+          ),
+          actionLabel: context.tr('重新同步', 'Sync again', '再同期'),
           onAction: () => _reloadVoices(),
         )
       else
@@ -409,10 +439,15 @@ class _TtsSetupWizardScreenState extends ConsumerState<TtsSetupWizardScreen> {
       _busy = true;
       _error = null;
     });
-    final missingKeyMessage = context.tr('请输入 API Key。', 'Enter an API key.');
+    final missingKeyMessage = context.tr(
+      '请输入 API Key。',
+      'Enter an API key.',
+      'APIキーを入力してください。',
+    );
     final connectionErrorMessage = context.tr(
       '连接失败，请检查 API Key 和网络。',
       'Connection failed. Check the API key and your network.',
+      '接続に失敗しました。APIキーとネットワークを確認してください。',
     );
     try {
       final key = _apiKey.text.trim();

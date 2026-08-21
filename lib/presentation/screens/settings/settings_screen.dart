@@ -13,6 +13,7 @@ import '../../widgets/design_system/app_section_header.dart';
 import '../../widgets/design_system/app_surface.dart';
 import '../../widgets/design_system/settings_components.dart';
 import 'appearance_screen.dart';
+import 'app_icon_screen.dart';
 import 'asr_service_screen.dart';
 import 'cache_management_screen.dart';
 import 'dictionary_explanation_service_screen.dart';
@@ -57,28 +58,42 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final asr = ref.watch(asrSettingsControllerProvider);
     final llm = ref.watch(llmSettingsControllerProvider);
     return CollapsingPageScaffold(
-      title: context.tr('设置', 'Settings'),
+      title: context.tr('设置', 'Settings', '設定'),
       showBackButton: true,
       body: ListView(
         padding: EdgeInsets.fromLTRB(inset, design.spaceSm, inset, 120),
         children: [
-          AppSectionHeader(title: context.tr('通用', 'General')),
+          AppSectionHeader(title: context.tr('通用', 'General', '一般')),
           SettingsGroup(
             children: [
               _languageRow(preferences.language),
               _themeRow(preferences.theme),
               SettingValueRow(
                 icon: Icons.text_fields,
-                title: context.tr('阅读外观', 'Reading appearance'),
+                title: context.tr('阅读外观', 'Reading appearance', '読書の表示'),
                 subtitle: context.tr(
                   '字体、字号与阅读排版',
                   'Font, scale, and reading type',
+                  'フォント、サイズ、読書レイアウト',
                 ),
                 onTap: () => _push(const AppearanceScreen()),
               ),
+              SettingValueRow(
+                rowKey: const ValueKey('app-icon-settings'),
+                icon: Icons.apps_rounded,
+                title: context.tr('App 图标', 'App Icon', 'アプリアイコン'),
+                subtitle: context.tr(
+                  '在当前图标与 6 个新图标之间切换',
+                  'Choose the original or one of 6 new icons',
+                  '現在のアイコンと6つの新アイコンを切り替え',
+                ),
+                onTap: () => _push(const AppIconScreen()),
+              ),
             ],
           ),
-          AppSectionHeader(title: context.tr('增强功能', 'Enhanced Features')),
+          AppSectionHeader(
+            title: context.tr('增强功能', 'Enhanced Features', '拡張機能'),
+          ),
           AppSurface(
             key: const ValueKey('enhanced-features-intro'),
             color: Theme.of(
@@ -98,7 +113,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        context.tr('按需开启', 'Set up when needed'),
+                        context.tr('按需开启', 'Set up when needed', '必要なときに設定'),
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(fontWeight: FontWeight.w700),
                       ),
@@ -107,6 +122,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         context.tr(
                           '阅读与播放无需额外设置。需要时再开启字幕、AI 助手和语音朗读。',
                           'Reading and playback work now. Set up transcripts, AI, and narration only when you need them.',
+                          '読書と再生はすぐ使えます。文字起こし、AIアシスタント、音声読み上げは必要なときに設定してください。',
                         ),
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -126,18 +142,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 loading: () => _loadingServiceRow(
                   key: const ValueKey('asr-service-settings'),
                   icon: Icons.subtitles_outlined,
-                  title: context.tr('Podcast 字幕', 'Podcast Transcripts'),
+                  title: context.tr(
+                    'Podcast 字幕',
+                    'Podcast Transcripts',
+                    'Podcastの文字起こし',
+                  ),
                 ),
                 error: (error, _) => _errorServiceRow(
                   key: const ValueKey('asr-service-settings'),
                   icon: Icons.subtitles_outlined,
-                  title: context.tr('Podcast 字幕', 'Podcast Transcripts'),
+                  title: context.tr(
+                    'Podcast 字幕',
+                    'Podcast Transcripts',
+                    'Podcastの文字起こし',
+                  ),
                   onTap: () => ref.invalidate(asrSettingsControllerProvider),
                 ),
                 data: (state) => _serviceRow(
                   key: const ValueKey('asr-service-settings'),
                   icon: Icons.subtitles_outlined,
-                  title: context.tr('Podcast 字幕', 'Podcast Transcripts'),
+                  title: context.tr(
+                    'Podcast 字幕',
+                    'Podcast Transcripts',
+                    'Podcastの文字起こし',
+                  ),
                   provider: state.providerName,
                   selection: state.modelName,
                   readiness: state.readiness,
@@ -148,21 +176,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 loading: () => _loadingServiceRow(
                   key: const ValueKey('llm-provider-settings'),
                   icon: Icons.auto_awesome_outlined,
-                  title: context.tr('AI 模型', 'AI Model'),
+                  title: context.tr('AI 模型', 'AI Model', 'AIモデル'),
                 ),
                 error: (error, _) => _errorServiceRow(
                   key: const ValueKey('llm-provider-settings'),
                   icon: Icons.auto_awesome_outlined,
-                  title: context.tr('AI 模型', 'AI Model'),
+                  title: context.tr('AI 模型', 'AI Model', 'AIモデル'),
                   onTap: () => ref.invalidate(llmSettingsControllerProvider),
                 ),
                 data: (state) => _serviceRow(
                   key: const ValueKey('llm-provider-settings'),
                   icon: Icons.auto_awesome_outlined,
-                  title: context.tr('AI 模型', 'AI Model'),
+                  title: context.tr('AI 模型', 'AI Model', 'AIモデル'),
                   provider:
-                      state.providerName ?? context.tr('未选择服务', 'No provider'),
-                  selection: state.modelId ?? context.tr('未选择模型', 'No model'),
+                      state.providerName ??
+                      context.tr('未选择服务', 'No provider', 'サービス未選択'),
+                  selection:
+                      state.modelId ??
+                      context.tr('未选择模型', 'No model', 'モデル未選択'),
                   readiness: state.readiness,
                   onTap: () =>
                       _push(const DictionaryExplanationServiceScreen()),
@@ -172,26 +203,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 loading: () => _loadingServiceRow(
                   key: const ValueKey('tts-service-settings'),
                   icon: Icons.record_voice_over_outlined,
-                  title: context.tr('语音朗读', 'Voice Narration'),
+                  title: context.tr('语音朗读', 'Voice Narration', '音声読み上げ'),
                 ),
                 error: (error, _) => _errorServiceRow(
                   key: const ValueKey('tts-service-settings'),
                   icon: Icons.record_voice_over_outlined,
-                  title: context.tr('语音朗读', 'Voice Narration'),
+                  title: context.tr('语音朗读', 'Voice Narration', '音声読み上げ'),
                   onTap: () => ref.invalidate(ttsSettingsControllerProvider),
                 ),
                 data: (state) => _serviceRow(
                   key: const ValueKey('tts-service-settings'),
                   icon: Icons.record_voice_over_outlined,
-                  title: context.tr('语音朗读', 'Voice Narration'),
+                  title: context.tr('语音朗读', 'Voice Narration', '音声読み上げ'),
                   provider:
-                      state.providerName ?? context.tr('未选择服务', 'No provider'),
+                      state.providerName ??
+                      context.tr('未选择服务', 'No provider', 'サービス未選択'),
                   selection:
                       [
                         state.modelName,
                         state.voiceName,
                       ].whereType<String>().join(' · ').isEmpty
-                      ? context.tr('尚未完成设置', 'Setup incomplete')
+                      ? context.tr('尚未完成设置', 'Setup incomplete', '設定未完了')
                       : [
                           state.modelName,
                           state.voiceName,
@@ -202,16 +234,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ],
           ),
-          AppSectionHeader(title: context.tr('播放', 'Playback')),
+          AppSectionHeader(title: context.tr('播放', 'Playback', '再生')),
           SettingsGroup(
             children: [
               SwitchListTile(
                 secondary: const Icon(Icons.volume_up_outlined),
-                title: Text(context.tr('段落淡入', 'Paragraph fade-in')),
+                title: Text(
+                  context.tr('段落淡入', 'Paragraph fade-in', '段落フェードイン'),
+                ),
                 subtitle: Text(
                   context.tr(
                     '减少段落切换时的突兀感',
                     'Smooth generated paragraph transitions',
+                    '段落の切り替えを滑らかにする',
                   ),
                 ),
                 value: _fadeInEnabled,
@@ -220,10 +255,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               SettingValueRow(
                 rowKey: const ValueKey('reading-scroll-speed-settings'),
                 icon: Icons.swap_vert_rounded,
-                title: context.tr('文字滚动速度', 'Text scroll speed'),
+                title: context.tr('文字滚动速度', 'Text scroll speed', 'テキストスクロール速度'),
                 subtitle: context.tr(
                   '控制同步正文自动定位动画的快慢',
                   'Control how quickly synchronized text moves into view',
+                  '同期テキストの移動速度を調整',
                 ),
                 value: _readingScrollSpeedLabel(preferences.readingScrollSpeed),
                 onTap: _showReadingScrollSpeedSheet,
@@ -231,7 +267,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               SettingValueRow(
                 rowKey: const ValueKey('lyric-sweep-settings'),
                 icon: Icons.auto_awesome_outlined,
-                title: context.tr('歌词渐进高亮', 'Lyric sweep highlight'),
+                title: context.tr(
+                  '歌词渐进高亮',
+                  'Lyric sweep highlight',
+                  '歌詞の段階的ハイライト',
+                ),
                 trailing: Switch(
                   value: preferences.lyricSweepEnabled,
                   onChanged: ref
@@ -247,47 +287,53 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 initialData: ref.watch(sleepTimerServiceProvider).state,
                 builder: (context, snapshot) => SettingValueRow(
                   icon: Icons.bedtime_outlined,
-                  title: context.tr('定时关闭', 'Sleep timer'),
-                  value: snapshot.data?.label ?? context.tr('关闭', 'Off'),
+                  title: context.tr('定时关闭', 'Sleep timer', 'スリープタイマー'),
+                  value: snapshot.data?.label ?? context.tr('关闭', 'Off', 'オフ'),
                   onTap: _showSleepTimerSheet,
                 ),
               ),
             ],
           ),
-          AppSectionHeader(title: context.tr('存储', 'Storage')),
+          AppSectionHeader(title: context.tr('存储', 'Storage', 'ストレージ')),
           SettingsGroup(
             children: [
               SettingValueRow(
                 icon: Icons.cleaning_services_outlined,
-                title: context.tr('音频缓存', 'Audio cache'),
+                title: context.tr('音频缓存', 'Audio cache', '音声キャッシュ'),
                 subtitle: context.tr(
                   '管理书籍、Podcast 音频与字幕',
                   'Manage books, podcast audio, and transcripts',
+                  '書籍、Podcast音声、文字起こしを管理',
                 ),
                 onTap: () => _push(const CacheManagementScreen()),
               ),
             ],
           ),
-          AppSectionHeader(title: context.tr('支持', 'Support')),
+          AppSectionHeader(title: context.tr('支持', 'Support', 'サポート')),
           SettingsGroup(
             children: [
               SettingValueRow(
                 icon: Icons.receipt_long_outlined,
-                title: context.tr('日志', 'Logs'),
+                title: context.tr('日志', 'Logs', 'ログ'),
                 onTap: () => _push(const LogsScreen()),
               ),
             ],
           ),
-          AppSectionHeader(title: context.tr('高级', 'Advanced')),
+          AppSectionHeader(title: context.tr('高级', 'Advanced', '詳細設定')),
           SettingsGroup(
             children: [
               SettingValueRow(
                 rowKey: const ValueKey('reset-app-settings'),
                 icon: Icons.restart_alt,
-                title: context.tr('恢复初始设置', 'Restore initial settings'),
+                title: context.tr(
+                  '恢复初始设置',
+                  'Restore initial settings',
+                  '初期設定に戻す',
+                ),
                 subtitle: context.tr(
                   '重置偏好与服务配置，保留书库、进度和下载',
                   'Reset preferences and service configuration while keeping your library, progress, and downloads',
+                  'ライブラリ、進捗、ダウンロードを保持して設定とサービスをリセット',
                 ),
                 trailing: _resetting
                     ? const SizedBox.square(
@@ -316,11 +362,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget _languageRow(AppLanguage selected) => SettingValueRow(
     rowKey: const ValueKey('language-selector'),
     icon: Icons.language,
-    title: context.tr('语言', 'Language'),
+    title: context.tr('语言', 'Language', '言語'),
     onTap: () => _languageMenuKey.currentState?.showButtonMenu(),
     trailing: PopupMenuButton<AppLanguage>(
       key: _languageMenuKey,
-      tooltip: context.tr('选择语言', 'Choose language'),
+      tooltip: context.tr('选择语言', 'Choose language', '言語を選択'),
       position: PopupMenuPosition.under,
       color: Theme.of(context).colorScheme.surfaceContainer,
       surfaceTintColor: Colors.transparent,
@@ -346,11 +392,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget _themeRow(AppThemePreference selected) => SettingValueRow(
     rowKey: const ValueKey('theme-selector'),
     icon: Icons.brightness_6_outlined,
-    title: context.tr('主题', 'Theme'),
+    title: context.tr('主题', 'Theme', 'テーマ'),
     onTap: () => _themeMenuKey.currentState?.showButtonMenu(),
     trailing: PopupMenuButton<AppThemePreference>(
       key: _themeMenuKey,
-      tooltip: context.tr('选择主题', 'Choose theme'),
+      tooltip: context.tr('选择主题', 'Choose theme', 'テーマを選択'),
       position: PopupMenuPosition.under,
       color: Theme.of(context).colorScheme.surfaceContainer,
       surfaceTintColor: Colors.transparent,
@@ -410,15 +456,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   String _languageLabel(AppLanguage value) => switch (value) {
-    AppLanguage.system => context.tr('跟随系统', 'System'),
+    AppLanguage.system => context.tr('跟随系统', 'System', 'システムに従う'),
     AppLanguage.zhHans => '简体中文',
     AppLanguage.english => 'English',
+    AppLanguage.japanese => '日本語',
   };
 
   String _themeLabel(AppThemePreference value) => switch (value) {
-    AppThemePreference.system => context.tr('跟随系统', 'System'),
-    AppThemePreference.light => context.tr('浅色', 'Light'),
-    AppThemePreference.dark => context.tr('深色', 'Dark'),
+    AppThemePreference.system => context.tr('跟随系统', 'System', 'システムに従う'),
+    AppThemePreference.light => context.tr('浅色', 'Light', 'ライト'),
+    AppThemePreference.dark => context.tr('深色', 'Dark', 'ダーク'),
   };
 
   Widget _serviceRow({
@@ -468,7 +515,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       rowKey: key,
       icon: icon,
       title: title,
-      subtitle: context.tr('点按重试', 'Tap to retry'),
+      subtitle: context.tr('点按重试', 'Tap to retry', 'タップして再試行'),
       value: status.label,
       valueColor: status.color,
       onTap: onTap,
@@ -481,19 +528,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final scheme = Theme.of(context).colorScheme;
     return switch (readiness) {
       ServiceReadiness.loading => (
-        label: context.tr('检查中', 'Checking'),
+        label: context.tr('检查中', 'Checking', '確認中'),
         color: scheme.onSurfaceVariant,
       ),
       ServiceReadiness.setupRequired => (
-        label: context.tr('设置', 'Setup'),
+        label: context.tr('设置', 'Setup', '設定'),
         color: scheme.tertiary,
       ),
       ServiceReadiness.ready => (
-        label: context.tr('就绪', 'Ready'),
+        label: context.tr('就绪', 'Ready', '準備完了'),
         color: scheme.primary,
       ),
       ServiceReadiness.error => (
-        label: context.tr('注意', 'Attention'),
+        label: context.tr('注意', 'Attention', '注意'),
         color: scheme.error,
       ),
     };
@@ -537,7 +584,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    context.tr('文字滚动速度', 'Text scroll speed'),
+                    context.tr('文字滚动速度', 'Text scroll speed', 'テキストスクロール速度'),
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   SizedBox(height: context.appDesign.spaceXs),
@@ -545,6 +592,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     context.tr(
                       '速度越高，句子切换时的定位动画越快。',
                       'Higher speeds move to the next sentence faster.',
+                      '速度が高いほど文の切り替えが速くなります。',
                     ),
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: scheme.onSurfaceVariant,
@@ -610,12 +658,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             children: [
               for (final minutes in const [15, 30, 60])
                 ActionChip(
-                  label: Text(context.tr('$minutes 分钟', '$minutes minutes')),
+                  label: Text(
+                    context.tr('$minutes 分钟', '$minutes minutes', '$minutes分'),
+                  ),
                   onPressed: () =>
                       _scheduleTimer(sheetContext, Duration(minutes: minutes)),
                 ),
               ActionChip(
-                label: Text(context.tr('本章结束', 'End of chapter')),
+                label: Text(context.tr('本章结束', 'End of chapter', '章の終わり')),
                 onPressed: () async {
                   final handler = await ref.read(
                     luminaAudioHandlerProvider.future,
@@ -627,7 +677,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 },
               ),
               ActionChip(
-                label: Text(context.tr('关闭', 'Off')),
+                label: Text(context.tr('关闭', 'Off', 'オフ')),
                 onPressed: () async {
                   await ref.read(sleepTimerServiceProvider).cancel();
                   if (sheetContext.mounted) Navigator.of(sheetContext).pop();
@@ -655,7 +705,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final continueReset = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(context.tr('恢复初始设置？', 'Restore initial settings?')),
+        title: Text(
+          context.tr('恢复初始设置？', 'Restore initial settings?', '初期設定に戻しますか？'),
+        ),
         content: Text(
           context.tr(
             '以下内容将恢复默认值：\n\n'
@@ -668,17 +720,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 '• API keys and provider configuration for AI and voice services\n'
                 '• Model, reading voice, and transcript preferences\n\n'
                 'Your library, podcasts, reading progress, downloads, and downloaded Whisper model will be kept.',
+            '次の設定がデフォルトに戻ります：\n\n• 言語、テーマ、読書表示、再生設定\n• AI・音声サービスのAPIキーとプロバイダー設定\n• モデル、読み上げ音声、文字起こし設定\n\nライブラリ、Podcast、読書進捗、ダウンロード、Whisperモデルは保持されます。',
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(context.tr('取消', 'Cancel')),
+            child: Text(context.tr('取消', 'Cancel', 'キャンセル')),
           ),
           FilledButton(
             key: const ValueKey('continue-reset-app-settings'),
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(context.tr('继续', 'Continue')),
+            child: Text(context.tr('继续', 'Continue', '続行')),
           ),
         ],
       ),
@@ -688,19 +741,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(context.tr('最后确认', 'Final confirmation')),
+        title: Text(context.tr('最后确认', 'Final confirmation', '最終確認')),
         content: Text(
           context.tr(
             '此操作无法撤销。重置后需要重新输入 API Key，并重新选择 Provider、AI 模型和朗读音色。\n\n'
                 '确定立即恢复初始设置吗？',
             'This cannot be undone. You will need to enter API keys again and reselect providers, AI models, and reading voices.\n\n'
                 'Restore the initial settings now?',
+            'この操作は取り消せません。リセット後はAPIキーを入力し、プロバイダー、AIモデル、読み上げ音声を再選択してください。\n\n今すぐ初期設定に戻しますか？',
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(context.tr('返回', 'Go back')),
+            child: Text(context.tr('返回', 'Go back', '戻る')),
           ),
           FilledButton(
             key: const ValueKey('confirm-reset-app-settings'),
@@ -709,7 +763,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               backgroundColor: Theme.of(context).colorScheme.error,
               foregroundColor: Theme.of(context).colorScheme.onError,
             ),
-            child: Text(context.tr('恢复初始设置', 'Restore settings')),
+            child: Text(context.tr('恢复初始设置', 'Restore settings', '初期設定に戻す')),
           ),
         ],
       ),
@@ -722,8 +776,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final successMessage = context.tr(
       '已恢复初始设置。书库、进度和下载内容已保留。',
       'Initial settings restored. Your library, progress, and downloads were kept.',
+      '初期設定に戻しました。ライブラリ、進捗、ダウンロードは保持されています。',
     );
-    final failurePrefix = context.tr('恢复设置失败', 'Could not restore settings');
+    final failurePrefix = context.tr(
+      '恢复设置失败',
+      'Could not restore settings',
+      '設定を戻せませんでした',
+    );
     setState(() => _resetting = true);
     try {
       await ref.read(appSettingsResetServiceProvider).reset();

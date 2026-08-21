@@ -105,6 +105,13 @@ flutter:
     - assets/reading_levels/cefrj-vocabulary-profile-1.5.csv
     - assets/navigation_icons/
     - assets/provider_icons/
+    - assets/app_icon/lumina_app_icon_1024.png
+    - assets/app_icon_concepts/lumina-a1.png
+    - assets/app_icon_concepts/lumina-a2.png
+    - assets/app_icon_concepts/lumina-b1.png
+    - assets/app_icon_concepts/lumina-b2.png
+    - assets/app_icon_concepts/lumina-c1.png
+    - assets/app_icon_concepts/lumina-c2.png
 
   fonts:
     - family: Literata

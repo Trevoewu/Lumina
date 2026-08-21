@@ -67,8 +67,8 @@ class _DictionaryEntryContentState extends State<DictionaryEntryContent> {
             if (widget.showFavoriteAction)
               IconButton(
                 tooltip: widget.favorite
-                    ? context.tr('取消收藏', 'Remove favorite')
-                    : context.tr('收藏', 'Save word'),
+                    ? context.tr('取消收藏', 'Remove favorite', 'お気に入りから削除')
+                    : context.tr('收藏', 'Save word', '単語を保存'),
                 onPressed: widget.onFavorite,
                 icon: Icon(
                   widget.favorite ? Icons.bookmark : Icons.bookmark_border,
@@ -85,19 +85,19 @@ class _DictionaryEntryContentState extends State<DictionaryEntryContent> {
           children: [
             if (_hasText(entry.usPhonetic))
               _PronunciationGroup(
-                label: context.tr('美', 'US'),
+                label: context.tr('美', 'US', '米国'),
                 phonetic: entry.usPhonetic!,
                 onPlay: widget.onPlayUs,
               ),
             if (_hasText(entry.ukPhonetic))
               _PronunciationGroup(
-                label: context.tr('英', 'UK'),
+                label: context.tr('英', 'UK', '英国'),
                 phonetic: entry.ukPhonetic!,
                 onPlay: widget.onPlayUk,
               ),
             if (!_hasText(entry.usPhonetic) && !_hasText(entry.ukPhonetic))
               _PronunciationGroup(
-                label: context.tr('美', 'US'),
+                label: context.tr('美', 'US', '米国'),
                 phonetic: '',
                 onPlay: widget.onPlayUs,
               ),
@@ -116,18 +116,15 @@ class _DictionaryEntryContentState extends State<DictionaryEntryContent> {
           const SizedBox(height: 15),
           _EntryCard(
             icon: Icons.lightbulb_outline,
-            title: context.tr('一句话理解', 'In one sentence'),
-            child: Text(
-              entry.shortExplanation!,
-              style: _proseStyle(context),
-            ),
+            title: context.tr('一句话理解', 'In one sentence', '一言で言うと'),
+            child: Text(entry.shortExplanation!, style: _proseStyle(context)),
           ),
         ],
         if (_hasText(entry.longExplanation)) ...[
           const SizedBox(height: 22),
           _EntryCard(
             icon: Icons.menu_book_outlined,
-            title: context.tr('词源与用法', 'Origin & usage'),
+            title: context.tr('词源与用法', 'Origin & usage', '語源と用法'),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -167,8 +164,8 @@ class _DictionaryEntryContentState extends State<DictionaryEntryContent> {
                     children: [
                       Text(
                         _longExpanded
-                            ? context.tr('收起', 'Show less')
-                            : context.tr('展开全文', 'Read more'),
+                            ? context.tr('收起', 'Show less', '折りたたむ')
+                            : context.tr('展开全文', 'Read more', '続きを読む'),
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
@@ -200,12 +197,12 @@ class _DictionaryEntryContentState extends State<DictionaryEntryContent> {
             children: [
               Expanded(
                 child: Text(
-                  context.tr('你在听的内容里', 'IN WHAT YOU HEARD'),
+                  context.tr('你在听的内容里', 'IN WHAT YOU HEARD', '聴いた内容の中'),
                   style: kickerTextStyle(context),
                 ),
               ),
               Text(
-                context.tr('1 处', '1 passage'),
+                context.tr('1 处', '1 passage', '1か所'),
                 style: technicalTextStyle(
                   context,
                   size: 12.5,
@@ -225,7 +222,7 @@ class _DictionaryEntryContentState extends State<DictionaryEntryContent> {
         if (entry.otherForms.isNotEmpty) ...[
           const SizedBox(height: 30),
           Text(
-            context.tr('词族与搭配', 'FORMS & COLLOCATIONS'),
+            context.tr('词族与搭配', 'FORMS & COLLOCATIONS', '語形とコロケーション'),
             style: kickerTextStyle(context),
           ),
           const SizedBox(height: 12),
@@ -466,10 +463,11 @@ class _ContextCard extends StatelessWidget {
                   const SizedBox(width: 6),
                   Text(
                     timestamp == null
-                        ? context.tr('播放这段', 'Play this passage')
+                        ? context.tr('播放这段', 'Play this passage', 'この箇所を再生')
                         : context.tr(
                             '从 $timestamp 播放这段',
                             'Play from $timestamp',
+                            '$timestampからこの箇所を再生',
                           ),
                     style: TextStyle(
                       fontSize: 13.5,
@@ -553,7 +551,7 @@ class _PronunciationGroup extends StatelessWidget {
           behavior: HitTestBehavior.opaque,
           onTap: onPlay,
           child: Tooltip(
-            message: context.tr('播放发音', 'Play pronunciation'),
+            message: context.tr('播放发音', 'Play pronunciation', '発音を再生'),
             child: Container(
               width: 32,
               height: 32,
@@ -610,7 +608,7 @@ class _SourceFooter extends StatelessWidget {
     final entry = result.entry;
     final label =
         '${entry.providerLabel}'
-        '${result.fromCache ? ' · ${context.tr('本地', 'Cached')}' : ''}';
+        '${result.fromCache ? ' · ${context.tr('本地', 'Cached', 'キャッシュ済み')}' : ''}';
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,

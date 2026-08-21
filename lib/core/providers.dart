@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -14,6 +15,7 @@ import '../data/podcasts/podcast_index_repository.dart';
 import '../data/podcasts/podcast_repository.dart';
 import '../data/settings/provider_selection_repository.dart';
 import '../services/app_settings_reset_service.dart';
+import '../services/app_icon_service.dart';
 import '../services/generation_orchestrator.dart';
 import '../services/lumina_audio_handler.dart';
 import '../services/manifest_store.dart';
@@ -22,6 +24,7 @@ import '../services/playback_progress_service.dart';
 import '../services/sleep_timer_service.dart';
 import '../tts/provider_registry.dart';
 import 'database_provider.dart';
+import 'app_preferences.dart';
 
 export 'database_provider.dart';
 
@@ -66,6 +69,10 @@ final appSettingsResetServiceProvider = Provider<AppSettingsResetService>((
     ttsProviders: ref.watch(providerRegistryProvider),
     llmProvider: ref.watch(openAiCompatibleExplanationProvider),
   );
+});
+
+final appIconGatewayProvider = Provider<AppIconGateway>((ref) {
+  return const MethodChannelAppIconGateway();
 });
 
 final aiTranscriptToolsProvider = Provider<AiTranscriptTools>((ref) {
@@ -132,9 +139,13 @@ final providerSelectionRepositoryProvider =
     });
 
 final dictionaryRepositoryProvider = Provider<DictionaryRepository>((ref) {
+  final preferences = ref.watch(appPreferencesProvider);
   return DictionaryRepository(
     ref.watch(appDatabaseProvider),
     explanationProvider: ref.watch(openAiCompatibleExplanationProvider),
+    outputLanguageCode: preferences.resolvedLanguageCode(
+      PlatformDispatcher.instance.locale,
+    ),
   );
 });
 

@@ -68,13 +68,13 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
       builder: (context, snapshot) {
         final show = snapshot.data;
         return CollapsingPageScaffold(
-          title: show?.title ?? context.tr('Podcast', 'Podcast'),
+          title: show?.title ?? context.tr('Podcast', 'Podcast', 'ポッドキャスト'),
           showBackButton: true,
           actions: show == null
               ? const []
               : [
                   IconButton(
-                    tooltip: context.tr('刷新节目', 'Refresh podcast'),
+                    tooltip: context.tr('刷新节目', 'Refresh podcast', '番組を更新'),
                     onPressed: _refreshing ? null : () => _refresh(show),
                     icon: _refreshing
                         ? const SizedBox.square(
@@ -84,14 +84,14 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
                         : const Icon(Icons.refresh),
                   ),
                   PopupMenuButton<String>(
-                    tooltip: context.tr('更多', 'More'),
+                    tooltip: context.tr('更多', 'More', 'その他'),
                     onSelected: (value) {
                       if (value == 'unsubscribe') _unsubscribe(show);
                     },
                     itemBuilder: (_) => [
                       PopupMenuItem(
                         value: 'unsubscribe',
-                        child: Text(context.tr('取消订阅', 'Unsubscribe')),
+                        child: Text(context.tr('取消订阅', 'Unsubscribe', '購読解除')),
                       ),
                     ],
                   ),
@@ -110,7 +110,9 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
       return Center(child: Text('加载失败：${snapshot.error}'));
     }
     if (show == null) {
-      return Center(child: Text(context.tr('节目不存在', 'Podcast not found')));
+      return Center(
+        child: Text(context.tr('节目不存在', 'Podcast not found', '番組が見つかりません')),
+      );
     }
 
     final database = ref.watch(appDatabaseProvider);
@@ -154,7 +156,7 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
                             ? null
                             : () => _openEpisode(episodes.first.id),
                         icon: const Icon(Icons.play_arrow_rounded),
-                        label: Text(context.tr('播放最新', 'Play latest')),
+                        label: Text(context.tr('播放最新', 'Play latest', '最新を再生')),
                       ),
                     ],
                   ),
@@ -171,7 +173,7 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
             ],
             SizedBox(height: design.spaceXl),
             Text(
-              context.tr('所有单集', 'All episodes'),
+              context.tr('所有单集', 'All episodes', 'すべてのエピソード'),
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 color: context.appTextPrimary,
                 fontWeight: FontWeight.w800,
@@ -182,7 +184,11 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 32),
                 child: Text(
-                  context.tr('Feed 中没有可播放的单集', 'No playable episodes'),
+                  context.tr(
+                    'Feed 中没有可播放的单集',
+                    'No playable episodes',
+                    'フィードに再生できるエピソードがありません',
+                  ),
                   textAlign: TextAlign.center,
                   style: TextStyle(color: context.appTextSecondary),
                 ),
@@ -225,21 +231,22 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(context.tr('取消订阅？', 'Unsubscribe?')),
+        title: Text(context.tr('取消订阅？', 'Unsubscribe?', '購読を解除しますか？')),
         content: Text(
           context.tr(
             '将删除该节目、本地单集记录和转写结果。',
             'This removes the podcast, episode history, and transcripts.',
+            'ポッドキャスト、エピソード履歴、文字起こしを削除します。',
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text(context.tr('取消', 'Cancel')),
+            child: Text(context.tr('取消', 'Cancel', 'キャンセル')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text(context.tr('取消订阅', 'Unsubscribe')),
+            child: Text(context.tr('取消订阅', 'Unsubscribe', '購読解除')),
           ),
         ],
       ),

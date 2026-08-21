@@ -41,7 +41,7 @@ class _TtsServiceScreenState extends ConsumerState<TtsServiceScreen> {
       ttsProviderConfigurationStatusProvider,
     );
     return CollapsingPageScaffold(
-      title: context.tr('文本转语音', 'Text to Speech'),
+      title: context.tr('文本转语音', 'Text to Speech', 'テキスト読み上げ'),
       showBackButton: true,
       body: state.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -79,15 +79,20 @@ class _TtsServiceScreenState extends ConsumerState<TtsServiceScreen> {
             children: [
               ServiceStatusCard(
                 icon: Icons.record_voice_over_outlined,
-                title: context.tr('当前语音服务', 'Current voice service'),
+                title: context.tr(
+                  '当前语音服务',
+                  'Current voice service',
+                  '現在の音声サービス',
+                ),
                 provider:
-                    data.providerName ?? context.tr('未选择服务', 'No provider'),
+                    data.providerName ??
+                    context.tr('未选择服务', 'No provider', 'サービス未選択'),
                 selection:
                     [
                       data.modelName,
                       data.voiceName,
                     ].whereType<String>().join(' · ').isEmpty
-                    ? context.tr('尚未完成设置', 'Setup incomplete')
+                    ? context.tr('尚未完成设置', 'Setup incomplete', '設定未完了')
                     : [
                         data.modelName,
                         data.voiceName,
@@ -99,14 +104,15 @@ class _TtsServiceScreenState extends ConsumerState<TtsServiceScreen> {
                 SizedBox(height: design.spaceMd),
                 SettingsFeedbackBanner(message: data.notice!.message),
               ],
-              AppSectionHeader(title: context.tr('配置', 'Configuration')),
+              AppSectionHeader(title: context.tr('配置', 'Configuration', '設定')),
               SettingsGroup(
                 children: [
                   SettingValueRow(
                     icon: Icons.hub_outlined,
-                    title: context.tr('语音服务', 'Provider'),
+                    title: context.tr('语音服务', 'Provider', '音声サービス'),
                     value:
-                        data.providerName ?? context.tr('未选择', 'Not selected'),
+                        data.providerName ??
+                        context.tr('未选择', 'Not selected', '未選択'),
                     onTap: () => _openProviders(
                       context,
                       ref,
@@ -115,17 +121,21 @@ class _TtsServiceScreenState extends ConsumerState<TtsServiceScreen> {
                   ),
                   SettingValueRow(
                     icon: Icons.model_training_outlined,
-                    title: context.tr('语音模型', 'Voice model'),
+                    title: context.tr('语音模型', 'Voice model', '音声モデル'),
                     subtitle: data.modelId == null
                         ? context.tr(
                             '同步供应商支持的模型并选择',
                             'Sync supported provider models and choose one',
+                            'プロバイダー対応モデルを同期して選択',
                           )
                         : context.tr(
                             '更换生成语音使用的模型',
                             'Change the model used to generate speech',
+                            '音声生成に使うモデルを変更',
                           ),
-                    value: data.modelName ?? context.tr('未选择', 'Not selected'),
+                    value:
+                        data.modelName ??
+                        context.tr('未选择', 'Not selected', '未選択'),
                     onTap: !providerConfigured
                         ? null
                         : () => _openModels(
@@ -137,22 +147,27 @@ class _TtsServiceScreenState extends ConsumerState<TtsServiceScreen> {
                   ),
                   SettingValueRow(
                     icon: Icons.voice_chat_outlined,
-                    title: context.tr('朗读音色', 'Reading voice'),
+                    title: context.tr('朗读音色', 'Reading voice', '読み上げ音声'),
                     subtitle: data.voiceId == null
                         ? data.modelId == null
                               ? context.tr(
                                   '请先选择语音模型',
                                   'Choose a voice model first',
+                                  '先に音声モデルを選択',
                                 )
                               : context.tr(
                                   '自动同步云端音色并选择',
                                   'Sync cloud voices and choose one',
+                                  'クラウド音声を同期して選択',
                                 )
                         : context.tr(
                             '更换有声书的朗读声音',
                             'Change the audiobook reading voice',
+                            '読み上げ音声を変更',
                           ),
-                    value: data.voiceName ?? context.tr('未选择', 'Not selected'),
+                    value:
+                        data.voiceName ??
+                        context.tr('未选择', 'Not selected', '未選択'),
                     onTap: !providerConfigured || data.modelId == null
                         ? null
                         : () => _openVoices(
@@ -164,10 +179,11 @@ class _TtsServiceScreenState extends ConsumerState<TtsServiceScreen> {
                   if (data.providerId != null)
                     SettingValueRow(
                       icon: Icons.tune,
-                      title: context.tr('服务详情', 'Provider details'),
+                      title: context.tr('服务详情', 'Provider details', 'サービスの詳細'),
                       subtitle: context.tr(
                         '凭据与连接测试',
                         'Credentials and connection test',
+                        '認証情報と接続テスト',
                       ),
                       onTap: () => _openDetails(
                         context,
@@ -200,26 +216,29 @@ class _TtsServiceScreenState extends ConsumerState<TtsServiceScreen> {
     final (icon, title, description) = switch (currentStep) {
       0 => (
         Icons.hub_outlined,
-        context.tr('选择语音服务', 'Choose a voice provider'),
+        context.tr('选择语音服务', 'Choose a voice provider', '音声サービスを選択'),
         context.tr(
           '选择云端 Provider，获取并设置 API Key。连接成功后会自动继续选择模型和音色。',
           'Choose a cloud provider, get and set its API key. After connecting, setup continues to model and voice selection.',
+          'クラウドプロバイダーを選び、APIキーを設定します。接続後にモデルと音声を選択できます。',
         ),
       ),
       2 => (
         Icons.model_training_outlined,
-        context.tr('选择语音模型', 'Choose a voice model'),
+        context.tr('选择语音模型', 'Choose a voice model', '音声モデルを選択'),
         context.tr(
           '${data.providerName ?? 'Provider'} 已连接。同步官方模型列表并选择一个模型。',
           '${data.providerName ?? 'Provider'} is connected. Sync its model catalog and choose a model.',
+          '${data.providerName ?? 'Provider'}に接続済み。公式モデル一覧を同期して選択します。',
         ),
       ),
       _ => (
         Icons.voice_chat_outlined,
-        context.tr('选择朗读音色', 'Choose a reading voice'),
+        context.tr('选择朗读音色', 'Choose a reading voice', '読み上げ音声を選択'),
         context.tr(
           '最后一步：同步云端音色，并选择有声书的默认朗读声音。',
           'Last step: sync cloud voices and choose the default audiobook reading voice.',
+          '最後にクラウド音声を同期し、有声書の既定の読み上げ音声を選択します。',
         ),
       ),
     };
@@ -227,11 +246,11 @@ class _TtsServiceScreenState extends ConsumerState<TtsServiceScreen> {
       padding: EdgeInsets.fromLTRB(inset, design.spaceSm, inset, 120),
       children: [
         SetupProgressHeader(
-          title: context.tr('语音设置进度', 'Voice setup progress'),
+          title: context.tr('语音设置进度', 'Voice setup progress', '音声設定の進捗'),
           steps: [
             'Provider',
-            context.tr('密钥', 'Key'),
-            context.tr('模型', 'Model'),
+            context.tr('密钥', 'Key', 'キー'),
+            context.tr('模型', 'Model', 'モデル'),
             'Voice',
           ],
           currentStep: currentStep,
@@ -245,7 +264,7 @@ class _TtsServiceScreenState extends ConsumerState<TtsServiceScreen> {
           icon: icon,
           title: title,
           description: description,
-          actionLabel: context.tr('继续设置', 'Continue setup'),
+          actionLabel: context.tr('继续设置', 'Continue setup', '設定を続ける'),
           actionKey: const ValueKey('continue-tts-setup'),
           onPressed: () => _resumeSetup(data, providerConfigured),
         ),
@@ -403,7 +422,11 @@ class _TtsModelPickerScreenState extends ConsumerState<TtsModelPickerScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          context.tr('已选择 ${model.name}', '${model.name} selected'),
+          context.tr(
+            '已选择 ${model.name}',
+            '${model.name} selected',
+            '${model.name}を選択しました',
+          ),
         ),
       ),
     );
@@ -425,12 +448,12 @@ class _TtsModelPickerScreenState extends ConsumerState<TtsModelPickerScreen> {
     final design = context.appDesign;
     final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
     return CollapsingPageScaffold(
-      title: context.tr('选择语音模型', 'Choose Voice Model'),
+      title: context.tr('选择语音模型', 'Choose Voice Model', '音声モデルを選択'),
       showBackButton: true,
       actions: [
         IconButton(
           key: const ValueKey('sync-tts-models'),
-          tooltip: context.tr('同步模型', 'Sync models'),
+          tooltip: context.tr('同步模型', 'Sync models', 'モデルを同期'),
           onPressed: _refresh,
           icon: const Icon(Icons.sync),
         ),
@@ -454,8 +477,9 @@ class _TtsModelPickerScreenState extends ConsumerState<TtsModelPickerScreen> {
               message: context.tr(
                 '没有找到可用的语音模型',
                 'No voice models are available',
+                '利用可能な音声モデルがありません',
               ),
-              actionLabel: context.tr('重新同步', 'Sync again'),
+              actionLabel: context.tr('重新同步', 'Sync again', '再同期'),
               onAction: _refresh,
             );
           }
@@ -469,16 +493,19 @@ class _TtsModelPickerScreenState extends ConsumerState<TtsModelPickerScreen> {
                   '模型选择会按语音服务分别保存。',
               'Available models were synced from the official ${provider?.displayName ?? 'provider'} API. '
                   'The selection is saved separately for each voice provider.',
+              '${provider?.displayName ?? 'provider'}から利用可能なモデルを同期しました。音声サービスごとに選択を保存します。',
             ),
             TtsModelCatalogSource.cachedAfterSyncFailure => context.tr(
               '本次同步失败，当前显示上次成功同步的模型。请检查网络后重试。',
               'Sync failed, so the last successfully loaded models are shown. Check your connection and try again.',
+              '同期に失敗したため、前回読み込んだモデルを表示しています。接続を確認して再試行してください。',
             ),
             TtsModelCatalogSource.bundledFallback => context.tr(
               '供应商接口未返回可用的 TTS 模型，当前显示 App 内置的官方模型目录。'
                   '模型更新后可点右上角重新同步。',
               'The provider API did not return usable TTS models, so the official catalog bundled with the app is shown. '
                   'Use Sync after the provider updates its models.',
+              'プロバイダーAPIに利用可能なTTSモデルがないため、アプリ内蔵の公式カタログを表示しています。モデル更新後に同期してください。',
             ),
           };
           final modelList = ListView(
@@ -486,11 +513,15 @@ class _TtsModelPickerScreenState extends ConsumerState<TtsModelPickerScreen> {
             children: [
               if (widget.guidedSelection) ...[
                 SetupProgressHeader(
-                  title: context.tr('语音设置进度', 'Voice setup progress'),
+                  title: context.tr(
+                    '语音设置进度',
+                    'Voice setup progress',
+                    '音声設定の進捗',
+                  ),
                   steps: [
                     'Provider',
-                    context.tr('密钥', 'Key'),
-                    context.tr('模型', 'Model'),
+                    context.tr('密钥', 'Key', 'キー'),
+                    context.tr('模型', 'Model', 'モデル'),
                     'Voice',
                   ],
                   currentStep: 2,
@@ -498,7 +529,9 @@ class _TtsModelPickerScreenState extends ConsumerState<TtsModelPickerScreen> {
                 SizedBox(height: design.spaceMd),
               ],
               SettingsFeedbackBanner(message: catalogMessage),
-              AppSectionHeader(title: context.tr('可用模型', 'Available models')),
+              AppSectionHeader(
+                title: context.tr('可用模型', 'Available models', '利用可能なモデル'),
+              ),
               SettingsGroup(
                 children: [
                   for (final model in models)
@@ -513,7 +546,7 @@ class _TtsModelPickerScreenState extends ConsumerState<TtsModelPickerScreen> {
                           Expanded(child: Text(model.name)),
                           if (model.recommended)
                             Text(
-                              context.tr('推荐', 'Recommended'),
+                              context.tr('推荐', 'Recommended', 'おすすめ'),
                               style: Theme.of(context).textTheme.labelMedium
                                   ?.copyWith(
                                     color: Theme.of(
@@ -552,8 +585,8 @@ class _TtsModelPickerScreenState extends ConsumerState<TtsModelPickerScreen> {
                     design.spaceMd,
                   ),
                   child: SetupNavigationBar(
-                    previousLabel: context.tr('上一步', 'Previous'),
-                    nextLabel: context.tr('下一步', 'Next'),
+                    previousLabel: context.tr('上一步', 'Previous', '戻る'),
+                    nextLabel: context.tr('下一步', 'Next', '次へ'),
                     onPrevious: () => Navigator.of(context).pop(false),
                     onNext: _selectedId == null
                         ? null
@@ -602,12 +635,12 @@ class _TtsProviderPickerScreenState
     final design = context.appDesign;
     final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
     return CollapsingPageScaffold(
-      title: context.tr('语音服务', 'Voice Providers'),
+      title: context.tr('语音服务', 'Voice Providers', '音声サービス'),
       showBackButton: true,
       actions: [
         IconButton(
           key: const ValueKey('add-tts-provider'),
-          tooltip: context.tr('添加语音服务', 'Add voice provider'),
+          tooltip: context.tr('添加语音服务', 'Add voice provider', '音声サービスを追加'),
           onPressed: checkingConfiguration
               ? null
               : () => setState(() => _addingInline = true),
@@ -642,8 +675,12 @@ class _TtsProviderPickerScreenState
           if (!checkingConfiguration && current.isEmpty && available.isEmpty) {
             return SettingsEmptyState(
               icon: Icons.cloud_outlined,
-              message: context.tr('尚未添加云端语音服务', 'No cloud voice providers yet'),
-              actionLabel: context.tr('添加服务', 'Add provider'),
+              message: context.tr(
+                '尚未添加云端语音服务',
+                'No cloud voice providers yet',
+                'クラウド音声サービスはありません',
+              ),
+              actionLabel: context.tr('添加服务', 'Add provider', 'サービスを追加'),
               onAction: () => setState(() => _addingInline = true),
             );
           }
@@ -659,6 +696,7 @@ class _TtsProviderPickerScreenState
                 context.tr(
                   '添加云端服务并验证 API Key。连接成功后可随时切换。',
                   'Add a cloud provider and verify its API key. Connected providers can be switched at any time.',
+                  'クラウドサービスを追加してAPIキーを確認します。接続後はいつでも切り替えられます。',
                 ),
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -670,7 +708,7 @@ class _TtsProviderPickerScreenState
               ],
               if (current.isNotEmpty) ...[
                 AppSectionHeader(
-                  title: context.tr('当前使用', 'Current'),
+                  title: context.tr('当前使用', 'Current', '現在使用中'),
                   padding: EdgeInsets.only(
                     top: design.spaceXl,
                     bottom: design.spaceSm,
@@ -693,7 +731,9 @@ class _TtsProviderPickerScreenState
                 ),
               ],
               if (available.isNotEmpty) ...[
-                AppSectionHeader(title: context.tr('其他服务', 'Other providers')),
+                AppSectionHeader(
+                  title: context.tr('其他服务', 'Other providers', 'その他のサービス'),
+                ),
                 SettingsGroup(
                   children: [
                     for (final provider in available)
@@ -730,6 +770,7 @@ class _TtsProviderPickerScreenState
         context.tr(
           '自然语音、声音克隆与流式合成',
           'Natural voices, voice cloning, and streaming synthesis',
+          '自然な音声、ボイスクローン、ストリーミング合成',
         ),
       ),
       (
@@ -739,6 +780,7 @@ class _TtsProviderPickerScreenState
         context.tr(
           '高质量语音、声音克隆与声音设计',
           'High-quality speech, cloning, and voice design',
+          '高品質な音声、ボイスクローン、音声デザイン',
         ),
       ),
     ];
@@ -755,11 +797,15 @@ class _TtsProviderPickerScreenState
             children: [
               if (widget.guidedSetup) ...[
                 SetupProgressHeader(
-                  title: context.tr('语音设置进度', 'Voice setup progress'),
+                  title: context.tr(
+                    '语音设置进度',
+                    'Voice setup progress',
+                    '音声設定の進捗',
+                  ),
                   steps: [
                     'Provider',
-                    context.tr('密钥', 'Key'),
-                    context.tr('模型', 'Model'),
+                    context.tr('密钥', 'Key', 'キー'),
+                    context.tr('模型', 'Model', 'モデル'),
                     'Voice',
                   ],
                   currentStep: 0,
@@ -767,7 +813,11 @@ class _TtsProviderPickerScreenState
                 SizedBox(height: design.spaceMd),
               ],
               AppSectionHeader(
-                title: context.tr('选择语音服务', 'Choose a voice provider'),
+                title: context.tr(
+                  '选择语音服务',
+                  'Choose a voice provider',
+                  '音声サービスを選択',
+                ),
               ),
               SettingsGroup(
                 children: [
@@ -781,7 +831,7 @@ class _TtsProviderPickerScreenState
                       title: Text(choice.$2),
                       subtitle: Text(
                         configuredById[choice.$1] == true
-                            ? context.tr('已连接', 'Connected')
+                            ? context.tr('已连接', 'Connected', '接続済み')
                             : choice.$4,
                       ),
                       trailing: Icon(
@@ -808,8 +858,8 @@ class _TtsProviderPickerScreenState
               design.spaceMd,
             ),
             child: SetupNavigationBar(
-              previousLabel: context.tr('上一步', 'Previous'),
-              nextLabel: context.tr('下一步', 'Next'),
+              previousLabel: context.tr('上一步', 'Previous', '戻る'),
+              nextLabel: context.tr('下一步', 'Next', '次へ'),
               onPrevious: () {
                 if (widget.guidedSetup) {
                   Navigator.of(context).maybePop();
@@ -893,6 +943,7 @@ class _TtsProviderPickerScreenState
             _feedback = context.tr(
               '语音服务已连接，请选择一个语音模型以继续设置。',
               'The provider is connected. Choose a voice model to continue setup.',
+              '音声サービスに接続済み。音声モデルを選択して設定を続けてください。',
             );
           });
           return;
@@ -915,6 +966,7 @@ class _TtsProviderPickerScreenState
             _feedback = context.tr(
               '语音服务已连接，请选择一个朗读音色以完成设置。',
               'The provider is connected. Choose a reading voice to finish setup.',
+              '音声サービスに接続済み。読み上げ音声を選んで設定を完了してください。',
             );
           });
           return;
@@ -928,6 +980,7 @@ class _TtsProviderPickerScreenState
         _feedback = context.tr(
           '无法切换服务，请打开详情检查凭据或网络连接。',
           'Could not switch providers. Open details to check credentials or your connection.',
+          'サービスを切り替えられません。詳細で認証情報とネットワークを確認してください。',
         );
       });
     }
@@ -961,14 +1014,14 @@ class _TtsProviderTile extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final brand = providerBrandForTtsId(provider.id);
     final status = current
-        ? context.tr('当前使用', 'In use')
+        ? context.tr('当前使用', 'In use', '現在使用中')
         : checkingConfiguration
-        ? context.tr('正在检查', 'Checking')
+        ? context.tr('正在检查', 'Checking', '確認中')
         : configured
-        ? context.tr('已配置', 'Configured')
+        ? context.tr('已配置', 'Configured', '設定済み')
         : requiresNetwork
-        ? context.tr('需要 API Key', 'API key required')
-        : context.tr('需要安装模型', 'Model required');
+        ? context.tr('需要 API Key', 'API key required', 'APIキーが必要')
+        : context.tr('需要安装模型', 'Model required', 'モデルのインストールが必要');
     final statusColor = current || configured
         ? scheme.primary
         : scheme.onSurfaceVariant;
@@ -1020,7 +1073,7 @@ class _TtsProviderTile extends StatelessWidget {
               children: [
                 Icon(Icons.check, color: scheme.primary),
                 IconButton(
-                  tooltip: context.tr('服务详情', 'Provider details'),
+                  tooltip: context.tr('服务详情', 'Provider details', 'サービスの詳細'),
                   onPressed: onDetails,
                   icon: const Icon(Icons.info_outline),
                 ),
@@ -1048,10 +1101,10 @@ class _TtsProviderTile extends StatelessWidget {
               children: [
                 TextButton(
                   onPressed: onUse,
-                  child: Text(context.tr('使用', 'Use')),
+                  child: Text(context.tr('使用', 'Use', '使用')),
                 ),
                 IconButton(
-                  tooltip: context.tr('服务详情', 'Provider details'),
+                  tooltip: context.tr('服务详情', 'Provider details', 'サービスの詳細'),
                   onPressed: onDetails,
                   icon: const Icon(Icons.info_outline),
                 ),
@@ -1059,7 +1112,7 @@ class _TtsProviderTile extends StatelessWidget {
             )
           : TextButton(
               onPressed: onDetails,
-              child: Text(context.tr('设置', 'Set up')),
+              child: Text(context.tr('设置', 'Set up', '設定')),
             ),
       onTap: current
           ? null
@@ -1121,7 +1174,7 @@ class _TtsProviderDetailsScreenState
     final activeId = ref.watch(activeTtsProviderIdProvider);
     return CollapsingPageScaffold(
       title: widget.adding
-          ? context.tr('添加语音服务', 'Add Voice Provider')
+          ? context.tr('添加语音服务', 'Add Voice Provider', '音声サービスを追加')
           : provider.displayName,
       showBackButton: true,
       body: Column(
@@ -1138,11 +1191,15 @@ class _TtsProviderDetailsScreenState
               children: [
                 if (widget.adding) ...[
                   SetupProgressHeader(
-                    title: context.tr('语音设置进度', 'Voice setup progress'),
+                    title: context.tr(
+                      '语音设置进度',
+                      'Voice setup progress',
+                      '音声設定の進捗',
+                    ),
                     steps: [
                       'Provider',
-                      context.tr('密钥', 'Key'),
-                      context.tr('模型', 'Model'),
+                      context.tr('密钥', 'Key', 'キー'),
+                      context.tr('模型', 'Model', 'モデル'),
                       'Voice',
                     ],
                     currentStep: 1,
@@ -1152,6 +1209,7 @@ class _TtsProviderDetailsScreenState
                     message: context.tr(
                       '获取 API Key，粘贴后保存。连接验证成功后会自动进入模型选择。',
                       'Get an API key and paste it below. After verification, setup continues to model selection.',
+                      'APIキーを取得して貼り付け、保存します。確認後にモデル選択へ進みます。',
                     ),
                   ),
                   SizedBox(height: design.spaceMd),
@@ -1163,7 +1221,7 @@ class _TtsProviderDetailsScreenState
                   ),
                   SizedBox(height: design.spaceMd),
                 ],
-                AppSectionHeader(title: context.tr('连接', 'Connection')),
+                AppSectionHeader(title: context.tr('连接', 'Connection', '接続')),
                 SettingsGroup(
                   children: [
                     if (provider is MinimaxTtsProvider ||
@@ -1181,10 +1239,11 @@ class _TtsProviderDetailsScreenState
                               decoration: InputDecoration(
                                 labelText: 'API Key',
                                 helperText: widget.adding
-                                    ? context.tr('必填', 'Required')
+                                    ? context.tr('必填', 'Required', '必須')
                                     : context.tr(
                                         '留空可保留已保存的凭据',
                                         'Leave empty to keep the saved credential',
+                                        '空欄なら保存済みの認証情報を保持',
                                       ),
                               ),
                             ),
@@ -1208,7 +1267,11 @@ class _TtsProviderDetailsScreenState
                                         )
                                       : const Icon(Icons.save_outlined),
                                   label: Text(
-                                    context.tr('保存凭据', 'Save credentials'),
+                                    context.tr(
+                                      '保存凭据',
+                                      'Save credentials',
+                                      '認証情報を保存',
+                                    ),
                                   ),
                                 ),
                               ),
@@ -1259,8 +1322,12 @@ class _TtsProviderDetailsScreenState
                           ),
                     label: Text(
                       activeId == provider.id
-                          ? context.tr('当前服务', 'Current provider')
-                          : context.tr('设为当前服务', 'Use this provider'),
+                          ? context.tr('当前服务', 'Current provider', '現在のサービス')
+                          : context.tr(
+                              '设为当前服务',
+                              'Use this provider',
+                              'このサービスを使用',
+                            ),
                     ),
                   ),
                   SizedBox(height: design.spaceMd),
@@ -1272,7 +1339,9 @@ class _TtsProviderDetailsScreenState
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.wifi_tethering_outlined),
-                    label: Text(context.tr('测试服务', 'Test provider')),
+                    label: Text(
+                      context.tr('测试服务', 'Test provider', 'サービスをテスト'),
+                    ),
                   ),
                   SizedBox(height: design.spaceXl),
                   TextButton.icon(
@@ -1286,7 +1355,9 @@ class _TtsProviderDetailsScreenState
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.delete_outline),
-                    label: Text(context.tr('删除语音服务', 'Delete provider')),
+                    label: Text(
+                      context.tr('删除语音服务', 'Delete provider', '音声サービスを削除'),
+                    ),
                     style: TextButton.styleFrom(
                       foregroundColor: Theme.of(context).colorScheme.error,
                     ),
@@ -1308,8 +1379,8 @@ class _TtsProviderDetailsScreenState
                 child: KeyedSubtree(
                   key: const ValueKey('save-tts-provider'),
                   child: SetupNavigationBar(
-                    previousLabel: context.tr('上一步', 'Previous'),
-                    nextLabel: context.tr('下一步', 'Next'),
+                    previousLabel: context.tr('上一步', 'Previous', '戻る'),
+                    nextLabel: context.tr('下一步', 'Next', '次へ'),
                     busy: _saving,
                     onPrevious: () => Navigator.of(context).pop(false),
                     onNext: () => _saveAndConnect(provider),
@@ -1327,10 +1398,15 @@ class _TtsProviderDetailsScreenState
     final connectionError = context.tr(
       '连接失败，请检查 API Key 和网络。',
       'Connection failed. Check the API key and your network.',
+      '接続に失敗しました。APIキーとネットワークを確認してください。',
     );
     if (key.isEmpty) {
       setState(() {
-        _feedback = context.tr('请输入 API Key。', 'Enter an API key.');
+        _feedback = context.tr(
+          '请输入 API Key。',
+          'Enter an API key.',
+          'APIキーを入力してください。',
+        );
         _feedbackIsError = true;
       });
       return;
@@ -1359,6 +1435,7 @@ class _TtsProviderDetailsScreenState
         _feedback = context.tr(
           '连接成功，正在同步可用语音模型。',
           'Connected. Available voice models are syncing.',
+          '接続しました。利用可能な音声モデルを同期中です。',
         );
         _feedbackIsError = false;
       });
@@ -1377,6 +1454,7 @@ class _TtsProviderDetailsScreenState
           _feedback = context.tr(
             '语音服务已连接，请选择一个语音模型以继续设置。',
             'The provider is connected. Choose a voice model to continue setup.',
+            '音声サービスに接続済み。音声モデルを選択して設定を続けてください。',
           );
         });
         return;
@@ -1386,6 +1464,7 @@ class _TtsProviderDetailsScreenState
         _feedback = context.tr(
           '模型已选择，正在同步云端音色。',
           'Model selected. Cloud voices are syncing.',
+          'モデルを選択しました。クラウド音声を同期中です。',
         );
       });
       final voiceSelected = await Navigator.of(context).push<bool>(
@@ -1404,6 +1483,7 @@ class _TtsProviderDetailsScreenState
           _feedback = context.tr(
             '语音服务已连接，请选择一个朗读音色以完成设置。',
             'The provider is connected. Choose a reading voice to finish setup.',
+            '音声サービスに接続済み。読み上げ音声を選んで設定を完了してください。',
           );
         });
       }
@@ -1432,6 +1512,9 @@ class _TtsProviderDetailsScreenState
             '1. Sign in or create a Fish Audio account\n'
                 '2. Select Create API Key\n'
                 '3. Copy the key and paste it above',
+            '1. Fish Audioにログインまたはアカウントを作成\n'
+                '2. Create API Keyを選択\n'
+                '3. キーをコピーして上に貼り付け',
           )
         : context.tr(
             '1. 登录 MiniMax 开放平台\n'
@@ -1440,10 +1523,21 @@ class _TtsProviderDetailsScreenState
             '1. Sign in to the MiniMax Open Platform\n'
                 '2. Open Account management > API keys\n'
                 '3. Create a new API key, then copy and paste it above',
+            '1. MiniMax Open Platformにログイン\n'
+                '2. アカウント管理 > APIキーを開く\n'
+                '3. 新しいAPIキーを作成し、コピーして上に貼り付け',
           );
     final buttonLabel = isFishAudio
-        ? context.tr('打开 Fish Audio API Keys', 'Open Fish Audio API Keys')
-        : context.tr('打开 MiniMax 接口密钥', 'Open MiniMax API Keys');
+        ? context.tr(
+            '打开 Fish Audio API Keys',
+            'Open Fish Audio API Keys',
+            'Fish AudioのAPIキーを開く',
+          )
+        : context.tr(
+            '打开 MiniMax 接口密钥',
+            'Open MiniMax API Keys',
+            'MiniMaxのAPIキーを開く',
+          );
     final colors = Theme.of(context).colorScheme;
     final design = context.appDesign;
 
@@ -1463,7 +1557,11 @@ class _TtsProviderDetailsScreenState
                 SizedBox(width: design.spaceSm),
                 Expanded(
                   child: Text(
-                    context.tr('在哪里获取 API Key？', 'Where do I get an API key?'),
+                    context.tr(
+                      '在哪里获取 API Key？',
+                      'Where do I get an API key?',
+                      'APIキーの入手先',
+                    ),
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
                 ),
@@ -1482,6 +1580,7 @@ class _TtsProviderDetailsScreenState
               context.tr(
                 '密钥只保存在此设备上。云服务可能产生费用，请查看服务商定价。',
                 'The key stays on this device. Cloud usage may incur charges; check the provider pricing.',
+                'キーはこの端末にのみ保存されます。クラウド利用には料金が発生する場合があります。サービス料金をご確認ください。',
               ),
               style: Theme.of(
                 context,
@@ -1507,6 +1606,7 @@ class _TtsProviderDetailsScreenState
           context.tr(
             '无法打开网页，请在浏览器中访问：$uri',
             'Could not open the page. Visit this address in a browser: $uri',
+            'ページを開けません。ブラウザで次のアドレスにアクセスしてください: $uri',
           ),
         ),
       ),
@@ -1522,7 +1622,7 @@ class _TtsProviderDetailsScreenState
     if (mounted) {
       setState(() {
         _saving = false;
-        _feedback = context.tr('凭据已保存。', 'Credentials saved.');
+        _feedback = context.tr('凭据已保存。', 'Credentials saved.', '認証情報を保存しました。');
         _feedbackIsError = false;
       });
     }
@@ -1545,8 +1645,12 @@ class _TtsProviderDetailsScreenState
       setState(() {
         _testing = false;
         _feedback = valid
-            ? context.tr('连接成功。', 'Connection succeeded.')
-            : context.tr('服务尚未就绪，请检查配置。', 'Provider is not ready.');
+            ? context.tr('连接成功。', 'Connection succeeded.', '接続しました。')
+            : context.tr(
+                '服务尚未就绪，请检查配置。',
+                'Provider is not ready.',
+                'サービスの準備ができていません。設定を確認してください。',
+              );
         _feedbackIsError = !valid;
       });
     }
@@ -1583,6 +1687,7 @@ class _TtsProviderDetailsScreenState
             _feedback = context.tr(
               '服务已启用，请选择语音模型以继续设置。',
               'The provider is active. Choose a voice model to continue setup.',
+              'サービスが有効です。音声モデルを選択して続行してください。',
             );
           });
           return;
@@ -1605,6 +1710,7 @@ class _TtsProviderDetailsScreenState
             _feedback = context.tr(
               '模型已选择，请再选择朗读音色以完成设置。',
               'Model selected. Choose a reading voice to finish setup.',
+              'モデルを選択しました。読み上げ音声を選んで設定を完了してください。',
             );
           });
           return;
@@ -1618,6 +1724,7 @@ class _TtsProviderDetailsScreenState
         _feedback = context.tr(
           '无法使用此服务，请检查凭据或网络连接。',
           'Could not use this provider. Check credentials or your connection.',
+          'このサービスを使用できません。認証情報またはネットワークを確認してください。',
         );
         _feedbackIsError = true;
       });
@@ -1633,19 +1740,22 @@ class _TtsProviderDetailsScreenState
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(context.tr('删除语音服务？', 'Delete voice provider?')),
+        title: Text(
+          context.tr('删除语音服务？', 'Delete voice provider?', '音声サービスを削除しますか？'),
+        ),
         content: Text(
           context.tr(
             '将从此设备删除 $providerName 的 API Key、已同步音色和音色选择。'
                 '不会删除云端账号或云端音色。',
             'This removes the $providerName API key, synced voices, and voice selection from this device. '
                 'It does not delete your cloud account or cloud voices.',
+            'この端末から$providerNameのAPIキー、同期済み音声、音声選択を削除します。クラウドアカウントやクラウド音声は削除されません。',
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(context.tr('取消', 'Cancel')),
+            child: Text(context.tr('取消', 'Cancel', 'キャンセル')),
           ),
           FilledButton(
             key: const ValueKey('confirm-delete-tts-provider'),
@@ -1654,7 +1764,7 @@ class _TtsProviderDetailsScreenState
               backgroundColor: Theme.of(context).colorScheme.error,
               foregroundColor: Theme.of(context).colorScheme.onError,
             ),
-            child: Text(context.tr('删除', 'Delete')),
+            child: Text(context.tr('删除', 'Delete', '削除')),
           ),
         ],
       ),
@@ -1679,6 +1789,7 @@ class _TtsProviderDetailsScreenState
         _feedback = context.tr(
           '删除失败：$error',
           'Could not delete the provider: $error',
+          '削除に失敗しました: $error',
         );
         _feedbackIsError = true;
       });

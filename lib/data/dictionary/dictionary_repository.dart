@@ -38,12 +38,12 @@ class FavoriteVocabularyEntry {
 }
 
 class DictionaryRepository {
-  static const _language = 'en';
   static const _notFoundLifetime = Duration(days: 7);
 
   final AppDatabase _database;
   final VocabularyComProvider _provider;
   final OpenAiCompatibleExplanationProvider? explanationProvider;
+  final String outputLanguageCode;
   final Uuid _uuid;
   final Map<String, Future<DictionaryLookupResult>> _inFlight = {};
 
@@ -51,6 +51,7 @@ class DictionaryRepository {
     this._database, {
     VocabularyComProvider? provider,
     this.explanationProvider,
+    this.outputLanguageCode = 'en',
     Uuid? uuid,
   }) : _provider = provider ?? VocabularyComProvider(),
        _uuid = uuid ?? const Uuid();
@@ -101,7 +102,7 @@ class DictionaryRepository {
     final providerId = await _fallbackProviderId(provider, context);
     final cached = await _database.getDictionaryEntry(
       providerId,
-      _language,
+      outputLanguageCode,
       normalizedTerm,
     );
     if (cached?.status == 'success') {
@@ -132,7 +133,7 @@ class DictionaryRepository {
     final now = DateTime.now().millisecondsSinceEpoch;
     final cached = await _database.getDictionaryEntry(
       VocabularyEntry.providerId,
-      _language,
+      outputLanguageCode,
       normalizedTerm,
     );
     if (cached != null) {
@@ -156,7 +157,7 @@ class DictionaryRepository {
     if (fallbackProviderId != null) {
       final fallback = await _database.getDictionaryEntry(
         fallbackProviderId,
-        _language,
+        outputLanguageCode,
         normalizedTerm,
       );
       if (fallback?.status == 'success') {
@@ -180,6 +181,18 @@ class DictionaryRepository {
         );
       }
       throw VocabularyNotFoundException(normalizedTerm);
+    }
+
+    if (outputLanguageCode != 'en' &&
+        contextProvider != null &&
+        fallbackProviderId != null) {
+      return _lookupWithExplanation(
+        term: normalizedTerm,
+        context: context,
+        provider: contextProvider,
+        providerId: fallbackProviderId,
+        now: now,
+      );
     }
 
     try {
@@ -215,7 +228,7 @@ class DictionaryRepository {
         DictionaryEntry(
           id: cached?.id ?? _uuid.v4(),
           provider: VocabularyEntry.providerId,
-          language: _language,
+          language: outputLanguageCode,
           normalizedTerm: normalizedTerm,
           displayWord: normalizedTerm,
           status: 'not_found',
@@ -240,7 +253,11 @@ class DictionaryRepository {
   }
 
   Future<List<DictionaryLookupResult>> recent({int? limit}) async {
-    final rows = await _database.getRecentDictionaryEntries(limit: limit);
+    final rows = await _database.getRecentDictionaryEntries(
+      language: outputLanguageCode,
+      provider: outputLanguageCode == 'en' ? VocabularyEntry.providerId : null,
+      limit: limit,
+    );
     return [for (final row in rows) _resultFromRow(row)];
   }
 
@@ -249,7 +266,12 @@ class DictionaryRepository {
     String prefix, {
     int limit = 5,
   }) async {
-    final rows = await _database.searchDictionaryEntries(prefix, limit: limit);
+    final rows = await _database.searchDictionaryEntries(
+      prefix,
+      language: outputLanguageCode,
+      provider: outputLanguageCode == 'en' ? VocabularyEntry.providerId : null,
+      limit: limit,
+    );
     return [for (final row in rows) _resultFromRow(row)];
   }
 
@@ -334,7 +356,11 @@ class DictionaryRepository {
           ? 'openai_compatible'
           : row.provider,
       providerLabel: row.provider.startsWith('openai_compatible:')
-          ? 'AI context explanation'
+          ? switch (outputLanguageCode) {
+              'zh' => 'AI 上下文解释',
+              'ja' => 'AIによる文脈説明',
+              _ => 'AI context explanation',
+            }
           : 'Vocabulary.com',
       word: row.displayWord,
       normalizedTerm: row.normalizedTerm,
@@ -367,7 +393,7 @@ class DictionaryRepository {
     return DictionaryEntry(
       id: id,
       provider: provider,
-      language: _language,
+      language: outputLanguageCode,
       normalizedTerm: entry.normalizedTerm,
       displayWord: entry.word,
       status: 'success',
@@ -408,7 +434,11 @@ class DictionaryRepository {
     required String providerId,
     required int now,
   }) async {
-    final entry = await provider.explain(term: term, context: context);
+    final entry = await provider.explain(
+      term: term,
+      context: context,
+      outputLanguageCode: outputLanguageCode,
+    );
     final row = await _rowFromEntry(
       id: _uuid.v4(),
       provider: providerId,

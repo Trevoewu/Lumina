@@ -85,6 +85,7 @@ class _PodcastEpisodeScreenState extends ConsumerState<PodcastEpisodeScreen> {
                 context.tr(
                   'Podcast 加载失败：${snapshot.error}',
                   'Unable to load podcast: ${snapshot.error}',
+                  'ポッドキャストを読み込めません：${snapshot.error}',
                 ),
               ),
             ),
@@ -94,7 +95,11 @@ class _PodcastEpisodeScreenState extends ConsumerState<PodcastEpisodeScreen> {
         if (data == null) {
           return Scaffold(
             appBar: AppBar(),
-            body: Center(child: Text(context.tr('单集不存在', 'Episode not found'))),
+            body: Center(
+              child: Text(
+                context.tr('单集不存在', 'Episode not found', 'エピソードが見つかりません'),
+              ),
+            ),
           );
         }
         return PlayerScreen.podcast(

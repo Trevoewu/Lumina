@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -70,6 +72,43 @@ void main() {
     expect(second.cacheId, first.cacheId);
     expect(second.entry.definitions.single.meaning, 'fanatically patriotic');
   });
+
+  test(
+    'localized dictionary lookups use AI and keep language-specific caches',
+    () async {
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      final vocabularyProvider = _FakeProvider();
+      final explanationProvider = _FakeExplanationProvider();
+      final chineseRepository = DictionaryRepository(
+        database,
+        provider: vocabularyProvider,
+        explanationProvider: explanationProvider,
+        outputLanguageCode: 'zh',
+      );
+      final japaneseRepository = DictionaryRepository(
+        database,
+        provider: vocabularyProvider,
+        explanationProvider: explanationProvider,
+        outputLanguageCode: 'ja',
+      );
+      addTearDown(database.close);
+
+      final chinese = await chineseRepository.lookup('jingoistic');
+      final chineseCached = await chineseRepository.lookup('jingoistic');
+      final japanese = await japaneseRepository.lookup('jingoistic');
+
+      expect(vocabularyProvider.calls, 0);
+      expect(explanationProvider.outputLanguages, ['zh', 'ja']);
+      expect(chinese.fromCache, isFalse);
+      expect(chineseCached.fromCache, isTrue);
+      expect(japanese.fromCache, isFalse);
+      expect(chinese.cacheId, isNot(japanese.cacheId));
+      expect(chinese.entry.providerLabel, 'AI 上下文解释');
+      expect(japanese.entry.providerLabel, 'AIによる文脈説明');
+      expect(await chineseRepository.recent(), hasLength(1));
+      expect(await japaneseRepository.recent(), hasLength(1));
+    },
+  );
 
   test('successful lookups store CEFR-J word level metadata', () async {
     final database = AppDatabase.forTesting(NativeDatabase.memory());
@@ -300,6 +339,66 @@ void main() {
     },
   );
 
+  test('AI explanation prompt requests every value in Japanese', () async {
+    final settings = <String, String>{};
+    final keyStore = _MemoryApiKeyStore();
+    Map<String, dynamic>? requestData;
+    final dio = Dio();
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          requestData = (options.data as Map).cast<String, dynamic>();
+          handler.resolve(
+            Response<Map<String, dynamic>>(
+              requestOptions: options,
+              statusCode: 200,
+              data: {
+                'choices': [
+                  {
+                    'message': {
+                      'content': jsonEncode({
+                        'part_of_speech': '名詞',
+                        'context_meaning': '文脈上の意味',
+                        'short_explanation': '短い説明',
+                        'long_explanation': '詳しい説明',
+                      }),
+                    },
+                  },
+                ],
+              },
+            ),
+          );
+        },
+      ),
+    );
+    final service = OpenAiCompatibleExplanationProvider(
+      dio: dio,
+      apiKeyStore: keyStore,
+      settingReader: (key) async => settings[key],
+      settingWriter: (key, value) async => settings[key] = value,
+    );
+    final provider = await service.addProvider(
+      kind: LlmProviderKind.deepSeek,
+      apiKey: 'deepseek-key',
+    );
+    await service.selectModel(
+      providerId: provider.id,
+      model: 'deepseek-v4-flash',
+    );
+
+    final entry = await service.explain(
+      term: 'context',
+      outputLanguageCode: 'ja',
+    );
+
+    final messages = requestData!['messages'] as List<dynamic>;
+    final systemPrompt =
+        (messages.first as Map<String, dynamic>)['content'] as String;
+    expect(systemPrompt, contains('Write every value in Japanese'));
+    expect(entry.definitions.single.meaning, '文脈上の意味');
+    expect(entry.shortExplanation, '短い説明');
+  });
+
   test(
     'OpenAI provider starts with the Responses-capable default model',
     () async {
@@ -460,6 +559,7 @@ class _FakeExplanationProvider extends OpenAiCompatibleExplanationProvider {
   int calls = 0;
   String? lastTerm;
   DictionaryLookupContext? lastContext;
+  final List<String> outputLanguages = [];
 
   _FakeExplanationProvider()
     : super(settingReader: (_) async => null, settingWriter: (_, _) async {});
@@ -477,10 +577,12 @@ class _FakeExplanationProvider extends OpenAiCompatibleExplanationProvider {
   Future<VocabularyEntry> explain({
     required String term,
     DictionaryLookupContext? context,
+    String outputLanguageCode = 'en',
   }) async {
     calls++;
     lastTerm = term;
     lastContext = context;
+    outputLanguages.add(outputLanguageCode);
     return VocabularyEntry(
       provider: 'openai_compatible',
       providerLabel: 'deepseek-v4-flash',

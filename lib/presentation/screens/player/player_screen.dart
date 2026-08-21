@@ -866,7 +866,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         setState(() => _generationSubscription = null);
         _setStreamPlaybackRequested(false);
         _showSnackBar(
-          context.tr('音频缓存失败：$error', 'Unable to cache audio: $error'),
+          context.tr(
+            '音频缓存失败：$error',
+            'Unable to cache audio: $error',
+            '音声をキャッシュできません：$error',
+          ),
         );
       },
       onDone: () {
@@ -878,6 +882,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Future<void> _applyGenerationProgress(GenerationProgress progress) async {
+    // Cancelling the stream subscription does not discard progress updates that
+    // are already queued in `_generationUpdate`. They may run after this screen
+    // has been disposed, when reading from `ref` is no longer safe.
+    if (!mounted) return;
     final chapter = widget.initialChapter;
     if (chapter == null) return;
     final manifest = await ref
@@ -896,6 +904,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Future<void> _finishGeneration(
     StreamSubscription<GenerationProgress> subscription,
   ) async {
+    // `onDone` is chained behind any pending progress update and can therefore
+    // also start after the widget has been removed.
+    if (!mounted) return;
     final chapter = widget.initialChapter;
     final manifest = chapter == null
         ? null
@@ -987,6 +998,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             context.tr(
               '${provider.displayName} 没有可用音色',
               '${provider.displayName} has no available voice',
+              '${provider.displayName}に利用できる音声がありません',
             ),
           );
         }
@@ -1015,7 +1027,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       );
       if (mounted && !silent) {
         _showSnackBar(
-          context.tr('无法开始缓存：$error', 'Unable to start caching: $error'),
+          context.tr(
+            '无法开始缓存：$error',
+            'Unable to start caching: $error',
+            'キャッシュを開始できません：$error',
+          ),
         );
       }
       return false;
@@ -1034,8 +1050,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         icon: const Icon(Icons.cloud_outlined),
         title: Text(
           setupIncomplete
-              ? context.tr('完成语音设置', 'Complete voice setup')
-              : context.tr('连接语音服务', 'Connect a voice provider'),
+              ? context.tr('完成语音设置', 'Complete voice setup', '音声設定を完了')
+              : context.tr('连接语音服务', 'Connect a voice provider', '音声サービスに接続'),
         ),
         content: Text(
           setupIncomplete
@@ -1044,21 +1060,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       '完成后，Lumina 会自动继续生成当前章节。',
                   '$providerName is connected, but a voice model and reading voice still need to be selected. '
                       'Lumina will continue generating the current chapter after setup.',
+                  '$providerNameは接続済みですが、音声モデルと読み上げ音声を選択してください。設定後、Luminaが現在の章の生成を続けます。',
                 )
               : context.tr(
                   '当前的 $providerName 尚未连接。完成云端语音服务设置后，Lumina 会自动继续生成当前章节。',
                   '$providerName is not connected. Lumina will continue generating the current chapter after cloud voice setup.',
+                  '$providerNameは接続されていません。クラウド音声サービスの設定後、Luminaが現在の章の生成を続けます。',
                 ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(context.tr('暂不', 'Not now')),
+            child: Text(context.tr('暂不', 'Not now', '今はしない')),
           ),
           FilledButton(
             key: const ValueKey('open-tts-settings'),
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(context.tr('去设置', 'Open settings')),
+            child: Text(context.tr('去设置', 'Open settings', '設定を開く')),
           ),
         ],
       ),
@@ -1229,7 +1247,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         );
         if (mounted) {
           _showSnackBar(
-            context.tr('Podcast 播放失败：$error', 'Unable to play podcast: $error'),
+            context.tr(
+              'Podcast 播放失败：$error',
+              'Unable to play podcast: $error',
+              'ポッドキャストを再生できません：$error',
+            ),
           );
         }
       } finally {
@@ -1452,7 +1474,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     } catch (error) {
       if (mounted) {
         _showSnackBar(
-          context.tr('本地转写失败：$error', 'Local transcription failed: $error'),
+          context.tr(
+            '本地转写失败：$error',
+            'Local transcription failed: $error',
+            'ローカル文字起こしに失敗しました：$error',
+          ),
         );
       }
     } finally {
@@ -1472,21 +1498,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(context.tr('重新生成字幕？', 'Regenerate transcript?')),
+        title: Text(
+          context.tr('重新生成字幕？', 'Regenerate transcript?', '文字起こしを再生成しますか？'),
+        ),
         content: Text(
           context.tr(
             '当前字幕会被删除，然后从头重新转写。',
             'The current transcript will be deleted and transcribed again from the beginning.',
+            '現在の文字起こしを削除し、最初からやり直します。',
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(context.tr('取消', 'Cancel')),
+            child: Text(context.tr('取消', 'Cancel', 'キャンセル')),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(context.tr('重新生成', 'Regenerate')),
+            child: Text(context.tr('重新生成', 'Regenerate', '再生成')),
           ),
         ],
       ),
@@ -1527,6 +1556,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           context.tr(
             '无法检查字幕模型：$error',
             'Unable to check the transcript model: $error',
+            '文字起こしモデルを確認できません：$error',
           ),
         );
       }
@@ -1540,7 +1570,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
     final handler = await ref.read(luminaAudioHandlerProvider.future);
     if (!mounted) return;
-    final paragraphLabel = context.tr('段落', 'Paragraph');
+    final paragraphLabel = context.tr('段落', 'Paragraph', '段落');
     if (!_isSelectedChapterLoaded(handler)) {
       if (_streamPlaybackRequested) {
         await _startPlayback(handler, manifest);
@@ -1590,7 +1620,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         manifest ??
         await ref.read(manifestStoreProvider).load(widget.book.id, chapter.id);
     if (!mounted) return false;
-    final paragraphLabel = context.tr('段落', 'Paragraph');
+    final paragraphLabel = context.tr('段落', 'Paragraph', '段落');
     if (latestManifest != null &&
         !identical(latestManifest, _selectedManifest)) {
       setState(() => _selectedManifest = latestManifest);
@@ -1656,6 +1686,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             context.tr(
               '播放缓存失败，请清除音频后重新生成',
               'Unable to play cached audio. Clear it and generate it again.',
+              'キャッシュ済み音声を再生できません。消去して、もう一度生成してください。',
             ),
           );
         }
@@ -1740,6 +1771,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             context.tr(
                               '播放器不可用：$error',
                               'Player unavailable: $error',
+                              'プレーヤーを利用できません：$error',
                             ),
                             style: TextStyle(color: context.appTextSecondary),
                           ),
@@ -1790,7 +1822,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             final chapterTitle =
                                 widget.initialChapter?.title ??
                                 currentItem?.title ??
-                                context.tr('未知章节', 'Unknown Chapter');
+                                context.tr('未知章节', 'Unknown Chapter', '不明な章');
 
                             return LayoutBuilder(
                               builder: (context, constraints) {
@@ -2107,10 +2139,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             ? context.tr(
                                 '转录已移至播放器',
                                 'Transcript moved to the player',
+                                '文字起こしをプレーヤーに移動しました',
                               )
                             : context.tr(
                                 '正文已移至播放器',
                                 'Chapter text moved to the player',
+                                '章の本文をプレーヤーに移動しました',
                               ),
                         style: TextStyle(
                           fontSize: 15,
@@ -2124,8 +2158,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             ? context.tr(
                                 '点此以歌词方式跟读 · 已缓存 $cachedCount 段',
                                 'Read along lyric-style · $cachedCount segments cached',
+                                '歌詞のように読み進める · $cachedCount件をキャッシュ済み',
                               )
-                            : context.tr('点此以歌词方式跟读', 'Read along lyric-style'),
+                            : context.tr(
+                                '点此以歌词方式跟读',
+                                'Read along lyric-style',
+                                '歌詞のように読み進める',
+                              ),
                         style: TextStyle(
                           fontSize: 13,
                           color: context.appTextSecondary,
@@ -2414,8 +2453,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         IconButton(
           key: const ValueKey('podcast-transcript-pause'),
           tooltip: _pausingPodcastTranscription
-              ? context.tr('正在暂停…', 'Pausing…')
-              : context.tr('暂停转写', 'Pause transcription'),
+              ? context.tr('正在暂停…', 'Pausing…', '一時停止中…')
+              : context.tr('暂停转写', 'Pause transcription', '文字起こしを一時停止'),
           icon: _pausingPodcastTranscription
               ? const SizedBox.square(
                   dimension: 18,
@@ -2433,8 +2472,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         IconButton(
           key: const ValueKey('podcast-transcript-restart'),
           tooltip: _transcriptPaused(episode)
-              ? context.tr('继续转写', 'Resume transcription')
-              : context.tr('重新转写', 'Transcribe again'),
+              ? context.tr('继续转写', 'Resume transcription', '文字起こしを再開')
+              : context.tr('重新转写', 'Transcribe again', '文字起こしをやり直す'),
           icon: Icon(
             _transcriptPaused(episode)
                 ? Icons.play_circle_outline
@@ -2471,7 +2510,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         children: [
           IconButton(
             key: const ValueKey('player-transcript-close-player'),
-            tooltip: context.tr('收起播放器', 'Close player'),
+            tooltip: context.tr('收起播放器', 'Close player', 'プレーヤーを閉じる'),
             visualDensity: VisualDensity.compact,
             icon: const Icon(Icons.keyboard_arrow_down_rounded),
             color: context.appTextPrimary,
@@ -2587,7 +2626,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (!mounted) return;
     if (citedLine == null) {
       _showSnackBar(
-        context.tr('找不到这条 Transcript 引用。', 'Transcript reference not found.'),
+        context.tr(
+          '找不到这条 Transcript 引用。',
+          'Transcript reference not found.',
+          '文字起こしの参照が見つかりません。',
+        ),
       );
       return;
     }
@@ -2624,6 +2667,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     context.tr(
                       'Transcript 引用 ${citation.label}',
                       'Transcript reference ${citation.label}',
+                      '文字起こしの参照 ${citation.label}',
                     ),
                     style: Theme.of(sheetContext).textTheme.titleMedium
                         ?.copyWith(
@@ -2652,7 +2696,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () => Navigator.of(sheetContext).pop(false),
-                    child: Text(context.tr('关闭', 'Close')),
+                    child: Text(context.tr('关闭', 'Close', '閉じる')),
                   ),
                 ),
                 if (canPlay) ...[
@@ -2661,7 +2705,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     child: FilledButton.icon(
                       onPressed: () => Navigator.of(sheetContext).pop(true),
                       icon: const Icon(Icons.play_arrow_rounded),
-                      label: Text(context.tr('从这里播放', 'Play from here')),
+                      label: Text(
+                        context.tr('从这里播放', 'Play from here', 'ここから再生'),
+                      ),
                     ),
                   ),
                 ],
@@ -2718,7 +2764,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         children: [
           _buildPlayerCardTitle(
             icon: Icons.notes_rounded,
-            title: context.tr('节目笔记', 'Shownotes'),
+            title: context.tr('节目笔记', 'Shownotes', '番組ノート'),
           ),
           SizedBox(height: context.appDesign.spaceMd),
           AnimatedSize(
@@ -2727,7 +2773,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             alignment: Alignment.topCenter,
             child: PodcastLinkText(
               notes.isEmpty
-                  ? context.tr('该单集没有附带节目笔记。', 'No shownotes provided.')
+                  ? context.tr(
+                      '该单集没有附带节目笔记。',
+                      'No shownotes provided.',
+                      '番組ノートはありません。',
+                    )
                   : notes,
               key: const ValueKey('podcast-episode-description'),
               onSeekTimestamp: (position) =>
@@ -2758,8 +2808,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ),
               label: Text(
                 _showFullPodcastNotes
-                    ? context.tr('收起', 'Show less')
-                    : context.tr('查看完整笔记', 'Show full notes'),
+                    ? context.tr('收起', 'Show less', '折りたたむ')
+                    : context.tr('查看完整笔记', 'Show full notes', '番組ノートをすべて表示'),
               ),
             ),
           ],
@@ -2869,7 +2919,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       child: Row(
         children: [
           IconButton(
-            tooltip: context.tr('收起播放器', 'Close player'),
+            tooltip: context.tr('收起播放器', 'Close player', 'プレーヤーを閉じる'),
             icon: Icon(
               Icons.keyboard_arrow_down_rounded,
               size: 32,
@@ -2890,7 +2940,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             ),
           ),
           IconButton(
-            tooltip: context.tr('更多选项', 'More options'),
+            tooltip: context.tr('更多选项', 'More options', 'その他のオプション'),
             icon: Icon(Icons.more_horiz_rounded, color: context.appTextPrimary),
             onPressed: () {},
           ),
@@ -2929,7 +2979,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               child: Row(
                 children: [
                   IconButton(
-                    tooltip: context.tr('收起播放器', 'Close player'),
+                    tooltip: context.tr('收起播放器', 'Close player', 'プレーヤーを閉じる'),
                     visualDensity: VisualDensity.compact,
                     icon: Icon(
                       Icons.keyboard_arrow_down_rounded,
@@ -2992,10 +3042,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         PlayerPrimaryAudioAction.play => context.tr(
                           '播放',
                           'Play',
+                          '再生',
                         ),
                         PlayerPrimaryAudioAction.pause => context.tr(
                           '暂停',
                           'Pause',
+                          '一時停止',
                         ),
                       };
                       return IconButton(
@@ -3127,7 +3179,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ),
               SizedBox(height: design.spaceXs),
               Text(
-                widget.book.author ?? context.tr('未知作者', 'Unknown Author'),
+                widget.book.author ??
+                    context.tr('未知作者', 'Unknown Author', '著者不明'),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
@@ -3139,7 +3192,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         ),
         SizedBox(width: design.spaceMd),
         IconButton(
-          tooltip: context.tr('收藏', 'Save'),
+          tooltip: context.tr('收藏', 'Save', '保存'),
           icon: const Icon(Icons.favorite_border_rounded),
           color: context.appTextPrimary,
           onPressed: () {},
@@ -3183,12 +3236,28 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 Text(
                   _transcribingPodcast
                       ? currentProgress?.message ??
-                            context.tr('正在本地转写', 'Transcribing locally')
+                            context.tr(
+                              '正在本地转写',
+                              'Transcribing locally',
+                              'ローカルで文字起こし中',
+                            )
                       : paused
-                      ? context.tr('转写已暂停', 'Transcription paused')
+                      ? context.tr(
+                          '转写已暂停',
+                          'Transcription paused',
+                          '文字起こしを一時停止中',
+                        )
                       : failed
-                      ? context.tr('上次转写未完成', 'Last transcription stopped')
-                      : context.tr('这个单集还没有字幕', 'No transcript yet'),
+                      ? context.tr(
+                          '上次转写未完成',
+                          'Last transcription stopped',
+                          '前回の文字起こしは未完了',
+                        )
+                      : context.tr(
+                          '这个单集还没有字幕',
+                          'No transcript yet',
+                          '文字起こしはまだありません',
+                        ),
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: context.appTextPrimary,
@@ -3207,8 +3276,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     icon: const Icon(Icons.pause_rounded, size: 18),
                     label: Text(
                       _pausingPodcastTranscription
-                          ? context.tr('正在暂停…', 'Pausing…')
-                          : context.tr('暂停', 'Pause'),
+                          ? context.tr('正在暂停…', 'Pausing…', '一時停止中…')
+                          : context.tr('暂停', 'Pause', '一時停止'),
                     ),
                   ),
                 ] else ...[
@@ -3223,10 +3292,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     ),
                     label: Text(
                       paused
-                          ? context.tr('继续转写', 'Resume transcription')
+                          ? context.tr(
+                              '继续转写',
+                              'Resume transcription',
+                              '文字起こしを再開',
+                            )
                           : context.tr(
                               '使用本地 Whisper 转写',
                               'Transcribe on device',
+                              'この端末で文字起こし',
                             ),
                     ),
                   ),
@@ -3275,6 +3349,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     context.tr(
                       '已缓存 ${transcript?.timingCount ?? 0} 段',
                       '${transcript?.timingCount ?? 0} cached',
+                      '${transcript?.timingCount ?? 0}件をキャッシュ済み',
                     ),
                     style: TextStyle(
                       color: context.appTextSecondary,
@@ -3297,7 +3372,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         if (paragraphs.isEmpty) {
           return Center(
             child: Text(
-              context.tr('无正文', 'No text'),
+              context.tr('无正文', 'No text', '本文なし'),
               style: TextStyle(color: context.appTextSecondary),
             ),
           );
@@ -3398,8 +3473,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       playbackRequested: _streamPlaybackRequested || _startingPlayback,
     );
     final primaryTooltip = switch (primaryAction) {
-      PlayerPrimaryAudioAction.play => context.tr('播放', 'Play'),
-      PlayerPrimaryAudioAction.pause => context.tr('暂停', 'Pause'),
+      PlayerPrimaryAudioAction.play => context.tr('播放', 'Play', '再生'),
+      PlayerPrimaryAudioAction.pause => context.tr('暂停', 'Pause', '一時停止'),
     };
     final remaining = duration - position;
     final remainingLabel = duration.inMilliseconds <= 0
@@ -3482,7 +3557,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             IconButton(
-              tooltip: context.tr('播放倍速', 'Playback speed'),
+              tooltip: context.tr('播放倍速', 'Playback speed', '再生速度'),
               icon: Text(
                 '${_speed.toStringAsFixed(1)}x',
                 style: TextStyle(
@@ -3496,8 +3571,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             ),
             IconButton(
               tooltip: _isPodcast
-                  ? context.tr('后退 15 秒', 'Back 15 seconds')
-                  : context.tr('上一段', 'Previous'),
+                  ? context.tr('后退 15 秒', 'Back 15 seconds', '15秒戻る')
+                  : context.tr('上一段', 'Previous', '前へ'),
               icon: Icon(
                 _isPodcast
                     ? Icons.replay_10_rounded
@@ -3556,8 +3631,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             ),
             IconButton(
               tooltip: _isPodcast
-                  ? context.tr('前进 30 秒', 'Forward 30 seconds')
-                  : context.tr('下一段', 'Next'),
+                  ? context.tr('前进 30 秒', 'Forward 30 seconds', '30秒進む')
+                  : context.tr('下一段', 'Next', '次へ'),
               icon: Icon(
                 _isPodcast ? Icons.forward_30_rounded : Icons.skip_next_rounded,
                 size: 36,
@@ -3583,8 +3658,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       ? context.tr(
                           '定时关闭：${_sleepTimerLabel(timerState)}',
                           'Sleep timer: ${_sleepTimerLabel(timerState)}',
+                          'スリープタイマー：${_sleepTimerLabel(timerState)}',
                         )
-                      : context.tr('定时关闭', 'Sleep timer'),
+                      : context.tr('定时关闭', 'Sleep timer', 'スリープタイマー'),
                   icon: Icon(
                     timerState.active
                         ? Icons.timer_rounded
@@ -3612,8 +3688,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   key: const ValueKey('player-transcript-toggle'),
                   icon: Icons.chat_bubble_outline_rounded,
                   tooltip: transcriptModeActive
-                      ? context.tr('返回封面', 'Back to cover')
-                      : context.tr('转录', 'Transcript'),
+                      ? context.tr('返回封面', 'Back to cover', '表紙に戻る')
+                      : context.tr('转录', 'Transcript', '文字起こし'),
                   chip: true,
                   active: transcriptModeActive,
                   onPressed: onTranscriptToggle,
@@ -3622,7 +3698,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 _buildPodcastActionButton(
                   key: const ValueKey('player-playlist-toggle'),
                   icon: Icons.format_list_bulleted_rounded,
-                  tooltip: context.tr('列表', 'Playlist'),
+                  tooltip: context.tr('列表', 'Playlist', '再生リスト'),
                   onPressed: () => _showPlaylist(handler),
                 ),
               ],
@@ -3637,7 +3713,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   /// exists. Elsewhere it keeps the affordance's place in the row, disabled,
   /// rather than offering a tap that could not open anything.
   Widget _buildOutputRouteButton() {
-    final label = context.tr('输出', 'Output');
+    final label = context.tr('输出', 'Output', '出力');
     if (!airPlayRoutePickerSupported) {
       return _buildPodcastActionButton(
         key: const ValueKey('player-output-toggle'),
@@ -3722,8 +3798,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (!mounted) return;
     final source = _isPodcast ? widget.podcast!.show.title : widget.book.title;
     final emptyLabel = _isPodcast
-        ? context.tr('没有更多单集', 'No more episodes')
-        : context.tr('没有更多章节', 'No more chapters');
+        ? context.tr('没有更多单集', 'No more episodes', 'これ以上エピソードはありません')
+        : context.tr('没有更多章节', 'No more chapters', 'これ以上章はありません');
     await _showPlaylistSheet(
       entries: entries,
       source: source,
@@ -3852,7 +3928,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              context.tr('接下来播放', 'Up next'),
+                              context.tr('接下来播放', 'Up next', '次に再生'),
                               style: Theme.of(context).textTheme.titleLarge
                                   ?.copyWith(
                                     color: context.appTextPrimary,
@@ -3873,7 +3949,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         ),
                       ),
                       IconButton(
-                        tooltip: context.tr('关闭', 'Close'),
+                        tooltip: context.tr('关闭', 'Close', '閉じる'),
                         icon: const Icon(Icons.close_rounded),
                         color: context.appTextSecondary,
                         onPressed: () => Navigator.of(sheetContext).pop(),
@@ -3989,7 +4065,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         stackTrace: stackTrace,
       );
       _showSnackBar(
-        context.tr('无法切换到该单集：$error', 'Unable to play episode: $error'),
+        context.tr(
+          '无法切换到该单集：$error',
+          'Unable to play episode: $error',
+          'エピソードを再生できません：$error',
+        ),
       );
     }
   }
@@ -4044,7 +4124,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          context.tr('播放倍速', 'Playback speed'),
+                          context.tr('播放倍速', 'Playback speed', '再生速度'),
                           style: TextStyle(
                             color: context.appTextPrimary,
                             fontSize: 20,
@@ -4112,12 +4192,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   String _sleepTimerLabel(SleepTimerState state) {
     return switch (state.mode) {
-      SleepTimerMode.off => context.tr('关闭', 'Off'),
+      SleepTimerMode.off => context.tr('关闭', 'Off', 'オフ'),
       SleepTimerMode.duration => context.tr(
         '${state.duration!.inMinutes} 分钟后',
         'In ${state.duration!.inMinutes} minutes',
+        '${state.duration!.inMinutes}分後',
       ),
-      SleepTimerMode.chapterEnd => context.tr('本章结束', 'End of chapter'),
+      SleepTimerMode.chapterEnd => context.tr(
+        '本章结束',
+        'End of chapter',
+        '章の終わり',
+      ),
     };
   }
 
@@ -4142,7 +4227,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  context.tr('定时关闭', 'Sleep timer'),
+                  context.tr('定时关闭', 'Sleep timer', 'スリープタイマー'),
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     color: context.appTextPrimary,
                   ),
@@ -4152,6 +4237,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   context.tr(
                     '当前：${_sleepTimerLabel(timerService.state)}',
                     'Current: ${_sleepTimerLabel(timerService.state)}',
+                    '現在：${_sleepTimerLabel(timerService.state)}',
                   ),
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: context.appTextSecondary,
@@ -4165,7 +4251,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     for (final minutes in const [15, 30, 45, 60])
                       ActionChip(
                         label: Text(
-                          context.tr('$minutes 分钟', '$minutes minutes'),
+                          context.tr(
+                            '$minutes 分钟',
+                            '$minutes minutes',
+                            '$minutes分',
+                          ),
                         ),
                         onPressed: () async {
                           await timerService.scheduleDuration(
@@ -4178,7 +4268,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         },
                       ),
                     ActionChip(
-                      label: Text(context.tr('本章结束', 'End of chapter')),
+                      label: Text(
+                        context.tr('本章结束', 'End of chapter', '章の終わり'),
+                      ),
                       onPressed: () async {
                         await timerService.scheduleChapterEnd(handler);
                         if (sheetContext.mounted) {
@@ -4188,7 +4280,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     ),
                     if (timerService.state.active)
                       ActionChip(
-                        label: Text(context.tr('关闭定时', 'Turn off')),
+                        label: Text(context.tr('关闭定时', 'Turn off', 'タイマーをオフ')),
                         onPressed: () async {
                           await timerService.cancel();
                           if (sheetContext.mounted) {
@@ -4333,7 +4425,11 @@ class _WhisperModelSetupSheetState extends State<_WhisperModelSetupSheet> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        context.tr('下载本地字幕模型', 'Download transcript model'),
+                        context.tr(
+                          '下载本地字幕模型',
+                          'Download transcript model',
+                          '文字起こしモデルをダウンロード',
+                        ),
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.w800,
                         ),
@@ -4343,6 +4439,7 @@ class _WhisperModelSetupSheetState extends State<_WhisperModelSetupSheet> {
                         context.tr(
                           'Whisper Base · 约 $sizeMb MB',
                           'Whisper Base · about $sizeMb MB',
+                          'Whisper Base · 約$sizeMb MB',
                         ),
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: scheme.onSurfaceVariant,
@@ -4358,6 +4455,7 @@ class _WhisperModelSetupSheetState extends State<_WhisperModelSetupSheet> {
               context.tr(
                 '下载后，Podcast 音频和字幕将在这台设备上处理，不会发送到第三方转写服务。',
                 'After download, podcast audio and transcripts are processed on this device and are not sent to a third-party transcription service.',
+                'ダウンロード後、ポッドキャスト音声と文字起こしはこの端末で処理され、第三者の文字起こしサービスには送信されません。',
               ),
               style: Theme.of(
                 context,
@@ -4366,7 +4464,11 @@ class _WhisperModelSetupSheetState extends State<_WhisperModelSetupSheet> {
             if (_downloading) ...[
               SizedBox(height: design.spaceLg),
               Text(
-                context.tr('正在下载 Whisper Base', 'Downloading Whisper Base'),
+                context.tr(
+                  '正在下载 Whisper Base',
+                  'Downloading Whisper Base',
+                  'Whisper Baseをダウンロード中',
+                ),
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               SizedBox(height: design.spaceSm),
@@ -4387,6 +4489,7 @@ class _WhisperModelSetupSheetState extends State<_WhisperModelSetupSheet> {
                 context.tr(
                   '下载失败，请检查网络后重试。\n$_error',
                   'Download failed. Check your connection and try again.\n$_error',
+                  'ダウンロードに失敗しました。接続を確認して、もう一度お試しください。\n$_error',
                 ),
                 style: Theme.of(
                   context,
@@ -4401,7 +4504,11 @@ class _WhisperModelSetupSheetState extends State<_WhisperModelSetupSheet> {
                 onPressed: _downloading ? null : _download,
                 icon: const Icon(Icons.download_rounded),
                 label: Text(
-                  context.tr('下载并生成字幕', 'Download and create transcript'),
+                  context.tr(
+                    '下载并生成字幕',
+                    'Download and create transcript',
+                    'ダウンロードして文字起こしを作成',
+                  ),
                 ),
               ),
             ),
@@ -4412,7 +4519,7 @@ class _WhisperModelSetupSheetState extends State<_WhisperModelSetupSheet> {
                 onPressed: _downloading
                     ? null
                     : () => Navigator.of(context).pop(false),
-                child: Text(context.tr('暂不', 'Not now')),
+                child: Text(context.tr('暂不', 'Not now', '今はしない')),
               ),
             ),
           ],

@@ -16,11 +16,11 @@ class AppearanceScreen extends ConsumerWidget {
     final accent = Theme.of(context).colorScheme.primary;
 
     return CollapsingPageScaffold(
-      title: context.tr('外观', 'Appearance'),
+      title: context.tr('外观', 'Appearance', '外観'),
       showBackButton: true,
       actions: [
         IconButton(
-          tooltip: context.tr('恢复默认', 'Restore Defaults'),
+          tooltip: context.tr('恢复默认', 'Restore Defaults', 'デフォルトに戻す'),
           icon: Icon(Icons.restart_alt),
           onPressed: controller.reset,
         ),
@@ -28,7 +28,7 @@ class AppearanceScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
         children: [
-          _SectionHeader(context.tr('阅读字体', 'Reading Font')),
+          _SectionHeader(context.tr('阅读字体', 'Reading Font', '読書フォント')),
           _SurfaceGroup(
             children: [
               for (final option in appearanceFontOptions)
@@ -60,7 +60,7 @@ class AppearanceScreen extends ConsumerWidget {
                 ),
             ],
           ),
-          _SectionHeader(context.tr('字号', 'Text Size')),
+          _SectionHeader(context.tr('字号', 'Text Size', '文字サイズ')),
           _SurfaceGroup(
             children: [
               Padding(
@@ -103,7 +103,7 @@ class AppearanceScreen extends ConsumerWidget {
               ),
             ],
           ),
-          _SectionHeader(context.tr('主题色', 'Accent Color')),
+          _SectionHeader(context.tr('主题色', 'Accent Color', 'アクセントカラー')),
           _SurfaceGroup(
             children: [
               Padding(

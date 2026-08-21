@@ -195,8 +195,9 @@ void main() {
       'book-cache-test',
       'book-cache-test_ch_2',
     );
-    await tester.tap(find.byType(BackButton));
+    await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('home-overview-hero')), findsOneWidget);
     expect(find.textContaining('25% read'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('home-section-books')));
@@ -361,17 +362,26 @@ void main() {
     expect(find.text('语言'), findsOneWidget);
     expect(find.text('阅读外观'), findsOneWidget);
 
-    await tester.tap(find.text('主题'));
+    await tester.tap(find.text('语言'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('日本語'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('一般'), findsOneWidget);
+    expect(find.text('言語'), findsOneWidget);
+    expect(find.text('読書の表示'), findsOneWidget);
+
+    await tester.tap(find.text('テーマ'));
     await tester.pumpAndSettle();
     expect(find.byType(BottomSheet), findsNothing);
-    await tester.tap(find.text('浅色'));
+    await tester.tap(find.text('ライト'));
     await tester.pumpAndSettle();
 
     expect(
       tester.widget<MaterialApp>(find.byType(MaterialApp)).themeMode,
       ThemeMode.light,
     );
-    expect(await database.getSetting('general_language'), 'zhHans');
+    expect(await database.getSetting('general_language'), 'japanese');
     expect(await database.getSetting('general_theme_mode'), 'light');
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());

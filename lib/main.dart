@@ -81,7 +81,7 @@ class _LuminaAppState extends ConsumerState<LuminaApp> {
       title: 'Lumina',
       debugShowCheckedModeBanner: false,
       locale: preferences.locale,
-      supportedLocales: const [Locale('en'), Locale('zh', 'CN')],
+      supportedLocales: const [Locale('en'), Locale('zh', 'CN'), Locale('ja')],
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,

@@ -75,8 +75,8 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
 
     return CollapsingPageScaffold(
       title: widget.guidedSelection
-          ? context.tr('选择朗读音色', 'Choose a Reading Voice')
-          : context.tr('音色库', 'Voice Library'),
+          ? context.tr('选择朗读音色', 'Choose a Reading Voice', '読み上げ音声を選択')
+          : context.tr('音色库', 'Voice Library', '音声ライブラリ'),
       showBackButton: true,
       body: Column(
         children: [
@@ -88,11 +88,15 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                 children: [
                   if (widget.guidedSelection) ...[
                     SetupProgressHeader(
-                      title: context.tr('语音设置进度', 'Voice setup progress'),
+                      title: context.tr(
+                        '语音设置进度',
+                        'Voice setup progress',
+                        '音声設定の進捗',
+                      ),
                       steps: [
                         'Provider',
-                        context.tr('密钥', 'Key'),
-                        context.tr('模型', 'Model'),
+                        context.tr('密钥', 'Key', 'キー'),
+                        context.tr('模型', 'Model', 'モデル'),
                         'Voice',
                       ],
                       currentStep: 3,
@@ -102,6 +106,7 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                       message: context.tr(
                         '可用音色会从 ${provider.displayName} 云端同步。点击一个音色完成设置。',
                         'Available voices are synced from the cloud through ${provider.displayName}. Tap one to finish setup.',
+                        '${provider.displayName}から利用可能な音声を同期します。音声をタップして設定を完了してください。',
                       ),
                     ),
                   ],
@@ -134,6 +139,7 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                                 context.tr(
                                   '正在从云端同步可用音色。点击一个音色，将它设为有声书的朗读声音。',
                                   'Available voices are synced from the cloud. Tap one to use it for audiobook reading.',
+                                  'クラウドから音声を同期します。音声をタップして読み上げに設定してください。',
                                 ),
                               ),
                             ],
@@ -155,8 +161,16 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                                   : Icon(Icons.cloud_sync_outlined),
                               label: Text(
                                 _loadingPreset
-                                    ? context.tr('正在同步音色', 'Syncing voices')
-                                    : context.tr('同步云端音色', 'Sync cloud voices'),
+                                    ? context.tr(
+                                        '正在同步音色',
+                                        'Syncing voices',
+                                        '音声を同期中',
+                                      )
+                                    : context.tr(
+                                        '同步云端音色',
+                                        'Sync cloud voices',
+                                        'クラウド音声を同期',
+                                      ),
                               ),
                             ),
                           ],
@@ -181,7 +195,7 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              context.tr('克隆音色', 'Clone Voice'),
+                              context.tr('克隆音色', 'Clone Voice', '音声をクローン'),
                               style: Theme.of(context).textTheme.titleMedium,
                             ),
                             const SizedBox(height: 12),
@@ -189,7 +203,11 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                               controller: _cloneNameController,
                               decoration: InputDecoration(
                                 border: const OutlineInputBorder(),
-                                labelText: context.tr('音色名称', 'Voice name'),
+                                labelText: context.tr(
+                                  '音色名称',
+                                  'Voice name',
+                                  '音声名',
+                                ),
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -202,10 +220,12 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                                 labelText: context.tr(
                                   '参考文本',
                                   'Reference transcript',
+                                  '参照テキスト',
                                 ),
                                 hintText: context.tr(
                                   '尽量填写样本音频中实际说出的文字，可显著稳定音色',
                                   'Enter the words spoken in the sample for a more stable voice.',
+                                  'サンプル音声で実際に話す言葉を入力すると音声が安定します',
                                 ),
                               ),
                             ),
@@ -227,6 +247,7 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                                   context.tr(
                                     '选择音频并保存',
                                     'Choose Audio and Save',
+                                    '音声を選択して保存',
                                   ),
                                 ),
                               ),
@@ -246,7 +267,7 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              context.tr('描述生成音色', 'Design a Voice'),
+                              context.tr('描述生成音色', 'Design a Voice', '音声をデザイン'),
                               style: Theme.of(context).textTheme.titleMedium,
                             ),
                             const SizedBox(height: 12),
@@ -254,7 +275,11 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                               controller: _nameController,
                               decoration: InputDecoration(
                                 border: const OutlineInputBorder(),
-                                labelText: context.tr('音色名称', 'Voice name'),
+                                labelText: context.tr(
+                                  '音色名称',
+                                  'Voice name',
+                                  '音声名',
+                                ),
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -268,10 +293,12 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                                 labelText: context.tr(
                                   '音色描述',
                                   'Voice description',
+                                  '音声の説明',
                                 ),
                                 hintText: context.tr(
                                   '例如：温暖、自然、适合睡前听书的女声',
                                   'For example: a warm, natural female voice for bedtime listening',
+                                  '例: 温かく自然な、寝る前の読書に合う女性の声',
                                 ),
                               ),
                             ),
@@ -291,7 +318,11 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                                       )
                                     : Icon(Icons.auto_awesome),
                                 label: Text(
-                                  context.tr('生成并保存', 'Generate and Save'),
+                                  context.tr(
+                                    '生成并保存',
+                                    'Generate and Save',
+                                    '生成して保存',
+                                  ),
                                 ),
                               ),
                             ),
@@ -311,8 +342,8 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                 child: SetupNavigationBar(
-                  previousLabel: context.tr('上一步', 'Previous'),
-                  nextLabel: context.tr('完成', 'Finish'),
+                  previousLabel: context.tr('上一步', 'Previous', '戻る'),
+                  nextLabel: context.tr('完成', 'Finish', '完了'),
                   onPrevious: () => Navigator.of(context).pop(false),
                   onNext: _pendingVoiceId == null && _activeVoiceId == null
                       ? null
@@ -329,8 +360,8 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
     const SizedBox(height: 20),
     Text(
       widget.guidedSelection
-          ? context.tr('选择一个音色', 'Choose a voice')
-          : context.tr('已保存音色', 'Saved Voices'),
+          ? context.tr('选择一个音色', 'Choose a voice', '音声を選択')
+          : context.tr('已保存音色', 'Saved Voices', '保存済みの音声'),
       style: Theme.of(context).textTheme.titleMedium,
     ),
     const SizedBox(height: 8),
@@ -355,7 +386,11 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            context.tr('正在同步云端音色…', 'Syncing cloud voices…'),
+                            context.tr(
+                              '正在同步云端音色…',
+                              'Syncing cloud voices…',
+                              'クラウド音声を同期中…',
+                            ),
                           ),
                         ),
                       ],
@@ -364,6 +399,7 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                       context.tr(
                         '暂无可用音色，请重新同步。',
                         'No voices are available. Try syncing again.',
+                        '利用可能な音声がありません。再同期してください。',
                       ),
                     ),
             ),
@@ -384,7 +420,7 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                   title: Text(voice.name),
                   subtitle: Text(
                     voice.id == _displayedVoiceId
-                        ? '${context.tr('当前音色', 'Current voice')} · ${voice.type} · ${voice.providerVoiceId}'
+                        ? '${context.tr('当前音色', 'Current voice', '現在の音声')} · ${voice.type} · ${voice.providerVoiceId}'
                         : '${voice.type} · ${voice.providerVoiceId}',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -394,7 +430,7 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                     children: [
                       if (voice.id == _displayedVoiceId)
                         Tooltip(
-                          message: context.tr('当前音色', 'Current voice'),
+                          message: context.tr('当前音色', 'Current voice', '現在の音声'),
                           child: Icon(
                             Icons.check_circle,
                             color: Theme.of(context).colorScheme.primary,
@@ -402,7 +438,11 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
                         ),
                       if (!widget.guidedSelection)
                         IconButton(
-                          tooltip: context.tr('删除本地记录', 'Delete local record'),
+                          tooltip: context.tr(
+                            '删除本地记录',
+                            'Delete local record',
+                            'ローカル記録を削除',
+                          ),
                           icon: Icon(Icons.delete_outline),
                           onPressed: () => _deleteVoice(voice.id),
                         ),
@@ -431,6 +471,7 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
         context.tr(
           '已同步 ${voices.length} 个 $providerId 音色',
           'Synced ${voices.length} $providerId voices',
+          '${voices.length}個の$providerId音声を同期済み',
         ),
       );
       _reloadVoices();
@@ -443,7 +484,7 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
       );
       if (!mounted) return;
       _showFeedback(
-        context.tr('同步音色失败。', 'Unable to sync voices.'),
+        context.tr('同步音色失败。', 'Unable to sync voices.', '音声の同期に失敗しました。'),
         isError: true,
       );
     } finally {
@@ -456,7 +497,11 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
     final description = _descriptionController.text.trim();
     if (name.isEmpty || description.isEmpty) {
       _showFeedback(
-        context.tr('请填写音色名称和描述', 'Enter a voice name and description'),
+        context.tr(
+          '请填写音色名称和描述',
+          'Enter a voice name and description',
+          '音声名と説明を入力してください',
+        ),
         isError: true,
       );
       return;
@@ -478,14 +523,22 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
       _descriptionController.clear();
       if (!mounted) return;
       _showFeedback(
-        context.tr('音色已生成并设为当前音色', 'Voice generated and set as current'),
+        context.tr(
+          '音色已生成并设为当前音色',
+          'Voice generated and set as current',
+          '音声を生成し、現在の音声に設定しました',
+        ),
       );
       _reloadVoices();
     } catch (e, stackTrace) {
       AppLogger.error('Voice', '描述生成音色失败', error: e, stackTrace: stackTrace);
       if (!mounted) return;
       _showFeedback(
-        context.tr('音色生成失败。', 'Unable to generate the voice.'),
+        context.tr(
+          '音色生成失败。',
+          'Unable to generate the voice.',
+          '音声を生成できませんでした。',
+        ),
         isError: true,
       );
     } finally {
@@ -496,7 +549,10 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
   Future<void> _cloneVoice() async {
     final name = _cloneNameController.text.trim();
     if (name.isEmpty) {
-      _showFeedback(context.tr('请填写音色名称', 'Enter a voice name'), isError: true);
+      _showFeedback(
+        context.tr('请填写音色名称', 'Enter a voice name', '音声名を入力してください'),
+        isError: true,
+      );
       return;
     }
 
@@ -525,7 +581,11 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
     if (bytes == null) {
       if (!mounted) return;
       _showFeedback(
-        context.tr('无法读取音频文件', 'Unable to read the audio file'),
+        context.tr(
+          '无法读取音频文件',
+          'Unable to read the audio file',
+          '音声ファイルを読み込めません',
+        ),
         isError: true,
       );
       return;
@@ -538,6 +598,7 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
         context.tr(
           '样本文件过大：最大 ${_formatBytes(maxSize)}',
           'The sample is too large. Maximum: ${_formatBytes(maxSize)}',
+          'サンプルが大きすぎます。最大: ${_formatBytes(maxSize)}',
         ),
         isError: true,
       );
@@ -567,14 +628,18 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
       _cloneTextController.clear();
       if (!mounted) return;
       _showFeedback(
-        context.tr('克隆音色已保存并设为当前音色', 'Cloned voice saved and set as current'),
+        context.tr(
+          '克隆音色已保存并设为当前音色',
+          'Cloned voice saved and set as current',
+          'クローン音声を保存し、現在の音声に設定しました',
+        ),
       );
       _reloadVoices();
     } catch (e, stackTrace) {
       AppLogger.error('Voice', '克隆音色失败', error: e, stackTrace: stackTrace);
       if (!mounted) return;
       _showFeedback(
-        context.tr('音色克隆失败。', 'Unable to clone the voice.'),
+        context.tr('音色克隆失败。', 'Unable to clone the voice.', '音声のクローンに失敗しました。'),
         isError: true,
       );
     } finally {
@@ -594,7 +659,9 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
     ref.invalidate(ttsSettingsControllerProvider);
     if (!mounted) return;
     setState(() => _activeVoiceId = voiceId);
-    _showFeedback(context.tr('已设为当前音色', 'Set as current voice'));
+    _showFeedback(
+      context.tr('已设为当前音色', 'Set as current voice', '現在の音声に設定しました'),
+    );
   }
 
   String? get _displayedVoiceId => widget.guidedSelection
@@ -636,7 +703,7 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
     }
     if (!mounted) return;
     _reloadVoices();
-    _showFeedback(context.tr('音色记录已删除', 'Voice record deleted'));
+    _showFeedback(context.tr('音色记录已删除', 'Voice record deleted', '音声記録を削除しました'));
   }
 
   void _reloadVoices() {
@@ -683,15 +750,22 @@ class _VoiceLibraryScreenState extends ConsumerState<VoiceLibraryScreen> {
   String _capabilityLine(TtsCapabilities caps) {
     final bits = <String>[];
     bits.add(
-      caps.paid ? context.tr('按量计费', 'Usage-based') : context.tr('免费', 'Free'),
+      caps.paid
+          ? context.tr('按量计费', 'Usage-based', '従量課金')
+          : context.tr('免费', 'Free', '無料'),
     );
-    if (caps.presetVoices) bits.add(context.tr('预置音色', 'Preset voices'));
-    if (caps.voiceCloning) bits.add(context.tr('克隆', 'Cloning'));
-    if (caps.voiceDescription) bits.add(context.tr('描述生成', 'Voice design'));
+    if (caps.presetVoices) {
+      bits.add(context.tr('预置音色', 'Preset voices', 'プリセット音声'));
+    }
+    if (caps.voiceCloning) bits.add(context.tr('克隆', 'Cloning', 'クローン'));
+    if (caps.voiceDescription) {
+      bits.add(context.tr('描述生成', 'Voice design', '音声デザイン'));
+    }
     bits.add(
       context.tr(
         '单次上限 ${caps.maxCharsPerCall} 字',
         '${caps.maxCharsPerCall} characters per request',
+        '1回${caps.maxCharsPerCall}文字まで',
       ),
     );
     return bits.join(' · ');

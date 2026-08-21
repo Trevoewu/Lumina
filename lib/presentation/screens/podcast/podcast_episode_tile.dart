@@ -150,7 +150,7 @@ class _PodcastEpisodeTileState extends ConsumerState<PodcastEpisodeTile> {
       title: resolvedEpisode.title,
       actions: [
         HalfScreenActionSheetItem(
-          label: context.tr('标记为已听完', 'Mark as finished'),
+          label: context.tr('标记为已听完', 'Mark as finished', '聴き終わりにする'),
           icon: Icons.check_circle_outline_rounded,
           onPressed: resolvedEpisode.isPlayed
               ? null
@@ -158,15 +158,20 @@ class _PodcastEpisodeTileState extends ConsumerState<PodcastEpisodeTile> {
         ),
         HalfScreenActionSheetItem(
           label: downloaded
-              ? context.tr('单集已下载', 'Episode downloaded')
+              ? context.tr('单集已下载', 'Episode downloaded', 'エピソードをダウンロード済み')
               : _downloading
               ? progress == null
-                    ? context.tr('正在下载单集', 'Downloading episode')
+                    ? context.tr(
+                        '正在下载单集',
+                        'Downloading episode',
+                        'エピソードをダウンロード中',
+                      )
                     : context.tr(
                         '正在下载 ${(progress * 100).round()}%',
                         'Downloading ${(progress * 100).round()}%',
+                        'ダウンロード中 ${(progress * 100).round()}%',
                       )
-              : context.tr('下载单集', 'Download episode'),
+              : context.tr('下载单集', 'Download episode', 'エピソードをダウンロード'),
           icon: downloaded
               ? Icons.download_done_rounded
               : Icons.download_for_offline_outlined,
@@ -176,7 +181,7 @@ class _PodcastEpisodeTileState extends ConsumerState<PodcastEpisodeTile> {
         ),
         if (hasTranscript)
           HalfScreenActionSheetItem(
-            label: context.tr('删除字幕', 'Delete transcript'),
+            label: context.tr('删除字幕', 'Delete transcript', '文字起こしを削除'),
             icon: Icons.delete_outline_rounded,
             destructive: true,
             onPressed: () => _deleteTranscript(resolvedEpisode),
@@ -196,21 +201,22 @@ class _PodcastEpisodeTileState extends ConsumerState<PodcastEpisodeTile> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(context.tr('删除字幕？', 'Delete transcript?')),
+        title: Text(context.tr('删除字幕？', 'Delete transcript?', '文字起こしを削除しますか？')),
         content: Text(
           context.tr(
             '只删除本地字幕，Podcast 音频会保留。之后可以重新生成。',
             'Only the local transcript will be deleted. Podcast audio will be kept and you can generate it again later.',
+            'ローカルの文字起こしのみ削除されます。ポッドキャスト音声は保持され、後で再生成できます。',
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(context.tr('取消', 'Cancel')),
+            child: Text(context.tr('取消', 'Cancel', 'キャンセル')),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(context.tr('删除', 'Delete')),
+            child: Text(context.tr('删除', 'Delete', '削除')),
           ),
         ],
       ),
@@ -223,7 +229,11 @@ class _PodcastEpisodeTileState extends ConsumerState<PodcastEpisodeTile> {
       await _refreshEpisode();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.tr('字幕已删除', 'Transcript deleted'))),
+          SnackBar(
+            content: Text(
+              context.tr('字幕已删除', 'Transcript deleted', '文字起こしを削除しました'),
+            ),
+          ),
         );
       }
     } catch (error) {
@@ -234,6 +244,7 @@ class _PodcastEpisodeTileState extends ConsumerState<PodcastEpisodeTile> {
               context.tr(
                 '字幕删除失败：$error',
                 'Unable to delete transcript: $error',
+                '文字起こしを削除できません：$error',
               ),
             ),
           ),
@@ -274,13 +285,23 @@ class _PodcastEpisodeTileState extends ConsumerState<PodcastEpisodeTile> {
         setState(() => _resolvedEpisode = updated);
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.tr('单集已下载', 'Episode downloaded'))),
+        SnackBar(
+          content: Text(
+            context.tr('单集已下载', 'Episode downloaded', 'エピソードをダウンロードしました'),
+          ),
+        ),
       );
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(context.tr('无法下载单集', 'Unable to download episode')),
+          content: Text(
+            context.tr(
+              '无法下载单集',
+              'Unable to download episode',
+              'エピソードをダウンロードできません',
+            ),
+          ),
         ),
       );
     } finally {
@@ -317,7 +338,9 @@ class _PodcastEpisodeTileState extends ConsumerState<PodcastEpisodeTile> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(context.tr('无法标记为已听完', 'Unable to mark as finished')),
+          content: Text(
+            context.tr('无法标记为已听完', 'Unable to mark as finished', '聴き終わりにできません'),
+          ),
         ),
       );
     }

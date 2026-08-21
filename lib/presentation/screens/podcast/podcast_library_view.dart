@@ -111,12 +111,14 @@ class _PodcastLibraryViewState extends ConsumerState<PodcastLibraryView> {
                     context.tr(
                       '在 Podcast Index 中发现节目',
                       'Discover with Podcast Index',
+                      'Podcast Indexで番組を探す',
                     ),
                   ),
                   subtitle: Text(
                     context.tr(
                       '搜索开放 Podcast 目录',
                       'Search the open podcast directory',
+                      '公開ポッドキャストディレクトリを検索',
                     ),
                   ),
                   trailing: const Icon(Icons.chevron_right),
@@ -128,7 +130,7 @@ class _PodcastLibraryViewState extends ConsumerState<PodcastLibraryView> {
                 children: [
                   Expanded(
                     child: Text(
-                      context.tr('已订阅', 'Subscriptions'),
+                      context.tr('已订阅', 'Subscriptions', '購読中'),
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         color: context.appTextPrimary,
                         fontWeight: FontWeight.w800,
@@ -136,7 +138,7 @@ class _PodcastLibraryViewState extends ConsumerState<PodcastLibraryView> {
                     ),
                   ),
                   IconButton(
-                    tooltip: context.tr('刷新全部', 'Refresh all'),
+                    tooltip: context.tr('刷新全部', 'Refresh all', 'すべて更新'),
                     onPressed: _refreshing ? null : _refreshAll,
                     icon: _refreshing
                         ? const SizedBox.square(
@@ -188,7 +190,7 @@ class _PodcastLibraryViewState extends ConsumerState<PodcastLibraryView> {
                 children: [
                   Expanded(
                     child: Text(
-                      context.tr('最新单集', 'Latest episodes'),
+                      context.tr('最新单集', 'Latest episodes', '最新エピソード'),
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         color: context.appTextPrimary,
                         fontWeight: FontWeight.w800,
@@ -199,7 +201,7 @@ class _PodcastLibraryViewState extends ConsumerState<PodcastLibraryView> {
                     TextButton(
                       key: const ValueKey('podcast-latest-see-all'),
                       onPressed: _openAllEpisodes,
-                      child: Text(context.tr('查看全部', 'See all')),
+                      child: Text(context.tr('查看全部', 'See all', 'すべて表示')),
                     ),
                 ],
               ),
@@ -379,7 +381,7 @@ class _PodcastDiscoverSectionState
           children: [
             Expanded(
               child: Text(
-                context.tr('为你发现', 'Discover for you'),
+                context.tr('为你发现', 'Discover for you', 'おすすめを発見'),
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   color: context.appTextPrimary,
                   fontWeight: FontWeight.w800,
@@ -387,7 +389,11 @@ class _PodcastDiscoverSectionState
               ),
             ),
             IconButton(
-              tooltip: context.tr('换一批推荐', 'Refresh recommendations'),
+              tooltip: context.tr(
+                '换一批推荐',
+                'Refresh recommendations',
+                'おすすめを更新',
+              ),
               onPressed: _refresh,
               icon: const Icon(Icons.refresh_rounded),
             ),
@@ -411,12 +417,17 @@ class _PodcastDiscoverSectionState
                 child: ListTile(
                   leading: const Icon(Icons.travel_explore_rounded),
                   title: Text(
-                    context.tr('浏览 Podcast Index', 'Browse Podcast Index'),
+                    context.tr(
+                      '浏览 Podcast Index',
+                      'Browse Podcast Index',
+                      'Podcast Indexを閲覧',
+                    ),
                   ),
                   subtitle: Text(
                     context.tr(
                       '搜索节目后，推荐会根据你的订阅和收听逐渐调整。',
                       'Recommendations adapt as you follow and listen.',
+                      'フォローや再生履歴に応じて、おすすめが変わります。',
                     ),
                   ),
                   trailing: const Icon(Icons.chevron_right),
@@ -559,7 +570,11 @@ class _PodcastEmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             Text(
-              context.tr('订阅你的第一个 Podcast', 'Add your first podcast'),
+              context.tr(
+                '订阅你的第一个 Podcast',
+                'Add your first podcast',
+                '最初のポッドキャストを購読',
+              ),
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                 color: context.appTextPrimary,
@@ -571,6 +586,7 @@ class _PodcastEmptyState extends StatelessWidget {
               context.tr(
                 '从 Podcast Index 搜索，或粘贴 RSS 地址；订阅后可后台播放并用本地 Whisper 生成字幕。',
                 'Search Podcast Index or paste an RSS feed, then play in the background and create transcripts with local Whisper.',
+                'Podcast Indexを検索するかRSSフィードを貼り付けると、バックグラウンド再生やローカルWhisperによる文字起こしを利用できます。',
               ),
               textAlign: TextAlign.center,
               style: TextStyle(color: context.appTextSecondary),
@@ -581,14 +597,24 @@ class _PodcastEmptyState extends StatelessWidget {
               onPressed: onSearchPodcastIndex,
               icon: const Icon(Icons.travel_explore_rounded),
               label: Text(
-                context.tr('搜索 Podcast Index', 'Search Podcast Index'),
+                context.tr(
+                  '搜索 Podcast Index',
+                  'Search Podcast Index',
+                  'Podcast Indexを検索',
+                ),
               ),
             ),
             const SizedBox(height: 10),
             TextButton.icon(
               onPressed: onAddPodcast,
               icon: const Icon(Icons.add_link),
-              label: Text(context.tr('粘贴 RSS 地址', 'Paste RSS feed URL')),
+              label: Text(
+                context.tr(
+                  '粘贴 RSS 地址',
+                  'Paste RSS feed URL',
+                  'RSSフィードURLを貼り付け',
+                ),
+              ),
             ),
             const SizedBox(height: 36),
             discoverSection,
@@ -663,19 +689,24 @@ String _recommendationReason(
   return switch (recommendation.reason) {
     PodcastRecommendationReason.becauseYouListen =>
       detail == null || detail.isEmpty
-          ? context.tr('根据你的收听推荐', 'Based on your listening')
-          : context.tr('因为你收听 $detail', 'Because you listen to $detail'),
+          ? context.tr('根据你的收听推荐', 'Based on your listening', '視聴履歴に基づくおすすめ')
+          : context.tr(
+              '因为你收听 $detail',
+              'Because you listen to $detail',
+              '$detailを聴いているあなたへ',
+            ),
     PodcastRecommendationReason.category =>
       detail == null || detail.isEmpty
-          ? context.tr('符合你的兴趣', 'Matches your interests')
-          : context.tr('探索 $detail', 'Explore $detail'),
+          ? context.tr('符合你的兴趣', 'Matches your interests', '興味に合う番組')
+          : context.tr('探索 $detail', 'Explore $detail', '$detailを探索'),
     PodcastRecommendationReason.trending => context.tr(
       '当前热门节目',
       'Trending now',
+      '今話題の番組',
     ),
     PodcastRecommendationReason.explore =>
       detail == null || detail.isEmpty
-          ? context.tr('为你探索', 'Something new for you')
-          : context.tr('探索 $detail', 'Explore $detail'),
+          ? context.tr('为你探索', 'Something new for you', '新しい番組を発見')
+          : context.tr('探索 $detail', 'Explore $detail', '$detailを探索'),
   };
 }

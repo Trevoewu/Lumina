@@ -123,7 +123,11 @@ class _DictionaryLookupSheetState
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.tr('发音播放失败', 'Pronunciation failed'))),
+        SnackBar(
+          content: Text(
+            context.tr('发音播放失败', 'Pronunciation failed', '発音の再生に失敗しました'),
+          ),
+        ),
       );
     }
   }
@@ -180,6 +184,7 @@ class _DictionaryLookupSheetState
                                   hintText: context.tr(
                                     '输入英文单词或短语',
                                     'Enter an English word',
+                                    '英単語を入力',
                                   ),
                                   onSubmitted: _lookup,
                                   onSearch: _lookup,
@@ -189,7 +194,11 @@ class _DictionaryLookupSheetState
                               ),
                               SizedBox(width: design.spaceSm),
                               IconButton(
-                                tooltip: context.tr('收起搜索', 'Hide search'),
+                                tooltip: context.tr(
+                                  '收起搜索',
+                                  'Hide search',
+                                  '検索を隠す',
+                                ),
                                 onPressed: () {
                                   FocusScope.of(context).unfocus();
                                   setState(() => _searchExpanded = false);
@@ -205,6 +214,7 @@ class _DictionaryLookupSheetState
                                 tooltip: context.tr(
                                   '搜索其他单词',
                                   'Search another word',
+                                  '別の単語を検索',
                                 ),
                                 onPressed: () =>
                                     setState(() => _searchExpanded = true),
@@ -270,12 +280,15 @@ class _SheetError extends StatelessWidget {
           SizedBox(height: context.appDesign.spaceMd),
           Text(
             notFound
-                ? context.tr('没有找到这个单词', 'Word not found')
-                : context.tr('词典暂时不可用', 'Dictionary unavailable'),
+                ? context.tr('没有找到这个单词', 'Word not found', '単語が見つかりません')
+                : context.tr('词典暂时不可用', 'Dictionary unavailable', '辞書を利用できません'),
             style: Theme.of(context).textTheme.titleMedium,
           ),
           SizedBox(height: context.appDesign.spaceSm),
-          TextButton(onPressed: retry, child: Text(context.tr('重试', 'Retry'))),
+          TextButton(
+            onPressed: retry,
+            child: Text(context.tr('重试', 'Retry', '再試行')),
+          ),
         ],
       ),
     );

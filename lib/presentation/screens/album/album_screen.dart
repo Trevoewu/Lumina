@@ -127,8 +127,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     setState(() => _isRead = isRead);
     _showSnackBar(
       isRead
-          ? context.tr('已标记为已读', 'Marked as read')
-          : context.tr('已标记为未读', 'Marked as unread'),
+          ? context.tr('已标记为已读', 'Marked as read', '既読にしました')
+          : context.tr('已标记为未读', 'Marked as unread', '未読にしました'),
     );
   }
 
@@ -191,7 +191,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
         .markChapterFinished(widget.book.id, chapter.id);
     await _refreshChapterData();
     if (!mounted) return;
-    _showSnackBar(context.tr('已标记为已听完', 'Marked as finished'));
+    _showSnackBar(context.tr('已标记为已听完', 'Marked as finished', '聴き終わりにしました'));
   }
 
   Future<String?> _loadBookIntroduction() async {
@@ -482,7 +482,9 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     ];
     if (!mounted) return;
     if (voices.isEmpty) {
-      _showSnackBar(context.tr('没有可用音色', 'No narrator is available'));
+      _showSnackBar(
+        context.tr('没有可用音色', 'No narrator is available', '利用できるナレーターがありません'),
+      );
       return;
     }
 
@@ -501,7 +503,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
                 child: Text(
-                  context.tr('修改旁白', 'Change narrator'),
+                  context.tr('修改旁白', 'Change narrator', 'ナレーターを変更'),
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
@@ -518,7 +520,13 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                             ? Icons.radio_button_checked
                             : Icons.radio_button_off,
                       ),
-                      title: Text(context.tr('使用书籍默认旁白', 'Use book default')),
+                      title: Text(
+                        context.tr(
+                          '使用书籍默认旁白',
+                          'Use book default',
+                          '本の既定のナレーターを使用',
+                        ),
+                      ),
                       onTap: () =>
                           _saveChapterNarrator(sheetContext, chapter, null),
                     ),
@@ -563,6 +571,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       context.tr(
         '已更新旁白；重新生成后将应用到音频。',
         'Narrator updated. Regenerate audio to apply it.',
+        'ナレーターを更新しました。再生成すると音声に反映されます。',
       ),
     );
   }
@@ -576,6 +585,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       context.tr(
         '已在本书中隐藏“${chapter.title}”。',
         '“${chapter.title}” is hidden in this book.',
+        '「${chapter.title}」をこの本で非表示にしました。',
       ),
     );
   }
@@ -589,7 +599,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
         .toList();
     if (!mounted) return;
     if (hiddenChapters.isEmpty) {
-      _showSnackBar(context.tr('没有隐藏章节', 'No hidden chapters'));
+      _showSnackBar(context.tr('没有隐藏章节', 'No hidden chapters', '非表示の章はありません'));
       return;
     }
     await showModalBottomSheet<void>(
@@ -603,7 +613,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
               child: Text(
-                context.tr('隐藏章节', 'Hidden chapters'),
+                context.tr('隐藏章节', 'Hidden chapters', '非表示の章'),
                 style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
@@ -623,7 +633,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                     if (!mounted) return;
                     await _refreshChapterData();
                   },
-                  child: Text(context.tr('恢复显示', 'Restore')),
+                  child: Text(context.tr('恢复显示', 'Restore', '再表示')),
                 ),
               ),
           ],
@@ -662,7 +672,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       actions: [
         PopupMenuButton<String>(
           key: const ValueKey('book-detail-more-menu'),
-          tooltip: context.tr('更多', 'More'),
+          tooltip: context.tr('更多', 'More', 'その他'),
           icon: const Icon(Icons.more_horiz_rounded),
           onSelected: (value) {
             if (value == 'hidden_chapters') {
@@ -685,8 +695,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                   const SizedBox(width: 12),
                   Text(
                     _isRead
-                        ? context.tr('标记为未读', 'Mark as unread')
-                        : context.tr('标记为已读', 'Mark as read'),
+                        ? context.tr('标记为未读', 'Mark as unread', '未読にする')
+                        : context.tr('标记为已读', 'Mark as read', '既読にする'),
                   ),
                 ],
               ),
@@ -697,7 +707,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                 children: [
                   const Icon(Icons.visibility_off_outlined, size: 20),
                   const SizedBox(width: 12),
-                  Text(context.tr('隐藏章节', 'Hidden chapters')),
+                  Text(context.tr('隐藏章节', 'Hidden chapters', '非表示の章')),
                 ],
               ),
             ),
@@ -742,7 +752,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                             _buildBookIntroduction(),
                             SizedBox(height: design.spaceXxl),
                             Text(
-                              context.tr('所有章节', 'All chapters'),
+                              context.tr('所有章节', 'All chapters', 'すべての章'),
                               style: Theme.of(context).textTheme.titleLarge
                                   ?.copyWith(
                                     color: context.appTextPrimary,
@@ -761,6 +771,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                                     context.tr(
                                       '这本书没有可阅读章节',
                                       'No readable chapters',
+                                      'この本には読める章がありません',
                                     ),
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
@@ -859,7 +870,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
               ),
               SizedBox(height: design.spaceSm),
               Text(
-                widget.book.author ?? context.tr('未知作者', 'Unknown author'),
+                widget.book.author ??
+                    context.tr('未知作者', 'Unknown author', '著者不明'),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(color: context.appTextSecondary),
@@ -872,8 +884,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                 icon: const Icon(Icons.play_arrow_rounded),
                 label: Text(
                   _currentChapterId == null
-                      ? context.tr('开始阅读', 'Start reading')
-                      : context.tr('继续阅读', 'Continue reading'),
+                      ? context.tr('开始阅读', 'Start reading', '読み始める')
+                      : context.tr('继续阅读', 'Continue reading', '読書を続ける'),
                 ),
               ),
             ],
@@ -911,11 +923,13 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
             '《${widget.book.title}》当前以 $format 格式收录，共 $chapterCount 章。',
             '“${widget.book.title}” is available as a $format edition with '
                 '$chapterCount chapters.',
+            '「${widget.book.title}」は$format版として収録されており、全$chapterCount章です。',
           )
         : context.tr(
             '《${widget.book.title}》由 $author 创作，当前以 $format 格式收录，共 $chapterCount 章。',
             '“${widget.book.title}” by $author is available as a $format '
                 'edition with $chapterCount chapters.',
+            '「${widget.book.title}」は$authorによる作品で、$format版として収録されており、全$chapterCount章です。',
           );
   }
 
@@ -1041,9 +1055,13 @@ class _ChapterCard extends StatelessWidget {
         final metadata = <String>[
           if (durationMs > 0) _formatDuration(durationMs),
           if (finished)
-            context.tr('已听完', 'Finished')
+            context.tr('已听完', 'Finished', '聴き終わり')
           else if (inProgress)
-            context.tr('剩 $remainingText', '$remainingText left'),
+            context.tr(
+              '剩 $remainingText',
+              '$remainingText left',
+              '残り$remainingText',
+            ),
         ].join(' · ');
         final metaStyle = TextStyle(
           color: context.appTextSecondary,
@@ -1167,17 +1185,17 @@ class _ChapterCard extends StatelessWidget {
             onPressed: onRegenerate,
           ),
         HalfScreenActionSheetItem(
-          label: context.tr('标记为已听完', 'Mark as finished'),
+          label: context.tr('标记为已听完', 'Mark as finished', '聴き終わりにする'),
           icon: Icons.check_circle_outline_rounded,
           onPressed: finished ? null : onMarkAsFinished,
         ),
         HalfScreenActionSheetItem(
-          label: context.tr('修改旁白', 'Change narrator'),
+          label: context.tr('修改旁白', 'Change narrator', 'ナレーターを変更'),
           icon: Icons.record_voice_over_outlined,
           onPressed: onChangeNarrator,
         ),
         HalfScreenActionSheetItem(
-          label: context.tr('在本书中隐藏', 'Hide in this book'),
+          label: context.tr('在本书中隐藏', 'Hide in this book', 'この本で非表示にする'),
           icon: Icons.visibility_off_outlined,
           onPressed: onHideInBook,
         ),

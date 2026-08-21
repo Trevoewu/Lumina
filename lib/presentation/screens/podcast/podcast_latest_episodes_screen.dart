@@ -52,7 +52,7 @@ class _PodcastLatestEpisodesScreenState
     final design = context.appDesign;
     final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
     return CollapsingPageScaffold(
-      title: context.tr('最新单集', 'Latest episodes'),
+      title: context.tr('最新单集', 'Latest episodes', '最新エピソード'),
       showBackButton: true,
       body: FutureBuilder<_LatestEpisodesData>(
         future: _dataFuture,
@@ -63,7 +63,11 @@ class _PodcastLatestEpisodesScreenState
           if (snapshot.hasError) {
             return Center(
               child: Text(
-                context.tr('无法加载最新单集', 'Unable to load latest episodes'),
+                context.tr(
+                  '无法加载最新单集',
+                  'Unable to load latest episodes',
+                  '最新エピソードを読み込めません',
+                ),
                 style: TextStyle(color: context.appTextSecondary),
               ),
             );
@@ -72,7 +76,11 @@ class _PodcastLatestEpisodesScreenState
           if (data.episodes.isEmpty) {
             return Center(
               child: Text(
-                context.tr('还没有 Podcast 单集', 'No podcast episodes yet'),
+                context.tr(
+                  '还没有 Podcast 单集',
+                  'No podcast episodes yet',
+                  'ポッドキャストのエピソードはまだありません',
+                ),
                 style: TextStyle(color: context.appTextSecondary),
               ),
             );

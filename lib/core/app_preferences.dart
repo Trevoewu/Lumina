@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'providers.dart';
+import 'database_provider.dart';
 
 const _languageKey = 'general_language';
 const _themeModeKey = 'general_theme_mode';
 const _readingScrollSpeedKey = 'reading_scroll_speed';
 const _lyricSweepEnabledKey = 'reading_lyric_sweep_enabled';
 
-enum AppLanguage { system, zhHans, english }
+enum AppLanguage { system, zhHans, english, japanese }
 
 enum AppThemePreference { system, light, dark }
 
@@ -36,7 +36,17 @@ class AppPreferences {
     AppLanguage.system => null,
     AppLanguage.zhHans => const Locale('zh', 'CN'),
     AppLanguage.english => const Locale('en'),
+    AppLanguage.japanese => const Locale('ja'),
   };
+
+  String resolvedLanguageCode(Locale systemLocale) {
+    final code = locale?.languageCode ?? systemLocale.languageCode;
+    return switch (code) {
+      'zh' => 'zh',
+      'ja' => 'ja',
+      _ => 'en',
+    };
+  }
 
   ThemeMode get themeMode => switch (theme) {
     AppThemePreference.system => ThemeMode.system,

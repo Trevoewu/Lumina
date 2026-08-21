@@ -271,8 +271,16 @@ class _PodcastLinkTextState extends State<PodcastLinkText> {
       SnackBar(
         content: Text(
           isLink
-              ? context.tr('无法打开这个链接', 'Could not open this link')
-              : context.tr('无法跳转到这个时间点', 'Could not seek to this time'),
+              ? context.tr(
+                  '无法打开这个链接',
+                  'Could not open this link',
+                  'このリンクを開けません',
+                )
+              : context.tr(
+                  '无法跳转到这个时间点',
+                  'Could not seek to this time',
+                  'この時点に移動できません',
+                ),
         ),
       ),
     );

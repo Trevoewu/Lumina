@@ -11,16 +11,16 @@ String relativeTimeLabel(BuildContext context, int milliseconds) {
   final moment = DateTime.fromMillisecondsSinceEpoch(milliseconds).toLocal();
   final difference = DateTime.now().difference(moment);
   if (!difference.isNegative) {
-    if (difference.inMinutes < 1) return context.tr('刚刚', 'Just now');
+    if (difference.inMinutes < 1) return context.tr('刚刚', 'Just now', 'たった今');
     if (difference.inMinutes < 60) {
       final minutes = difference.inMinutes;
-      return context.tr('$minutes 分钟前', '$minutes min ago');
+      return context.tr('$minutes 分钟前', '$minutes min ago', '$minutes分前');
     }
-    if (difference.inDays == 0) return context.tr('今天', 'Today');
-    if (difference.inDays == 1) return context.tr('昨天', 'Yesterday');
+    if (difference.inDays == 0) return context.tr('今天', 'Today', '今日');
+    if (difference.inDays == 1) return context.tr('昨天', 'Yesterday', '昨日');
     if (difference.inDays < 7) {
       final days = difference.inDays;
-      return context.tr('$days 天前', '$days days ago');
+      return context.tr('$days 天前', '$days days ago', '$days日前');
     }
   }
   return '${moment.year}-${moment.month.toString().padLeft(2, '0')}-'

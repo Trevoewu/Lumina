@@ -83,6 +83,7 @@ class _PodcastDiscoveryDetailScreenState
             context.tr(
               '已订阅 ${result.show.title}',
               'Subscribed to ${result.show.title}',
+              '${result.show.title}をフォローしました',
             ),
           ),
         ),
@@ -132,7 +133,9 @@ class _PodcastDiscoveryDetailScreenState
           .getPodcastEpisodeByGuid(result.show.id, episode.guid);
       if (!mounted) return;
       if (stored == null) {
-        throw StateError(context.tr('无法准备试听单集', 'Unable to prepare preview'));
+        throw StateError(
+          context.tr('无法准备试听单集', 'Unable to prepare preview', '試聴を準備できません'),
+        );
       }
       await openPodcastEpisodePlayer(
         context,
@@ -144,7 +147,11 @@ class _PodcastDiscoveryDetailScreenState
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              context.tr('无法开始试听：$error', 'Unable to start preview: $error'),
+              context.tr(
+                '无法开始试听：$error',
+                'Unable to start preview: $error',
+                '試聴を開始できません：$error',
+              ),
             ),
           ),
         );
@@ -229,8 +236,8 @@ class _PodcastDiscoveryDetailScreenState
                           ),
                     label: Text(
                       _subscribedShowId == null
-                          ? context.tr('订阅', 'Follow')
-                          : context.tr('查看节目', 'Open show'),
+                          ? context.tr('订阅', 'Follow', '購読')
+                          : context.tr('查看节目', 'Open show', '番組を開く'),
                     ),
                   ),
                 ],
@@ -248,7 +255,7 @@ class _PodcastDiscoveryDetailScreenState
         ],
         SizedBox(height: design.spaceXl),
         Text(
-          context.tr('最新单集', 'Latest episodes'),
+          context.tr('最新单集', 'Latest episodes', '最新エピソード'),
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
             color: context.appTextPrimary,
             fontWeight: FontWeight.w800,
@@ -266,7 +273,11 @@ class _PodcastDiscoveryDetailScreenState
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 32),
             child: Text(
-              context.tr('Feed 中没有可预览的单集', 'No episodes available to preview'),
+              context.tr(
+                'Feed 中没有可预览的单集',
+                'No episodes available to preview',
+                'フィードに試聴できるエピソードがありません',
+              ),
               textAlign: TextAlign.center,
               style: TextStyle(color: context.appTextSecondary),
             ),
@@ -313,7 +324,7 @@ class _PreviewEpisodeTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final metadata = <String>[
       if (episode.durationMs > 0) formatPodcastDuration(episode.durationMs),
-      context.tr('可直接试听', 'Preview available'),
+      context.tr('可直接试听', 'Preview available', '試聴できます'),
     ].join(' · ');
     return InkWell(
       key: ValueKey('podcast-preview-episode-${episode.guid}'),
@@ -373,7 +384,7 @@ class _PreviewEpisodeTile extends StatelessWidget {
               )
             else
               IconButton(
-                tooltip: context.tr('试听', 'Preview'),
+                tooltip: context.tr('试听', 'Preview', '試聴'),
                 onPressed: onTap,
                 icon: const Icon(Icons.play_circle_fill_rounded),
               ),
@@ -399,7 +410,11 @@ class _PreviewError extends StatelessWidget {
           const Icon(Icons.cloud_off_outlined, size: 40),
           const SizedBox(height: 10),
           Text(
-            context.tr('无法读取节目 Feed', 'Unable to load podcast feed'),
+            context.tr(
+              '无法读取节目 Feed',
+              'Unable to load podcast feed',
+              '番組フィードを読み込めません',
+            ),
             style: const TextStyle(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 6),
@@ -414,7 +429,7 @@ class _PreviewError extends StatelessWidget {
           OutlinedButton.icon(
             onPressed: onRetry,
             icon: const Icon(Icons.refresh_rounded),
-            label: Text(context.tr('重试', 'Retry')),
+            label: Text(context.tr('重试', 'Retry', '再試行')),
           ),
         ],
       ),

@@ -63,10 +63,16 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         children: List.generate(
           _navigatorKeys.length,
           (index) => _initializedTabs.contains(index)
-              ? Navigator(
-                  key: _navigatorKeys[index],
-                  onGenerateRoute: (_) =>
-                      MaterialPageRoute(builder: (_) => _rootPageFor(index)),
+              ? NavigatorPopHandler<void>(
+                  enabled: index == _currentIndex,
+                  onPopWithResult: (_) {
+                    _navigatorKeys[index].currentState?.maybePop();
+                  },
+                  child: Navigator(
+                    key: _navigatorKeys[index],
+                    onGenerateRoute: (_) =>
+                        MaterialPageRoute(builder: (_) => _rootPageFor(index)),
+                  ),
                 )
               : const SizedBox.shrink(),
         ),
@@ -108,7 +114,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                       key: ValueKey('home-navigation-active-icon'),
                       assetName: 'assets/navigation_icons/home_rounded.svg',
                     ),
-                    label: context.tr('主页', 'Home'),
+                    label: context.tr('主页', 'Home', 'ホーム'),
                   ),
                   NavigationDestination(
                     icon: const _NavigationSvgIcon(
@@ -119,7 +125,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                       key: ValueKey('dictionary-navigation-active-icon'),
                       assetName: 'assets/navigation_icons/dictionary.svg',
                     ),
-                    label: context.tr('查词', 'Dictionary'),
+                    label: context.tr('查词', 'Dictionary', '辞書'),
                   ),
                   const NavigationDestination(
                     icon: Icon(Icons.person_outline),

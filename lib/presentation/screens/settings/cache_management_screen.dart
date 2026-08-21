@@ -30,7 +30,7 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
     final cache = ref.watch(cacheManagerProvider);
 
     return CollapsingPageScaffold(
-      title: context.tr('缓存管理', 'Audio Cache'),
+      title: context.tr('缓存管理', 'Audio Cache', '音声キャッシュ'),
       showBackButton: true,
       body: FutureBuilder<_CachePageData>(
         future: _loadData(db, cache),
@@ -42,7 +42,9 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
           }
           if (data == null) {
             return Center(
-              child: Text(context.tr('暂无缓存信息', 'No cache information')),
+              child: Text(
+                context.tr('暂无缓存信息', 'No cache information', 'キャッシュ情報はありません'),
+              ),
             );
           }
 
@@ -58,17 +60,17 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                       color: context.appTextSecondary,
                     ),
                     title: Text(
-                      context.tr('总音频缓存', 'Total audio cache'),
+                      context.tr('总音频缓存', 'Total audio cache', '音声キャッシュ合計'),
                       style: TextStyle(color: context.appTextPrimary),
                     ),
                     subtitle: Text(
                       '${data.total.humanReadable} · '
-                      '${context.tr('书籍', 'Books')} '
+                      '${context.tr('书籍', 'Books', '書籍')} '
                       '${data.bookAudio.humanReadable} · Podcast '
                       '${data.podcastAudio.humanReadable}',
                     ),
                     trailing: IconButton(
-                      tooltip: context.tr('清空', 'Clear all'),
+                      tooltip: context.tr('清空', 'Clear all', 'すべてクリア'),
                       onPressed: _clearing || data.total.bytes == 0
                           ? null
                           : () => _clearAll(cache),
@@ -86,7 +88,7 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                 Padding(
                   padding: EdgeInsets.only(left: 4, bottom: 8),
                   child: Text(
-                    context.tr('书籍', 'Books'),
+                    context.tr('书籍', 'Books', '書籍'),
                     style: TextStyle(
                       color: context.appTextSecondary,
                       fontWeight: FontWeight.w700,
@@ -98,7 +100,13 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                   _SurfaceTile(
                     child: Padding(
                       padding: const EdgeInsets.all(24),
-                      child: Text(context.tr('暂无导入书籍', 'No imported books')),
+                      child: Text(
+                        context.tr(
+                          '暂无导入书籍',
+                          'No imported books',
+                          'インポートした書籍はありません',
+                        ),
+                      ),
                     ),
                   )
                 else
@@ -118,7 +126,7 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                           style: TextStyle(color: context.appTextPrimary),
                         ),
                         subtitle: Text(
-                          '${row.usage.humanReadable} · ${row.book.chapterCount} ${context.tr('章', 'chapters')}',
+                          '${row.usage.humanReadable} · ${row.book.chapterCount} ${context.tr('章', 'chapters', '章')}',
                           style: TextStyle(color: context.appTextSecondary),
                         ),
                         children: [
@@ -129,6 +137,7 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                                 tooltip: context.tr(
                                   '清理整本书音频',
                                   'Clear audio for this book',
+                                  'この書籍の音声をクリア',
                                 ),
                                 onPressed: row.usage.bytes == 0 || _clearing
                                     ? null
@@ -147,7 +156,11 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                                 return Padding(
                                   padding: const EdgeInsets.all(16),
                                   child: Text(
-                                    context.tr('暂无章节', 'No chapters'),
+                                    context.tr(
+                                      '暂无章节',
+                                      'No chapters',
+                                      '章はありません',
+                                    ),
                                   ),
                                 );
                               }
@@ -174,6 +187,7 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                                         tooltip: context.tr(
                                           '清理章节音频',
                                           'Clear chapter audio',
+                                          '章の音声をクリア',
                                         ),
                                         onPressed: _clearing
                                             ? null
@@ -212,6 +226,7 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                         context.tr(
                           '暂无 Podcast 音频或字幕缓存',
                           'No cached podcast audio or transcripts',
+                          'Podcastの音声・文字起こしキャッシュはありません',
                         ),
                       ),
                     ),
@@ -357,10 +372,15 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
 
   String _podcastSummary(CacheUsage usage, int transcriptCount) {
     return [
-      context.tr('音频 ${usage.humanReadable}', 'Audio ${usage.humanReadable}'),
+      context.tr(
+        '音频 ${usage.humanReadable}',
+        'Audio ${usage.humanReadable}',
+        '音声 ${usage.humanReadable}',
+      ),
       context.tr(
         '$transcriptCount 份 Transcript',
         '$transcriptCount transcript${transcriptCount == 1 ? '' : 's'}',
+        '$transcriptCount件の文字起こし${transcriptCount == 1 ? '' : ''}',
       ),
     ].join(' · ');
   }
@@ -373,7 +393,7 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
   }) {
     return IconButton(
       key: key,
-      tooltip: context.tr('删除缓存', 'Delete cache'),
+      tooltip: context.tr('删除缓存', 'Delete cache', 'キャッシュを削除'),
       onPressed: _clearing
           ? null
           : () async {
@@ -398,7 +418,9 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
     return showDialog<_PodcastClearAction>(
       context: context,
       builder: (context) => SimpleDialog(
-        title: Text(context.tr('删除哪些缓存？', 'Delete which cache?')),
+        title: Text(
+          context.tr('删除哪些缓存？', 'Delete which cache?', 'どのキャッシュを削除しますか？'),
+        ),
         children: [
           SimpleDialogOption(
             key: const ValueKey('podcast-delete-choice-audio'),
@@ -408,7 +430,9 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
               children: [
                 const Icon(Icons.audio_file_outlined),
                 const SizedBox(width: 12),
-                Expanded(child: Text(context.tr('删除音频', 'Delete audio'))),
+                Expanded(
+                  child: Text(context.tr('删除音频', 'Delete audio', '音声を削除')),
+                ),
               ],
             ),
           ),
@@ -421,7 +445,13 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                 const Icon(Icons.subtitles_off_outlined),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(context.tr('删除 Transcript', 'Delete transcript')),
+                  child: Text(
+                    context.tr(
+                      '删除 Transcript',
+                      'Delete transcript',
+                      '文字起こしを削除',
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -438,6 +468,7 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                     context.tr(
                       '删除音频和 Transcript',
                       'Delete audio and transcript',
+                      '音声と文字起こしを削除',
                     ),
                   ),
                 ),
@@ -468,7 +499,9 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
   }
 
   Future<void> _clearAll(CacheManager cache) async {
-    if (!await _confirm(context.tr('清空所有音频缓存？', 'Clear all audio cache?'))) {
+    if (!await _confirm(
+      context.tr('清空所有音频缓存？', 'Clear all audio cache?', 'すべての音声キャッシュをクリアしますか？'),
+    )) {
       return;
     }
     setState(() => _clearing = true);
@@ -488,6 +521,7 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
       context.tr(
         '清理《${book.title}》的所有音频缓存？',
         'Clear all cached audio for "${book.title}"?',
+        '「${book.title}」の音声キャッシュをすべてクリアしますか？',
       ),
     )) {
       return;
@@ -518,6 +552,7 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
       context.tr(
         '清理《${book.title}》- ${chapter.title} 的音频缓存？',
         'Clear cached audio for "${book.title}" — ${chapter.title}?',
+        '「${book.title}」- ${chapter.title}の音声キャッシュをクリアしますか？',
       ),
     )) {
       return;
@@ -590,14 +625,17 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
       _PodcastClearAction.audio => context.tr(
         '清理“$title”的本地音频？字幕会保留。',
         'Clear local audio for "$title"? Transcripts will be kept.',
+        '「$title」のローカル音声をクリアしますか？文字起こしは保持されます。',
       ),
       _PodcastClearAction.transcript => context.tr(
         '清理“$title”的字幕？本地音频会保留。',
         'Clear transcripts for "$title"? Local audio will be kept.',
+        '「$title」の文字起こしをクリアしますか？ローカル音声は保持されます。',
       ),
       _PodcastClearAction.all => context.tr(
         '清理“$title”的本地音频和字幕？',
         'Clear local audio and transcripts for "$title"?',
+        '「$title」のローカル音声と文字起こしをクリアしますか？',
       ),
     };
   }
@@ -633,6 +671,7 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
           context.tr(
             '缓存清理未完全完成，请稍后重试。',
             'The cache could not be fully cleared. Please try again.',
+            'キャッシュを完全にクリアできませんでした。後でもう一度お試しください。',
           ),
         ),
       ),
@@ -643,16 +682,16 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(context.tr('确认清理', 'Confirm clearing')),
+        title: Text(context.tr('确认清理', 'Confirm clearing', 'クリアを確認')),
         content: Text(message),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: Text(context.tr('取消', 'Cancel')),
+            child: Text(context.tr('取消', 'Cancel', 'キャンセル')),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: Text(context.tr('清理', 'Clear')),
+            child: Text(context.tr('清理', 'Clear', 'クリア')),
           ),
         ],
       ),

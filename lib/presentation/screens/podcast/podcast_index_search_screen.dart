@@ -85,7 +85,7 @@ class _PodcastIndexSearchScreenState
     final design = context.appDesign;
     final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
     return CollapsingPageScaffold(
-      title: context.tr('发现 Podcast', 'Discover podcasts'),
+      title: context.tr('发现 Podcast', 'Discover podcasts', 'ポッドキャストを探す'),
       showBackButton: true,
       body: Column(
         children: [
@@ -100,7 +100,11 @@ class _PodcastIndexSearchScreenState
               onChanged: _onQueryChanged,
               onSubmitted: (_) => _runSearch(),
               onSearch: _runSearch,
-              hintText: context.tr('搜索节目或创作者', 'Search shows or creators'),
+              hintText: context.tr(
+                '搜索节目或创作者',
+                'Search shows or creators',
+                '番組やクリエイターを検索',
+              ),
             ),
           ),
           Padding(
@@ -150,6 +154,7 @@ class _PodcastIndexSearchScreenState
                 context.tr(
                   '没有找到“$_activeQuery”',
                   'No podcasts found for “$_activeQuery”',
+                  '「$_activeQuery」に一致するポッドキャストが見つかりません',
                 ),
                 textAlign: TextAlign.center,
                 style: TextStyle(color: context.appTextSecondary),
@@ -204,7 +209,11 @@ class _PodcastIndexIntro extends StatelessWidget {
             ),
             const SizedBox(height: 18),
             Text(
-              context.tr('从开放目录发现节目', 'Discover from the open index'),
+              context.tr(
+                '从开放目录发现节目',
+                'Discover from the open index',
+                '公開ディレクトリから番組を発見',
+              ),
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                 color: context.appTextPrimary,
@@ -216,6 +225,7 @@ class _PodcastIndexIntro extends StatelessWidget {
               context.tr(
                 '输入节目名或创作者；订阅后由 Lumina 直接读取发布者 RSS。',
                 'Search by show or creator. Lumina reads the publisher RSS after you subscribe.',
+                '番組名やクリエイターで検索できます。購読後、Luminaが配信者のRSSを読み込みます。',
               ),
               textAlign: TextAlign.center,
               style: TextStyle(color: context.appTextSecondary, height: 1.45),
@@ -244,7 +254,11 @@ class _PodcastIndexError extends StatelessWidget {
             const Icon(Icons.cloud_off_outlined, size: 48),
             const SizedBox(height: 12),
             Text(
-              context.tr('Podcast Index 搜索失败', 'Podcast Index search failed'),
+              context.tr(
+                'Podcast Index 搜索失败',
+                'Podcast Index search failed',
+                'Podcast Indexの検索に失敗しました',
+              ),
               style: const TextStyle(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 8),
@@ -259,7 +273,7 @@ class _PodcastIndexError extends StatelessWidget {
             OutlinedButton.icon(
               onPressed: onRetry,
               icon: const Icon(Icons.refresh),
-              label: Text(context.tr('重试', 'Retry')),
+              label: Text(context.tr('重试', 'Retry', '再試行')),
             ),
           ],
         ),
@@ -288,6 +302,7 @@ class _PodcastIndexResultTile extends StatelessWidget {
         context.tr(
           '${podcast.episodeCount} 个单集',
           '${podcast.episodeCount} episodes',
+          '${podcast.episodeCount}エピソード',
         ),
     ].join(' · ');
     return Card(
@@ -329,7 +344,7 @@ class _PodcastIndexResultTile extends StatelessWidget {
               const SizedBox(width: 8),
               if (subscribed)
                 Tooltip(
-                  message: context.tr('已订阅', 'Subscribed'),
+                  message: context.tr('已订阅', 'Subscribed', '購読済み'),
                   child: Icon(
                     Icons.check_circle,
                     color: Theme.of(context).colorScheme.primary,

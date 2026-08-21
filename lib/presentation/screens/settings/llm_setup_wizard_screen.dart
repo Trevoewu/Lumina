@@ -76,7 +76,7 @@ class _LlmSetupWizardScreenState extends ConsumerState<LlmSetupWizardScreen> {
     final design = context.appDesign;
     final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
     return CollapsingPageScaffold(
-      title: context.tr('AI 设置', 'AI Setup'),
+      title: context.tr('AI 设置', 'AI Setup', 'AI設定'),
       showBackButton: true,
       body: _initializing
           ? const Center(child: CircularProgressIndicator())
@@ -90,11 +90,15 @@ class _LlmSetupWizardScreenState extends ConsumerState<LlmSetupWizardScreen> {
                     design.spaceMd,
                   ),
                   child: SetupProgressHeader(
-                    title: context.tr('AI 设置进度', 'AI setup progress'),
+                    title: context.tr(
+                      'AI 设置进度',
+                      'AI setup progress',
+                      'AI設定の進捗',
+                    ),
                     steps: [
                       'Provider',
-                      context.tr('密钥', 'Key'),
-                      context.tr('模型', 'Model'),
+                      context.tr('密钥', 'Key', 'キー'),
+                      context.tr('模型', 'Model', 'モデル'),
                     ],
                     currentStep: _step,
                   ),
@@ -116,10 +120,10 @@ class _LlmSetupWizardScreenState extends ConsumerState<LlmSetupWizardScreen> {
                       design.spaceMd,
                     ),
                     child: SetupNavigationBar(
-                      previousLabel: context.tr('上一步', 'Previous'),
+                      previousLabel: context.tr('上一步', 'Previous', '戻る'),
                       nextLabel: _step == 2
-                          ? context.tr('完成', 'Finish')
-                          : context.tr('下一步', 'Next'),
+                          ? context.tr('完成', 'Finish', '完了')
+                          : context.tr('下一步', 'Next', '次へ'),
                       busy: _busy,
                       onPrevious: _previous,
                       onNext: _canContinue ? _next : null,
@@ -161,7 +165,11 @@ class _LlmSetupWizardScreenState extends ConsumerState<LlmSetupWizardScreen> {
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       AppSectionHeader(
-        title: context.tr('选择 AI Provider', 'Choose an AI provider'),
+        title: context.tr(
+          '选择 AI Provider',
+          'Choose an AI provider',
+          'AIプロバイダーを選択',
+        ),
       ),
       SettingsGroup(
         children: [
@@ -216,12 +224,14 @@ class _LlmSetupWizardScreenState extends ConsumerState<LlmSetupWizardScreen> {
           title: context.tr(
             '连接 ${kind.displayName}',
             'Connect ${kind.displayName}',
+            '${kind.displayName}に接続',
           ),
         ),
         SettingsFeedbackBanner(
           message: context.tr(
             '获取 API Key，粘贴并验证连接。成功后将在当前页面继续选择模型。',
             'Get an API key, paste it below, and verify the connection. Model selection continues on this page.',
+            'APIキーを取得して貼り付け、接続を確認します。成功するとこのページでモデルを選択できます。',
           ),
         ),
         const SizedBox(height: 16),
@@ -244,8 +254,12 @@ class _LlmSetupWizardScreenState extends ConsumerState<LlmSetupWizardScreen> {
           decoration: InputDecoration(
             labelText: 'API Key',
             helperText: _configuration == null
-                ? context.tr('必填', 'Required')
-                : context.tr('留空可使用已保存的密钥', 'Leave empty to use the saved key'),
+                ? context.tr('必填', 'Required', '必須')
+                : context.tr(
+                    '留空可使用已保存的密钥',
+                    'Leave empty to use the saved key',
+                    '空欄の場合は保存済みのキーを使用',
+                  ),
           ),
         ),
         const SizedBox(height: 16),
@@ -256,7 +270,11 @@ class _LlmSetupWizardScreenState extends ConsumerState<LlmSetupWizardScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  context.tr('在哪里获取 API Key？', 'Where do I get an API key?'),
+                  context.tr(
+                    '在哪里获取 API Key？',
+                    'Where do I get an API key?',
+                    'APIキーの入手先',
+                  ),
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
                 const SizedBox(height: 8),
@@ -265,6 +283,7 @@ class _LlmSetupWizardScreenState extends ConsumerState<LlmSetupWizardScreen> {
                       ? context.tr(
                           '请在服务商控制台创建 API Key，并确认 Base URL 支持 /models 和 /chat/completions。',
                           'Create an API key in the provider console and confirm the Base URL supports /models and /chat/completions.',
+                          'サービスのコンソールでAPIキーを作成し、Base URLが/modelsと/chat/completionsに対応することを確認してください。',
                         )
                       : context.tr(
                           '1. 登录 ${kind.displayName} 控制台\n'
@@ -273,6 +292,7 @@ class _LlmSetupWizardScreenState extends ConsumerState<LlmSetupWizardScreen> {
                           '1. Sign in to the ${kind.displayName} console\n'
                               '2. Open API Keys and create a key\n'
                               '3. Copy the key and paste it above',
+                          '1. ${kind.displayName}のコンソールにログイン\n2. API Keysを開いてキーを作成\n3. キーをコピーして上に貼り付け',
                         ),
                 ),
                 if (uri != null)
@@ -284,6 +304,7 @@ class _LlmSetupWizardScreenState extends ConsumerState<LlmSetupWizardScreen> {
                       context.tr(
                         '打开 ${kind.displayName} API Keys',
                         'Open ${kind.displayName} API Keys',
+                        '${kind.displayName}のAPI Keysを開く',
                       ),
                     ),
                   ),
@@ -298,12 +319,18 @@ class _LlmSetupWizardScreenState extends ConsumerState<LlmSetupWizardScreen> {
   Widget _modelStep() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      AppSectionHeader(title: context.tr('选择 AI 模型', 'Choose an AI model')),
+      AppSectionHeader(
+        title: context.tr('选择 AI 模型', 'Choose an AI model', 'AIモデルを選択'),
+      ),
       if (_models.isEmpty)
         SettingsEmptyState(
           icon: Icons.psychology_outlined,
-          message: context.tr('没有找到可用模型', 'No models are available'),
-          actionLabel: context.tr('重新同步', 'Sync again'),
+          message: context.tr(
+            '没有找到可用模型',
+            'No models are available',
+            '利用可能なモデルがありません',
+          ),
+          actionLabel: context.tr('重新同步', 'Sync again', '再同期'),
           onAction: _reloadModels,
         )
       else
@@ -395,6 +422,7 @@ class _LlmSetupWizardScreenState extends ConsumerState<LlmSetupWizardScreen> {
         _error = context.tr(
           '请填写 Provider 名称、Base URL 和 API Key。',
           'Enter the provider name, Base URL, and API key.',
+          'プロバイダー名、Base URL、APIキーを入力してください。',
         );
       });
       return;
@@ -439,6 +467,7 @@ class _LlmSetupWizardScreenState extends ConsumerState<LlmSetupWizardScreen> {
           _error = context.tr(
             '连接失败，请检查 API Key、Base URL 和网络：$error',
             'Connection failed. Check the API key, Base URL, and network: $error',
+            '接続に失敗しました。APIキー、Base URL、ネットワークを確認してください：$error',
           );
         });
       }

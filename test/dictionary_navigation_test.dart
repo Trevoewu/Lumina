@@ -121,7 +121,9 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 500));
 
-    await tester.tap(find.byIcon(Icons.menu_book_outlined));
+    await tester.tap(
+      find.byKey(const ValueKey('dictionary-navigation-icon')),
+    );
     await _pumpReady(tester);
     await tester.tap(find.text('mulberry'));
     await _pumpReady(tester);
@@ -130,7 +132,9 @@ void main() {
       findsOneWidget,
     );
 
-    await tester.tap(find.byIcon(Icons.menu_book));
+    await tester.tap(
+      find.byKey(const ValueKey('dictionary-navigation-active-icon')),
+    );
     await _pumpReady(tester);
 
     expect(
