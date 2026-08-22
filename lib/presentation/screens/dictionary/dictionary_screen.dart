@@ -1,5 +1,3 @@
-import 'dart:ui' show ImageFilter;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
@@ -638,96 +636,90 @@ class _DictionaryWordScreenState extends ConsumerState<DictionaryWordScreen> {
               left: 0,
               right: 0,
               child: ClipRect(
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(
-                    sigmaX: _scrolled ? 14 : 0,
-                    sigmaY: _scrolled ? 14 : 0,
-                  ),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeOut,
-                    height: 44,
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                    decoration: BoxDecoration(
-                      color: _scrolled
-                          ? context.appBackground.withValues(alpha: 0.92)
-                          : Colors.transparent,
-                      border: Border(
-                        bottom: BorderSide(
-                          color: _scrolled
-                              ? ink.withValues(alpha: 0.06)
-                              : Colors.transparent,
-                        ),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOut,
+                  height: 44,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: _scrolled
+                        ? context.appBackground.withValues(alpha: 0.92)
+                        : Colors.transparent,
+                    border: Border(
+                      bottom: BorderSide(
+                        color: _scrolled
+                            ? ink.withValues(alpha: 0.06)
+                            : Colors.transparent,
                       ),
                     ),
-                    child: Row(
-                      children: [
-                        if (widget.showBackButton)
-                          GestureDetector(
-                            key: const ValueKey('dictionary-word-back'),
-                            behavior: HitTestBehavior.opaque,
-                            onTap: () => Navigator.maybePop(context),
+                  ),
+                  child: Row(
+                    children: [
+                      if (widget.showBackButton)
+                        GestureDetector(
+                          key: const ValueKey('dictionary-word-back'),
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => Navigator.maybePop(context),
+                          child: SizedBox(
+                            width: 34,
+                            height: 34,
+                            child: Icon(
+                              Icons.arrow_back_ios_new,
+                              size: 19,
+                              color: ink,
+                            ),
+                          ),
+                        )
+                      else
+                        const SizedBox(width: 34),
+                      Expanded(
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 300),
+                          opacity: _scrolled ? 1 : 0,
+                          child: Text(
+                            word,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                              color: ink,
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (_result != null)
+                        GestureDetector(
+                          key: const ValueKey('dictionary-word-favorite'),
+                          behavior: HitTestBehavior.opaque,
+                          onTap: _toggleFavorite,
+                          child: Tooltip(
+                            message: _favorite
+                                ? context.tr(
+                                    '取消收藏',
+                                    'Remove favorite',
+                                    'お気に入りから削除',
+                                  )
+                                : context.tr('收藏', 'Save word', '単語を保存'),
                             child: SizedBox(
                               width: 34,
                               height: 34,
                               child: Icon(
-                                Icons.arrow_back_ios_new,
-                                size: 19,
-                                color: ink,
-                              ),
-                            ),
-                          )
-                        else
-                          const SizedBox(width: 34),
-                        Expanded(
-                          child: AnimatedOpacity(
-                            duration: const Duration(milliseconds: 300),
-                            opacity: _scrolled ? 1 : 0,
-                            child: Text(
-                              word,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w800,
-                                color: ink,
+                                _favorite
+                                    ? Icons.bookmark
+                                    : Icons.bookmark_border,
+                                size: 20,
+                                color: _favorite
+                                    ? ink
+                                    : ink.withValues(alpha: 0.28),
                               ),
                             ),
                           ),
-                        ),
-                        if (_result != null)
-                          GestureDetector(
-                            key: const ValueKey('dictionary-word-favorite'),
-                            behavior: HitTestBehavior.opaque,
-                            onTap: _toggleFavorite,
-                            child: Tooltip(
-                              message: _favorite
-                                  ? context.tr(
-                                      '取消收藏',
-                                      'Remove favorite',
-                                      'お気に入りから削除',
-                                    )
-                                  : context.tr('收藏', 'Save word', '単語を保存'),
-                              child: SizedBox(
-                                width: 34,
-                                height: 34,
-                                child: Icon(
-                                  _favorite
-                                      ? Icons.bookmark
-                                      : Icons.bookmark_border,
-                                  size: 20,
-                                  color: _favorite
-                                      ? ink
-                                      : ink.withValues(alpha: 0.28),
-                                ),
-                              ),
-                            ),
-                          )
-                        else
-                          const SizedBox(width: 34),
-                      ],
-                    ),
+                        )
+                      else
+                        const SizedBox(width: 34),
+                    ],
                   ),
                 ),
               ),

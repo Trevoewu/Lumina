@@ -16,6 +16,8 @@ bool isPodcastEpisodePlayed({
 
 /// Persists the active audiobook position while playback continues globally.
 class PlaybackProgressService {
+  static const _minimumWriteInterval = Duration(seconds: 5);
+
   final AppDatabase database;
   final LuminaAudioHandler audioHandler;
 
@@ -109,7 +111,7 @@ class PlaybackProgressService {
     final now = DateTime.now();
     if (!force &&
         _lastQueuedAt != null &&
-        now.difference(_lastQueuedAt!) < const Duration(seconds: 1)) {
+        now.difference(_lastQueuedAt!) < _minimumWriteInterval) {
       return;
     }
 

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
@@ -21,7 +20,6 @@ import 'dictionary_lookup_sheet.dart';
 /// Speech-friendly tuning knobs for the karaoke-style renderer.
 const syncedLyricsSweepLeadMs = 80;
 const syncedLyricsSweepFeatherEm = 0.5;
-const _syncedLyricsBlurSigmaCap = 7.0;
 
 /// A frame-rate playback clock anchored to just_audio's coarse position stream.
 ///
@@ -904,15 +902,15 @@ class _LyricSweepPainter extends CustomPainter {
   final TextStyle style;
   final TextDirection textDirection;
   final TextScaler textScaler;
-  final int positionMs;
+  final SyncedLyricsClock clock;
 
-  const _LyricSweepPainter({
+  _LyricSweepPainter({
     required this.line,
     required this.style,
     required this.textDirection,
     required this.textScaler,
-    required this.positionMs,
-  });
+    required this.clock,
+  }) : super(repaint: clock);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -930,7 +928,7 @@ class _LyricSweepPainter extends CustomPainter {
     final sweep = syncedLyricsSweepGeometry(
       painter: painter,
       line: line,
-      positionMs: positionMs,
+      positionMs: clock.positionMs,
     );
     if (sweep == null) {
       painter.dispose();
@@ -1008,10 +1006,10 @@ class _LyricSweepPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _LyricSweepPainter oldDelegate) =>
       oldDelegate.line != line ||
-      oldDelegate.positionMs != positionMs ||
       oldDelegate.style != style ||
       oldDelegate.textDirection != textDirection ||
-      oldDelegate.textScaler != textScaler;
+      oldDelegate.textScaler != textScaler ||
+      oldDelegate.clock != clock;
 }
 
 class SyncedLyricsList extends StatefulWidget {
@@ -1932,11 +1930,10 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
     final activeIndex = _activeLineId == null
         ? -1
         : (_lineIndexById[_activeLineId!] ?? -1);
-    final nearActive =
-        widget.playbackEnabled &&
-        activeIndex >= 0 &&
-        lineIndex >= 0 &&
-        (lineIndex - activeIndex).abs() <= 2;
+    // The sweep painter listens to the clock directly. Only the non-sweep
+    // word renderer needs to rebuild the active line on every animation frame.
+    final rebuildActiveLine =
+        widget.playbackEnabled && highlighted && !widget.sweepEnabled;
     Widget buildFrame(int positionMs) => _buildLyricLineFrame(
       line,
       enabled: enabled,
@@ -1946,7 +1943,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
       activeIndex: activeIndex,
     );
 
-    final content = nearActive
+    final content = rebuildActiveLine
         ? AnimatedBuilder(
             animation: _clock,
             builder: (_, _) => buildFrame(_clock.positionMs),
@@ -2031,36 +2028,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
         ),
       ),
     );
-    return _depthFilteredLine(
-      frame,
-      lineIndex: lineIndex,
-      activeIndex: activeIndex,
-    );
-  }
-
-  Widget _depthFilteredLine(
-    Widget child, {
-    required int lineIndex,
-    required int activeIndex,
-  }) {
-    if ((!widget.expanded && !widget.focusMode) ||
-        lineIndex < 0 ||
-        activeIndex < 0) {
-      return child;
-    }
-    final distance = (lineIndex - activeIndex).abs();
-    if (distance == 0) return child;
-    // Keep the active sentence crisp while progressively defocusing every
-    // sentence farther away. The cap still leaves distant text discoverable,
-    // but prevents the viewport from reading like a stack of sharp cards.
-    final sigma = math.min(
-      _syncedLyricsBlurSigmaCap,
-      1.0 + math.max(0, distance - 1) * 1.5,
-    );
-    return ImageFiltered(
-      imageFilter: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-      child: child,
-    );
+    return frame;
   }
 
   Widget _buildLyricText(
@@ -2085,7 +2053,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
           style: style,
           textDirection: Directionality.of(context),
           textScaler: MediaQuery.textScalerOf(context),
-          positionMs: positionMs,
+          clock: _clock,
         ),
         child: Text(
           line.text,

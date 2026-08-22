@@ -87,11 +87,23 @@ class LuminaAudioHandler extends BaseAudioHandler
   StreamSubscription? _playbackEventSub;
   StreamSubscription? _currentIndexSub;
   StreamSubscription? _durationSub;
+  late final Stream<Duration> _uiPositionStream;
 
   final _currentParagraphController = StreamController<String?>.broadcast();
 
   LuminaAudioHandler({AudioPlayer? player})
     : _player = player ?? AudioPlayer() {
+    // just_audio's default position stream can emit every 16 ms for the short
+    // paragraph-sized sources used by audiobooks. Regular UI and persistence
+    // do not need frame-rate updates; the lyrics renderer extrapolates between
+    // these authoritative samples with its own ticker.
+    _uiPositionStream = _player
+        .createPositionStream(
+          steps: 800,
+          minPeriod: const Duration(milliseconds: 100),
+          maxPeriod: const Duration(milliseconds: 200),
+        )
+        .asBroadcastStream();
     _playbackEventSub = _player.playbackEventStream.listen(_broadcastState);
     _currentIndexSub = _player.currentIndexStream.listen((index) {
       if (index == null || index < 0) return;
@@ -130,11 +142,11 @@ class LuminaAudioHandler extends BaseAudioHandler
 
   AudioPlayer get player => _player;
   Duration get position => _player.position;
-  Stream<Duration> get positionStream => _player.positionStream;
+  Stream<Duration> get positionStream => _uiPositionStream;
   Duration get chapterPosition => _chapterPositionFrom(_player.position);
   Duration get chapterDuration => Duration(milliseconds: _chapterDurationMs);
   Stream<Duration> get chapterPositionStream =>
-      _player.positionStream.map(_chapterPositionFrom);
+      _uiPositionStream.map(_chapterPositionFrom);
   bool get isPodcast =>
       mediaItem.valueOrNull?.extras?['mediaType'] == 'podcast';
   String? get currentParagraphId => isPodcast

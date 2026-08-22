@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:audio_service/audio_service.dart';
@@ -280,19 +278,14 @@ class _MiniPlayerSurfaceState extends ConsumerState<_MiniPlayerSurface> {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 240),
-                curve: Curves.easeOutCubic,
-                decoration: BoxDecoration(
-                  color: surface.withValues(alpha: 0.88),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.06),
-                  ),
-                ),
-                child: widget.child(context, appearance?.coverPath),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 240),
+              curve: Curves.easeOutCubic,
+              decoration: BoxDecoration(
+                color: surface.withValues(alpha: 0.88),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
               ),
+              child: widget.child(context, appearance?.coverPath),
             ),
           ),
         );

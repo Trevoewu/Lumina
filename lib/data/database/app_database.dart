@@ -548,6 +548,13 @@ class AppDatabase extends _$AppDatabase {
 
   Stream<List<Book>> watchAllBooks() => select(books).watch();
 
+  /// Watches only the value needed by the profile summary. Playback updates
+  /// other columns on the books table, so suppress identical counts before
+  /// they reach an offstage, retained tab.
+  Stream<int> watchReadBookCount() => watchAllBooks()
+      .map((items) => items.where((book) => book.isRead).length)
+      .distinct();
+
   Future<Book?> getBook(String id) =>
       (select(books)..where((b) => b.id.equals(id))).getSingleOrNull();
 

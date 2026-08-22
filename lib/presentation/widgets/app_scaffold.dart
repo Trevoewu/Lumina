@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:audio_service/audio_service.dart';
@@ -81,60 +79,53 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (hasMiniPlayer) const MiniPlayer(),
-          ClipRect(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-              child: NavigationBar(
-                backgroundColor: Theme.of(
-                  context,
-                ).colorScheme.surface.withValues(alpha: 0.86),
-                elevation: 0,
-                height: 46,
-                labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
-                selectedIndex: _currentIndex,
-                onDestinationSelected: (index) {
-                  if (index == _currentIndex) {
-                    _navigatorKeys[index].currentState?.popUntil(
-                      (route) => route.isFirst,
-                    );
-                    return;
-                  }
-                  setState(() {
-                    _initializedTabs.add(index);
-                    _currentIndex = index;
-                  });
-                },
-                destinations: [
-                  NavigationDestination(
-                    icon: const _NavigationSvgIcon(
-                      key: ValueKey('home-navigation-icon'),
-                      assetName: 'assets/navigation_icons/home_rounded.svg',
-                    ),
-                    selectedIcon: const _NavigationSvgIcon(
-                      key: ValueKey('home-navigation-active-icon'),
-                      assetName: 'assets/navigation_icons/home_rounded.svg',
-                    ),
-                    label: context.tr('主页', 'Home', 'ホーム'),
-                  ),
-                  NavigationDestination(
-                    icon: const _NavigationSvgIcon(
-                      key: ValueKey('dictionary-navigation-icon'),
-                      assetName: 'assets/navigation_icons/dictionary.svg',
-                    ),
-                    selectedIcon: const _NavigationSvgIcon(
-                      key: ValueKey('dictionary-navigation-active-icon'),
-                      assetName: 'assets/navigation_icons/dictionary.svg',
-                    ),
-                    label: context.tr('查词', 'Dictionary', '辞書'),
-                  ),
-                  const NavigationDestination(
-                    icon: Icon(Icons.person_outline),
-                    selectedIcon: Icon(Icons.person),
-                    label: 'Me',
-                  ),
-                ],
+          NavigationBar(
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            elevation: 0,
+            height: 46,
+            labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
+            selectedIndex: _currentIndex,
+            onDestinationSelected: (index) {
+              if (index == _currentIndex) {
+                _navigatorKeys[index].currentState?.popUntil(
+                  (route) => route.isFirst,
+                );
+                return;
+              }
+              setState(() {
+                _initializedTabs.add(index);
+                _currentIndex = index;
+              });
+            },
+            destinations: [
+              NavigationDestination(
+                icon: const _NavigationSvgIcon(
+                  key: ValueKey('home-navigation-icon'),
+                  assetName: 'assets/navigation_icons/home_rounded.svg',
+                ),
+                selectedIcon: const _NavigationSvgIcon(
+                  key: ValueKey('home-navigation-active-icon'),
+                  assetName: 'assets/navigation_icons/home_rounded.svg',
+                ),
+                label: context.tr('主页', 'Home', 'ホーム'),
               ),
-            ),
+              NavigationDestination(
+                icon: const _NavigationSvgIcon(
+                  key: ValueKey('dictionary-navigation-icon'),
+                  assetName: 'assets/navigation_icons/dictionary.svg',
+                ),
+                selectedIcon: const _NavigationSvgIcon(
+                  key: ValueKey('dictionary-navigation-active-icon'),
+                  assetName: 'assets/navigation_icons/dictionary.svg',
+                ),
+                label: context.tr('查词', 'Dictionary', '辞書'),
+              ),
+              const NavigationDestination(
+                icon: Icon(Icons.person_outline),
+                selectedIcon: Icon(Icons.person),
+                label: 'Me',
+              ),
+            ],
           ),
         ],
       ),

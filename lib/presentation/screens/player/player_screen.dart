@@ -411,8 +411,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   final ValueNotifier<int> _transcriptPageRevision = ValueNotifier<int>(0);
   int _paragraphCount = 0;
   List<drift_db.Paragraph> _audiobookParagraphs = const [];
+  Future<List<drift_db.Paragraph>>? _audiobookParagraphsFuture;
   drift_db.ChapterPlaybackProgress? _chapterPlaybackProgress;
   drift_db.PodcastEpisode? _podcastEpisode;
+  bool _selectedPodcastLocalAudioAvailable = false;
   _PodcastTranscriptContent? _podcastTranscript;
   StreamSubscription<drift_db.PodcastEpisode?>? _podcastEpisodeSubscription;
   StreamSubscription<PodcastTranscriptionProgress>? _transcriptionSubscription;
@@ -445,6 +447,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _podcastTranscript = transcript;
       _selectedManifest = transcript.manifest;
       _paragraphCount = transcript.paragraphs.length;
+      unawaited(_refreshPodcastLocalAudioAvailability());
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_loadPlaybackSpeed());
@@ -735,6 +738,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             _selectedManifest = transcript.manifest;
             _paragraphCount = transcript.paragraphs.length;
           });
+          unawaited(_refreshPodcastLocalAudioAvailability());
           _transcriptPageRevision.value++;
         });
   }
@@ -745,9 +749,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
     final database = ref.read(appDatabaseProvider);
     final manifestStore = ref.read(manifestStoreProvider);
+    final paragraphsFuture = _audiobookParagraphsFuture ??= database
+        .getParagraphs(chapter.id);
     final results = await Future.wait<Object?>([
       manifestStore.load(widget.book.id, chapter.id),
-      database.getParagraphs(chapter.id),
+      paragraphsFuture,
       database.getChapterPlaybackProgress(chapter.id),
     ]);
     if (!mounted) return;
@@ -763,6 +769,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _audiobookParagraphs = paragraphs;
       _chapterPlaybackProgress = playbackProgress;
     });
+    _refreshTranscriptPage();
 
     final activeGeneration = ref
         .read(generationOrchestratorProvider)
@@ -1186,7 +1193,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         return false;
       }
       final localPath = _podcastEpisode?.localAudioPath;
-      if (localPath == null || !File(localPath).existsSync()) return true;
+      if (localPath == null ||
+          localPath.isEmpty ||
+          !_selectedPodcastLocalAudioAvailable) {
+        return true;
+      }
       // Transcription timestamps are generated from the cached file. A queue
       // that still points to the feed URL is not equivalent, especially for
       // feeds with redirects or dynamic ad insertion.
@@ -1197,6 +1208,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (chapter == null) return handler.currentBookId == widget.book.id;
     return handler.currentBookId == widget.book.id &&
         handler.currentChapterId == chapter.id;
+  }
+
+  Future<void> _refreshPodcastLocalAudioAvailability() async {
+    final path = _podcastEpisode?.localAudioPath;
+    final available =
+        path != null && path.isNotEmpty && await File(path).exists();
+    if (!mounted || path != _podcastEpisode?.localAudioPath) return;
+    if (_selectedPodcastLocalAudioAvailable == available) return;
+    setState(() => _selectedPodcastLocalAudioAvailable = available);
+    _refreshTranscriptPage();
   }
 
   ChapterManifest? _effectiveManifest(LuminaAudioHandler handler) {
@@ -1330,12 +1351,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final freshEpisodes = await database.getPodcastEpisodes(data.show.id);
     final episodes = freshEpisodes.isEmpty ? data.episodes : freshEpisodes;
 
-    String playbackUrl(drift_db.PodcastEpisode episode) {
+    final playbackUrls = <String, String>{};
+    for (final episode in episodes) {
       final localPath = episode.localAudioPath;
-      if (localPath != null && File(localPath).existsSync()) {
-        return File(localPath).uri.toString();
+      final hasLocal =
+          localPath != null &&
+          localPath.isNotEmpty &&
+          await File(localPath).exists();
+      playbackUrls[episode.id] = hasLocal
+          ? File(localPath).uri.toString()
+          : episode.audioUrl;
+      if (episode.id == selected.id) {
+        _selectedPodcastLocalAudioAvailable = hasLocal;
       }
-      return episode.audioUrl;
     }
 
     await handler.loadPodcastQueue(
@@ -1346,7 +1374,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             showId: data.show.id,
             showTitle: data.show.title,
             title: episode.title,
-            audioUrl: playbackUrl(episode),
+            audioUrl: playbackUrls[episode.id] ?? episode.audioUrl,
             imageUrl: episode.imageUrl ?? data.show.imageUrl,
             durationMs: episode.durationMs,
           ),
@@ -3393,11 +3421,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       );
     }
 
-    final db = ref.watch(appDatabaseProvider);
+    final paragraphsFuture = _audiobookParagraphsFuture ??= ref
+        .read(appDatabaseProvider)
+        .getParagraphs(chapterId);
     return FutureBuilder<List<drift_db.Paragraph>>(
-      future: db.getParagraphs(chapterId),
+      future: paragraphsFuture,
       builder: (context, snapshot) {
-        final paragraphs = snapshot.data ?? const <drift_db.Paragraph>[];
+        final paragraphs = snapshot.data ?? _audiobookParagraphs;
         if (paragraphs.isEmpty) {
           return Center(
             child: Text(

@@ -140,8 +140,12 @@ class _PodcastEpisodeTileState extends ConsumerState<PodcastEpisodeTile> {
     );
   }
 
-  void _showActions(BuildContext context, PodcastEpisode resolvedEpisode) {
-    final downloaded = _hasDownloadedAudio(resolvedEpisode);
+  Future<void> _showActions(
+    BuildContext context,
+    PodcastEpisode resolvedEpisode,
+  ) async {
+    final downloaded = await _hasDownloadedAudio(resolvedEpisode);
+    if (!context.mounted) return;
     final progress = _downloadProgress;
     final hasTranscript =
         resolvedEpisode.transcriptJson?.trim().isNotEmpty ?? false;
@@ -253,9 +257,9 @@ class _PodcastEpisodeTileState extends ConsumerState<PodcastEpisodeTile> {
     }
   }
 
-  bool _hasDownloadedAudio(PodcastEpisode episode) {
+  Future<bool> _hasDownloadedAudio(PodcastEpisode episode) async {
     final path = episode.localAudioPath;
-    return path != null && path.isNotEmpty && File(path).existsSync();
+    return path != null && path.isNotEmpty && await File(path).exists();
   }
 
   Future<void> _downloadEpisode(PodcastEpisode resolvedEpisode) async {

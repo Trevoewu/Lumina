@@ -25,7 +25,7 @@ class MeScreen extends ConsumerStatefulWidget {
 
 class _MeScreenState extends ConsumerState<MeScreen> {
   late final Stream<List<drift_db.ListeningDay>> _listeningDaysStream;
-  late final Stream<List<drift_db.Book>> _booksStream;
+  late final Stream<int> _readBookCountStream;
   int _savedWordCount = 0;
 
   @override
@@ -33,7 +33,7 @@ class _MeScreenState extends ConsumerState<MeScreen> {
     super.initState();
     final database = ref.read(appDatabaseProvider);
     _listeningDaysStream = database.watchListeningDays();
-    _booksStream = database.watchAllBooks();
+    _readBookCountStream = database.watchReadBookCount();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(listeningGoalsProvider.notifier).load();
       _loadSavedWordCount();
@@ -66,12 +66,11 @@ class _MeScreenState extends ConsumerState<MeScreen> {
             };
             final summary = ListeningSummary.fromDailyMs(dailyMs);
 
-            return StreamBuilder<List<drift_db.Book>>(
-              stream: _booksStream,
-              initialData: const [],
+            return StreamBuilder<int>(
+              stream: _readBookCountStream,
+              initialData: 0,
               builder: (context, booksSnapshot) {
-                final books = booksSnapshot.data ?? const [];
-                final booksRead = books.where((book) => book.isRead).length;
+                final booksRead = booksSnapshot.data ?? 0;
 
                 return ListView(
                   key: const PageStorageKey('me-overview-list'),

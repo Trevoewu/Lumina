@@ -154,6 +154,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   _HomeSection _section = _HomeSection.all;
   final Set<String> _coverBackfillStarted = {};
   final Map<String, _BookCacheProgress> _bookCacheProgress = {};
+  Future<_LibraryBooksData>? _booksDataFuture;
+  int _booksDataToken = -1;
   final PageController _sectionPageController = PageController();
   final ScrollController _overviewScrollController = ScrollController();
   final ScrollController _booksScrollController = ScrollController();
@@ -354,7 +356,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   ) {
     return FutureBuilder<_LibraryBooksData>(
       key: ValueKey(_reloadToken),
-      future: _loadLibraryBooksData(db),
+      future: _libraryBooksData(db),
       builder: (context, snapshot) {
         final data = snapshot.data ?? const _LibraryBooksData();
         final books = data.books;
@@ -396,6 +398,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       books: results[0] as List<drift_db.Book>,
       finishedChapterIndexesByBook: results[1] as Map<String, Set<int>>,
     );
+  }
+
+  Future<_LibraryBooksData> _libraryBooksData(drift_db.AppDatabase database) {
+    if (_booksDataFuture == null || _booksDataToken != _reloadToken) {
+      _booksDataToken = _reloadToken;
+      _booksDataFuture = _loadLibraryBooksData(database);
+    }
+    return _booksDataFuture!;
   }
 
   Future<void> _openBook(drift_db.Book book) async {
@@ -605,17 +615,19 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   void _backfillMissingCovers(List<drift_db.Book> books) {
     for (final book in books) {
-      final hasCover =
-          book.coverPath != null && File(book.coverPath!).existsSync();
-      if (hasCover ||
-          book.format != 'epub' ||
-          _coverBackfillStarted.contains(book.id)) {
+      if (book.format != 'epub' || _coverBackfillStarted.contains(book.id)) {
         continue;
       }
 
       _coverBackfillStarted.add(book.id);
       Future<void>(() async {
         try {
+          final existingPath = book.coverPath;
+          if (existingPath != null &&
+              existingPath.isNotEmpty &&
+              await File(existingPath).exists()) {
+            return;
+          }
           final appDir = await getApplicationDocumentsDirectory();
           final coverPath = await BookParser.extractCover(
             sourcePath: book.sourcePath,
