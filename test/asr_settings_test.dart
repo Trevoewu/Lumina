@@ -64,7 +64,11 @@ void main() {
     );
 
     final downloadButton = find.byKey(const ValueKey('download-asr-model'));
-    await tester.ensureVisible(downloadButton);
+    await tester.scrollUntilVisible(
+      downloadButton,
+      400,
+      scrollable: find.byType(Scrollable).last,
+    );
     await tester.pumpAndSettle();
     expect(downloadButton, findsOneWidget);
     await tester.tap(downloadButton);

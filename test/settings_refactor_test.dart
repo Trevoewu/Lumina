@@ -65,13 +65,7 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 700));
 
-      expect(
-        find.byKey(const ValueKey('enhanced-features-intro')),
-        findsOneWidget,
-      );
-      expect(find.text('Enhanced Features'), findsOneWidget);
-      await tester.drag(find.byType(ListView), const Offset(0, -300));
-      await tester.pumpAndSettle();
+      expect(find.text('Models & Services'), findsOneWidget);
       expect(
         find.byKey(const ValueKey('asr-service-settings')),
         findsOneWidget,
@@ -80,7 +74,7 @@ void main() {
         find.byKey(const ValueKey('llm-provider-settings')),
         findsOneWidget,
       );
-      expect(find.text('Podcast Transcripts'), findsOneWidget);
+      expect(find.text('Speech Recognition (ASR)'), findsOneWidget);
       expect(find.text('AI Model'), findsOneWidget);
       await tester.drag(find.byType(ListView), const Offset(0, -220));
       await tester.pumpAndSettle();
@@ -88,8 +82,14 @@ void main() {
         find.byKey(const ValueKey('tts-service-settings')),
         findsOneWidget,
       );
-      expect(find.text('Voice Narration'), findsOneWidget);
+      expect(find.text('Voice Synthesis (TTS)'), findsOneWidget);
       expect(find.byKey(const ValueKey('tts-provider-selector')), findsNothing);
+
+      // Nothing the settings spec dropped should still be on the page.
+      expect(find.text('Enhanced Features'), findsNothing);
+      expect(find.text('Playback'), findsNothing);
+      expect(find.text('Sleep timer'), findsNothing);
+      expect(find.text('App Icon'), findsNothing);
       expect(tester.takeException(), isNull);
     });
   }
@@ -116,17 +116,25 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 700));
 
+    // The spec runs the row hairline the full width of the card.
     final firstGroup = find.byType(SettingsGroup).first;
     final dividerFinder = find.descendant(
       of: firstGroup,
       matching: find.byType(Divider),
     );
     final divider = tester.widget<Divider>(dividerFinder.first);
-    expect(divider.thickness, 0.5);
-    expect(divider.endIndent, 16);
-    expect(divider.color?.a, closeTo(0.22, 0.01));
+    expect(divider.thickness, 1);
+    expect(divider.indent, isNull);
+    expect(divider.endIndent, isNull);
+    expect(divider.color?.a, closeTo(0.06, 0.01));
 
+    final settingsScrollable = find.byType(Scrollable).last;
     final languageRow = find.byKey(const ValueKey('language-selector'));
+    await tester.scrollUntilVisible(
+      languageRow,
+      400,
+      scrollable: settingsScrollable,
+    );
     await tester.tap(languageRow);
     await tester.pumpAndSettle();
     final languageItems = find.byType(PopupMenuItem<AppLanguage>);
@@ -142,19 +150,12 @@ void main() {
     await tester.tap(find.text('English'));
     await tester.pumpAndSettle();
 
-    final themeRow = find.byKey(const ValueKey('theme-selector'));
-    await tester.tap(themeRow);
+    // Theme is a segmented pill control at the top of the page, not a menu.
+    await tester.drag(settingsScrollable, const Offset(0, 2000));
     await tester.pumpAndSettle();
-    final themeItems = find.byType(PopupMenuItem<AppThemePreference>);
-    expect(themeItems, findsNWidgets(AppThemePreference.values.length));
-    expect(
-      tester.getCenter(themeItems.first).dx,
-      greaterThan(tester.getCenter(themeRow).dx),
-    );
-    expect(
-      find.descendant(of: themeItems, matching: find.byIcon(Icons.check)),
-      findsOneWidget,
-    );
+    await tester.tap(find.text('Dark'));
+    await tester.pumpAndSettle();
+    expect(await database.getSetting('general_theme_mode'), 'dark');
   });
 
   testWidgets('restoring initial settings requires two confirmations', (

@@ -255,8 +255,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
-    await tester.drag(find.byType(ListView).last, const Offset(0, -420));
-    await tester.pumpAndSettle();
+    // The trimmed settings page fits all three service rows without scrolling.
     await tester.tap(find.byKey(const ValueKey('tts-service-settings')));
     await tester.pumpAndSettle();
     final wizardElement = tester.element(find.byType(TtsSetupWizardScreen));
@@ -299,14 +298,10 @@ void main() {
     await tester.pumpAndSettle();
 
     final settingsScrollable = find.byType(Scrollable).last;
-    await tester.scrollUntilVisible(
-      find.text('Logs'),
-      180,
-      scrollable: settingsScrollable,
-    );
-    await tester.drag(settingsScrollable, const Offset(0, -120));
+    final logsRow = find.byKey(const ValueKey('logs-settings'));
+    await tester.scrollUntilVisible(logsRow, 120, scrollable: settingsScrollable);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Logs'));
+    await tester.tap(logsRow);
     await tester.pumpAndSettle();
 
     expect(find.text('Debug'), findsOneWidget);
@@ -340,40 +335,40 @@ void main() {
     await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
 
-    expect(find.text('General'), findsOneWidget);
-    expect(find.text('Language'), findsOneWidget);
-    expect(find.text('Reading appearance'), findsOneWidget);
-    expect(
-      find.descendant(
-        of: find.byKey(const ValueKey('theme-selector')),
-        matching: find.text('System'),
-      ),
-      findsOneWidget,
-    );
+    expect(find.text('System'), findsOneWidget);
 
-    await tester.tap(find.text('Language'));
+    final settingsScrollable = find.byType(Scrollable).last;
+    final languageRow = find.byKey(const ValueKey('language-selector'));
+    await tester.scrollUntilVisible(
+      languageRow,
+      120,
+      scrollable: settingsScrollable,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('More'), findsOneWidget);
+    expect(find.text('Appearance'), findsOneWidget);
+    await tester.tap(languageRow);
     await tester.pumpAndSettle();
     expect(find.byType(BottomSheet), findsNothing);
     expect(find.text('简体中文'), findsOneWidget);
     await tester.tap(find.text('简体中文'));
     await tester.pumpAndSettle();
 
-    expect(find.text('通用'), findsOneWidget);
+    expect(find.text('更多'), findsOneWidget);
     expect(find.text('语言'), findsOneWidget);
-    expect(find.text('阅读外观'), findsOneWidget);
+    expect(find.text('外观细节'), findsOneWidget);
 
-    await tester.tap(find.text('语言'));
+    await tester.tap(languageRow);
     await tester.pumpAndSettle();
     await tester.tap(find.text('日本語'));
     await tester.pumpAndSettle();
 
-    expect(find.text('一般'), findsOneWidget);
+    expect(find.text('その他'), findsOneWidget);
     expect(find.text('言語'), findsOneWidget);
-    expect(find.text('読書の表示'), findsOneWidget);
+    expect(find.text('外観の詳細'), findsOneWidget);
 
-    await tester.tap(find.text('テーマ'));
+    await tester.drag(settingsScrollable, const Offset(0, 2000));
     await tester.pumpAndSettle();
-    expect(find.byType(BottomSheet), findsNothing);
     await tester.tap(find.text('ライト'));
     await tester.pumpAndSettle();
 

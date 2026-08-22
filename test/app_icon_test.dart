@@ -8,7 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lumina/core/providers.dart';
 import 'package:lumina/core/theme.dart';
 import 'package:lumina/data/database/app_database.dart';
-import 'package:lumina/presentation/screens/settings/app_icon_screen.dart';
+import 'package:lumina/presentation/screens/settings/appearance_screen.dart';
 import 'package:lumina/presentation/screens/settings/settings_screen.dart';
 import 'package:lumina/services/app_icon_service.dart';
 
@@ -108,12 +108,17 @@ void main() {
         overrides: [appIconGatewayProvider.overrideWithValue(gateway)],
         child: MaterialApp(
           theme: AppTheme.lightTheme(),
-          home: const AppIconScreen(),
+          home: const AppearanceScreen(),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('app-icon-default')),
+      400,
+      scrollable: find.byType(Scrollable).first,
+    );
     for (final option in appIconOptions) {
       expect(find.byKey(ValueKey('app-icon-${option.id}')), findsOneWidget);
     }
@@ -128,7 +133,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('settings opens the app icon picker', (tester) async {
+  testWidgets('settings reaches the app icon picker through appearance', (tester) async {
     final database = AppDatabase.forTesting(NativeDatabase.memory());
     addTearDown(database.close);
     final gateway = _FakeAppIconGateway(selectedId: 'default');
@@ -147,10 +152,21 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 700));
 
-    await tester.tap(find.byKey(const ValueKey('app-icon-settings')));
+    final appearanceRow = find.byKey(const ValueKey('appearance-settings'));
+    await tester.scrollUntilVisible(
+      appearanceRow,
+      400,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(appearanceRow);
     await tester.pumpAndSettle();
 
-    expect(find.byType(AppIconScreen), findsOneWidget);
+    expect(find.byType(AppearanceScreen), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('app-icon-default')),
+      400,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.byKey(const ValueKey('app-icon-default')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -167,12 +183,18 @@ void main() {
         overrides: [appIconGatewayProvider.overrideWithValue(gateway)],
         child: MaterialApp(
           theme: AppTheme.darkTheme(),
-          home: const AppIconScreen(),
+          home: const AppearanceScreen(),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('app-icon-a1')),
+      400,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
     expect(
       find.textContaining('does not support changing the launcher icon'),
       findsOneWidget,

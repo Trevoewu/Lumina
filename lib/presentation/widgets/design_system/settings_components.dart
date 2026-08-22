@@ -4,6 +4,47 @@ import '../../../core/app_design_tokens.dart';
 import '../../../core/service_settings_controllers.dart';
 import 'app_surface.dart';
 
+/// Corner radius shared by every settings card, matching the Lumina spec.
+const double kSettingsCardRadius = 20;
+
+/// A white (surface) rounded card with the soft drop shadow the settings spec
+/// uses for every grouped block.
+class SettingsCard extends StatelessWidget {
+  final Widget child;
+  final EdgeInsetsGeometry? padding;
+
+  const SettingsCard({super.key, required this.child, this.padding});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final radius = BorderRadius.circular(kSettingsCardRadius);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: radius,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: scheme.surfaceContainer,
+        borderRadius: radius,
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: padding ?? EdgeInsets.zero,
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+/// A settings card holding a vertical run of rows separated by hairlines that
+/// span the full card width.
 class SettingsGroup extends StatelessWidget {
   final List<Widget> children;
 
@@ -11,9 +52,8 @@ class SettingsGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final design = context.appDesign;
     final scheme = Theme.of(context).colorScheme;
-    return AppSurface(
+    return SettingsCard(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -21,14 +61,177 @@ class SettingsGroup extends StatelessWidget {
             if (index > 0)
               Divider(
                 height: 1,
-                thickness: 0.5,
-                indent: design.toolbarHeight,
-                endIndent: design.spaceLg,
-                color: scheme.outlineVariant.withValues(alpha: 0.22),
+                thickness: 1,
+                color: scheme.onSurface.withValues(alpha: 0.06),
               ),
             children[index],
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// Uppercase, letter-spaced label used above a [SettingsGroup], matching the
+/// Lumina settings visual language (distinct from the app-wide
+/// [AppSectionHeader], which several other screens rely on).
+class SettingsSectionLabel extends StatelessWidget {
+  final String title;
+
+  const SettingsSectionLabel({super.key, required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      // The spec insets section labels 6px past the page gutter and leaves
+      // 26px above / 12px below before the card starts.
+      padding: const EdgeInsets.fromLTRB(6, 26, 6, 12),
+      child: Text(
+        title,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          fontFamily: 'monospace',
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
+          letterSpacing: 1.3,
+          color: scheme.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+}
+
+/// A three-way pill toggle, used for choices like theme (system/light/dark)
+/// that read best as a single segmented control rather than a list.
+class SegmentedChoiceRow<T> extends StatelessWidget {
+  final List<T> options;
+  final T selected;
+  final ValueChanged<T> onSelected;
+  final String Function(T) labelBuilder;
+  final IconData Function(T) iconBuilder;
+
+  const SegmentedChoiceRow({
+    super.key,
+    required this.options,
+    required this.selected,
+    required this.onSelected,
+    required this.labelBuilder,
+    required this.iconBuilder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SettingsCard(
+      padding: const EdgeInsets.all(18),
+      child: Row(
+        children: [
+          for (var i = 0; i < options.length; i++) ...[
+            if (i > 0) const SizedBox(width: 7),
+            Expanded(
+              child: _SegmentButton(
+                selected: options[i] == selected,
+                label: labelBuilder(options[i]),
+                icon: iconBuilder(options[i]),
+                onTap: () => onSelected(options[i]),
+                scheme: scheme,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SegmentButton extends StatelessWidget {
+  final bool selected;
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+  final ColorScheme scheme;
+
+  const _SegmentButton({
+    required this.selected,
+    required this.label,
+    required this.icon,
+    required this.onTap,
+    required this.scheme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? scheme.onSurface : scheme.onSurface.withValues(alpha: 0.06),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Container(
+          height: 44,
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  icon,
+                  size: 15,
+                  color: selected
+                      ? scheme.surface
+                      : scheme.onSurface.withValues(alpha: 0.55),
+                ),
+                const SizedBox(width: 7),
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: selected
+                        ? scheme.surface
+                        : scheme.onSurface.withValues(alpha: 0.55),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Small rounded pill used to surface a status word (e.g. "Ready", "Local")
+/// next to a [SettingValueRow], tinted when it represents a positive state.
+class SettingBadge extends StatelessWidget {
+  final String label;
+  final bool tinted;
+
+  const SettingBadge({super.key, required this.label, this.tinted = false});
+
+  @override
+  Widget build(BuildContext context) {
+    if (label.isEmpty) return const SizedBox.shrink();
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: tinted
+              ? scheme.primary.withValues(alpha: 0.18)
+              : scheme.onSurface.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            fontFamily: 'monospace',
+            color: tinted ? scheme.onSurface : scheme.onSurfaceVariant,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
       ),
     );
   }
@@ -293,6 +496,8 @@ class SettingValueRow extends StatelessWidget {
   final String? subtitle;
   final String? value;
   final Color? valueColor;
+  final String? badge;
+  final bool badgeTinted;
   final VoidCallback? onTap;
   final Widget? trailing;
 
@@ -304,6 +509,8 @@ class SettingValueRow extends StatelessWidget {
     this.subtitle,
     this.value,
     this.valueColor,
+    this.badge,
+    this.badgeTinted = false,
     this.onTap,
     this.trailing,
   });
@@ -311,45 +518,137 @@ class SettingValueRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return ListTile(
-      key: rowKey,
-      minTileHeight:
-          context.appDesign.toolbarHeight + context.appDesign.spaceMd,
-      leading: Icon(icon, color: scheme.onSurfaceVariant),
-      title: Text(title),
-      subtitle: subtitle == null
-          ? null
-          : Text(subtitle!, maxLines: 2, overflow: TextOverflow.ellipsis),
-      trailing:
-          trailing ??
-          (value == null
-              ? (onTap == null ? null : const Icon(Icons.chevron_right))
-              : Row(
+    final textTheme = Theme.of(context).textTheme;
+    return Semantics(
+      button: onTap != null,
+      child: InkWell(
+        key: rowKey,
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+          child: Row(
+            children: [
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: scheme.onSurface.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: SizedBox(
+                  width: 38,
+                  height: 38,
+                  child: Icon(icon, size: 19, color: scheme.onSurface),
+                ),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxWidth: MediaQuery.sizeOf(context).width * 0.38,
-                      ),
-                      child: Text(
-                        value!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: valueColor ?? scheme.onSurfaceVariant,
-                          fontWeight: valueColor == null
-                              ? null
-                              : FontWeight.w600,
-                        ),
+                    Text(
+                      title,
+                      style: textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                    if (onTap != null) ...[
-                      SizedBox(width: context.appDesign.spaceXs),
-                      const Icon(Icons.chevron_right),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        subtitle!,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
                     ],
                   ],
-                )),
-      onTap: onTap,
+                ),
+              ),
+              if (badge != null) ...[
+                const SizedBox(width: 8),
+                SettingBadge(label: badge!, tinted: badgeTinted),
+              ],
+              if (value != null) ...[
+                const SizedBox(width: 8),
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.sizeOf(context).width * 0.32,
+                  ),
+                  child: Text(
+                    value!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: valueColor ?? scheme.onSurfaceVariant,
+                      fontWeight: valueColor == null ? null : FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+              if (trailing != null) ...[
+                const SizedBox(width: 8),
+                trailing!,
+              ] else if (onTap != null) ...[
+                const SizedBox(width: 6),
+                Icon(
+                  Icons.chevron_right,
+                  size: 20,
+                  color: scheme.onSurface.withValues(alpha: 0.28),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The destructive pill action the settings spec places at the bottom of the
+/// page (red label on a muted fill rather than a filled red button).
+class SettingsDangerButton extends StatelessWidget {
+  final String label;
+  final VoidCallback? onPressed;
+  final bool busy;
+
+  const SettingsDangerButton({
+    super.key,
+    required this.label,
+    required this.onPressed,
+    this.busy = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.onSurface.withValues(alpha: 0.06),
+      borderRadius: BorderRadius.circular(26),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: busy ? null : onPressed,
+        child: Container(
+          height: 52,
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: busy
+              ? const SizedBox.square(
+                  dimension: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: scheme.error,
+                  ),
+                ),
+        ),
+      ),
     );
   }
 }

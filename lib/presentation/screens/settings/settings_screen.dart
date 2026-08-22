@@ -7,13 +7,11 @@ import '../../../core/app_preferences.dart';
 import '../../../core/appearance.dart';
 import '../../../core/providers.dart';
 import '../../../core/service_settings_controllers.dart';
+import '../../../services/cache_manager.dart';
 import '../../../tts/provider_registry.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
-import '../../widgets/design_system/app_section_header.dart';
-import '../../widgets/design_system/app_surface.dart';
 import '../../widgets/design_system/settings_components.dart';
 import 'appearance_screen.dart';
-import 'app_icon_screen.dart';
 import 'asr_service_screen.dart';
 import 'cache_management_screen.dart';
 import 'dictionary_explanation_service_screen.dart';
@@ -21,6 +19,13 @@ import 'logs_screen.dart';
 import 'tts_service_screen.dart';
 
 const String _appVersion = '1.0.0+1';
+
+/// Total on-disk audio cache, surfaced as the badge on the cache row.
+final settingsCacheUsageProvider = FutureProvider.autoDispose<CacheUsage>((
+  ref,
+) async {
+  return ref.watch(cacheManagerProvider).totalUsage();
+});
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -31,332 +36,276 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final _languageMenuKey = GlobalKey<PopupMenuButtonState<AppLanguage>>();
-  final _themeMenuKey = GlobalKey<PopupMenuButtonState<AppThemePreference>>();
-  bool _fadeInEnabled = true;
   bool _resetting = false;
 
   @override
   void initState() {
     super.initState();
-    _loadPlaybackSettings();
-  }
-
-  Future<void> _loadPlaybackSettings() async {
-    await ref.read(appPreferencesProvider.notifier).load();
-    final value = await ref
-        .read(appDatabaseProvider)
-        .getSetting('audio_fade_in_enabled');
-    if (mounted) setState(() => _fadeInEnabled = value != 'false');
+    // The screen is reachable directly (deep link, tests), so it loads the
+    // stores it reads rather than assuming the app shell already did.
+    ref.read(appPreferencesProvider.notifier).load();
+    ref.read(appearanceControllerProvider.notifier).load();
   }
 
   @override
   Widget build(BuildContext context) {
     final design = context.appDesign;
     final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
+    final scheme = Theme.of(context).colorScheme;
     final preferences = ref.watch(appPreferencesProvider);
     final tts = ref.watch(ttsSettingsControllerProvider);
     final asr = ref.watch(asrSettingsControllerProvider);
     final llm = ref.watch(llmSettingsControllerProvider);
+
     return CollapsingPageScaffold(
       title: context.tr('设置', 'Settings', '設定'),
       showBackButton: true,
       body: ListView(
-        padding: EdgeInsets.fromLTRB(inset, design.spaceSm, inset, 120),
+        padding: EdgeInsets.fromLTRB(inset, 0, inset, 120),
         children: [
-          AppSectionHeader(title: context.tr('通用', 'General', '一般')),
-          SettingsGroup(
-            children: [
-              _languageRow(preferences.language),
-              _themeRow(preferences.theme),
-              SettingValueRow(
-                icon: Icons.text_fields,
-                title: context.tr('阅读外观', 'Reading appearance', '読書の表示'),
-                subtitle: context.tr(
-                  '字体、字号与阅读排版',
-                  'Font, scale, and reading type',
-                  'フォント、サイズ、読書レイアウト',
-                ),
-                onTap: () => _push(const AppearanceScreen()),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(6, 0, 6, 22),
+            child: Text(
+              context.tr(
+                '语言、外观与模型',
+                'Language, appearance, and models',
+                '言語、外観、モデル',
               ),
-              SettingValueRow(
-                rowKey: const ValueKey('app-icon-settings'),
-                icon: Icons.apps_rounded,
-                title: context.tr('App 图标', 'App Icon', 'アプリアイコン'),
-                subtitle: context.tr(
-                  '在当前图标与 6 个新图标之间切换',
-                  'Choose the original or one of 6 new icons',
-                  '現在のアイコンと6つの新アイコンを切り替え',
-                ),
-                onTap: () => _push(const AppIconScreen()),
-              ),
-            ],
-          ),
-          AppSectionHeader(
-            title: context.tr('增强功能', 'Enhanced Features', '拡張機能'),
-          ),
-          AppSurface(
-            key: const ValueKey('enhanced-features-intro'),
-            color: Theme.of(
-              context,
-            ).colorScheme.primaryContainer.withValues(alpha: 0.48),
-            padding: EdgeInsets.all(design.spaceLg),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  Icons.auto_awesome_rounded,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                SizedBox(width: design.spaceMd),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        context.tr('按需开启', 'Set up when needed', '必要なときに設定'),
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                      SizedBox(height: design.spaceXs),
-                      Text(
-                        context.tr(
-                          '阅读与播放无需额外设置。需要时再开启字幕、AI 助手和语音朗读。',
-                          'Reading and playback work now. Set up transcripts, AI, and narration only when you need them.',
-                          '読書と再生はすぐ使えます。文字起こし、AIアシスタント、音声読み上げは必要なときに設定してください。',
-                        ),
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          height: 1.4,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
             ),
           ),
-          SizedBox(height: design.spaceMd),
+          SegmentedChoiceRow<AppThemePreference>(
+            options: AppThemePreference.values,
+            selected: preferences.theme,
+            onSelected: ref.read(appPreferencesProvider.notifier).setTheme,
+            labelBuilder: _themeLabel,
+            iconBuilder: (theme) => switch (theme) {
+              AppThemePreference.system => Icons.phone_iphone_rounded,
+              AppThemePreference.light => Icons.light_mode_outlined,
+              AppThemePreference.dark => Icons.dark_mode_outlined,
+            },
+          ),
+
+          SettingsSectionLabel(
+            title: context.tr('模型与服务', 'Models & Services', 'モデルとサービス'),
+          ),
           SettingsGroup(
             children: [
               asr.when(
-                loading: () => _loadingServiceRow(
+                loading: () => _serviceRow(
                   key: const ValueKey('asr-service-settings'),
-                  icon: Icons.subtitles_outlined,
-                  title: context.tr(
-                    'Podcast 字幕',
-                    'Podcast Transcripts',
-                    'Podcastの文字起こし',
-                  ),
+                  icon: Icons.mic_none_rounded,
+                  title: _asrTitle,
+                  readiness: ServiceReadiness.loading,
                 ),
-                error: (error, _) => _errorServiceRow(
+                error: (error, _) => _serviceRow(
                   key: const ValueKey('asr-service-settings'),
-                  icon: Icons.subtitles_outlined,
-                  title: context.tr(
-                    'Podcast 字幕',
-                    'Podcast Transcripts',
-                    'Podcastの文字起こし',
-                  ),
+                  icon: Icons.mic_none_rounded,
+                  title: _asrTitle,
+                  subtitle: _retryHint,
+                  readiness: ServiceReadiness.error,
                   onTap: () => ref.invalidate(asrSettingsControllerProvider),
                 ),
                 data: (state) => _serviceRow(
                   key: const ValueKey('asr-service-settings'),
-                  icon: Icons.subtitles_outlined,
-                  title: context.tr(
-                    'Podcast 字幕',
-                    'Podcast Transcripts',
-                    'Podcastの文字起こし',
-                  ),
-                  provider: state.providerName,
-                  selection: state.modelName,
+                  icon: Icons.mic_none_rounded,
+                  title: _asrTitle,
+                  subtitle:
+                      '${context.tr('播客转录', 'Podcast transcripts', 'Podcast文字起こし')} · ${state.modelName}',
                   readiness: state.readiness,
                   onTap: () => _push(const AsrServiceScreen()),
                 ),
               ),
               llm.when(
-                loading: () => _loadingServiceRow(
+                loading: () => _serviceRow(
                   key: const ValueKey('llm-provider-settings'),
-                  icon: Icons.auto_awesome_outlined,
-                  title: context.tr('AI 模型', 'AI Model', 'AIモデル'),
+                  icon: Icons.science_outlined,
+                  title: _aiTitle,
+                  readiness: ServiceReadiness.loading,
                 ),
-                error: (error, _) => _errorServiceRow(
+                error: (error, _) => _serviceRow(
                   key: const ValueKey('llm-provider-settings'),
-                  icon: Icons.auto_awesome_outlined,
-                  title: context.tr('AI 模型', 'AI Model', 'AIモデル'),
+                  icon: Icons.science_outlined,
+                  title: _aiTitle,
+                  subtitle: _retryHint,
+                  readiness: ServiceReadiness.error,
                   onTap: () => ref.invalidate(llmSettingsControllerProvider),
                 ),
                 data: (state) => _serviceRow(
                   key: const ValueKey('llm-provider-settings'),
-                  icon: Icons.auto_awesome_outlined,
-                  title: context.tr('AI 模型', 'AI Model', 'AIモデル'),
-                  provider:
-                      state.providerName ??
-                      context.tr('未选择服务', 'No provider', 'サービス未選択'),
-                  selection:
-                      state.modelId ??
-                      context.tr('未选择模型', 'No model', 'モデル未選択'),
+                  icon: Icons.science_outlined,
+                  title: _aiTitle,
+                  subtitle: _joinDetail([state.providerName, state.modelId]),
                   readiness: state.readiness,
                   onTap: () =>
                       _push(const DictionaryExplanationServiceScreen()),
                 ),
               ),
               tts.when(
-                loading: () => _loadingServiceRow(
+                loading: () => _serviceRow(
                   key: const ValueKey('tts-service-settings'),
-                  icon: Icons.record_voice_over_outlined,
-                  title: context.tr('语音朗读', 'Voice Narration', '音声読み上げ'),
+                  icon: Icons.graphic_eq_rounded,
+                  title: _ttsTitle,
+                  readiness: ServiceReadiness.loading,
                 ),
-                error: (error, _) => _errorServiceRow(
+                error: (error, _) => _serviceRow(
                   key: const ValueKey('tts-service-settings'),
-                  icon: Icons.record_voice_over_outlined,
-                  title: context.tr('语音朗读', 'Voice Narration', '音声読み上げ'),
+                  icon: Icons.graphic_eq_rounded,
+                  title: _ttsTitle,
+                  subtitle: _retryHint,
+                  readiness: ServiceReadiness.error,
                   onTap: () => ref.invalidate(ttsSettingsControllerProvider),
                 ),
                 data: (state) => _serviceRow(
                   key: const ValueKey('tts-service-settings'),
-                  icon: Icons.record_voice_over_outlined,
-                  title: context.tr('语音朗读', 'Voice Narration', '音声読み上げ'),
-                  provider:
-                      state.providerName ??
-                      context.tr('未选择服务', 'No provider', 'サービス未選択'),
-                  selection:
-                      [
-                        state.modelName,
-                        state.voiceName,
-                      ].whereType<String>().join(' · ').isEmpty
-                      ? context.tr('尚未完成设置', 'Setup incomplete', '設定未完了')
-                      : [
-                          state.modelName,
-                          state.voiceName,
-                        ].whereType<String>().join(' · '),
+                  icon: Icons.graphic_eq_rounded,
+                  title: _ttsTitle,
+                  subtitle: _joinDetail([
+                    state.providerName,
+                    state.voiceName ?? state.modelName,
+                  ]),
                   readiness: state.readiness,
                   onTap: () => _push(const TtsServiceScreen()),
                 ),
               ),
             ],
           ),
-          AppSectionHeader(title: context.tr('播放', 'Playback', '再生')),
-          SettingsGroup(
-            children: [
-              SwitchListTile(
-                secondary: const Icon(Icons.volume_up_outlined),
-                title: Text(
-                  context.tr('段落淡入', 'Paragraph fade-in', '段落フェードイン'),
-                ),
-                subtitle: Text(
-                  context.tr(
-                    '减少段落切换时的突兀感',
-                    'Smooth generated paragraph transitions',
-                    '段落の切り替えを滑らかにする',
-                  ),
-                ),
-                value: _fadeInEnabled,
-                onChanged: _setFadeInEnabled,
-              ),
-              SettingValueRow(
-                rowKey: const ValueKey('reading-scroll-speed-settings'),
-                icon: Icons.swap_vert_rounded,
-                title: context.tr('文字滚动速度', 'Text scroll speed', 'テキストスクロール速度'),
-                subtitle: context.tr(
-                  '控制同步正文自动定位动画的快慢',
-                  'Control how quickly synchronized text moves into view',
-                  '同期テキストの移動速度を調整',
-                ),
-                value: _readingScrollSpeedLabel(preferences.readingScrollSpeed),
-                onTap: _showReadingScrollSpeedSheet,
-              ),
-              SettingValueRow(
-                rowKey: const ValueKey('lyric-sweep-settings'),
-                icon: Icons.auto_awesome_outlined,
-                title: context.tr(
-                  '歌词渐进高亮',
-                  'Lyric sweep highlight',
-                  '歌詞の段階的ハイライト',
-                ),
-                trailing: Switch(
-                  value: preferences.lyricSweepEnabled,
-                  onChanged: ref
-                      .read(appPreferencesProvider.notifier)
-                      .setLyricSweepEnabled,
-                ),
-                onTap: () => ref
-                    .read(appPreferencesProvider.notifier)
-                    .setLyricSweepEnabled(!preferences.lyricSweepEnabled),
-              ),
-              StreamBuilder(
-                stream: ref.watch(sleepTimerServiceProvider).stream,
-                initialData: ref.watch(sleepTimerServiceProvider).state,
-                builder: (context, snapshot) => SettingValueRow(
-                  icon: Icons.bedtime_outlined,
-                  title: context.tr('定时关闭', 'Sleep timer', 'スリープタイマー'),
-                  value: snapshot.data?.label ?? context.tr('关闭', 'Off', 'オフ'),
-                  onTap: _showSleepTimerSheet,
-                ),
-              ),
-            ],
+
+          SettingsSectionLabel(
+            title: context.tr('存储与诊断', 'Storage & Diagnostics', 'ストレージと診断'),
           ),
-          AppSectionHeader(title: context.tr('存储', 'Storage', 'ストレージ')),
           SettingsGroup(
             children: [
               SettingValueRow(
-                icon: Icons.cleaning_services_outlined,
-                title: context.tr('音频缓存', 'Audio cache', '音声キャッシュ'),
+                rowKey: const ValueKey('cache-settings'),
+                icon: Icons.storage_rounded,
+                title: context.tr('缓存管理', 'Cache Management', 'キャッシュ管理'),
                 subtitle: context.tr(
-                  '管理书籍、Podcast 音频与字幕',
-                  'Manage books, podcast audio, and transcripts',
-                  '書籍、Podcast音声、文字起こしを管理',
+                  '按书籍与播客分别清理',
+                  'Clear by book or podcast',
+                  '書籍とPodcastごとに整理',
                 ),
-                onTap: () => _push(const CacheManagementScreen()),
+                badge: ref
+                    .watch(settingsCacheUsageProvider)
+                    .maybeWhen(
+                      data: (usage) => usage.humanReadable,
+                      orElse: () => null,
+                    ),
+                onTap: () async {
+                  await _push(const CacheManagementScreen());
+                  ref.invalidate(settingsCacheUsageProvider);
+                },
               ),
-            ],
-          ),
-          AppSectionHeader(title: context.tr('支持', 'Support', 'サポート')),
-          SettingsGroup(
-            children: [
               SettingValueRow(
-                icon: Icons.receipt_long_outlined,
+                rowKey: const ValueKey('logs-settings'),
+                icon: Icons.article_outlined,
                 title: context.tr('日志', 'Logs', 'ログ'),
+                subtitle: context.tr(
+                  '转录、合成与请求记录',
+                  'Transcription, synthesis, and request records',
+                  '文字起こし・合成・リクエストの記録',
+                ),
                 onTap: () => _push(const LogsScreen()),
               ),
             ],
           ),
-          AppSectionHeader(title: context.tr('高级', 'Advanced', '詳細設定')),
+
+          SettingsSectionLabel(title: context.tr('更多', 'More', 'その他')),
           SettingsGroup(
             children: [
               SettingValueRow(
-                rowKey: const ValueKey('reset-app-settings'),
-                icon: Icons.restart_alt,
-                title: context.tr(
-                  '恢复初始设置',
-                  'Restore initial settings',
-                  '初期設定に戻す',
-                ),
-                subtitle: context.tr(
-                  '重置偏好与服务配置，保留书库、进度和下载',
-                  'Reset preferences and service configuration while keeping your library, progress, and downloads',
-                  'ライブラリ、進捗、ダウンロードを保持して設定とサービスをリセット',
-                ),
-                trailing: _resetting
-                    ? const SizedBox.square(
-                        dimension: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.chevron_right),
-                onTap: _resetting ? null : _confirmResetAppSettings,
+                rowKey: const ValueKey('appearance-settings'),
+                icon: Icons.palette_outlined,
+                title: context.tr('外观细节', 'Appearance', '外観の詳細'),
+                subtitle: _appearanceSummary(),
+                onTap: () => _push(const AppearanceScreen()),
               ),
+              _languageRow(preferences.language),
             ],
           ),
-          SizedBox(height: design.spaceXl),
-          Center(
+
+          Padding(
+            padding: const EdgeInsets.only(top: 26),
+            child: SettingsDangerButton(
+              key: const ValueKey('reset-app-settings'),
+              label: context.tr(
+                '恢复默认设置',
+                'Restore initial settings',
+                '初期設定に戻す',
+              ),
+              busy: _resetting,
+              onPressed: _confirmResetAppSettings,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
             child: Text(
-              'Lumina $_appVersion',
+              'Lumina $_appVersion · ${context.tr('设备端处理', 'On-device processing', '端末内で処理')}',
+              textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontFamily: 'monospace',
+                color: scheme.onSurfaceVariant.withValues(alpha: 0.7),
               ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  String get _asrTitle =>
+      context.tr('语音识别 (ASR)', 'Speech Recognition (ASR)', '音声認識 (ASR)');
+
+  String get _aiTitle => context.tr('AI 模型', 'AI Model', 'AIモデル');
+
+  String get _ttsTitle =>
+      context.tr('语音合成 (TTS)', 'Voice Synthesis (TTS)', '音声合成 (TTS)');
+
+  String get _retryHint => context.tr('点按重试', 'Tap to retry', 'タップして再試行');
+
+  /// Joins the provider/selection detail line, falling back to a "not set up"
+  /// hint when a service has not been configured yet.
+  String _joinDetail(List<String?> parts) {
+    final detail = parts.whereType<String>().where((p) => p.isNotEmpty).toList();
+    if (detail.isEmpty) {
+      return context.tr('未配置', 'Not set up', '未設定');
+    }
+    return detail.join(' · ');
+  }
+
+  Widget _serviceRow({
+    required Key key,
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    required ServiceReadiness readiness,
+    VoidCallback? onTap,
+  }) {
+    return SettingValueRow(
+      rowKey: key,
+      icon: icon,
+      title: title,
+      subtitle: subtitle,
+      badge: _readinessLabel(readiness),
+      badgeTinted: readiness == ServiceReadiness.ready,
+      onTap: onTap,
+    );
+  }
+
+  String _readinessLabel(ServiceReadiness readiness) => switch (readiness) {
+    ServiceReadiness.loading => context.tr('检查中', 'Checking', '確認中'),
+    ServiceReadiness.setupRequired => context.tr('设置', 'Setup', '設定'),
+    ServiceReadiness.ready => context.tr('就绪', 'Ready', '準備完了'),
+    ServiceReadiness.error => context.tr('注意', 'Attention', '注意'),
+  };
+
+  String _appearanceSummary() {
+    final appearance = ref.watch(appearanceControllerProvider);
+    final percent = (appearance.fontScale * 100).round();
+    final icon = context.tr('图标', 'Icon', 'アイコン');
+    return '${appearance.fontOption.label} · $percent% · $icon';
   }
 
   Widget _languageRow(AppLanguage selected) => SettingValueRow(
@@ -389,36 +338,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     ),
   );
 
-  Widget _themeRow(AppThemePreference selected) => SettingValueRow(
-    rowKey: const ValueKey('theme-selector'),
-    icon: Icons.brightness_6_outlined,
-    title: context.tr('主题', 'Theme', 'テーマ'),
-    onTap: () => _themeMenuKey.currentState?.showButtonMenu(),
-    trailing: PopupMenuButton<AppThemePreference>(
-      key: _themeMenuKey,
-      tooltip: context.tr('选择主题', 'Choose theme', 'テーマを選択'),
-      position: PopupMenuPosition.under,
-      color: Theme.of(context).colorScheme.surfaceContainer,
-      surfaceTintColor: Colors.transparent,
-      constraints: const BoxConstraints(minWidth: 240, maxWidth: 320),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(context.appDesign.radiusSmall),
-      ),
-      onSelected: ref.read(appPreferencesProvider.notifier).setTheme,
-      itemBuilder: (_) => [
-        for (final theme in AppThemePreference.values)
-          PopupMenuItem(
-            value: theme,
-            child: _popupChoice(
-              label: _themeLabel(theme),
-              selected: theme == selected,
-            ),
-          ),
-      ],
-      child: _menuValue(_themeLabel(selected)),
-    ),
-  );
-
   Widget _menuValue(String value) {
     final scheme = Theme.of(context).colorScheme;
     return Padding(
@@ -430,10 +349,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             value,
             style: Theme.of(
               context,
-            ).textTheme.bodyLarge?.copyWith(color: scheme.onSurfaceVariant),
+            ).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
           ),
           SizedBox(width: context.appDesign.spaceXs),
-          Icon(Icons.unfold_more, color: scheme.onSurfaceVariant, size: 20),
+          Icon(Icons.unfold_more, color: scheme.onSurfaceVariant, size: 18),
         ],
       ),
     );
@@ -463,242 +382,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   };
 
   String _themeLabel(AppThemePreference value) => switch (value) {
-    AppThemePreference.system => context.tr('跟随系统', 'System', 'システムに従う'),
+    AppThemePreference.system => context.tr('系统', 'System', 'システム'),
     AppThemePreference.light => context.tr('浅色', 'Light', 'ライト'),
     AppThemePreference.dark => context.tr('深色', 'Dark', 'ダーク'),
   };
-
-  Widget _serviceRow({
-    required Key key,
-    required IconData icon,
-    required String title,
-    required String provider,
-    required String selection,
-    required ServiceReadiness readiness,
-    required VoidCallback onTap,
-  }) {
-    final status = _readinessPresentation(readiness);
-    return SettingValueRow(
-      rowKey: key,
-      icon: icon,
-      title: title,
-      subtitle: '$provider · $selection',
-      value: status.label,
-      valueColor: status.color,
-      onTap: onTap,
-    );
-  }
-
-  Widget _loadingServiceRow({
-    required Key key,
-    required IconData icon,
-    required String title,
-  }) {
-    final status = _readinessPresentation(ServiceReadiness.loading);
-    return SettingValueRow(
-      rowKey: key,
-      icon: icon,
-      title: title,
-      value: status.label,
-      valueColor: status.color,
-    );
-  }
-
-  Widget _errorServiceRow({
-    required Key key,
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-  }) {
-    final status = _readinessPresentation(ServiceReadiness.error);
-    return SettingValueRow(
-      rowKey: key,
-      icon: icon,
-      title: title,
-      subtitle: context.tr('点按重试', 'Tap to retry', 'タップして再試行'),
-      value: status.label,
-      valueColor: status.color,
-      onTap: onTap,
-    );
-  }
-
-  ({String label, Color color}) _readinessPresentation(
-    ServiceReadiness readiness,
-  ) {
-    final scheme = Theme.of(context).colorScheme;
-    return switch (readiness) {
-      ServiceReadiness.loading => (
-        label: context.tr('检查中', 'Checking', '確認中'),
-        color: scheme.onSurfaceVariant,
-      ),
-      ServiceReadiness.setupRequired => (
-        label: context.tr('设置', 'Setup', '設定'),
-        color: scheme.tertiary,
-      ),
-      ServiceReadiness.ready => (
-        label: context.tr('就绪', 'Ready', '準備完了'),
-        color: scheme.primary,
-      ),
-      ServiceReadiness.error => (
-        label: context.tr('注意', 'Attention', '注意'),
-        color: scheme.error,
-      ),
-    };
-  }
 
   Future<void> _push(Widget page) async {
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
     ref.invalidate(ttsSettingsControllerProvider);
     ref.invalidate(asrSettingsControllerProvider);
     ref.invalidate(llmSettingsControllerProvider);
-  }
-
-  Future<void> _setFadeInEnabled(bool enabled) async {
-    await ref
-        .read(appDatabaseProvider)
-        .setSetting('audio_fade_in_enabled', '$enabled');
-    if (mounted) setState(() => _fadeInEnabled = enabled);
-  }
-
-  String _readingScrollSpeedLabel(double speed) {
-    return '${speed.toStringAsFixed(1)}×';
-  }
-
-  void _showReadingScrollSpeedSheet() {
-    var value = ref.read(appPreferencesProvider).readingScrollSpeed;
-    showModalBottomSheet<void>(
-      context: context,
-      builder: (_) => StatefulBuilder(
-        builder: (context, setSheetState) {
-          final scheme = Theme.of(context).colorScheme;
-          return SafeArea(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                context.appDesign.spaceXl,
-                context.appDesign.spaceXl,
-                context.appDesign.spaceXl,
-                context.appDesign.spaceLg,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    context.tr('文字滚动速度', 'Text scroll speed', 'テキストスクロール速度'),
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  SizedBox(height: context.appDesign.spaceXs),
-                  Text(
-                    context.tr(
-                      '速度越高，句子切换时的定位动画越快。',
-                      'Higher speeds move to the next sentence faster.',
-                      '速度が高いほど文の切り替えが速くなります。',
-                    ),
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: scheme.onSurfaceVariant,
-                    ),
-                  ),
-                  SizedBox(height: context.appDesign.spaceMd),
-                  Row(
-                    children: [
-                      Text(
-                        '0.5×',
-                        style: Theme.of(context).textTheme.labelMedium,
-                      ),
-                      Expanded(
-                        child: Slider(
-                          key: const ValueKey('reading-scroll-speed-slider'),
-                          min: 0.5,
-                          max: 2.0,
-                          divisions: 15,
-                          value: value,
-                          label: _readingScrollSpeedLabel(value),
-                          onChanged: (next) {
-                            setSheetState(() => value = next);
-                            ref
-                                .read(appPreferencesProvider.notifier)
-                                .setReadingScrollSpeed(next);
-                          },
-                        ),
-                      ),
-                      Text(
-                        '2.0×',
-                        style: Theme.of(context).textTheme.labelMedium,
-                      ),
-                    ],
-                  ),
-                  Center(
-                    child: Text(
-                      _readingScrollSpeedLabel(value),
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: scheme.primary,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  void _showSleepTimerSheet() {
-    showModalBottomSheet<void>(
-      context: context,
-      builder: (sheetContext) => SafeArea(
-        top: false,
-        child: Padding(
-          padding: EdgeInsets.all(context.appDesign.spaceXl),
-          child: Wrap(
-            spacing: context.appDesign.spaceSm,
-            runSpacing: context.appDesign.spaceSm,
-            children: [
-              for (final minutes in const [15, 30, 60])
-                ActionChip(
-                  label: Text(
-                    context.tr('$minutes 分钟', '$minutes minutes', '$minutes分'),
-                  ),
-                  onPressed: () =>
-                      _scheduleTimer(sheetContext, Duration(minutes: minutes)),
-                ),
-              ActionChip(
-                label: Text(context.tr('本章结束', 'End of chapter', '章の終わり')),
-                onPressed: () async {
-                  final handler = await ref.read(
-                    luminaAudioHandlerProvider.future,
-                  );
-                  await ref
-                      .read(sleepTimerServiceProvider)
-                      .scheduleChapterEnd(handler);
-                  if (sheetContext.mounted) Navigator.of(sheetContext).pop();
-                },
-              ),
-              ActionChip(
-                label: Text(context.tr('关闭', 'Off', 'オフ')),
-                onPressed: () async {
-                  await ref.read(sleepTimerServiceProvider).cancel();
-                  if (sheetContext.mounted) Navigator.of(sheetContext).pop();
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _scheduleTimer(
-    BuildContext sheetContext,
-    Duration duration,
-  ) async {
-    final handler = await ref.read(luminaAudioHandlerProvider.future);
-    await ref
-        .read(sleepTimerServiceProvider)
-        .scheduleDuration(duration, handler);
-    if (sheetContext.mounted) Navigator.of(sheetContext).pop();
   }
 
   Future<void> _confirmResetAppSettings() async {
@@ -711,16 +404,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         content: Text(
           context.tr(
             '以下内容将恢复默认值：\n\n'
-                '• 语言、主题、阅读外观和播放偏好\n'
+                '• 语言、主题和阅读外观\n'
                 '• AI 与语音服务的 API Key 和 Provider 配置\n'
                 '• 模型、朗读音色和字幕偏好\n\n'
                 '书库、播客、阅读进度、下载内容和已下载的 Whisper 模型会保留。',
             'The following will return to their defaults:\n\n'
-                '• Language, theme, reading appearance, and playback preferences\n'
+                '• Language, theme, and reading appearance\n'
                 '• API keys and provider configuration for AI and voice services\n'
                 '• Model, reading voice, and transcript preferences\n\n'
                 'Your library, podcasts, reading progress, downloads, and downloaded Whisper model will be kept.',
-            '次の設定がデフォルトに戻ります：\n\n• 言語、テーマ、読書表示、再生設定\n• AI・音声サービスのAPIキーとプロバイダー設定\n• モデル、読み上げ音声、文字起こし設定\n\nライブラリ、Podcast、読書進捗、ダウンロード、Whisperモデルは保持されます。',
+            '次の設定がデフォルトに戻ります：\n\n• 言語、テーマ、読書表示\n• AI・音声サービスのAPIキーとプロバイダー設定\n• モデル、読み上げ音声、文字起こし設定\n\nライブラリ、Podcast、読書進捗、ダウンロード、Whisperモデルは保持されます。',
           ),
         ),
         actions: [
@@ -795,10 +488,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ref.invalidate(asrSettingsControllerProvider);
       ref.invalidate(llmSettingsControllerProvider);
       if (!mounted) return;
-      setState(() {
-        _fadeInEnabled = true;
-        _resetting = false;
-      });
+      setState(() => _resetting = false);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(successMessage)));
