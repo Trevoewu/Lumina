@@ -12,9 +12,9 @@ import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart' as drift_db;
 import '../../../domain/models/book_language.dart';
-import '../../../domain/models/book_rights.dart';
 import '../../../services/app_log_service.dart';
 import '../../../services/book_parser.dart';
+import '../../../services/incoming_book_import_controller.dart';
 import '../../../services/reading_level_estimator.dart';
 import '../../../tts/models/tts_voice.dart';
 import '../../../tts/provider_registry.dart';
@@ -149,6 +149,7 @@ class LibraryScreen extends ConsumerStatefulWidget {
 
 class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   int _reloadToken = 0;
+  int _lastIncomingImportEventId = 0;
   bool _importing = false;
   bool _addingPodcast = false;
   _HomeSection _section = _HomeSection.all;
@@ -172,6 +173,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final incomingImport = ref.watch(incomingBookImportControllerProvider);
+    if (incomingImport.phase == IncomingBookImportPhase.succeeded &&
+        incomingImport.eventId != _lastIncomingImportEventId) {
+      _lastIncomingImportEventId = incomingImport.eventId;
+      _reloadToken++;
+    }
     final db = ref.watch(appDatabaseProvider);
     final accent = Theme.of(context).colorScheme.primary;
     final design = context.appDesign;
@@ -724,7 +731,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 
   Future<void> _importBook(BuildContext context) async {
-    final db = ref.read(appDatabaseProvider);
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _importing = true);
 
@@ -757,73 +763,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       if (!context.mounted) return;
 
       messenger.showSnackBar(const SnackBar(content: Text('正在解析书籍...')));
-      final appDir = await getApplicationDocumentsDirectory();
-
-      final parsed = await BookParser.parse(
-        sourcePath: picked.path!,
-        appDir: appDir.path,
-      );
-      final language = inferLanguageFromTitle(parsed.book.title);
-      final readingLevel = await _estimateReadingLevel(
-        language: language,
-        paragraphTexts: parsed.paragraphs.map((paragraph) => paragraph.text),
-      );
-
-      await db.replaceBookData(
-        book: drift_db.Book(
-          id: parsed.book.id,
-          title: parsed.book.title,
-          author: parsed.book.author,
-          language: language,
-          format: parsed.book.format.name,
-          sourcePath: parsed.book.sourcePath,
-          coverPath: parsed.book.coverPath,
-          chapterCount: parsed.book.chapterCount,
-          paragraphCount: parsed.book.paragraphCount,
-          currentChapterId: parsed.book.currentChapterId,
-          currentParagraphIndex: parsed.book.currentParagraphIndex,
-          playbackOffsetMs: parsed.book.playbackOffsetMs,
-          voiceId: parsed.book.voiceId,
-          importedAt: parsed.book.importedAt,
-          lastReadAt: parsed.book.lastReadAt,
-          isRead: false,
-          kind: 'book',
-          rightsStatus: userUploadedRightsStatus,
-          readingLevelSystem: readingLevel?.system,
-          readingLevelCode: readingLevel?.code,
-          readingLevelSource: readingLevel?.source,
-        ),
-        chapterEntries: parsed.chapters
-            .map(
-              (c) => drift_db.Chapter(
-                id: c.id,
-                bookId: c.bookId,
-                chapterIndex: c.index,
-                title: c.title,
-                textOffset: c.textOffset,
-                isHidden: false,
-              ),
-            )
-            .toList(),
-        paragraphEntries: parsed.paragraphs
-            .map(
-              (p) => drift_db.Paragraph(
-                id: p.id,
-                chapterId: p.chapterId,
-                bookId: p.bookId,
-                paragraphIndex: p.index,
-                content: p.text,
-              ),
-            )
-            .toList(),
-      );
+      final imported = await ref
+          .read(bookImportServiceProvider)
+          .importFile(picked.path!);
 
       if (!context.mounted) return;
       setState(() => _reloadToken++);
       messenger.showSnackBar(
         SnackBar(
           content: Text(
-            '解析成功：${parsed.book.title}，${parsed.chapters.length} 章，${parsed.paragraphs.length} 段',
+            '解析成功：${imported.book.title}，${imported.chapterCount} 章，${imported.paragraphCount} 段',
           ),
         ),
       );

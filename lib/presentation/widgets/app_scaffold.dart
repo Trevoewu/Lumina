@@ -5,6 +5,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../core/app_localizations.dart';
 import '../../core/providers.dart';
+import '../../services/incoming_book_import_controller.dart';
+import '../screens/album/album_screen.dart';
 import '../screens/dictionary/dictionary_screen.dart';
 import '../screens/library/library_screen.dart';
 import '../screens/me/me_screen.dart';
@@ -37,6 +39,10 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<IncomingBookImportState>(
+      incomingBookImportControllerProvider,
+      _handleIncomingBookImport,
+    );
     ref.watch(playbackProgressServiceProvider);
     final handlerAsync = ref.watch(luminaAudioHandlerProvider);
 
@@ -51,6 +57,75 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         },
       ),
     );
+  }
+
+  void _handleIncomingBookImport(
+    IncomingBookImportState? previous,
+    IncomingBookImportState next,
+  ) {
+    if (previous?.eventId == next.eventId && previous?.phase == next.phase) {
+      return;
+    }
+    final messenger = ScaffoldMessenger.of(context);
+    switch (next.phase) {
+      case IncomingBookImportPhase.idle:
+        return;
+      case IncomingBookImportPhase.importing:
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(
+          SnackBar(
+            duration: const Duration(minutes: 2),
+            content: Text(
+              context.tr(
+                '正在导入 ${next.fileName ?? 'EPUB'}…',
+                'Importing ${next.fileName ?? 'EPUB'}…',
+                '${next.fileName ?? 'EPUB'}をインポート中…',
+              ),
+            ),
+          ),
+        );
+      case IncomingBookImportPhase.succeeded:
+        final importedBook = next.result!.book;
+        setState(() {
+          _initializedTabs.add(0);
+          _currentIndex = 0;
+        });
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              context.tr(
+                '已将《${importedBook.title}》导入书架',
+                'Imported “${importedBook.title}” to your library',
+                '「${importedBook.title}」を本棚にインポートしました',
+              ),
+            ),
+          ),
+        );
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          final navigator = _navigatorKeys[0].currentState;
+          if (navigator == null) return;
+          navigator.popUntil((route) => route.isFirst);
+          navigator.push(
+            MaterialPageRoute(builder: (_) => AlbumScreen(book: importedBook)),
+          );
+        });
+      case IncomingBookImportPhase.failed:
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(
+          SnackBar(
+            duration: const Duration(seconds: 8),
+            content: Text(
+              context.tr(
+                '无法导入 ${next.fileName ?? 'EPUB'}',
+                'Could not import ${next.fileName ?? 'EPUB'}',
+                '${next.fileName ?? 'EPUB'}をインポートできませんでした',
+              ),
+            ),
+          ),
+        );
+    }
   }
 
   Widget _buildScaffold({required bool hasMiniPlayer}) {

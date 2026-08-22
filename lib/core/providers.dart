@@ -16,7 +16,9 @@ import '../data/podcasts/podcast_repository.dart';
 import '../data/settings/provider_selection_repository.dart';
 import '../services/app_settings_reset_service.dart';
 import '../services/app_icon_service.dart';
+import '../services/book_import_service.dart';
 import '../services/generation_orchestrator.dart';
+import '../services/incoming_book_import_controller.dart';
 import '../services/lumina_audio_handler.dart';
 import '../services/manifest_store.dart';
 import '../services/podcast_transcription_service.dart';
@@ -27,6 +29,15 @@ import 'database_provider.dart';
 import 'app_preferences.dart';
 
 export 'database_provider.dart';
+
+final bookImportServiceProvider = Provider<BookImportService>((ref) {
+  return BookImportService(ref.watch(appDatabaseProvider));
+});
+
+final incomingBookImportControllerProvider =
+    NotifierProvider<IncomingBookImportController, IncomingBookImportState>(
+      IncomingBookImportController.new,
+    );
 
 final gutendexRepositoryProvider = Provider<GutendexRepository>((ref) {
   return GutendexRepository();
