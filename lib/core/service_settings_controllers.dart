@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/database/app_database.dart' as drift_db;
@@ -576,6 +578,13 @@ class TtsSettingsController extends AsyncNotifier<TtsSettingsState> {
     description: voice.description,
     presetDescription: voice.presetDescription,
     previewUrl: voice.previewUrl,
+    coverUrl: voice.coverUrl,
+    languages: voice.languagesJson == null
+        ? const []
+        : (jsonDecode(voice.languagesJson!) as List<dynamic>)
+              .whereType<String>()
+              .toList(),
+    sampleCount: voice.sampleCount ?? 0,
     createdAt: voice.createdAt,
   );
 

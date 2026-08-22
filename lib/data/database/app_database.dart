@@ -127,6 +127,9 @@ class Voices extends Table {
   TextColumn get description => text().nullable()();
   TextColumn get presetDescription => text().nullable()();
   TextColumn get previewUrl => text().nullable()();
+  TextColumn get coverUrl => text().nullable()();
+  TextColumn get languagesJson => text().nullable()();
+  IntColumn get sampleCount => integer().nullable()();
   IntColumn get createdAt => integer()();
 
   @override
@@ -412,7 +415,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e) : _repairPathsOnOpen = false;
 
   @override
-  int get schemaVersion => 17;
+  int get schemaVersion => 18;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -532,6 +535,23 @@ class AppDatabase extends _$AppDatabase {
       if (from < 17) {
         await m.createTable(generationTasks);
         await m.createTable(generationTaskChunks);
+      }
+      if (from < 18) {
+        final voicesTableExists =
+            await m.database
+                .customSelect(
+                  "SELECT 1 FROM sqlite_master WHERE type = 'table' "
+                  "AND name = 'voices'",
+                )
+                .getSingleOrNull() !=
+            null;
+        if (voicesTableExists) {
+          await m.addColumn(voices, voices.coverUrl);
+          await m.addColumn(voices, voices.languagesJson);
+          await m.addColumn(voices, voices.sampleCount);
+        } else {
+          await m.createTable(voices);
+        }
       }
     },
     beforeOpen: (_) async {

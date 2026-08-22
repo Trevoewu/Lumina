@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -551,6 +553,9 @@ class _TtsSetupWizardScreenState extends ConsumerState<TtsSetupWizardScreen> {
             description: voice.description,
             presetDescription: voice.presetDescription,
             previewUrl: voice.previewUrl,
+            coverUrl: voice.coverUrl,
+            languagesJson: jsonEncode(voice.languages),
+            sampleCount: voice.sampleCount,
             createdAt: voice.createdAt,
           ),
         );

@@ -74,6 +74,60 @@ void main() {
     },
   );
 
+  test('Fish maps voice card metadata from the model API', () async {
+    final dio = Dio();
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) => handler.resolve(
+          Response<Map<String, dynamic>>(
+            requestOptions: options,
+            data: {
+              'total': 1,
+              'items': [
+                {
+                  '_id': 'voice-123',
+                  'type': 'tts',
+                  'title': 'Trevor Noah',
+                  'state': 'trained',
+                  'description': 'Clear and thoughtful delivery',
+                  'cover_image': 'https://cdn.example.com/cover.jpg',
+                  'created_at': '2026-07-05T12:00:00Z',
+                  'tags': ['American English', 'narration'],
+                  'samples': [
+                    {'audio': 'https://cdn.example.com/sample.mp3'},
+                  ],
+                  'quality': {
+                    'audios': [
+                      {'filename': 'first.wav'},
+                      {'filename': 'second.wav'},
+                    ],
+                  },
+                },
+              ],
+            },
+          ),
+        ),
+      ),
+    );
+    final provider = _ConfiguredFishVoiceProvider(dio);
+
+    final voices = await provider.listPresetVoices();
+    final voice = voices.singleWhere(
+      (item) => item.providerVoiceId == 'voice-123',
+    );
+
+    expect(voice.name, 'Trevor Noah');
+    expect(voice.presetDescription, 'Clear and thoughtful delivery');
+    expect(voice.coverUrl, 'https://cdn.example.com/cover.jpg');
+    expect(voice.previewUrl, 'https://cdn.example.com/sample.mp3');
+    expect(voice.languages, ['en-US']);
+    expect(voice.sampleCount, 2);
+    expect(
+      DateTime.fromMillisecondsSinceEpoch(voice.createdAt, isUtc: true),
+      DateTime.parse('2026-07-05T12:00:00Z'),
+    );
+  });
+
   test(
     'MiniMax falls back to its official TTS catalog when models API returns only LLMs',
     () async {
@@ -229,6 +283,13 @@ void main() {
       '{"fish_audio_api":"narration-fast"}',
     );
   });
+}
+
+class _ConfiguredFishVoiceProvider extends FishAudioApiTtsProvider {
+  _ConfiguredFishVoiceProvider(Dio dio) : super(dio: dio);
+
+  @override
+  Future<String?> get apiKey async => 'test-key';
 }
 
 class _ModelSetupLauncher extends StatefulWidget {

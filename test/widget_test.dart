@@ -404,6 +404,8 @@ void main() {
         providerId: 'fish_audio_api',
         type: 'preset',
         providerVoiceId: 'af_heart',
+        languagesJson: '["en"]',
+        sampleCount: 2,
         createdAt: 1,
       ),
     );
@@ -431,6 +433,10 @@ void main() {
       find.textContaining('Current voice · preset · af_heart'),
       findsOneWidget,
     );
+    expect(find.text('🇺🇸'), findsOneWidget);
+    expect(find.text('2 audio samples'), findsOneWidget);
+    expect(find.text('0 audio samples'), findsOneWidget);
+    expect(find.byIcon(Icons.spatial_audio_off_outlined), findsNothing);
     await tester.drag(find.byType(ListView), const Offset(0, -320));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Voice B'));

@@ -304,7 +304,7 @@ class _TtsServiceScreenState extends ConsumerState<TtsServiceScreen> {
       MaterialPageRoute(
         builder: (_) => VoiceLibraryScreen(
           guidedSelection: guidedSelection,
-          syncOnOpen: guidedSelection,
+          syncOnOpen: true,
         ),
       ),
     );

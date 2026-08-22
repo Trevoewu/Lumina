@@ -470,11 +470,29 @@ class FishAudioApiTtsProvider
   }
 
   TtsVoice? _voiceFromModel(Map<String, dynamic> model) {
+    if (model['type'] != null && model['type'] != 'tts') return null;
     final modelId = model['_id'] as String? ?? model['id'] as String?;
     if (modelId == null || modelId.isEmpty) return null;
     final title = model['title'] as String? ?? modelId;
     final description = model['description'] as String?;
     final state = model['state'] as String?;
+    final coverUrl = _nonEmptyString(model['cover_image']);
+    final samples = model['samples'] as List<dynamic>? ?? const [];
+    String? previewUrl;
+    for (final sample in samples.whereType<Map>()) {
+      previewUrl =
+          _nonEmptyString(sample['audio']) ??
+          _nonEmptyString(sample['audio_url']) ??
+          _nonEmptyString(sample['url']);
+      if (previewUrl != null) break;
+    }
+    final languages = _languagesFromModel(model);
+    final quality = model['quality'] as Map?;
+    final qualityAudios = quality?['audios'] as List<dynamic>? ?? const [];
+    final sampleCount = samples.length >= qualityAudios.length
+        ? samples.length
+        : qualityAudios.length;
+    final createdAt = DateTime.tryParse(model['created_at'] as String? ?? '');
     return TtsVoice(
       id: '${idValue}_model_$modelId',
       name: state == null || state == 'trained' ? title : '$title ($state)',
@@ -482,8 +500,59 @@ class FishAudioApiTtsProvider
       type: VoiceType.preset,
       providerVoiceId: modelId,
       presetDescription: description ?? 'Fish Audio voice model',
-      createdAt: DateTime.now().millisecondsSinceEpoch,
+      previewUrl: previewUrl,
+      coverUrl: coverUrl,
+      languages: languages,
+      sampleCount: sampleCount,
+      createdAt:
+          createdAt?.millisecondsSinceEpoch ??
+          DateTime.now().millisecondsSinceEpoch,
     );
+  }
+
+  String? _nonEmptyString(Object? value) {
+    final text = value is String ? value.trim() : '';
+    return text.isEmpty ? null : text;
+  }
+
+  List<String> _languagesFromModel(Map<String, dynamic> model) {
+    final explicit = (model['languages'] as List<dynamic>? ?? const [])
+        .whereType<String>()
+        .where((value) => value.trim().isNotEmpty)
+        .toList(growable: false);
+    if (explicit.isNotEmpty) return explicit;
+
+    final tags = (model['tags'] as List<dynamic>? ?? const [])
+        .whereType<String>()
+        .map((value) => value.trim().toLowerCase());
+    const aliases = <String, String>{
+      'american': 'en-US',
+      'british': 'en-GB',
+      'english': 'en',
+      'chinese': 'zh',
+      'mandarin': 'zh',
+      'japanese': 'ja',
+      'korean': 'ko',
+      'french': 'fr',
+      'german': 'de',
+      'spanish': 'es',
+    };
+    final result = <String>[];
+    for (final tag in tags) {
+      String? language;
+      if (RegExp(r'^[a-z]{2}(-[a-z]{2})?$').hasMatch(tag)) {
+        language = tag;
+      } else {
+        for (final entry in aliases.entries) {
+          if (tag.contains(entry.key)) {
+            language = entry.value;
+            break;
+          }
+        }
+      }
+      if (language != null && !result.contains(language)) result.add(language);
+    }
+    return result;
   }
 
   int? _wavSampleRate(Uint8List bytes) {

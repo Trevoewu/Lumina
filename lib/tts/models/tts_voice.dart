@@ -46,6 +46,15 @@ class TtsVoice {
   /// 试听音频 URL（若有）。
   final String? previewUrl;
 
+  /// Provider 返回的音色封面 URL。
+  final String? coverUrl;
+
+  /// Provider 声明的语言代码（如 `en`、`zh`）。
+  final List<String> languages;
+
+  /// Provider 中可试听的音频样本数。
+  final int sampleCount;
+
   /// 创建时间（毫秒）。
   final int createdAt;
 
@@ -59,6 +68,9 @@ class TtsVoice {
     this.description,
     this.presetDescription,
     this.previewUrl,
+    this.coverUrl,
+    this.languages = const [],
+    this.sampleCount = 0,
     required this.createdAt,
   });
 
@@ -72,6 +84,9 @@ class TtsVoice {
     String? description,
     String? presetDescription,
     String? previewUrl,
+    String? coverUrl,
+    List<String>? languages,
+    int? sampleCount,
     int? createdAt,
   }) {
     return TtsVoice(
@@ -84,6 +99,9 @@ class TtsVoice {
       description: description ?? this.description,
       presetDescription: presetDescription ?? this.presetDescription,
       previewUrl: previewUrl ?? this.previewUrl,
+      coverUrl: coverUrl ?? this.coverUrl,
+      languages: languages ?? this.languages,
+      sampleCount: sampleCount ?? this.sampleCount,
       createdAt: createdAt ?? this.createdAt,
     );
   }
@@ -99,6 +117,9 @@ class TtsVoice {
       'description': description,
       'preset_description': presetDescription,
       'preview_url': previewUrl,
+      'cover_url': coverUrl,
+      'languages': languages,
+      'sample_count': sampleCount,
       'created_at': createdAt,
     };
   }
@@ -114,6 +135,11 @@ class TtsVoice {
       description: map['description'] as String?,
       presetDescription: map['preset_description'] as String?,
       previewUrl: map['preview_url'] as String?,
+      coverUrl: map['cover_url'] as String?,
+      languages: (map['languages'] as List<dynamic>? ?? const [])
+          .whereType<String>()
+          .toList(),
+      sampleCount: map['sample_count'] as int? ?? 0,
       createdAt: map['created_at'] as int,
     );
   }

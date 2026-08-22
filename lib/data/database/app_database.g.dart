@@ -3254,6 +3254,39 @@ class $VoicesTable extends Voices with TableInfo<$VoicesTable, Voice> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _coverUrlMeta = const VerificationMeta(
+    'coverUrl',
+  );
+  @override
+  late final GeneratedColumn<String> coverUrl = GeneratedColumn<String>(
+    'cover_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _languagesJsonMeta = const VerificationMeta(
+    'languagesJson',
+  );
+  @override
+  late final GeneratedColumn<String> languagesJson = GeneratedColumn<String>(
+    'languages_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sampleCountMeta = const VerificationMeta(
+    'sampleCount',
+  );
+  @override
+  late final GeneratedColumn<int> sampleCount = GeneratedColumn<int>(
+    'sample_count',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -3276,6 +3309,9 @@ class $VoicesTable extends Voices with TableInfo<$VoicesTable, Voice> {
     description,
     presetDescription,
     previewUrl,
+    coverUrl,
+    languagesJson,
+    sampleCount,
     createdAt,
   ];
   @override
@@ -3360,6 +3396,30 @@ class $VoicesTable extends Voices with TableInfo<$VoicesTable, Voice> {
         previewUrl.isAcceptableOrUnknown(data['preview_url']!, _previewUrlMeta),
       );
     }
+    if (data.containsKey('cover_url')) {
+      context.handle(
+        _coverUrlMeta,
+        coverUrl.isAcceptableOrUnknown(data['cover_url']!, _coverUrlMeta),
+      );
+    }
+    if (data.containsKey('languages_json')) {
+      context.handle(
+        _languagesJsonMeta,
+        languagesJson.isAcceptableOrUnknown(
+          data['languages_json']!,
+          _languagesJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('sample_count')) {
+      context.handle(
+        _sampleCountMeta,
+        sampleCount.isAcceptableOrUnknown(
+          data['sample_count']!,
+          _sampleCountMeta,
+        ),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -3413,6 +3473,18 @@ class $VoicesTable extends Voices with TableInfo<$VoicesTable, Voice> {
         DriftSqlType.string,
         data['${effectivePrefix}preview_url'],
       ),
+      coverUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cover_url'],
+      ),
+      languagesJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}languages_json'],
+      ),
+      sampleCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sample_count'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}created_at'],
@@ -3436,6 +3508,9 @@ class Voice extends DataClass implements Insertable<Voice> {
   final String? description;
   final String? presetDescription;
   final String? previewUrl;
+  final String? coverUrl;
+  final String? languagesJson;
+  final int? sampleCount;
   final int createdAt;
   const Voice({
     required this.id,
@@ -3447,6 +3522,9 @@ class Voice extends DataClass implements Insertable<Voice> {
     this.description,
     this.presetDescription,
     this.previewUrl,
+    this.coverUrl,
+    this.languagesJson,
+    this.sampleCount,
     required this.createdAt,
   });
   @override
@@ -3468,6 +3546,15 @@ class Voice extends DataClass implements Insertable<Voice> {
     }
     if (!nullToAbsent || previewUrl != null) {
       map['preview_url'] = Variable<String>(previewUrl);
+    }
+    if (!nullToAbsent || coverUrl != null) {
+      map['cover_url'] = Variable<String>(coverUrl);
+    }
+    if (!nullToAbsent || languagesJson != null) {
+      map['languages_json'] = Variable<String>(languagesJson);
+    }
+    if (!nullToAbsent || sampleCount != null) {
+      map['sample_count'] = Variable<int>(sampleCount);
     }
     map['created_at'] = Variable<int>(createdAt);
     return map;
@@ -3492,6 +3579,15 @@ class Voice extends DataClass implements Insertable<Voice> {
       previewUrl: previewUrl == null && nullToAbsent
           ? const Value.absent()
           : Value(previewUrl),
+      coverUrl: coverUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(coverUrl),
+      languagesJson: languagesJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(languagesJson),
+      sampleCount: sampleCount == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sampleCount),
       createdAt: Value(createdAt),
     );
   }
@@ -3513,6 +3609,9 @@ class Voice extends DataClass implements Insertable<Voice> {
         json['presetDescription'],
       ),
       previewUrl: serializer.fromJson<String?>(json['previewUrl']),
+      coverUrl: serializer.fromJson<String?>(json['coverUrl']),
+      languagesJson: serializer.fromJson<String?>(json['languagesJson']),
+      sampleCount: serializer.fromJson<int?>(json['sampleCount']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
     );
   }
@@ -3529,6 +3628,9 @@ class Voice extends DataClass implements Insertable<Voice> {
       'description': serializer.toJson<String?>(description),
       'presetDescription': serializer.toJson<String?>(presetDescription),
       'previewUrl': serializer.toJson<String?>(previewUrl),
+      'coverUrl': serializer.toJson<String?>(coverUrl),
+      'languagesJson': serializer.toJson<String?>(languagesJson),
+      'sampleCount': serializer.toJson<int?>(sampleCount),
       'createdAt': serializer.toJson<int>(createdAt),
     };
   }
@@ -3543,6 +3645,9 @@ class Voice extends DataClass implements Insertable<Voice> {
     Value<String?> description = const Value.absent(),
     Value<String?> presetDescription = const Value.absent(),
     Value<String?> previewUrl = const Value.absent(),
+    Value<String?> coverUrl = const Value.absent(),
+    Value<String?> languagesJson = const Value.absent(),
+    Value<int?> sampleCount = const Value.absent(),
     int? createdAt,
   }) => Voice(
     id: id ?? this.id,
@@ -3556,6 +3661,11 @@ class Voice extends DataClass implements Insertable<Voice> {
         ? presetDescription.value
         : this.presetDescription,
     previewUrl: previewUrl.present ? previewUrl.value : this.previewUrl,
+    coverUrl: coverUrl.present ? coverUrl.value : this.coverUrl,
+    languagesJson: languagesJson.present
+        ? languagesJson.value
+        : this.languagesJson,
+    sampleCount: sampleCount.present ? sampleCount.value : this.sampleCount,
     createdAt: createdAt ?? this.createdAt,
   );
   Voice copyWithCompanion(VoicesCompanion data) {
@@ -3581,6 +3691,13 @@ class Voice extends DataClass implements Insertable<Voice> {
       previewUrl: data.previewUrl.present
           ? data.previewUrl.value
           : this.previewUrl,
+      coverUrl: data.coverUrl.present ? data.coverUrl.value : this.coverUrl,
+      languagesJson: data.languagesJson.present
+          ? data.languagesJson.value
+          : this.languagesJson,
+      sampleCount: data.sampleCount.present
+          ? data.sampleCount.value
+          : this.sampleCount,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
     );
   }
@@ -3597,6 +3714,9 @@ class Voice extends DataClass implements Insertable<Voice> {
           ..write('description: $description, ')
           ..write('presetDescription: $presetDescription, ')
           ..write('previewUrl: $previewUrl, ')
+          ..write('coverUrl: $coverUrl, ')
+          ..write('languagesJson: $languagesJson, ')
+          ..write('sampleCount: $sampleCount, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
@@ -3613,6 +3733,9 @@ class Voice extends DataClass implements Insertable<Voice> {
     description,
     presetDescription,
     previewUrl,
+    coverUrl,
+    languagesJson,
+    sampleCount,
     createdAt,
   );
   @override
@@ -3628,6 +3751,9 @@ class Voice extends DataClass implements Insertable<Voice> {
           other.description == this.description &&
           other.presetDescription == this.presetDescription &&
           other.previewUrl == this.previewUrl &&
+          other.coverUrl == this.coverUrl &&
+          other.languagesJson == this.languagesJson &&
+          other.sampleCount == this.sampleCount &&
           other.createdAt == this.createdAt);
 }
 
@@ -3641,6 +3767,9 @@ class VoicesCompanion extends UpdateCompanion<Voice> {
   final Value<String?> description;
   final Value<String?> presetDescription;
   final Value<String?> previewUrl;
+  final Value<String?> coverUrl;
+  final Value<String?> languagesJson;
+  final Value<int?> sampleCount;
   final Value<int> createdAt;
   final Value<int> rowid;
   const VoicesCompanion({
@@ -3653,6 +3782,9 @@ class VoicesCompanion extends UpdateCompanion<Voice> {
     this.description = const Value.absent(),
     this.presetDescription = const Value.absent(),
     this.previewUrl = const Value.absent(),
+    this.coverUrl = const Value.absent(),
+    this.languagesJson = const Value.absent(),
+    this.sampleCount = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -3666,6 +3798,9 @@ class VoicesCompanion extends UpdateCompanion<Voice> {
     this.description = const Value.absent(),
     this.presetDescription = const Value.absent(),
     this.previewUrl = const Value.absent(),
+    this.coverUrl = const Value.absent(),
+    this.languagesJson = const Value.absent(),
+    this.sampleCount = const Value.absent(),
     required int createdAt,
     this.rowid = const Value.absent(),
   }) : id = Value(id),
@@ -3684,6 +3819,9 @@ class VoicesCompanion extends UpdateCompanion<Voice> {
     Expression<String>? description,
     Expression<String>? presetDescription,
     Expression<String>? previewUrl,
+    Expression<String>? coverUrl,
+    Expression<String>? languagesJson,
+    Expression<int>? sampleCount,
     Expression<int>? createdAt,
     Expression<int>? rowid,
   }) {
@@ -3697,6 +3835,9 @@ class VoicesCompanion extends UpdateCompanion<Voice> {
       if (description != null) 'description': description,
       if (presetDescription != null) 'preset_description': presetDescription,
       if (previewUrl != null) 'preview_url': previewUrl,
+      if (coverUrl != null) 'cover_url': coverUrl,
+      if (languagesJson != null) 'languages_json': languagesJson,
+      if (sampleCount != null) 'sample_count': sampleCount,
       if (createdAt != null) 'created_at': createdAt,
       if (rowid != null) 'rowid': rowid,
     });
@@ -3712,6 +3853,9 @@ class VoicesCompanion extends UpdateCompanion<Voice> {
     Value<String?>? description,
     Value<String?>? presetDescription,
     Value<String?>? previewUrl,
+    Value<String?>? coverUrl,
+    Value<String?>? languagesJson,
+    Value<int?>? sampleCount,
     Value<int>? createdAt,
     Value<int>? rowid,
   }) {
@@ -3725,6 +3869,9 @@ class VoicesCompanion extends UpdateCompanion<Voice> {
       description: description ?? this.description,
       presetDescription: presetDescription ?? this.presetDescription,
       previewUrl: previewUrl ?? this.previewUrl,
+      coverUrl: coverUrl ?? this.coverUrl,
+      languagesJson: languagesJson ?? this.languagesJson,
+      sampleCount: sampleCount ?? this.sampleCount,
       createdAt: createdAt ?? this.createdAt,
       rowid: rowid ?? this.rowid,
     );
@@ -3760,6 +3907,15 @@ class VoicesCompanion extends UpdateCompanion<Voice> {
     if (previewUrl.present) {
       map['preview_url'] = Variable<String>(previewUrl.value);
     }
+    if (coverUrl.present) {
+      map['cover_url'] = Variable<String>(coverUrl.value);
+    }
+    if (languagesJson.present) {
+      map['languages_json'] = Variable<String>(languagesJson.value);
+    }
+    if (sampleCount.present) {
+      map['sample_count'] = Variable<int>(sampleCount.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<int>(createdAt.value);
     }
@@ -3781,6 +3937,9 @@ class VoicesCompanion extends UpdateCompanion<Voice> {
           ..write('description: $description, ')
           ..write('presetDescription: $presetDescription, ')
           ..write('previewUrl: $previewUrl, ')
+          ..write('coverUrl: $coverUrl, ')
+          ..write('languagesJson: $languagesJson, ')
+          ..write('sampleCount: $sampleCount, ')
           ..write('createdAt: $createdAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -13145,6 +13304,9 @@ typedef $$VoicesTableCreateCompanionBuilder =
       Value<String?> description,
       Value<String?> presetDescription,
       Value<String?> previewUrl,
+      Value<String?> coverUrl,
+      Value<String?> languagesJson,
+      Value<int?> sampleCount,
       required int createdAt,
       Value<int> rowid,
     });
@@ -13159,6 +13321,9 @@ typedef $$VoicesTableUpdateCompanionBuilder =
       Value<String?> description,
       Value<String?> presetDescription,
       Value<String?> previewUrl,
+      Value<String?> coverUrl,
+      Value<String?> languagesJson,
+      Value<int?> sampleCount,
       Value<int> createdAt,
       Value<int> rowid,
     });
@@ -13214,6 +13379,21 @@ class $$VoicesTableFilterComposer
 
   ColumnFilters<String> get previewUrl => $composableBuilder(
     column: $table.previewUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get coverUrl => $composableBuilder(
+    column: $table.coverUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get languagesJson => $composableBuilder(
+    column: $table.languagesJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sampleCount => $composableBuilder(
+    column: $table.sampleCount,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -13277,6 +13457,21 @@ class $$VoicesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get coverUrl => $composableBuilder(
+    column: $table.coverUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get languagesJson => $composableBuilder(
+    column: $table.languagesJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sampleCount => $composableBuilder(
+    column: $table.sampleCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -13331,6 +13526,19 @@ class $$VoicesTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get coverUrl =>
+      $composableBuilder(column: $table.coverUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get languagesJson => $composableBuilder(
+    column: $table.languagesJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get sampleCount => $composableBuilder(
+    column: $table.sampleCount,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<int> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 }
@@ -13372,6 +13580,9 @@ class $$VoicesTableTableManager
                 Value<String?> description = const Value.absent(),
                 Value<String?> presetDescription = const Value.absent(),
                 Value<String?> previewUrl = const Value.absent(),
+                Value<String?> coverUrl = const Value.absent(),
+                Value<String?> languagesJson = const Value.absent(),
+                Value<int?> sampleCount = const Value.absent(),
                 Value<int> createdAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => VoicesCompanion(
@@ -13384,6 +13595,9 @@ class $$VoicesTableTableManager
                 description: description,
                 presetDescription: presetDescription,
                 previewUrl: previewUrl,
+                coverUrl: coverUrl,
+                languagesJson: languagesJson,
+                sampleCount: sampleCount,
                 createdAt: createdAt,
                 rowid: rowid,
               ),
@@ -13398,6 +13612,9 @@ class $$VoicesTableTableManager
                 Value<String?> description = const Value.absent(),
                 Value<String?> presetDescription = const Value.absent(),
                 Value<String?> previewUrl = const Value.absent(),
+                Value<String?> coverUrl = const Value.absent(),
+                Value<String?> languagesJson = const Value.absent(),
+                Value<int?> sampleCount = const Value.absent(),
                 required int createdAt,
                 Value<int> rowid = const Value.absent(),
               }) => VoicesCompanion.insert(
@@ -13410,6 +13627,9 @@ class $$VoicesTableTableManager
                 description: description,
                 presetDescription: presetDescription,
                 previewUrl: previewUrl,
+                coverUrl: coverUrl,
+                languagesJson: languagesJson,
+                sampleCount: sampleCount,
                 createdAt: createdAt,
                 rowid: rowid,
               ),
