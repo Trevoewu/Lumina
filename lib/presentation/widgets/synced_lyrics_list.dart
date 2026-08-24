@@ -147,6 +147,13 @@ class SyncedLyricLine {
   final int endMs;
   final List<SyncedLyricWord> words;
 
+  /// Paragraphs represented by this display line.
+  ///
+  /// This normally contains only [paragraphId]. A punctuation-only paragraph
+  /// can be folded into the preceding line while remaining addressable when
+  /// playback advances to that paragraph.
+  final List<String> sourceParagraphIds;
+
   const SyncedLyricLine({
     required this.id,
     required this.paragraphId,
@@ -154,7 +161,11 @@ class SyncedLyricLine {
     required this.startMs,
     required this.endMs,
     this.words = const [],
+    this.sourceParagraphIds = const [],
   });
+
+  Iterable<String> get representedParagraphIds =>
+      sourceParagraphIds.isEmpty ? [paragraphId] : sourceParagraphIds;
 }
 
 typedef _PositionedTiming = ({AudioTextTiming timing, int start, int end});
@@ -399,6 +410,41 @@ List<SyncedLyricLine> buildSyncedLyricLines(
   for (final paragraph in paragraphs) {
     final parts = splitLyricsText(paragraph.content, maxChars: maxChars);
     if (parts.isEmpty) continue;
+
+    // Light-novel source files sometimes put a Japanese closing quote in its
+    // own physical paragraph. It has no spoken content, so presenting it as a
+    // separate karaoke line creates the conspicuous orphan shown in the
+    // player. Fold it into the preceding line, while retaining this paragraph
+    // as an alias so the line stays active for already-generated audio.
+    if (parts.length == 1 &&
+        _isStandaloneClosingMarks(parts.single) &&
+        lines.isNotEmpty) {
+      final previous = lines.removeLast();
+      final markStartMs = math.max(previous.startMs, previous.endMs - 1);
+      lines.add(
+        SyncedLyricLine(
+          id: previous.id,
+          paragraphId: previous.paragraphId,
+          text: '${previous.text}${parts.single}',
+          startMs: previous.startMs,
+          endMs: previous.endMs,
+          words: [
+            ...previous.words,
+            SyncedLyricWord(
+              text: parts.single,
+              leadingWhitespace: '',
+              startMs: markStartMs,
+              endMs: math.max(markStartMs + 1, previous.endMs),
+            ),
+          ],
+          sourceParagraphIds: [
+            ...previous.representedParagraphIds,
+            paragraph.id,
+          ],
+        ),
+      );
+      continue;
+    }
     final segment = segments[paragraph.id];
     final durationMs = segment?.durationMs ?? 0;
     final timings = segment?.timings ?? const <AudioTextTiming>[];
@@ -446,12 +492,31 @@ List<String> splitLyricsText(String text, {int maxChars = 100}) {
   final trimmed = text.trim();
   if (trimmed.isEmpty) return const [];
 
-  final sentences = _splitSentences(trimmed);
+  final sentences = _mergeStandaloneClosingMarkSentences(
+    _splitSentences(trimmed),
+  );
   return [
     for (final sentence in sentences)
       ..._splitLongLyricLine(sentence, maxChars),
   ];
 }
+
+List<String> _mergeStandaloneClosingMarkSentences(List<String> sentences) {
+  final merged = <String>[];
+  for (final sentence in sentences) {
+    if (merged.isNotEmpty && _isStandaloneClosingMarks(sentence)) {
+      merged[merged.length - 1] = '${merged.last}${sentence.trim()}';
+    } else {
+      merged.add(sentence);
+    }
+  }
+  return merged;
+}
+
+bool _isStandaloneClosingMarks(String text) => RegExp(
+  r'^[\s\u3000]*[\u300d\u300f\u3011\u3015\u3017\u3019\u301b\u3009\u300b\u3001\u3002\uff0c\uff0e\uff01\uff1f\u2019\u201d\)\]\}]+[\s\u3000]*$',
+  unicode: true,
+).hasMatch(text);
 
 List<String> _splitSentences(String text) {
   final sentences = <String>[];
@@ -522,8 +587,23 @@ void _addSentence(List<String> sentences, String text) {
 bool _isSentenceTerminator(String character) =>
     const {'.', '?', '!', '。', '？', '！'}.contains(character);
 
-bool _isClosingMark(String character) =>
-    const {'"', '”', '’', ')', ']', '}'}.contains(character);
+bool _isClosingMark(String character) => const {
+  '"',
+  '”',
+  '’',
+  ')',
+  ']',
+  '}',
+  '」',
+  '』',
+  '】',
+  '〕',
+  '〗',
+  '〙',
+  '〛',
+  '〉',
+  '》',
+}.contains(character);
 
 final _intraTokenPeriodPattern = RegExp(r'[A-Za-z0-9.]');
 
@@ -1145,7 +1225,9 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
     final lineIndexById = <String, int>{};
     for (var index = 0; index < _lines.length; index++) {
       final line = _lines[index];
-      (linesByParagraph[line.paragraphId] ??= []).add(line);
+      for (final paragraphId in line.representedParagraphIds) {
+        (linesByParagraph[paragraphId] ??= []).add(line);
+      }
       lineIndexById[line.id] = index;
     }
     _linesByParagraph = linesByParagraph;

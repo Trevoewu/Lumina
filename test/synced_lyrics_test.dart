@@ -162,6 +162,11 @@ void main() {
     expect(lines, isNot(contains('"')));
   });
 
+  test('attaches a Japanese closing quote on the next line', () {
+    expect(splitLyricsText('「对吧？\n」'), ['「对吧？」']);
+    expect(splitLyricsText('『真的吗？\n』'), ['『真的吗？』']);
+  });
+
   test('does not split common abbreviations', () {
     final lines = splitLyricsText(
       'Where is Mrs. Hirsch? Dr. Smith knows.',
@@ -396,6 +401,53 @@ void main() {
       (lines[1].words.single.startMs, lines[1].words.single.endMs),
       (500, 501),
     );
+  });
+
+  test('folds a standalone Japanese closing quote across paragraphs', () {
+    const paragraphs = [
+      Paragraph(
+        id: 'dialogue',
+        chapterId: 'c1',
+        bookId: 'b1',
+        paragraphIndex: 0,
+        content: '「说到恐怖，昨天我房间出现一只好大的蜘蛛耶。',
+      ),
+      Paragraph(
+        id: 'closing-quote',
+        chapterId: 'c1',
+        bookId: 'b1',
+        paragraphIndex: 1,
+        content: '」',
+      ),
+    ];
+    final manifest = ChapterManifest(
+      chapterId: 'c1',
+      bookId: 'b1',
+      providerId: 'fish_audio_api',
+      voiceId: 'default',
+      speed: 1,
+      updatedAt: 1,
+      segments: const [
+        SegmentEntry(
+          paragraphId: 'dialogue',
+          audioFile: 'c1/dialogue.wav',
+          durationMs: 1000,
+          state: ParagraphAudioState.ready,
+        ),
+        SegmentEntry(
+          paragraphId: 'closing-quote',
+          audioFile: 'c1/closing-quote.wav',
+          durationMs: 1,
+          state: ParagraphAudioState.ready,
+        ),
+      ],
+    );
+
+    final lines = buildSyncedLyricLines(paragraphs, manifest);
+
+    expect(lines, hasLength(1));
+    expect(lines.single.text, '「说到恐怖，昨天我房间出现一只好大的蜘蛛耶。」');
+    expect(lines.single.representedParagraphIds, ['dialogue', 'closing-quote']);
   });
 
   test('legacy cached audio gets proportional line offsets', () {

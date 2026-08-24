@@ -74,6 +74,44 @@ void main() {
     ]);
   });
 
+  test('EPUB html parser attaches standalone Japanese closing quotes', () {
+    final paragraphs = BookParser.htmlToPlainParagraphsForTest('''
+      <body>
+        <p>「确实有点恐怖呢。</p>
+        <p>」</p>
+        <p>『对吧？</p>
+        <p>』</p>
+      </body>
+    ''');
+
+    expect(paragraphs, ['「确实有点恐怖呢。」', '『对吧？』']);
+  });
+
+  test('TXT parser attaches standalone Japanese closing quotes', () async {
+    final tempDirectory = await Directory.systemTemp.createTemp(
+      'lumina_light_novel_test_',
+    );
+    addTearDown(() => tempDirectory.delete(recursive: true));
+    final sourceFile = File('${tempDirectory.path}/light-novel.txt');
+    await sourceFile.writeAsString('''
+第一章 单色的晴天
+「确实有点恐怖呢。
+」
+「对吧？
+」
+''');
+
+    final parsed = await BookParser.parse(
+      sourcePath: sourceFile.path,
+      appDir: tempDirectory.path,
+    );
+
+    expect(parsed.paragraphs.map((paragraph) => paragraph.text), [
+      '「确实有点恐怖呢。」',
+      '「对吧？」',
+    ]);
+  });
+
   test('EPUB html parser prefers paragraph tags inside large containers', () {
     final paragraphs = BookParser.htmlToPlainParagraphsForTest('''
       <body>

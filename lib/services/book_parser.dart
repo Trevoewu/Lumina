@@ -1048,6 +1048,10 @@ class BookParser {
   static List<String> _mergeContinuationParagraphs(List<String> paragraphs) {
     final merged = <String>[];
     for (final text in paragraphs) {
+      if (merged.isNotEmpty && _isStandaloneClosingMarks(text)) {
+        merged[merged.length - 1] = '${merged.last}${text.trim()}';
+        continue;
+      }
       if (merged.isNotEmpty && _looksLikeContinuation(merged.last, text)) {
         merged[merged.length - 1] = '${merged.last} $text'
             .replaceAll(RegExp(r'\s+'), ' ')
@@ -1093,8 +1097,15 @@ class BookParser {
   }
 
   static bool _isContentParagraph(String text) {
-    return text.isNotEmpty && text.length > 1 && !_looksLikeCssOrMetadata(text);
+    return text.isNotEmpty &&
+        (text.length > 1 || _isStandaloneClosingMarks(text)) &&
+        !_looksLikeCssOrMetadata(text);
   }
+
+  static bool _isStandaloneClosingMarks(String text) => RegExp(
+    r'^[\s\u3000]*[\u300d\u300f\u3011\u3015\u3017\u3019\u301b\u3009\u300b\u3001\u3002\uff0c\uff0e\uff01\uff1f\u2019\u201d\)\]\}]+[\s\u3000]*$',
+    unicode: true,
+  ).hasMatch(text);
 
   static bool _shouldSkipEpubChapter({
     required String title,
@@ -1285,6 +1296,22 @@ class BookParser {
             index: chIdx,
             title: trimmed,
             textOffset: textOffset,
+          ),
+        );
+        continue;
+      }
+
+      if (_isStandaloneClosingMarks(trimmed) &&
+          paragraphs.isNotEmpty &&
+          paragraphs.last.chapterId == currentChId) {
+        final previous = paragraphs.removeLast();
+        paragraphs.add(
+          Paragraph(
+            id: previous.id,
+            chapterId: previous.chapterId,
+            bookId: previous.bookId,
+            index: previous.index,
+            text: '${previous.text}$trimmed',
           ),
         );
         continue;
