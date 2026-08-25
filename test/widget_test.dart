@@ -9,7 +9,7 @@ import 'package:lumina/data/dictionary/openai_compatible_explanation_provider.da
 import 'package:lumina/main.dart';
 import 'package:lumina/presentation/widgets/narrator_label.dart';
 import 'package:lumina/presentation/screens/settings/settings_screen.dart';
-import 'package:lumina/presentation/screens/settings/llm_setup_wizard_screen.dart';
+import 'package:lumina/presentation/screens/settings/provider_editor_sheet.dart';
 import 'package:lumina/presentation/screens/settings/tts_setup_wizard_screen.dart';
 import 'package:lumina/presentation/screens/settings/voice_library_screen.dart';
 import 'package:lumina/presentation/widgets/mini_player.dart';
@@ -446,7 +446,7 @@ void main() {
     expect(find.text('Set as current voice'), findsOneWidget);
   });
 
-  testWidgets('settings opens LLM provider picker and requires an API key', (
+  testWidgets('settings opens the AI provider sheet and requires an API key', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(430, 760);
@@ -476,18 +476,21 @@ void main() {
     await tester.tap(providerSettings);
     await tester.pumpAndSettle();
 
-    expect(find.byType(LlmSetupWizardScreen), findsOneWidget);
-    expect(find.text('DeepSeek'), findsOneWidget);
+    // Nothing is configured yet, so the pane is just the add button.
+    expect(find.byKey(const ValueKey('add-llm-provider')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('add-llm-provider')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(LlmProviderEditorSheet), findsOneWidget);
+    expect(find.text('DeepSeek'), findsWidgets);
     expect(find.text('Z.AI'), findsOneWidget);
     expect(find.text('Custom'), findsOneWidget);
-
-    await tester.tap(find.text('Z.AI'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('setup-next')));
-    await tester.pumpAndSettle();
     expect(find.text('API Key'), findsOneWidget);
-    expect(find.text('https://api.z.ai/api/paas/v4'), findsOneWidget);
-    expect(find.text('Required'), findsOneWidget);
+
+    // Fetching without a key must not attempt a request.
+    await tester.tap(find.byKey(const ValueKey('fetch-provider-models')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('missing API key'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

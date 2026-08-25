@@ -78,6 +78,31 @@ class TtsSettingsState {
        );
 }
 
+/// A configured LLM provider as the settings page draws it: the card shows
+/// the preset tag and a meta line, and expands to the cached model chips when
+/// it is the active one.
+class LlmProviderCardData {
+  final LlmProviderConfiguration configuration;
+  final bool active;
+  final String? selectedModelId;
+  final List<String> models;
+  final DateTime? syncedAt;
+  final bool refreshing;
+
+  const LlmProviderCardData({
+    required this.configuration,
+    required this.active,
+    required this.selectedModelId,
+    required this.models,
+    required this.syncedAt,
+    this.refreshing = false,
+  });
+
+  String get id => configuration.id;
+  String get name => configuration.displayName;
+  String get tag => configuration.kind.displayName;
+}
+
 class LlmSettingsState {
   final String? providerId;
   final String? providerName;
@@ -85,6 +110,7 @@ class LlmSettingsState {
   final ServiceReadiness readiness;
   final List<ProviderOptionViewData> providers;
   final List<LlmProviderConfiguration> configurations;
+  final List<LlmProviderCardData> cards;
   final ServiceSettingsNotice? notice;
 
   const LlmSettingsState({
@@ -94,6 +120,7 @@ class LlmSettingsState {
     required this.readiness,
     required this.providers,
     required this.configurations,
+    this.cards = const [],
     this.notice,
   }) : assert(
          (providerId == null) == (providerName == null),
@@ -659,6 +686,7 @@ Future<bool> _readTtsProviderConfiguration(TtsProvider provider) async {
 
 class LlmSettingsController extends AsyncNotifier<LlmSettingsState> {
   ServiceSettingsNotice? _notice;
+  String? _refreshingProviderId;
 
   @override
   Future<LlmSettingsState> build() async {
@@ -708,6 +736,20 @@ class LlmSettingsController extends AsyncNotifier<LlmSettingsState> {
         ),
       );
     }
+    final cards = <LlmProviderCardData>[];
+    for (final provider in configurations) {
+      final cache = await service.cachedModels(provider.id);
+      cards.add(
+        LlmProviderCardData(
+          configuration: provider,
+          active: provider.id == active?.id,
+          selectedModelId: await selections.selectedLlmModel(provider.id),
+          models: cache?.models ?? const [],
+          syncedAt: cache?.syncedAt,
+          refreshing: _refreshingProviderId == provider.id,
+        ),
+      );
+    }
     return LlmSettingsState(
       providerId: active?.id,
       providerName: active?.displayName,
@@ -715,8 +757,37 @@ class LlmSettingsController extends AsyncNotifier<LlmSettingsState> {
       readiness: readiness,
       providers: options,
       configurations: configurations,
+      cards: cards,
       notice: _notice,
     );
+  }
+
+  /// Pulls the model list for one provider and caches it.
+  Future<Object?> refreshModels(String providerId) async {
+    final current = state.value;
+    final provider = current?.configurations
+        .where((item) => item.id == providerId)
+        .firstOrNull;
+    if (provider == null) return null;
+    _refreshingProviderId = providerId;
+    ref.invalidateSelf();
+    try {
+      final result = await ref
+          .read(openAiCompatibleExplanationProvider)
+          .refreshModels(provider);
+      return result.error;
+    } finally {
+      _refreshingProviderId = null;
+      ref.invalidateSelf();
+    }
+  }
+
+  /// Chooses a model for a provider that is not necessarily the active one.
+  Future<void> selectModelFor(String providerId, String modelId) async {
+    await ref
+        .read(providerSelectionRepositoryProvider)
+        .setSelectedLlmModel(providerId, modelId);
+    ref.invalidateSelf();
   }
 
   Future<void> reload() async => ref.invalidateSelf();

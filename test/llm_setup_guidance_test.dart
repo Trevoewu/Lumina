@@ -3,167 +3,144 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lumina/core/providers.dart';
 import 'package:lumina/core/service_settings_controllers.dart';
+import 'package:lumina/core/theme.dart';
 import 'package:lumina/data/dictionary/openai_compatible_explanation_provider.dart';
 import 'package:lumina/presentation/screens/settings/dictionary_explanation_service_screen.dart';
-import 'package:lumina/presentation/screens/settings/llm_setup_wizard_screen.dart';
+import 'package:lumina/presentation/screens/settings/provider_editor_sheet.dart';
 
 void main() {
-  testWidgets('unfinished LLM settings opens the wizard immediately', (
+  Widget wrap(Object override) => ProviderScope(
+    overrides: [override as dynamic],
+    child: MaterialApp(
+      theme: AppTheme.lightTheme(),
+      home: const DictionaryExplanationServiceScreen(),
+    ),
+  );
+
+  testWidgets('an unconfigured pane offers only the add button', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(430, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          llmSettingsControllerProvider.overrideWith(
-            _EmptyLlmSettingsController.new,
-          ),
-        ],
-        child: const MaterialApp(home: DictionaryExplanationServiceScreen()),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.byType(LlmSetupWizardScreen), findsOneWidget);
-    expect(find.text('Configuration'), findsNothing);
-    expect(find.text('OpenAI'), findsOneWidget);
-    expect(find.text('DeepSeek'), findsOneWidget);
-    expect(find.byKey(const ValueKey('provider-brand-openAi')), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('provider-brand-deepSeek')),
-      findsOneWidget,
-    );
-    expect(find.byKey(const ValueKey('provider-brand-zai')), findsOneWidget);
-
-    final wizardElement = tester.element(find.byType(LlmSetupWizardScreen));
-    await tester.tap(find.text('OpenAI'));
-    await tester.pump();
-    await tester.tap(find.byKey(const ValueKey('setup-next')));
-    await tester.pump(const Duration(milliseconds: 100));
-    expect(find.byType(SlideTransition), findsWidgets);
-    await tester.pumpAndSettle();
-
-    expect(
-      tester.element(find.byType(LlmSetupWizardScreen)),
-      same(wizardElement),
-    );
-    expect(find.byKey(const ValueKey('wizard-llm-api-key')), findsOneWidget);
-
-    Navigator.of(tester.element(find.byType(LlmSetupWizardScreen))).pop();
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('continue-llm-setup')), findsOneWidget);
-    expect(find.text('Configuration'), findsNothing);
-  });
-
-  testWidgets('guided LLM setup leads from provider to API key', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          llmSettingsControllerProvider.overrideWith(
-            _EmptyLlmSettingsController.new,
-          ),
-        ],
-        child: const MaterialApp(
-          home: LlmProviderPickerScreen(guidedSetup: true),
+      wrap(
+        llmSettingsControllerProvider.overrideWith(
+          _EmptyLlmSettingsController.new,
         ),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('AI setup progress'), findsOneWidget);
-    expect(find.text('Provider'), findsOneWidget);
-    expect(find.text('Key'), findsOneWidget);
-    expect(find.text('Model'), findsOneWidget);
-    expect(find.text('OpenAI'), findsOneWidget);
-    expect(find.byType(BottomSheet), findsNothing);
-
-    await tester.tap(find.text('OpenAI'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('setup-next')));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Add Provider'), findsOneWidget);
-    expect(find.byKey(const ValueKey('llm-api-key-field')), findsOneWidget);
-    await tester.drag(find.byType(ListView).last, const Offset(0, -400));
-    await tester.pumpAndSettle();
-    expect(find.text('Where do I get an API key?'), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('get-llm-api-key-openai')),
-      findsOneWidget,
-    );
-    expect(find.textContaining('Models will sync next'), findsOneWidget);
-
-    expect(find.text('Next'), findsOneWidget);
+    expect(find.text('Configured providers'), findsOneWidget);
+    expect(find.byKey(const ValueKey('add-llm-provider')), findsOneWidget);
+    // Nothing is configured, so no provider card is drawn.
+    expect(find.byType(SettingsRadioProbe), findsNothing);
   });
 
-  testWidgets('guided LLM model step requires an explicit model selection', (
+  testWidgets('the active provider expands to its cached model chips', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(430, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          llmSettingsControllerProvider.overrideWith(
-            _ModelLlmSettingsController.new,
-          ),
-          openAiCompatibleExplanationProvider.overrideWithValue(
-            _ModelCatalogService(),
-          ),
-        ],
-        child: const MaterialApp(home: _ModelSetupLauncher()),
+      wrap(
+        llmSettingsControllerProvider.overrideWith(
+          _ConfiguredLlmSettingsController.new,
+        ),
       ),
     );
-
-    await tester.tap(find.byKey(const ValueKey('start-llm-model-setup')));
     await tester.pumpAndSettle();
 
-    expect(find.text('AI setup progress'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('llm-provider-guided-openai')),
+      findsOneWidget,
+    );
+    // The card is active, so the model section is visible and refreshable.
+    expect(
+      find.byKey(const ValueKey('llm-refresh-guided-openai')),
+      findsOneWidget,
+    );
     expect(find.text('gpt-guided'), findsOneWidget);
-    expect(
-      find.textContaining('Choose the model to use for AI features'),
-      findsOneWidget,
-    );
-
-    await tester.tap(find.text('gpt-guided'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('setup-next')));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Model selected'), findsOneWidget);
+    expect(find.text('gpt-alternate'), findsOneWidget);
+    // The preset shows as a tag next to the name.
+    expect(find.text('OpenAI'), findsWidgets);
   });
 
-  testWidgets('single-page LLM wizard completes without pushing another page', (
+  testWidgets('the editor sheet will not save until a model is chosen', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(430, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           llmSettingsControllerProvider.overrideWith(
-            _ModelLlmSettingsController.new,
+            _EmptyLlmSettingsController.new,
           ),
           openAiCompatibleExplanationProvider.overrideWithValue(
             _ModelCatalogService(),
           ),
         ],
-        child: const MaterialApp(home: _SinglePageModelSetupLauncher()),
+        child: MaterialApp(
+          theme: AppTheme.lightTheme(),
+          home: const _SheetLauncher(),
+        ),
       ),
     );
-
-    await tester.tap(find.byKey(const ValueKey('start-single-page-llm')));
     await tester.pumpAndSettle();
-    final wizardElement = tester.element(find.byType(LlmSetupWizardScreen));
 
-    await tester.tap(find.text('gpt-guided'));
-    await tester.pump();
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Add AI provider'), findsOneWidget);
+    // No model yet, so saving is inert.
+    await tester.tap(find.byKey(const ValueKey('save-provider')));
+    await tester.pumpAndSettle();
+    expect(find.text('Add AI provider'), findsOneWidget);
+
+    // Fetching without a key reports the missing key rather than calling out.
+    await tester.tap(find.byKey(const ValueKey('fetch-provider-models')));
+    await tester.pumpAndSettle();
     expect(
-      tester.element(find.byType(LlmSetupWizardScreen)),
-      same(wizardElement),
+      find.textContaining('missing API key'),
+      findsOneWidget,
     );
-    await tester.tap(find.byKey(const ValueKey('setup-next')));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Model selected'), findsOneWidget);
   });
+}
+
+/// Marker type used only to assert that no provider card was rendered.
+class SettingsRadioProbe extends StatelessWidget {
+  const SettingsRadioProbe({super.key});
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
+
+class _SheetLauncher extends StatelessWidget {
+  const _SheetLauncher();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Builder(
+          builder: (inner) => TextButton(
+            onPressed: () => LlmProviderEditorSheet.show(inner),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _EmptyLlmSettingsController extends LlmSettingsController {
@@ -175,10 +152,11 @@ class _EmptyLlmSettingsController extends LlmSettingsController {
     readiness: ServiceReadiness.setupRequired,
     providers: [],
     configurations: [],
+    cards: [],
   );
 }
 
-class _ModelLlmSettingsController extends LlmSettingsController {
+class _ConfiguredLlmSettingsController extends LlmSettingsController {
   static const provider = LlmProviderConfiguration(
     id: 'guided-openai',
     kind: LlmProviderKind.openAi,
@@ -187,28 +165,23 @@ class _ModelLlmSettingsController extends LlmSettingsController {
   );
 
   @override
-  Future<LlmSettingsState> build() async => const LlmSettingsState(
-    providerId: 'guided-openai',
-    providerName: 'OpenAI',
-    modelId: null,
-    readiness: ServiceReadiness.setupRequired,
-    providers: [],
-    configurations: [provider],
-  );
-
-  @override
-  Future<void> selectModel(String modelId) async {
-    state = AsyncData(
-      LlmSettingsState(
-        providerId: provider.id,
-        providerName: provider.displayName,
-        modelId: modelId,
-        readiness: ServiceReadiness.ready,
-        providers: const [],
-        configurations: const [provider],
+  Future<LlmSettingsState> build() async => LlmSettingsState(
+    providerId: provider.id,
+    providerName: provider.displayName,
+    modelId: 'gpt-guided',
+    readiness: ServiceReadiness.ready,
+    providers: const [],
+    configurations: const [provider],
+    cards: [
+      LlmProviderCardData(
+        configuration: provider,
+        active: true,
+        selectedModelId: 'gpt-guided',
+        models: const ['gpt-guided', 'gpt-alternate'],
+        syncedAt: DateTime.now(),
       ),
-    );
-  }
+    ],
+  );
 }
 
 class _ModelCatalogService extends OpenAiCompatibleExplanationProvider {
@@ -224,74 +197,5 @@ class _ModelCatalogService extends OpenAiCompatibleExplanationProvider {
       LlmModelOption(id: 'gpt-guided', ownedBy: 'OpenAI'),
       LlmModelOption(id: 'gpt-alternate', ownedBy: 'OpenAI'),
     ],
-  );
-}
-
-class _ModelSetupLauncher extends StatefulWidget {
-  const _ModelSetupLauncher();
-
-  @override
-  State<_ModelSetupLauncher> createState() => _ModelSetupLauncherState();
-}
-
-class _ModelSetupLauncherState extends State<_ModelSetupLauncher> {
-  bool _selected = false;
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    body: Center(
-      child: _selected
-          ? const Text('Model selected')
-          : FilledButton(
-              key: const ValueKey('start-llm-model-setup'),
-              onPressed: () async {
-                final selected = await Navigator.of(context).push<bool>(
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        const LlmModelPickerScreen(guidedSelection: true),
-                  ),
-                );
-                if (mounted && selected == true) {
-                  setState(() => _selected = true);
-                }
-              },
-              child: const Text('Start'),
-            ),
-    ),
-  );
-}
-
-class _SinglePageModelSetupLauncher extends StatefulWidget {
-  const _SinglePageModelSetupLauncher();
-
-  @override
-  State<_SinglePageModelSetupLauncher> createState() =>
-      _SinglePageModelSetupLauncherState();
-}
-
-class _SinglePageModelSetupLauncherState
-    extends State<_SinglePageModelSetupLauncher> {
-  bool _selected = false;
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    body: Center(
-      child: _selected
-          ? const Text('Model selected')
-          : FilledButton(
-              key: const ValueKey('start-single-page-llm'),
-              onPressed: () async {
-                final selected = await Navigator.of(context).push<bool>(
-                  MaterialPageRoute(
-                    builder: (_) => const LlmSetupWizardScreen(),
-                  ),
-                );
-                if (mounted && selected == true) {
-                  setState(() => _selected = true);
-                }
-              },
-              child: const Text('Start'),
-            ),
-    ),
   );
 }

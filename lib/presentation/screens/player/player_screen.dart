@@ -2655,7 +2655,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) =>
-            const DictionaryExplanationServiceScreen(returnWhenReady: true),
+            const DictionaryExplanationServiceScreen(),
       ),
     );
     ref.invalidate(llmSettingsControllerProvider);

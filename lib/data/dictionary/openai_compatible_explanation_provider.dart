@@ -81,6 +81,31 @@ class LlmModelOption {
   const LlmModelOption({required this.id, this.ownedBy});
 }
 
+/// A stored model list for one provider.
+class LlmModelCacheEntry {
+  final List<String> models;
+  final DateTime syncedAt;
+
+  const LlmModelCacheEntry({required this.models, required this.syncedAt});
+
+  factory LlmModelCacheEntry.fromJson(Map<String, dynamic> json) {
+    return LlmModelCacheEntry(
+      models: [
+        for (final value in (json['models'] as List<dynamic>? ?? const []))
+          if (value is String) value,
+      ],
+      syncedAt:
+          DateTime.tryParse(json['synced_at'] as String? ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'models': models,
+    'synced_at': syncedAt.toIso8601String(),
+  };
+}
+
 class LlmProviderModels {
   final LlmProviderConfiguration provider;
   final List<LlmModelOption> models;
@@ -103,6 +128,11 @@ class OpenAiCompatibleExplanationProvider {
       'openai_compatible_dictionary_providers';
   static const activeProviderSettingKey =
       'openai_compatible_dictionary_active_provider';
+
+  /// Per-provider model list plus the time it was pulled, so the settings page
+  /// can show chips and a "synced" line without hitting the network on open.
+  static const modelCacheSettingKey =
+      'openai_compatible_dictionary_model_cache_v1';
   static const defaultBaseUrl = 'https://api.deepseek.com';
   static const defaultModel = 'deepseek-v4-flash';
   static const openAiDefaultModel = 'gpt-5.6-sol';
@@ -340,6 +370,51 @@ class OpenAiCompatibleExplanationProvider {
   Future<List<LlmProviderModels>> fetchAllModels() async {
     final providers = await configurations;
     return Future.wait(providers.map(fetchModels));
+  }
+
+  /// Model list last pulled for [providerId], if any.
+  Future<LlmModelCacheEntry?> cachedModels(String providerId) async {
+    final all = await _readModelCache();
+    return all[providerId];
+  }
+
+  /// Fetches and stores the model list. On failure the previous cache is kept
+  /// so the page does not lose its chips because the network blipped.
+  Future<LlmProviderModels> refreshModels(
+    LlmProviderConfiguration provider,
+  ) async {
+    final result = await fetchModels(provider);
+    if (!result.failed) {
+      final all = await _readModelCache();
+      all[provider.id] = LlmModelCacheEntry(
+        models: [for (final model in result.models) model.id],
+        syncedAt: DateTime.now(),
+      );
+      await settingWriter(
+        modelCacheSettingKey,
+        jsonEncode({
+          for (final entry in all.entries) entry.key: entry.value.toJson(),
+        }),
+      );
+    }
+    return result;
+  }
+
+  Future<Map<String, LlmModelCacheEntry>> _readModelCache() async {
+    final stored = await settingReader(modelCacheSettingKey);
+    if (stored == null || stored.trim().isEmpty) return {};
+    try {
+      final decoded = jsonDecode(stored) as Map<String, dynamic>;
+      return {
+        for (final entry in decoded.entries)
+          if (entry.value is Map<String, dynamic>)
+            entry.key: LlmModelCacheEntry.fromJson(
+              entry.value as Map<String, dynamic>,
+            ),
+      };
+    } on FormatException {
+      return {};
+    }
   }
 
   Future<bool> validateProvider(LlmProviderConfiguration provider) async {
