@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -726,6 +728,89 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('does not miss paragraph selected while lyrics bind', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 500);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final handler = _BindingRaceLyricsAudioHandler(
+      paragraphId: 'binding-race-transcript',
+      initialPosition: const Duration(seconds: 450),
+    );
+    addTearDown(handler.dispose);
+    final transcriptLines = [
+      for (var index = 0; index < 500; index++) 'Binding segment $index.',
+    ];
+    final timings = [
+      for (var index = 0; index < transcriptLines.length; index++)
+        AudioTextTiming(
+          text: transcriptLines[index],
+          startMs: index * 1000,
+          endMs: (index + 1) * 1000,
+        ),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.darkTheme(),
+        home: Scaffold(
+          body: SizedBox(
+            width: 390,
+            height: 500,
+            child: SyncedLyricsList(
+              paragraphs: [
+                Paragraph(
+                  id: 'binding-race-transcript',
+                  chapterId: 'binding-race-transcript',
+                  bookId: 'podcast:binding-race-show',
+                  paragraphIndex: 0,
+                  content: transcriptLines.join('\n'),
+                ),
+              ],
+              manifest: ChapterManifest(
+                chapterId: 'binding-race-transcript',
+                bookId: 'podcast:binding-race-show',
+                providerId: 'whisper-local',
+                voiceId: '',
+                speed: 1,
+                updatedAt: 1,
+                segments: [
+                  SegmentEntry(
+                    paragraphId: 'binding-race-transcript',
+                    audioFile: 'https://example.com/episode.mp3',
+                    durationMs: 500000,
+                    state: ParagraphAudioState.ready,
+                    format: 'podcast',
+                    timings: timings,
+                  ),
+                ],
+              ),
+              handler: handler,
+              playbackEnabled: true,
+              expanded: true,
+              virtualized: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final virtualList = find.byKey(
+      const ValueKey('synced-lyrics-virtualized-list'),
+    );
+    final scrollable = find.descendant(
+      of: virtualList,
+      matching: find.byType(Scrollable),
+    );
+    final position = tester.state<ScrollableState>(scrollable).position;
+    expect(position.pixels, greaterThan(10000));
+    expect(find.text('Binding segment 450.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('a newly cached chunk leaves the reading position alone', (
     tester,
   ) async {
@@ -1102,6 +1187,71 @@ class _VirtualLyricsAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> dispose() async {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _BindingRaceLyricsAudioHandler extends BaseAudioHandler
+    implements LuminaAudioHandler {
+  _BindingRaceLyricsAudioHandler({
+    required this.paragraphId,
+    required this.initialPosition,
+  });
+
+  final String paragraphId;
+  final Duration initialPosition;
+  final StreamController<String?> _paragraphController =
+      StreamController<String?>.broadcast();
+  bool _snapshotRead = false;
+
+  @override
+  Duration get chapterDuration => Duration.zero;
+
+  @override
+  Duration get chapterPosition => initialPosition;
+
+  @override
+  Stream<Duration> get chapterPositionStream => const Stream.empty();
+
+  @override
+  String? get currentBookId => null;
+
+  @override
+  String? get currentChapterId => null;
+
+  @override
+  ChapterManifest? get currentManifest => null;
+
+  @override
+  String? get currentParagraphId {
+    if (_snapshotRead) return paragraphId;
+    _snapshotRead = true;
+    _paragraphController.add(paragraphId);
+    // Model a load completing during the initial snapshot read: the stale
+    // value is returned while the transition event carries the new value.
+    return null;
+  }
+
+  @override
+  String? get currentPodcastEpisodeId => paragraphId;
+
+  @override
+  Stream<String?> get currentParagraphIdStream => _paragraphController.stream;
+
+  @override
+  Duration get position => initialPosition;
+
+  @override
+  Stream<Duration> get positionStream => const Stream.empty();
+
+  @override
+  Future<void> setSpeed(double speed) async {}
+
+  @override
+  Future<void> dispose() async {
+    await _paragraphController.close();
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

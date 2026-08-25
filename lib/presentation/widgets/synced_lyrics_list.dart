@@ -1259,13 +1259,18 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
       );
       return;
     }
-    _paragraphId = widget.handler.currentParagraphId;
+    // Subscribe before taking the current snapshot. The handler exposes a
+    // broadcast stream, so an entry change between a snapshot-first read and
+    // listen() would be dropped forever. That left the transcript bound to a
+    // stale/null paragraph until this widget was recreated (for example by
+    // leaving and reopening transcript mode).
     _paragraphSub = widget.handler.currentParagraphIdStream.listen((id) {
       _paragraphId = id;
       // A paragraph notification is a state update, not necessarily a seek.
       // Let the normal line-change path animate from the current offset.
       _sync(widget.handler.position);
     });
+    _paragraphId = widget.handler.currentParagraphId;
     _positionSub = widget.handler.positionStream.listen(_handleRealPosition);
     _playbackStateSub = widget.handler.playbackState.listen((state) {
       _clock.reanchor(
