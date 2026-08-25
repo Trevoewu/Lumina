@@ -150,7 +150,66 @@ class PodcastTranscriptionProgress {
       stage != PodcastTranscriptionStage.paused;
 }
 
+/// One downloadable Whisper weight. Sizes and digests come from the
+/// ggerganov/whisper.cpp model repository on Hugging Face.
+class AsrModelOption {
+  final WhisperModel model;
+  final String name;
+  final int expectedBytes;
+  final String url;
+  final String sha256;
+
+  const AsrModelOption({
+    required this.model,
+    required this.name,
+    required this.expectedBytes,
+    required this.url,
+    required this.sha256,
+  });
+
+  String get id => model.name;
+}
+
+const _whisperModelBaseUrl =
+    'https://huggingface.co/ggerganov/whisper.cpp/resolve/main';
+
+/// Ordered smallest to largest, which is also how the settings page lists them.
+const asrModelOptions = <AsrModelOption>[
+  AsrModelOption(
+    model: WhisperModel.tiny,
+    name: 'whisper-tiny',
+    expectedBytes: 77691713,
+    url: '$_whisperModelBaseUrl/ggml-tiny.bin?download=true',
+    sha256: 'be07e048e1e599ad46341c8d2a135645097a538221678b7acdd1b1919c6e1b21',
+  ),
+  AsrModelOption(
+    model: WhisperModel.base,
+    name: 'whisper-base',
+    expectedBytes: 147951465,
+    url: '$_whisperModelBaseUrl/ggml-base.bin?download=true',
+    sha256: '60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe',
+  ),
+  AsrModelOption(
+    model: WhisperModel.small,
+    name: 'whisper-small',
+    expectedBytes: 487601967,
+    url: '$_whisperModelBaseUrl/ggml-small.bin?download=true',
+    sha256: '1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b',
+  ),
+  AsrModelOption(
+    model: WhisperModel.medium,
+    name: 'whisper-medium',
+    expectedBytes: 1533763059,
+    url: '$_whisperModelBaseUrl/ggml-medium.bin?download=true',
+    sha256: '6c14d5adee5f86394037b4e4e8b59f1673b6cee10e3cf0b11bbdbee79c156208',
+  ),
+];
+
+AsrModelOption asrModelOptionFor(WhisperModel model) => asrModelOptions
+    .firstWhere((o) => o.model == model, orElse: () => asrModelOptions[1]);
+
 class PodcastAsrModelInfo {
+  final WhisperModel model;
   final bool installed;
   final String path;
   final int installedBytes;
@@ -158,28 +217,41 @@ class PodcastAsrModelInfo {
   final int expectedBytes;
 
   const PodcastAsrModelInfo({
+    this.model = WhisperModel.base,
     required this.installed,
     required this.path,
     required this.installedBytes,
     required this.partialBytes,
     required this.expectedBytes,
   });
+
+  AsrModelOption get option => asrModelOptionFor(model);
 }
 
 class PodcastTranscriptionService {
   static const WhisperModel defaultModel = WhisperModel.base;
-  static const defaultChunkMinutes = 3;
-  static const _chunkOverlapMs = 10000;
-  static const chunkMinutesSettingKey = 'asr_chunk_minutes';
+
+  /// Whisper's own analysis window is 30s, so the slice options sit around it.
+  static const defaultChunkSeconds = 30;
+  static const supportedChunkSeconds = <int>[15, 30, 60, 120];
+  static const chunkSecondsSettingKey = 'asr_chunk_seconds';
+  static const modelSettingKey = 'asr_model';
+
+  /// Language detection no longer has a settings row, but the stored value is
+  /// still honoured so existing installs keep the behaviour they had.
   static const languagePreferenceSettingKey = 'asr_language_preference';
   static const podcastLanguagePreference = 'podcast';
   static const automaticLanguagePreference = 'automatic';
-  static const baseModelExpectedBytes = 142 * 1024 * 1024;
-  static const _maximumUnknownDurationChunks = 480;
-  static const _baseModelUrl =
-      'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/'
-      'ggml-base.bin?download=true';
-  static const _baseModelSha1 = '465707469ff3a37a2b9b8d8f89f2f99de7299dac';
+  static const baseModelExpectedBytes = 147951465;
+
+  /// Roughly 24 hours of audio at the shortest slice, so a feed with no
+  /// duration metadata still terminates.
+  static const _maximumUnknownDurationSeconds = 24 * 60 * 60;
+
+  /// A weight file is considered present once it is within a few percent of
+  /// its published size; partial downloads land in a `.partial` sibling.
+  static bool _looksComplete(int bytes, int expectedBytes) =>
+      bytes >= (expectedBytes * 0.98).floor();
 
   final AppDatabase database;
   late final GenerationTaskStore taskStore = GenerationTaskStore(database);
@@ -190,7 +262,7 @@ class PodcastTranscriptionService {
       StreamController<PodcastTranscriptionProgress>.broadcast();
   _ActiveTranscription? _active;
   Future<List<AudioTextTiming>>? _activeFuture;
-  bool _installingModel = false;
+  WhisperModel? _installingModel;
 
   PodcastTranscriptionService(
     this.database, {
@@ -214,19 +286,60 @@ class PodcastTranscriptionService {
     return (await getModelInfo()).installed;
   }
 
-  Future<PodcastAsrModelInfo> getModelInfo() async {
-    final path = await _controller.getPath(defaultModel);
-    final model = File(path);
+  /// The weight the user picked, falling back to base when unset or when the
+  /// stored id is no longer offered.
+  Future<WhisperModel> selectedModel() async {
+    final stored = await database.getSetting(modelSettingKey);
+    if (stored == null || stored.isEmpty) return defaultModel;
+    for (final option in asrModelOptions) {
+      if (option.id == stored) return option.model;
+    }
+    return defaultModel;
+  }
+
+  Future<void> selectModel(WhisperModel model) async {
+    await database.setSetting(modelSettingKey, asrModelOptionFor(model).id);
+  }
+
+  /// Slice length in seconds, clamped to the offered options.
+  Future<int> selectedChunkSeconds() async {
+    final stored = int.tryParse(
+      await database.getSetting(chunkSecondsSettingKey) ?? '',
+    );
+    return supportedChunkSeconds.contains(stored)
+        ? stored!
+        : defaultChunkSeconds;
+  }
+
+  Future<void> selectChunkSeconds(int seconds) async {
+    if (!supportedChunkSeconds.contains(seconds)) return;
+    await database.setSetting(chunkSecondsSettingKey, seconds.toString());
+  }
+
+  Future<PodcastAsrModelInfo> getModelInfo({WhisperModel? model}) async {
+    final target = model ?? await selectedModel();
+    final option = asrModelOptionFor(target);
+    final path = await _controller.getPath(target);
+    final file = File(path);
     final partial = File('$path.partial');
-    final installedBytes = await model.exists() ? await model.length() : 0;
+    final installedBytes = await file.exists() ? await file.length() : 0;
     final partialBytes = await partial.exists() ? await partial.length() : 0;
     return PodcastAsrModelInfo(
-      installed: installedBytes > 100000000,
+      model: target,
+      installed: _looksComplete(installedBytes, option.expectedBytes),
       path: path,
       installedBytes: installedBytes,
       partialBytes: partialBytes,
-      expectedBytes: baseModelExpectedBytes,
+      expectedBytes: option.expectedBytes,
     );
+  }
+
+  /// Install state for every offered weight, in catalog order.
+  Future<List<PodcastAsrModelInfo>> listModelInfos() async {
+    return [
+      for (final option in asrModelOptions)
+        await getModelInfo(model: option.model),
+    ];
   }
 
   /// Episode currently being transcribed, if any. Every screen reads this to
@@ -252,23 +365,26 @@ class PodcastTranscriptionService {
   }
 
   Future<void> installModel({
+    WhisperModel? model,
     void Function(double? progress, String message)? onProgress,
   }) async {
     if (_active != null) {
       throw StateError('Podcast 转写进行中，暂时不能管理 Whisper 模型。');
     }
     await _ensureModel(
+      model: model ?? await selectedModel(),
       onProgress: (stage, message, {progress}) {
         onProgress?.call(progress, message);
       },
     );
   }
 
-  Future<void> deleteModel() async {
-    if (_active != null || _installingModel) {
+  Future<void> deleteModel({WhisperModel? model}) async {
+    final target = model ?? await selectedModel();
+    if (_active != null || _installingModel == target) {
       throw StateError('Whisper 正在使用或下载中，暂时不能删除模型。');
     }
-    final path = await _controller.getPath(defaultModel);
+    final path = await _controller.getPath(target);
     for (final file in [File(path), File('$path.partial')]) {
       if (await file.exists()) await file.delete();
     }
@@ -401,13 +517,11 @@ class PodcastTranscriptionService {
       final durationMs = probedDurationMs > 0
           ? probedDurationMs
           : episode.durationMs;
-      final storedChunkMinutes = int.tryParse(
-        await database.getSetting(chunkMinutesSettingKey) ?? '',
-      );
-      final chunkMinutes = (storedChunkMinutes ?? defaultChunkMinutes).clamp(
-        1,
-        10,
-      );
+      final chunkSeconds = await selectedChunkSeconds();
+      // Overlap has to stay small relative to the slice, or a short slice
+      // spends most of its time re-transcribing the previous one.
+      final overlapMs = math.min(10000, (chunkSeconds * 1000) ~/ 4);
+      final activeModel = await selectedModel();
       final stored = storedBeforeRun;
       final sourceEpisode =
           await database.getPodcastEpisode(episode.id) ?? episode;
@@ -427,10 +541,10 @@ class PodcastTranscriptionService {
         audioModified.toString(),
       ]);
       final configFingerprint = generationFingerprint([
-        defaultModel.name,
+        activeModel.name,
         language,
-        chunkMinutes.toString(),
-        _chunkOverlapMs.toString(),
+        chunkSeconds.toString(),
+        overlapMs.toString(),
       ]);
       final taskId = generationTaskId(
         kind: GenerationTaskKind.whisper,
@@ -442,9 +556,9 @@ class PodcastTranscriptionService {
       final taskPlan = planPodcastChunks(
         durationMs: durationMs,
         startFromMs: 0,
-        chunkDurationMs: Duration(minutes: chunkMinutes).inMilliseconds,
-        maxUnknownChunks: _maximumUnknownDurationChunks,
-        overlapMs: _chunkOverlapMs,
+        chunkDurationMs: Duration(seconds: chunkSeconds).inMilliseconds,
+        maxUnknownChunks: _maximumUnknownDurationSeconds ~/ chunkSeconds,
+        overlapMs: overlapMs,
       );
       final taskSpecs = [
         for (var index = 0; index < taskPlan.length; index++)
@@ -491,10 +605,10 @@ class PodcastTranscriptionService {
           contentFingerprint: sourceFingerprint,
           configFingerprint: configFingerprint,
           configJson: jsonEncode({
-            'model': defaultModel.name,
+            'model': activeModel.name,
             'language': language,
-            'chunkMinutes': chunkMinutes,
-            'overlapMs': _chunkOverlapMs,
+            'chunkSeconds': chunkSeconds,
+            'overlapMs': overlapMs,
           }),
         ),
         chunks: taskSpecs,
@@ -524,7 +638,7 @@ class PodcastTranscriptionService {
         durationMs: durationMs,
         startFromMs: resumeFromMs,
         cachedSegments: cached,
-        chunkDuration: Duration(minutes: chunkMinutes),
+        chunkDuration: Duration(seconds: chunkSeconds),
         taskStore: taskStore,
         taskId: taskId,
         taskChunks: taskChunks,
@@ -661,8 +775,9 @@ class PodcastTranscriptionService {
       durationMs: durationMs,
       startFromMs: startFromMs,
       chunkDurationMs: chunkDurationMs,
-      maxUnknownChunks: _maximumUnknownDurationChunks,
-      overlapMs: _chunkOverlapMs,
+      maxUnknownChunks:
+          _maximumUnknownDurationSeconds ~/ chunkDuration.inSeconds,
+      overlapMs: math.min(10000, chunkDurationMs ~/ 4),
     );
     final knownChunkCount = durationMs <= 0 ? null : plan.length;
     final output = <AudioTextTiming>[...cachedSegments];
@@ -990,6 +1105,7 @@ class PodcastTranscriptionService {
   }
 
   Future<void> _ensureModel({
+    WhisperModel? model,
     required void Function(
       PodcastTranscriptionStage stage,
       String message, {
@@ -997,31 +1113,34 @@ class PodcastTranscriptionService {
     })
     onProgress,
   }) async {
-    final modelPath = await _controller.getPath(defaultModel);
-    final model = File(modelPath);
-    if (await model.exists() && await model.length() > 100000000) return;
-    if (_installingModel) {
+    final target = model ?? await selectedModel();
+    final option = asrModelOptionFor(target);
+    final modelPath = await _controller.getPath(target);
+    final file = File(modelPath);
+    if (await file.exists() &&
+        _looksComplete(await file.length(), option.expectedBytes)) {
+      return;
+    }
+    if (_installingModel != null) {
       throw StateError('Whisper 模型正在下载中。');
     }
-    _installingModel = true;
-    if (await model.exists()) await model.delete();
+    _installingModel = target;
+    if (await file.exists()) await file.delete();
 
+    final label = '正在下载 ${option.name} 模型'
+        '（约 ${_formatModelBytes(option.expectedBytes)}）';
     final partial = File('$modelPath.partial');
     try {
       await partial.parent.create(recursive: true);
-      onProgress(
-        PodcastTranscriptionStage.downloadingModel,
-        '正在下载 Whisper Base 模型（约 142 MB）',
-        progress: 0,
-      );
+      onProgress(PodcastTranscriptionStage.downloadingModel, label, progress: 0);
       await _dio.download(
-        _baseModelUrl,
+        option.url,
         partial.path,
         deleteOnError: false,
         onReceiveProgress: (received, total) {
           onProgress(
             PodcastTranscriptionStage.downloadingModel,
-            '正在下载 Whisper Base 模型（约 142 MB）',
+            label,
             progress: total <= 0 ? null : received / total,
           );
         },
@@ -1030,15 +1149,16 @@ class PodcastTranscriptionService {
           responseType: ResponseType.stream,
         ),
       );
-      if (!await partial.exists() || await partial.length() < 100000000) {
+      if (!await partial.exists() ||
+          !_looksComplete(await partial.length(), option.expectedBytes)) {
         throw StateError('Whisper 模型下载不完整。');
       }
-      final digest = await sha1.bind(partial.openRead()).first;
-      if (digest.toString() != _baseModelSha1) {
+      final digest = await sha256.bind(partial.openRead()).first;
+      if (digest.toString() != option.sha256) {
         throw StateError('Whisper 模型校验失败，请重新下载。');
       }
-      if (await model.exists()) await model.delete();
-      await partial.rename(model.path);
+      if (await file.exists()) await file.delete();
+      await partial.rename(file.path);
     } catch (_) {
       if (await partial.exists()) {
         try {
@@ -1047,8 +1167,16 @@ class PodcastTranscriptionService {
       }
       rethrow;
     } finally {
-      _installingModel = false;
+      _installingModel = null;
     }
+  }
+
+  static String _formatModelBytes(int bytes) {
+    const mb = 1024 * 1024;
+    if (bytes >= 1024 * mb) {
+      return '${(bytes / (1024 * mb)).toStringAsFixed(1)} GB';
+    }
+    return '${(bytes / mb).round()} MB';
   }
 
   static List<AudioTextTiming> decodeTranscript(String? source) {

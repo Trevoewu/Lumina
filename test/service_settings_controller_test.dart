@@ -9,9 +9,10 @@ import 'package:lumina/data/database/app_database.dart';
 import 'package:lumina/data/dictionary/openai_compatible_explanation_provider.dart';
 import 'package:lumina/services/podcast_transcription_service.dart';
 import 'package:lumina/tts/api_key_store.dart';
+import 'package:whisper_ggml/whisper_ggml.dart';
 
 void main() {
-  test('ASR settings manage the local model and persist preferences', () async {
+  test('ASR settings manage Whisper weights and persist the slice length', () async {
     final database = AppDatabase.forTesting(NativeDatabase.memory());
     final service = _FakePodcastTranscriptionService(database);
     final container = ProviderContainer(
@@ -26,44 +27,43 @@ void main() {
     var state = await container.read(asrSettingsControllerProvider.future);
     expect(state.readiness, ServiceReadiness.setupRequired);
     expect(state.modelInstalled, isFalse);
-    expect(state.chunkMinutes, PodcastTranscriptionService.defaultChunkMinutes);
-    expect(
-      state.languagePreference,
-      PodcastTranscriptionService.podcastLanguagePreference,
-    );
+    expect(state.chunkSeconds, PodcastTranscriptionService.defaultChunkSeconds);
+    expect(state.models, hasLength(asrModelOptions.length));
+    expect(state.models.every((m) => !m.installed), isTrue);
 
     final controller = container.read(asrSettingsControllerProvider.notifier);
-    await controller.setChunkMinutes(1);
-    await controller.setLanguagePreference(
-      PodcastTranscriptionService.automaticLanguagePreference,
-    );
-    await controller.installModel();
+    await controller.setChunkSeconds(15);
+    await controller.installModel('base');
 
     state = container.read(asrSettingsControllerProvider).requireValue;
     expect(state.readiness, ServiceReadiness.ready);
     expect(state.modelInstalled, isTrue);
-    expect(state.chunkMinutes, 1);
-    expect(
-      state.languagePreference,
-      PodcastTranscriptionService.automaticLanguagePreference,
-    );
+    expect(state.chunkSeconds, 15);
     expect(
       await database.getSetting(
-        PodcastTranscriptionService.chunkMinutesSettingKey,
+        PodcastTranscriptionService.chunkSecondsSettingKey,
       ),
-      '1',
-    );
-    expect(
-      await database.getSetting(
-        PodcastTranscriptionService.languagePreferenceSettingKey,
-      ),
-      PodcastTranscriptionService.automaticLanguagePreference,
+      '15',
     );
 
-    await controller.deleteModel();
+    // A newly downloaded weight takes over as the active one.
+    await controller.installModel('small');
     state = container.read(asrSettingsControllerProvider).requireValue;
-    expect(state.readiness, ServiceReadiness.setupRequired);
-    expect(state.modelInstalled, isFalse);
+    expect(state.modelName, 'whisper-small');
+    expect(
+      state.models.firstWhere((m) => m.id == 'small').active,
+      isTrue,
+    );
+
+    // Switching back only works for a weight that is already on disk.
+    await controller.selectModel('base');
+    state = container.read(asrSettingsControllerProvider).requireValue;
+    expect(state.modelName, 'whisper-base');
+
+    await controller.deleteModel('small');
+    state = container.read(asrSettingsControllerProvider).requireValue;
+    expect(state.models.firstWhere((m) => m.id == 'small').installed, isFalse);
+    expect(state.modelInstalled, isTrue);
   });
 
   test('LLM model selection remains scoped to the active provider', () async {
@@ -202,32 +202,54 @@ class _MemoryApiKeyStore extends ApiKeyStore {
 }
 
 class _FakePodcastTranscriptionService extends PodcastTranscriptionService {
-  bool installed = false;
+  /// Ids of the weights that are present on disk.
+  final Set<String> installedIds = {};
 
   _FakePodcastTranscriptionService(super.database);
 
-  @override
-  Future<PodcastAsrModelInfo> getModelInfo() async => PodcastAsrModelInfo(
-    installed: installed,
-    path: '/tmp/whisper-base.bin',
-    installedBytes: installed
-        ? PodcastTranscriptionService.baseModelExpectedBytes
-        : 0,
-    partialBytes: 0,
-    expectedBytes: PodcastTranscriptionService.baseModelExpectedBytes,
+  bool get installed => installedIds.contains(_selected.id);
+
+  AsrModelOption _selectedOption = asrModelOptionFor(
+    PodcastTranscriptionService.defaultModel,
   );
 
+  AsrModelOption get _selected => _selectedOption;
+
   @override
-  Future<void> installModel({
-    void Function(double? progress, String message)? onProgress,
-  }) async {
-    onProgress?.call(0.5, 'Downloading Whisper Base');
-    installed = true;
-    onProgress?.call(1, 'Whisper Base is ready');
+  Future<WhisperModel> selectedModel() async => _selectedOption.model;
+
+  @override
+  Future<void> selectModel(WhisperModel model) async {
+    _selectedOption = asrModelOptionFor(model);
   }
 
   @override
-  Future<void> deleteModel() async {
-    installed = false;
+  Future<PodcastAsrModelInfo> getModelInfo({WhisperModel? model}) async {
+    final option = asrModelOptionFor(model ?? _selectedOption.model);
+    final present = installedIds.contains(option.id);
+    return PodcastAsrModelInfo(
+      model: option.model,
+      installed: present,
+      path: '/tmp/${option.name}.bin',
+      installedBytes: present ? option.expectedBytes : 0,
+      partialBytes: 0,
+      expectedBytes: option.expectedBytes,
+    );
+  }
+
+  @override
+  Future<void> installModel({
+    WhisperModel? model,
+    void Function(double? progress, String message)? onProgress,
+  }) async {
+    final option = asrModelOptionFor(model ?? _selectedOption.model);
+    onProgress?.call(0.5, 'Downloading ${option.name}');
+    installedIds.add(option.id);
+    onProgress?.call(1, '${option.name} is ready');
+  }
+
+  @override
+  Future<void> deleteModel({WhisperModel? model}) async {
+    installedIds.remove(asrModelOptionFor(model ?? _selectedOption.model).id);
   }
 }

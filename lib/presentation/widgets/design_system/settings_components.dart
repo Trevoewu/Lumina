@@ -202,6 +202,90 @@ class _SegmentButton extends StatelessWidget {
   }
 }
 
+/// The pill toggle the settings spec uses for every inline multiple-choice
+/// control: dark fill when selected, muted fill otherwise.
+class SettingsChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback? onTap;
+  final bool expand;
+
+  const SettingsChip({
+    super.key,
+    required this.label,
+    required this.selected,
+    this.onTap,
+    this.expand = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final chip = Material(
+      color: selected
+          ? scheme.onSurface
+          : scheme.onSurface.withValues(alpha: 0.06),
+      borderRadius: BorderRadius.circular(999),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 9),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: expand ? TextAlign.center : TextAlign.start,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: selected
+                  ? scheme.surface
+                  : scheme.onSurface.withValues(alpha: 0.55),
+            ),
+          ),
+        ),
+      ),
+    );
+    return expand ? Expanded(child: chip) : chip;
+  }
+}
+
+/// The inset-ring radio the spec uses on selectable cards and voice rows.
+class SettingsRadio extends StatelessWidget {
+  final bool selected;
+  final bool enabled;
+  final double size;
+
+  const SettingsRadio({
+    super.key,
+    required this.selected,
+    this.enabled = true,
+    this.size = 22,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final ring = !enabled
+        ? scheme.onSurface.withValues(alpha: 0.09)
+        : selected
+        ? scheme.primary
+        : scheme.onSurface.withValues(alpha: 0.18);
+    // The filled state is drawn as a thick inner ring, matching the spec's
+    // `inset 0 0 0 7px` treatment rather than a dot-in-circle.
+    final thickness = selected && enabled ? size * 0.32 : 2.0;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: ring, width: thickness),
+      ),
+    );
+  }
+}
+
 /// Small rounded pill used to surface a status word (e.g. "Ready", "Local")
 /// next to a [SettingValueRow], tinted when it represents a positive state.
 class SettingBadge extends StatelessWidget {

@@ -7,9 +7,10 @@ import 'package:lumina/core/theme.dart';
 import 'package:lumina/data/database/app_database.dart';
 import 'package:lumina/presentation/screens/settings/asr_service_screen.dart';
 import 'package:lumina/services/podcast_transcription_service.dart';
+import 'package:whisper_ggml/whisper_ggml.dart';
 
 void main() {
-  testWidgets('ASR settings manage the model and transcript preferences', (
+  testWidgets('ASR settings manage Whisper weights and slice length', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(430, 932);
@@ -34,89 +35,118 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const ValueKey('asr-status-card')), findsOneWidget);
-    expect(find.byKey(const ValueKey('asr-model-status')), findsOneWidget);
+    // Every offered weight is listed, smallest first.
+    for (final option in asrModelOptions) {
+      expect(
+        find.byKey(ValueKey('asr-model-${option.id}')),
+        findsOneWidget,
+        reason: option.name,
+      );
+    }
 
-    await tester.tap(find.byKey(const ValueKey('asr-chunk-settings')));
-    await tester.pumpAndSettle();
-    final chunkChoices = find.byType(RadioListTile<int>);
-    expect(chunkChoices, findsNWidgets(3));
-    await tester.tap(chunkChoices.first);
-    await tester.pumpAndSettle();
-    expect(
-      await database.getSetting(
-        PodcastTranscriptionService.chunkMinutesSettingKey,
-      ),
-      '1',
-    );
-
-    await tester.tap(find.byKey(const ValueKey('asr-language-settings')));
-    await tester.pumpAndSettle();
-    final languageChoices = find.byType(RadioListTile<String>);
-    expect(languageChoices, findsNWidgets(2));
-    await tester.tap(languageChoices.last);
-    await tester.pumpAndSettle();
-    expect(
-      await database.getSetting(
-        PodcastTranscriptionService.languagePreferenceSettingKey,
-      ),
-      PodcastTranscriptionService.automaticLanguagePreference,
-    );
-
-    final downloadButton = find.byKey(const ValueKey('download-asr-model'));
+    // Nothing is installed yet, so each card offers a download.
+    final baseDownload = find.byKey(const ValueKey('asr-download-base'));
     await tester.scrollUntilVisible(
-      downloadButton,
-      400,
-      scrollable: find.byType(Scrollable).last,
+      baseDownload,
+      200,
+      scrollable: find.byType(Scrollable).first,
     );
+    await tester.tap(baseDownload);
     await tester.pumpAndSettle();
-    expect(downloadButton, findsOneWidget);
-    await tester.tap(downloadButton);
-    await tester.pumpAndSettle();
-    expect(service.installed, isTrue);
-    expect(find.byKey(const ValueKey('delete-asr-model')), findsOneWidget);
+    expect(service.installedIds, contains('base'));
+    expect(find.byKey(const ValueKey('asr-download-base')), findsNothing);
 
-    await tester.tap(find.byKey(const ValueKey('delete-asr-model')));
-    await tester.pumpAndSettle();
-    final dialog = find.byType(AlertDialog);
-    expect(dialog, findsOneWidget);
-    await tester.tap(
-      find.descendant(of: dialog, matching: find.byType(FilledButton)),
+    // Downloading a second weight makes it the active one.
+    final smallDownload = find.byKey(const ValueKey('asr-download-small'));
+    await tester.scrollUntilVisible(
+      smallDownload,
+      200,
+      scrollable: find.byType(Scrollable).first,
     );
+    await tester.tap(smallDownload);
     await tester.pumpAndSettle();
-    expect(service.installed, isFalse);
-    expect(find.byKey(const ValueKey('download-asr-model')), findsOneWidget);
+    expect(service.installedIds, containsAll(<String>['base', 'small']));
+    expect(await service.selectedModel(), WhisperModel.small);
+
+    // Switching back to an installed weight is a plain tap on its card.
+    final baseCard = find.byKey(const ValueKey('asr-model-base'));
+    await tester.scrollUntilVisible(
+      baseCard,
+      -200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(baseCard);
+    await tester.pumpAndSettle();
+    expect(await service.selectedModel(), WhisperModel.base);
+
+    // Slice length is a chip row measured in seconds.
+    final chunkChip = find.text('15s');
+    await tester.scrollUntilVisible(
+      chunkChip,
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(chunkChip);
+    await tester.pumpAndSettle();
+    expect(
+      await database.getSetting(
+        PodcastTranscriptionService.chunkSecondsSettingKey,
+      ),
+      '15',
+    );
     expect(tester.takeException(), isNull);
   });
 }
 
 class _FakePodcastTranscriptionService extends PodcastTranscriptionService {
-  bool installed = false;
+  /// Ids of the weights that are present on disk.
+  final Set<String> installedIds = {};
 
   _FakePodcastTranscriptionService(super.database);
 
-  @override
-  Future<PodcastAsrModelInfo> getModelInfo() async => PodcastAsrModelInfo(
-    installed: installed,
-    path: '/tmp/whisper-base.bin',
-    installedBytes: installed
-        ? PodcastTranscriptionService.baseModelExpectedBytes
-        : 0,
-    partialBytes: 0,
-    expectedBytes: PodcastTranscriptionService.baseModelExpectedBytes,
+  bool get installed => installedIds.contains(_selected.id);
+
+  AsrModelOption _selectedOption = asrModelOptionFor(
+    PodcastTranscriptionService.defaultModel,
   );
 
+  AsrModelOption get _selected => _selectedOption;
+
   @override
-  Future<void> installModel({
-    void Function(double? progress, String message)? onProgress,
-  }) async {
-    onProgress?.call(0.5, 'Downloading Whisper Base');
-    installed = true;
-    onProgress?.call(1, 'Whisper Base is ready');
+  Future<WhisperModel> selectedModel() async => _selectedOption.model;
+
+  @override
+  Future<void> selectModel(WhisperModel model) async {
+    _selectedOption = asrModelOptionFor(model);
   }
 
   @override
-  Future<void> deleteModel() async {
-    installed = false;
+  Future<PodcastAsrModelInfo> getModelInfo({WhisperModel? model}) async {
+    final option = asrModelOptionFor(model ?? _selectedOption.model);
+    final present = installedIds.contains(option.id);
+    return PodcastAsrModelInfo(
+      model: option.model,
+      installed: present,
+      path: '/tmp/${option.name}.bin',
+      installedBytes: present ? option.expectedBytes : 0,
+      partialBytes: 0,
+      expectedBytes: option.expectedBytes,
+    );
+  }
+
+  @override
+  Future<void> installModel({
+    WhisperModel? model,
+    void Function(double? progress, String message)? onProgress,
+  }) async {
+    final option = asrModelOptionFor(model ?? _selectedOption.model);
+    onProgress?.call(0.5, 'Downloading ${option.name}');
+    installedIds.add(option.id);
+    onProgress?.call(1, '${option.name} is ready');
+  }
+
+  @override
+  Future<void> deleteModel({WhisperModel? model}) async {
+    installedIds.remove(asrModelOptionFor(model ?? _selectedOption.model).id);
   }
 }

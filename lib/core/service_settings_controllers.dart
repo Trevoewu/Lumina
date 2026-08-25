@@ -103,6 +103,27 @@ class LlmSettingsState {
 
 const _unsetAsrValue = Object();
 
+/// One Whisper weight as the settings page sees it.
+class AsrModelViewData {
+  final String id;
+  final String name;
+  final int expectedBytes;
+  final bool installed;
+  final bool active;
+  final bool downloading;
+  final double? progress;
+
+  const AsrModelViewData({
+    required this.id,
+    required this.name,
+    required this.expectedBytes,
+    required this.installed,
+    required this.active,
+    this.downloading = false,
+    this.progress,
+  });
+}
+
 class AsrSettingsState {
   final String providerName;
   final String modelName;
@@ -112,8 +133,8 @@ class AsrSettingsState {
   final int installedBytes;
   final int partialBytes;
   final int expectedBytes;
-  final int chunkMinutes;
-  final String languagePreference;
+  final int chunkSeconds;
+  final List<AsrModelViewData> models;
   final bool operationInProgress;
   final double? operationProgress;
   final String? operationMessage;
@@ -121,15 +142,15 @@ class AsrSettingsState {
 
   const AsrSettingsState({
     this.providerName = 'Local Whisper',
-    this.modelName = 'Whisper Base',
+    this.modelName = 'whisper-base',
     required this.readiness,
     required this.modelInstalled,
     this.modelPath,
     required this.installedBytes,
     required this.partialBytes,
     required this.expectedBytes,
-    required this.chunkMinutes,
-    required this.languagePreference,
+    required this.chunkSeconds,
+    this.models = const [],
     this.operationInProgress = false,
     this.operationProgress,
     this.operationMessage,
@@ -137,14 +158,15 @@ class AsrSettingsState {
   });
 
   AsrSettingsState copyWith({
+    String? modelName,
     ServiceReadiness? readiness,
     bool? modelInstalled,
     Object? modelPath = _unsetAsrValue,
     int? installedBytes,
     int? partialBytes,
     int? expectedBytes,
-    int? chunkMinutes,
-    String? languagePreference,
+    int? chunkSeconds,
+    List<AsrModelViewData>? models,
     bool? operationInProgress,
     Object? operationProgress = _unsetAsrValue,
     Object? operationMessage = _unsetAsrValue,
@@ -152,7 +174,7 @@ class AsrSettingsState {
   }) {
     return AsrSettingsState(
       providerName: providerName,
-      modelName: modelName,
+      modelName: modelName ?? this.modelName,
       readiness: readiness ?? this.readiness,
       modelInstalled: modelInstalled ?? this.modelInstalled,
       modelPath: identical(modelPath, _unsetAsrValue)
@@ -161,8 +183,8 @@ class AsrSettingsState {
       installedBytes: installedBytes ?? this.installedBytes,
       partialBytes: partialBytes ?? this.partialBytes,
       expectedBytes: expectedBytes ?? this.expectedBytes,
-      chunkMinutes: chunkMinutes ?? this.chunkMinutes,
-      languagePreference: languagePreference ?? this.languagePreference,
+      chunkSeconds: chunkSeconds ?? this.chunkSeconds,
+      models: models ?? this.models,
       operationInProgress: operationInProgress ?? this.operationInProgress,
       operationProgress: identical(operationProgress, _unsetAsrValue)
           ? this.operationProgress
@@ -178,46 +200,52 @@ class AsrSettingsState {
 }
 
 class AsrSettingsController extends AsyncNotifier<AsrSettingsState> {
-  static const supportedChunkMinutes = <int>[1, 3, 5];
+  static const supportedChunkSeconds =
+      PodcastTranscriptionService.supportedChunkSeconds;
+
+  /// Which weight is downloading right now, so only its card shows a bar.
+  String? _downloadingId;
+  double? _downloadingProgress;
 
   @override
   Future<AsrSettingsState> build() => _load();
 
   Future<AsrSettingsState> _load() async {
-    final database = ref.read(appDatabaseProvider);
-    final storedChunkMinutes = int.tryParse(
-      await database.getSetting(
-            PodcastTranscriptionService.chunkMinutesSettingKey,
-          ) ??
-          '',
-    );
-    final chunkMinutes = supportedChunkMinutes.contains(storedChunkMinutes)
-        ? storedChunkMinutes!
-        : PodcastTranscriptionService.defaultChunkMinutes;
-    final storedLanguage = await database.getSetting(
-      PodcastTranscriptionService.languagePreferenceSettingKey,
-    );
-    final languagePreference =
-        storedLanguage ==
-            PodcastTranscriptionService.automaticLanguagePreference
-        ? PodcastTranscriptionService.automaticLanguagePreference
-        : PodcastTranscriptionService.podcastLanguagePreference;
+    final service = ref.read(podcastTranscriptionServiceProvider);
+    final chunkSeconds = await service.selectedChunkSeconds();
 
     try {
-      final info = await ref
-          .read(podcastTranscriptionServiceProvider)
-          .getModelInfo();
+      final infos = await service.listModelInfos();
+      final active = await service.selectedModel();
+      final activeInfo = infos.firstWhere(
+        (info) => info.model == active,
+        orElse: () => infos.first,
+      );
       return AsrSettingsState(
-        readiness: info.installed
+        modelName: activeInfo.option.name,
+        readiness: activeInfo.installed
             ? ServiceReadiness.ready
             : ServiceReadiness.setupRequired,
-        modelInstalled: info.installed,
-        modelPath: info.path,
-        installedBytes: info.installedBytes,
-        partialBytes: info.partialBytes,
-        expectedBytes: info.expectedBytes,
-        chunkMinutes: chunkMinutes,
-        languagePreference: languagePreference,
+        modelInstalled: activeInfo.installed,
+        modelPath: activeInfo.path,
+        installedBytes: activeInfo.installedBytes,
+        partialBytes: activeInfo.partialBytes,
+        expectedBytes: activeInfo.expectedBytes,
+        chunkSeconds: chunkSeconds,
+        models: [
+          for (final info in infos)
+            AsrModelViewData(
+              id: info.option.id,
+              name: info.option.name,
+              expectedBytes: info.option.expectedBytes,
+              installed: info.installed,
+              active: info.model == active,
+              downloading: _downloadingId == info.option.id,
+              progress: _downloadingId == info.option.id
+                  ? _downloadingProgress
+                  : null,
+            ),
+        ],
       );
     } catch (error) {
       return AsrSettingsState(
@@ -226,8 +254,7 @@ class AsrSettingsController extends AsyncNotifier<AsrSettingsState> {
         installedBytes: 0,
         partialBytes: 0,
         expectedBytes: PodcastTranscriptionService.baseModelExpectedBytes,
-        chunkMinutes: chunkMinutes,
-        languagePreference: languagePreference,
+        chunkSeconds: chunkSeconds,
         operationError: error.toString(),
       );
     }
@@ -238,23 +265,40 @@ class AsrSettingsController extends AsyncNotifier<AsrSettingsState> {
     state = await AsyncValue.guard(_load);
   }
 
-  Future<void> installModel() async {
-    final current = state.requireValue;
+  /// Switches the weight used for future transcriptions. Only an installed
+  /// model can become active.
+  Future<void> selectModel(String id) async {
+    final service = ref.read(podcastTranscriptionServiceProvider);
+    final option = asrModelOptions.firstWhere(
+      (o) => o.id == id,
+      orElse: () => asrModelOptions.first,
+    );
+    await service.selectModel(option.model);
+    state = AsyncData(await _load());
+  }
+
+  Future<void> installModel(String id) async {
+    final option = asrModelOptions.firstWhere(
+      (o) => o.id == id,
+      orElse: () => asrModelOptions.first,
+    );
+    _downloadingId = option.id;
+    _downloadingProgress = 0;
     state = AsyncData(
-      current.copyWith(
+      (state.value ?? await _load()).copyWith(
         operationInProgress: true,
-        operationProgress: current.partialBytes > 0
-            ? (current.partialBytes / current.expectedBytes).clamp(0, 1)
-            : 0.0,
-        operationMessage: 'Preparing Whisper Base download',
+        operationProgress: 0.0,
         operationError: null,
       ),
     );
+    state = AsyncData(await _load());
     try {
       await ref
           .read(podcastTranscriptionServiceProvider)
           .installModel(
+            model: option.model,
             onProgress: (progress, message) {
+              _downloadingProgress = progress;
               final value = state.value;
               if (value == null) return;
               state = AsyncData(
@@ -263,16 +307,37 @@ class AsrSettingsController extends AsyncNotifier<AsrSettingsState> {
                   operationProgress: progress,
                   operationMessage: message,
                   operationError: null,
+                  models: [
+                    for (final m in value.models)
+                      m.id == option.id
+                          ? AsrModelViewData(
+                              id: m.id,
+                              name: m.name,
+                              expectedBytes: m.expectedBytes,
+                              installed: m.installed,
+                              active: m.active,
+                              downloading: true,
+                              progress: progress,
+                            )
+                          : m,
+                  ],
                 ),
               );
             },
           );
+      _downloadingId = null;
+      _downloadingProgress = null;
+      // A freshly downloaded weight becomes the one that gets used.
+      await ref
+          .read(podcastTranscriptionServiceProvider)
+          .selectModel(option.model);
       state = AsyncData(await _load());
     } catch (error) {
-      final value = state.value ?? current;
+      _downloadingId = null;
+      _downloadingProgress = null;
+      final reloaded = await _load();
       state = AsyncData(
-        value.copyWith(
-          readiness: ServiceReadiness.error,
+        reloaded.copyWith(
           operationInProgress: false,
           operationProgress: null,
           operationMessage: null,
@@ -282,61 +347,31 @@ class AsrSettingsController extends AsyncNotifier<AsrSettingsState> {
     }
   }
 
-  Future<void> deleteModel() async {
-    final current = state.requireValue;
-    state = AsyncData(
-      current.copyWith(
-        operationInProgress: true,
-        operationProgress: null,
-        operationMessage: 'Removing Whisper Base',
-        operationError: null,
-      ),
+  Future<void> deleteModel(String id) async {
+    final option = asrModelOptions.firstWhere(
+      (o) => o.id == id,
+      orElse: () => asrModelOptions.first,
     );
     try {
-      await ref.read(podcastTranscriptionServiceProvider).deleteModel();
+      await ref
+          .read(podcastTranscriptionServiceProvider)
+          .deleteModel(model: option.model);
       state = AsyncData(await _load());
     } catch (error) {
-      state = AsyncData(
-        current.copyWith(
-          readiness: ServiceReadiness.error,
-          operationInProgress: false,
-          operationMessage: null,
-          operationError: error.toString(),
-        ),
-      );
+      final value = state.value ?? await _load();
+      state = AsyncData(value.copyWith(operationError: error.toString()));
     }
   }
 
-  Future<void> setChunkMinutes(int minutes) async {
-    if (!supportedChunkMinutes.contains(minutes)) {
-      throw ArgumentError.value(minutes, 'minutes');
+  Future<void> setChunkSeconds(int seconds) async {
+    if (!supportedChunkSeconds.contains(seconds)) {
+      throw ArgumentError.value(seconds, 'seconds');
     }
     await ref
-        .read(appDatabaseProvider)
-        .setSetting(
-          PodcastTranscriptionService.chunkMinutesSettingKey,
-          '$minutes',
-        );
+        .read(podcastTranscriptionServiceProvider)
+        .selectChunkSeconds(seconds);
     final current = state.requireValue;
-    state = AsyncData(current.copyWith(chunkMinutes: minutes));
-  }
-
-  Future<void> setLanguagePreference(String preference) async {
-    const supported = {
-      PodcastTranscriptionService.podcastLanguagePreference,
-      PodcastTranscriptionService.automaticLanguagePreference,
-    };
-    if (!supported.contains(preference)) {
-      throw ArgumentError.value(preference, 'preference');
-    }
-    await ref
-        .read(appDatabaseProvider)
-        .setSetting(
-          PodcastTranscriptionService.languagePreferenceSettingKey,
-          preference,
-        );
-    final current = state.requireValue;
-    state = AsyncData(current.copyWith(languagePreference: preference));
+    state = AsyncData(current.copyWith(chunkSeconds: seconds));
   }
 }
 

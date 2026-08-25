@@ -110,7 +110,6 @@ class _GoldenAsrController extends AsrSettingsController {
     installedBytes: PodcastTranscriptionService.baseModelExpectedBytes,
     partialBytes: 0,
     expectedBytes: PodcastTranscriptionService.baseModelExpectedBytes,
-    chunkMinutes: PodcastTranscriptionService.defaultChunkMinutes,
-    languagePreference: PodcastTranscriptionService.podcastLanguagePreference,
+    chunkSeconds: PodcastTranscriptionService.defaultChunkSeconds,
   );
 }
