@@ -4,6 +4,62 @@ import 'package:lumina/data/database/app_database.dart';
 
 void main() {
   test(
+    'deleteChapterCascade removes chapter data and resets book progress',
+    () async {
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(database.close);
+      const book = Book(
+        id: 'delete-chapter-book',
+        title: 'Delete Chapter Book',
+        format: 'txt',
+        sourcePath: '/delete.txt',
+        chapterCount: 1,
+        paragraphCount: 1,
+        currentChapterId: 'delete-chapter',
+        currentParagraphIndex: 3,
+        playbackOffsetMs: 500,
+        importedAt: 1,
+        lastReadAt: 1,
+        isRead: false,
+        kind: 'book',
+        rightsStatus: 'user_uploaded',
+      );
+      const chapter = Chapter(
+        id: 'delete-chapter',
+        bookId: 'delete-chapter-book',
+        chapterIndex: 0,
+        title: 'Delete me',
+        textOffset: 0,
+        isHidden: false,
+      );
+      await database.upsertBook(book);
+      await database.insertChapters(const [chapter]);
+      await database.insertParagraphs(const [
+        Paragraph(
+          id: 'delete-paragraph',
+          chapterId: 'delete-chapter',
+          bookId: 'delete-chapter-book',
+          paragraphIndex: 0,
+          content: 'Delete me too',
+        ),
+      ]);
+      await database.markChapterFinished(book.id, chapter.id);
+
+      await database.deleteChapterCascade(chapter.id);
+
+      expect(await database.getChapter(chapter.id), isNull);
+      expect(await database.getParagraphs(chapter.id), isEmpty);
+      expect(await database.getChapterPlaybackProgress(chapter.id), isNull);
+      final updatedBook = await database.getBook(book.id);
+      expect(updatedBook?.chapterCount, 0);
+      expect(updatedBook?.paragraphCount, 0);
+      expect(updatedBook?.currentChapterId, isNull);
+      expect(updatedBook?.currentParagraphIndex, 0);
+      expect(updatedBook?.playbackOffsetMs, 0);
+    },
+  );
+
+  test(
     'replaceBookData rolls back the entire import when a write fails',
     () async {
       final database = AppDatabase.forTesting(NativeDatabase.memory());

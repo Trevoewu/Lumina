@@ -37,7 +37,11 @@ void main() {
         child: MaterialApp(
           theme: AppTheme.lightTheme(),
           home: Scaffold(
-            body: PodcastEpisodeTile(episode: episode, onTap: () {}),
+            body: PodcastEpisodeTile(
+              episode: episode,
+              enableSwipeActions: true,
+              onTap: () {},
+            ),
           ),
         ),
       ),

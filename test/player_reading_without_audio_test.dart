@@ -1357,8 +1357,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('清除音频'), findsOneWidget);
     expect(find.byIcon(Icons.cleaning_services_outlined), findsOneWidget);
-    expect(find.text('Mark as finished'), findsOneWidget);
-    await tester.tap(find.text('Mark as finished'));
+    final markAsRead = find.text('Mark as read');
+    expect(markAsRead, findsWidgets);
+    await tester.tap(markAsRead.last);
     await tester.pumpAndSettle();
     final finishedProgress = await database.getChapterPlaybackProgress(
       'navigation-chapter',

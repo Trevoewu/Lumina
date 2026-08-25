@@ -197,6 +197,7 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
               for (final episode in episodes)
                 PodcastEpisodeTile(
                   episode: episode,
+                  enableSwipeActions: true,
                   onTap: () => _openEpisode(episode.id),
                 ),
           ],

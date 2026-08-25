@@ -25,12 +25,14 @@ class SwipeActionRow extends StatefulWidget {
   final Widget child;
   final List<SwipeAction> actions;
   final double actionWidth;
+  final bool enabled;
 
   const SwipeActionRow({
     super.key,
     required this.child,
     required this.actions,
     this.actionWidth = 92,
+    this.enabled = true,
   });
 
   @override
@@ -52,7 +54,7 @@ class _SwipeActionRowState extends State<SwipeActionRow> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.actions.isEmpty) return widget.child;
+    if (!widget.enabled || widget.actions.isEmpty) return widget.child;
 
     return LayoutBuilder(
       builder: (context, constraints) {

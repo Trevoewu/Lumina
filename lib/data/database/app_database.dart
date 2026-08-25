@@ -44,19 +44,6 @@ class Books extends Table {
   Set<Column> get primaryKey => {id};
 }
 
-/// Books hidden from the library remain available for later restoration.
-///
-/// Keeping this state in a small companion table avoids changing the durable
-/// book record and makes hiding a reversible library action rather than a
-/// destructive edit.
-class HiddenBooks extends Table {
-  TextColumn get bookId => text()();
-  IntColumn get hiddenAt => integer()();
-
-  @override
-  Set<Column> get primaryKey => {bookId};
-}
-
 /// 章节表。
 class Chapters extends Table {
   TextColumn get id => text()();
@@ -411,7 +398,6 @@ class GenerationTaskChunks extends Table {
 @DriftDatabase(
   tables: [
     Books,
-    HiddenBooks,
     Chapters,
     ChapterPlaybackProgresses,
     Paragraphs,
@@ -578,7 +564,6 @@ class AppDatabase extends _$AppDatabase {
         }
       }
       if (from < 19) {
-        await m.createTable(hiddenBooks);
         await m.createTable(hiddenPodcastEpisodes);
       }
     },
@@ -592,39 +577,7 @@ class AppDatabase extends _$AppDatabase {
 
   // ── 书籍 ──
 
-  Future<List<Book>> getAllBooks({bool includeHidden = false}) async {
-    final entries = await select(books).get();
-    if (includeHidden) return entries;
-    final hiddenIds = (await select(
-      hiddenBooks,
-    ).get()).map((entry) => entry.bookId).toSet();
-    return entries
-        .where((entry) => !hiddenIds.contains(entry.id))
-        .toList(growable: false);
-  }
-
-  Future<List<Book>> getHiddenBooks() async {
-    final hidden = await select(hiddenBooks).get();
-    if (hidden.isEmpty) return const <Book>[];
-    final byId = {for (final book in await select(books).get()) book.id: book};
-    hidden.sort((left, right) => right.hiddenAt.compareTo(left.hiddenAt));
-    return [for (final entry in hidden) ?byId[entry.bookId]];
-  }
-
-  Future<void> updateBookHidden(String bookId, bool isHidden) async {
-    if (!isHidden) {
-      await (delete(
-        hiddenBooks,
-      )..where((entry) => entry.bookId.equals(bookId))).go();
-      return;
-    }
-    await into(hiddenBooks).insertOnConflictUpdate(
-      HiddenBook(
-        bookId: bookId,
-        hiddenAt: DateTime.now().millisecondsSinceEpoch,
-      ),
-    );
-  }
+  Future<List<Book>> getAllBooks() => select(books).get();
 
   Stream<List<Book>> watchAllBooks() => select(books).watch();
 
@@ -756,9 +709,6 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> deleteBookCascade(String id) async {
     await transaction(() async {
-      await (delete(
-        hiddenBooks,
-      )..where((entry) => entry.bookId.equals(id))).go();
       await _deleteAiThreadsForParent('chapter', id);
       await (delete(bookmarks)..where((b) => b.bookId.equals(id))).go();
       await (delete(
@@ -867,18 +817,90 @@ class AppDatabase extends _$AppDatabase {
   }
 
   Future<void> markChapterFinished(String bookId, String chapterId) async {
+    await setChapterFinished(bookId, chapterId, true);
+  }
+
+  Future<void> setChapterFinished(
+    String bookId,
+    String chapterId,
+    bool isFinished,
+  ) async {
     final existing = await getChapterPlaybackProgress(chapterId);
     await into(chapterPlaybackProgresses).insertOnConflictUpdate(
       ChapterPlaybackProgress(
         chapterId: chapterId,
         bookId: bookId,
-        positionMs: existing?.positionMs ?? 0,
-        paragraphIndex: existing?.paragraphIndex ?? 0,
-        paragraphOffsetMs: existing?.paragraphOffsetMs ?? 0,
-        isFinished: true,
+        positionMs: isFinished ? existing?.positionMs ?? 0 : 0,
+        paragraphIndex: isFinished ? existing?.paragraphIndex ?? 0 : 0,
+        paragraphOffsetMs: isFinished ? existing?.paragraphOffsetMs ?? 0 : 0,
+        isFinished: isFinished,
         updatedAt: DateTime.now().millisecondsSinceEpoch,
       ),
     );
+  }
+
+  Future<void> deleteChapterCascade(String chapterId) async {
+    final chapter = await getChapter(chapterId);
+    if (chapter == null) return;
+    final book = await getBook(chapter.bookId);
+    final chapterParagraphs = await getParagraphs(chapterId);
+
+    await transaction(() async {
+      final thread = await getAiThread('chapter', chapterId);
+      if (thread != null) {
+        await deleteAiMessages(thread.id);
+        await (delete(
+          aiThreads,
+        )..where((entry) => entry.id.equals(thread.id))).go();
+      }
+      final tasks = await getGenerationTasks(
+        kind: 'tts',
+        parentId: chapter.bookId,
+        scopeId: chapterId,
+      );
+      for (final task in tasks) {
+        await (delete(
+          generationTaskChunks,
+        )..where((chunk) => chunk.taskId.equals(task.id))).go();
+        await (delete(
+          generationTasks,
+        )..where((entry) => entry.id.equals(task.id))).go();
+      }
+      await (delete(
+        bookmarks,
+      )..where((bookmark) => bookmark.chapterId.equals(chapterId))).go();
+      await (delete(
+        chapterPlaybackProgresses,
+      )..where((progress) => progress.chapterId.equals(chapterId))).go();
+      await (delete(
+        paragraphs,
+      )..where((paragraph) => paragraph.chapterId.equals(chapterId))).go();
+      await (delete(
+        chapters,
+      )..where((entry) => entry.id.equals(chapterId))).go();
+      if (book != null) {
+        await (update(books)..where((entry) => entry.id.equals(book.id))).write(
+          BooksCompanion(
+            chapterCount: Value((book.chapterCount - 1).clamp(0, 1 << 31)),
+            paragraphCount: Value(
+              (book.paragraphCount - chapterParagraphs.length).clamp(
+                0,
+                1 << 31,
+              ),
+            ),
+            currentChapterId: book.currentChapterId == chapterId
+                ? const Value(null)
+                : const Value.absent(),
+            currentParagraphIndex: book.currentChapterId == chapterId
+                ? const Value(0)
+                : const Value.absent(),
+            playbackOffsetMs: book.currentChapterId == chapterId
+                ? const Value(0)
+                : const Value.absent(),
+          ),
+        );
+      }
+    });
   }
 
   Future<void> insertChapters(List<Chapter> entries) async {

@@ -17,12 +17,14 @@ class PodcastEpisodeTile extends ConsumerStatefulWidget {
   final PodcastEpisode episode;
   final String? showTitle;
   final VoidCallback onTap;
+  final bool enableSwipeActions;
 
   const PodcastEpisodeTile({
     super.key,
     required this.episode,
     required this.onTap,
     this.showTitle,
+    this.enableSwipeActions = false,
   });
 
   @override
@@ -71,6 +73,7 @@ class _PodcastEpisodeTileState extends ConsumerState<PodcastEpisodeTile> {
 
     return SwipeActionRow(
       key: ValueKey('podcast-episode-swipe-${resolvedEpisode.id}'),
+      enabled: widget.enableSwipeActions,
       actions: [
         SwipeAction(
           label: resolvedEpisode.isPlayed

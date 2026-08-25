@@ -26,6 +26,7 @@ import '../../widgets/animated_pressable_card.dart';
 import '../../widgets/book_cover.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
 import '../../widgets/half_screen_action_sheet.dart';
+import '../../widgets/swipe_action_row.dart';
 import '../../widgets/voice_selection_card.dart';
 import '../player/player_screen.dart';
 import '../settings/voice_preview_controller.dart';
@@ -326,13 +327,78 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     });
   }
 
-  Future<void> _markChapterFinished(drift_db.Chapter chapter) async {
+  Future<void> _setChapterFinished(
+    drift_db.Chapter chapter,
+    bool isFinished,
+  ) async {
     await ref
         .read(appDatabaseProvider)
-        .markChapterFinished(widget.book.id, chapter.id);
+        .setChapterFinished(widget.book.id, chapter.id, isFinished);
     await _refreshChapterData();
     if (!mounted) return;
-    _showSnackBar(context.tr('已标记为已听完', 'Marked as finished', '聴き終わりにしました'));
+    _showSnackBar(
+      isFinished
+          ? context.tr('已标记为已读', 'Marked as read', '既読にしました')
+          : context.tr('已标记为未读', 'Marked as unread', '未読にしました'),
+    );
+  }
+
+  Future<void> _confirmDeleteChapter(drift_db.Chapter chapter) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(context.tr('删除章节？', 'Delete chapter?', '章を削除しますか？')),
+        content: Text(
+          context.tr(
+            '将删除“${chapter.title}”及其阅读进度、书签和生成音频。',
+            'This removes “${chapter.title}”, its progress, bookmarks, and generated audio.',
+            '「${chapter.title}」と進捗、ブックマーク、生成音声を削除します。',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(context.tr('取消', 'Cancel', 'キャンセル')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(context.tr('删除', 'Delete', '削除')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      final handler = await ref.read(luminaAudioHandlerProvider.future);
+      await handler.unloadIfBook(widget.book.id);
+      await ref
+          .read(cacheManagerProvider)
+          .clearChapter(widget.book.id, chapter.id);
+      await ref.read(appDatabaseProvider).deleteChapterCascade(chapter.id);
+      if (!mounted) return;
+      if (_currentChapterId == chapter.id) {
+        _currentChapterId = null;
+        _currentParagraphIndex = 0;
+        _playbackOffsetMs = 0;
+      }
+      await _refreshChapterData();
+      if (mounted) {
+        _showSnackBar(context.tr('章节已删除', 'Chapter deleted', '章を削除しました'));
+      }
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        'Album',
+        '删除章节失败 chapter=${chapter.id}',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      if (mounted) {
+        _showSnackBar(
+          context.tr('无法删除章节', 'Unable to delete chapter', '章を削除できません'),
+        );
+      }
+    }
   }
 
   Future<String?> _loadBookIntroduction() async {
@@ -969,9 +1035,11 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                         paused: _pausedChapterIds.contains(chapter.id),
                         onClearCache: () => _clearChapterCache(chapter),
                         onRegenerate: () => _regenerateChapter(chapter),
-                        onMarkAsFinished: () => _markChapterFinished(chapter),
+                        onSetFinished: (isFinished) =>
+                            _setChapterFinished(chapter, isFinished),
                         onChangeNarrator: () => _changeChapterNarrator(chapter),
                         onHideInBook: () => _hideChapter(chapter),
+                        onDelete: () => _confirmDeleteChapter(chapter),
                       );
                     },
                   );
@@ -1199,9 +1267,10 @@ class _ChapterCard extends StatelessWidget {
   final bool paused;
   final VoidCallback onClearCache;
   final VoidCallback onRegenerate;
-  final VoidCallback onMarkAsFinished;
+  final ValueChanged<bool> onSetFinished;
   final VoidCallback onChangeNarrator;
   final VoidCallback onHideInBook;
+  final VoidCallback onDelete;
 
   const _ChapterCard({
     required this.title,
@@ -1221,9 +1290,10 @@ class _ChapterCard extends StatelessWidget {
     required this.paused,
     required this.onClearCache,
     required this.onRegenerate,
-    required this.onMarkAsFinished,
+    required this.onSetFinished,
     required this.onChangeNarrator,
     required this.onHideInBook,
+    required this.onDelete,
     this.progress,
   });
 
@@ -1282,73 +1352,102 @@ class _ChapterCard extends StatelessWidget {
           fontSize: 12,
           height: 1.3,
         );
-        return AnimatedPressableCard(
-          key: ValueKey('book-chapter-$chapterId'),
-          onTap: onPlay,
-          onLongPress: () => _showActions(context, manifest, finished),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                _ChapterBadge(
-                  number: chapterNumber,
-                  current: highlighted,
-                  accent: accent,
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: highlighted ? accent : context.appTextPrimary,
-                          fontSize: 17,
-                          height: 1.25,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: -0.3,
-                        ),
-                      ),
-                      if (metadata.isNotEmpty) ...[
-                        const SizedBox(height: 5),
-                        Text(
-                          metadata,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: metaStyle,
-                        ),
-                      ],
-                      if (inProgress) ...[
-                        const SizedBox(height: 9),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(2),
-                          child: LinearProgressIndicator(
-                            key: ValueKey(
-                              'book-chapter-playback-progress-$chapterId',
+        return SwipeActionRow(
+          key: ValueKey('book-chapter-swipe-$chapterId'),
+          actions: [
+            SwipeAction(
+              label: finished
+                  ? context.tr('标为未读', 'Mark as unread', '未読にする')
+                  : context.tr('标为已读', 'Mark as read', '既読にする'),
+              backgroundColor: const Color(0xFF2389E9),
+              onPressed: () => onSetFinished(!finished),
+            ),
+            SwipeAction(
+              label: context.tr('隐藏', 'Hide', '非表示'),
+              backgroundColor: const Color(0xFFFF9D32),
+              onPressed: onHideInBook,
+            ),
+            SwipeAction(
+              label: context.tr('删除', 'Delete', '削除'),
+              backgroundColor: const Color(0xFFFF4D52),
+              onPressed: onDelete,
+            ),
+          ],
+          child: ColoredBox(
+            color: context.appBackground,
+            child: AnimatedPressableCard(
+              key: ValueKey('book-chapter-$chapterId'),
+              onTap: onPlay,
+              onLongPress: () => _showActions(context, manifest, finished),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    _ChapterBadge(
+                      number: chapterNumber,
+                      current: highlighted,
+                      accent: accent,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: highlighted
+                                  ? accent
+                                  : context.appTextPrimary,
+                              fontSize: 17,
+                              height: 1.25,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.3,
                             ),
-                            value: playbackProgress,
-                            minHeight: 3,
-                            backgroundColor: context.appSurfaceHighlight,
-                            valueColor: AlwaysStoppedAnimation<Color>(accent),
                           ),
-                        ),
-                      ],
+                          if (metadata.isNotEmpty) ...[
+                            const SizedBox(height: 5),
+                            Text(
+                              metadata,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: metaStyle,
+                            ),
+                          ],
+                          if (inProgress) ...[
+                            const SizedBox(height: 9),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(2),
+                              child: LinearProgressIndicator(
+                                key: ValueKey(
+                                  'book-chapter-playback-progress-$chapterId',
+                                ),
+                                value: playbackProgress,
+                                minHeight: 3,
+                                backgroundColor: context.appSurfaceHighlight,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  accent,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    if (finished) ...[
+                      const SizedBox(width: 8),
+                      Icon(
+                        Icons.check_circle_rounded,
+                        size: 18,
+                        color: context.appTextSecondary.withValues(alpha: 0.65),
+                      ),
                     ],
-                  ),
+                  ],
                 ),
-                if (finished) ...[
-                  const SizedBox(width: 8),
-                  Icon(
-                    Icons.check_circle_rounded,
-                    size: 18,
-                    color: context.appTextSecondary.withValues(alpha: 0.65),
-                  ),
-                ],
-              ],
+              ),
             ),
           ),
         );
@@ -1399,9 +1498,11 @@ class _ChapterCard extends StatelessWidget {
             onPressed: onRegenerate,
           ),
         HalfScreenActionSheetItem(
-          label: context.tr('标记为已听完', 'Mark as finished', '聴き終わりにする'),
-          icon: Icons.check_circle_outline_rounded,
-          onPressed: finished ? null : onMarkAsFinished,
+          label: finished
+              ? context.tr('标记为未读', 'Mark as unread', '未読にする')
+              : context.tr('标记为已读', 'Mark as read', '既読にする'),
+          icon: finished ? Icons.remove_done_outlined : Icons.done_all_rounded,
+          onPressed: () => onSetFinished(!finished),
         ),
         HalfScreenActionSheetItem(
           label: context.tr('修改旁白', 'Change narrator', 'ナレーターを変更'),
@@ -1412,6 +1513,12 @@ class _ChapterCard extends StatelessWidget {
           label: context.tr('在本书中隐藏', 'Hide in this book', 'この本で非表示にする'),
           icon: Icons.visibility_off_outlined,
           onPressed: onHideInBook,
+        ),
+        HalfScreenActionSheetItem(
+          label: context.tr('删除章节', 'Delete chapter', '章を削除'),
+          icon: Icons.delete_outline,
+          destructive: true,
+          onPressed: onDelete,
         ),
       ],
     );

@@ -23,7 +23,6 @@ import '../../widgets/book_cover.dart';
 import '../../widgets/book_card_metadata.dart';
 import '../../widgets/book_list_card.dart';
 import '../../widgets/half_screen_action_sheet.dart';
-import '../../widgets/swipe_action_row.dart';
 import '../album/album_screen.dart';
 import '../podcast/podcast_index_search_screen.dart';
 import '../podcast/podcast_library_view.dart';
@@ -233,21 +232,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                             color: context.appTextPrimary,
                           ),
                         ),
-                        if (_section == _HomeSection.books)
-                          IconButton(
-                            key: const ValueKey('hidden-books-action'),
-                            tooltip: context.tr(
-                              '隐藏的书籍',
-                              'Hidden books',
-                              '非表示の本',
-                            ),
-                            onPressed: _showHiddenBooks,
-                            icon: Icon(
-                              Icons.visibility_off_outlined,
-                              size: 21,
-                              color: context.appTextPrimary,
-                            ),
-                          ),
                         IconButton(
                           key: const ValueKey('home-add-action'),
                           tooltip: _section == _HomeSection.podcasts
@@ -396,39 +380,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           separatorBuilder: (_, _) => const SizedBox.shrink(),
           itemBuilder: (context, i) {
             final book = books[i];
-            return SwipeActionRow(
-              key: ValueKey('book-swipe-row-${book.id}'),
-              actions: [
-                SwipeAction(
-                  label: book.isRead
-                      ? context.tr('标为未读', 'Mark as unread', '未読にする')
-                      : context.tr('标为已读', 'Mark as read', '既読にする'),
-                  backgroundColor: const Color(0xFF2389E9),
-                  onPressed: () => _setBookReadStatus(book, !book.isRead),
-                ),
-                SwipeAction(
-                  label: context.tr('隐藏', 'Hide', '非表示'),
-                  backgroundColor: const Color(0xFFFF9D32),
-                  onPressed: () => _hideBook(book),
-                ),
-                SwipeAction(
-                  label: context.tr('删除', 'Delete', '削除'),
-                  backgroundColor: const Color(0xFFFF4D52),
-                  onPressed: () => _confirmDeleteBook(book),
-                ),
-              ],
-              child: ColoredBox(
-                color: context.appBackground,
-                child: _BookCard(
-                  book: book,
-                  cacheProgress: _bookCacheProgress[book.id],
-                  finishedChapterIndexes:
-                      data.finishedChapterIndexesByBook[book.id] ??
-                      const <int>{},
-                  onTap: () => _openBook(book),
-                  onLongPress: () => _showBookActions(book),
-                ),
-              ),
+            return _BookCard(
+              book: book,
+              cacheProgress: _bookCacheProgress[book.id],
+              finishedChapterIndexes:
+                  data.finishedChapterIndexesByBook[book.id] ?? const <int>{},
+              onTap: () => _openBook(book),
+              onLongPress: () => _showBookActions(book),
             );
           },
         );
@@ -506,11 +464,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           onPressed: () => _confirmClearBookCache(book),
         ),
         HalfScreenActionSheetItem(
-          label: context.tr('隐藏', 'Hide', '非表示'),
-          icon: Icons.visibility_off_outlined,
-          onPressed: () => _hideBook(book),
-        ),
-        HalfScreenActionSheetItem(
           label: context.tr('删除', 'Delete', '削除'),
           icon: Icons.delete_outline,
           onPressed: () => _confirmDeleteBook(book),
@@ -538,86 +491,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   'Marked “${book.title}” as unread',
                   '「${book.title}」を未読にしました',
                 ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _hideBook(drift_db.Book book) async {
-    await ref.read(appDatabaseProvider).updateBookHidden(book.id, true);
-    if (!mounted) return;
-    setState(() => _reloadToken++);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          context.tr(
-            '已隐藏《${book.title}》',
-            'Hidden “${book.title}”',
-            '「${book.title}」を非表示にしました',
-          ),
-        ),
-        action: SnackBarAction(
-          label: context.tr('撤销', 'Undo', '元に戻す'),
-          onPressed: () async {
-            await ref
-                .read(appDatabaseProvider)
-                .updateBookHidden(book.id, false);
-            if (mounted) setState(() => _reloadToken++);
-          },
-        ),
-      ),
-    );
-  }
-
-  Future<void> _showHiddenBooks() async {
-    final hiddenBooks = await ref.read(appDatabaseProvider).getHiddenBooks();
-    if (!mounted) return;
-    if (hiddenBooks.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            context.tr('没有隐藏的书籍', 'No hidden books', '非表示の本はありません'),
-          ),
-        ),
-      );
-      return;
-    }
-
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
-        top: false,
-        child: ListView(
-          shrinkWrap: true,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
-              child: Text(
-                context.tr('隐藏的书籍', 'Hidden books', '非表示の本'),
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-            for (final book in hiddenBooks)
-              ListTile(
-                title: Text(book.title),
-                subtitle: book.author == null ? null : Text(book.author!),
-                trailing: TextButton(
-                  onPressed: () async {
-                    await ref
-                        .read(appDatabaseProvider)
-                        .updateBookHidden(book.id, false);
-                    if (!sheetContext.mounted) return;
-                    Navigator.of(sheetContext).pop();
-                    if (mounted) setState(() => _reloadToken++);
-                  },
-                  child: Text(context.tr('恢复', 'Restore', '再表示')),
-                ),
-              ),
-          ],
         ),
       ),
     );

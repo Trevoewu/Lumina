@@ -124,12 +124,6 @@ void main() {
     await database.updateBookReadStatus('book-1', false);
     expect((await database.getBook('book-1'))?.isRead, isFalse);
 
-    await database.updateBookHidden('book-1', true);
-    expect(await database.getAllBooks(), isEmpty);
-    expect((await database.getHiddenBooks()).single.id, 'book-1');
-    await database.updateBookHidden('book-1', false);
-    expect(await database.getAllBooks(), hasLength(1));
-
     await database.updateReadingProgress(
       'book-1',
       chapterId: 'chapter-3',

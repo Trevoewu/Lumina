@@ -17,6 +17,100 @@ import 'package:lumina/tts/provider_registry.dart';
 import 'package:lumina/tts/tts_provider.dart';
 
 void main() {
+  testWidgets('audiobook chapter rows expose swipe actions', (tester) async {
+    tester.view.physicalSize = const Size(430, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final temp = Directory.systemTemp.createTempSync('chapter_swipe_test_');
+    final manifestStore = ManifestStore(documentsDirectory: () async => temp);
+    addTearDown(database.close);
+    addTearDown(() => temp.deleteSync(recursive: true));
+
+    const book = Book(
+      id: 'swipe-book',
+      title: 'Swipe Book',
+      format: 'epub',
+      sourcePath: '/tmp/missing-swipe-book.epub',
+      chapterCount: 1,
+      paragraphCount: 0,
+      currentParagraphIndex: 0,
+      playbackOffsetMs: 0,
+      importedAt: 1,
+      lastReadAt: 0,
+      isRead: false,
+      kind: 'book',
+      rightsStatus: 'user_uploaded',
+    );
+    const chapter = Chapter(
+      id: 'swipe-chapter',
+      bookId: 'swipe-book',
+      chapterIndex: 0,
+      title: 'Swipe Chapter',
+      textOffset: 0,
+      isHidden: false,
+    );
+    await database.upsertBook(book);
+    await database.insertChapters(const [chapter]);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          manifestStoreProvider.overrideWithValue(manifestStore),
+          activeTtsProviderProvider.overrideWithValue(_LanguageVoiceProvider()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.lightTheme(),
+          home: const AlbumScreen(book: book),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    var row = find.byKey(const ValueKey('book-chapter-swipe-swipe-chapter'));
+    await tester.drag(row, const Offset(-300, 0));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(of: row, matching: find.text('Mark as read')),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      (await database.getChapterPlaybackProgress(chapter.id))?.isFinished,
+      isTrue,
+    );
+
+    row = find.byKey(const ValueKey('book-chapter-swipe-swipe-chapter'));
+    await tester.drag(row, const Offset(-300, 0));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(of: row, matching: find.text('Mark as unread')),
+    );
+    await tester.pumpAndSettle();
+    final unread = await database.getChapterPlaybackProgress(chapter.id);
+    expect(unread?.isFinished, isFalse);
+    expect(unread?.positionMs, 0);
+
+    row = find.byKey(const ValueKey('book-chapter-swipe-swipe-chapter'));
+    await tester.drag(row, const Offset(-300, 0));
+    await tester.pumpAndSettle();
+    await tester.tap(find.descendant(of: row, matching: find.text('Delete')));
+    await tester.pumpAndSettle();
+    expect(find.text('Delete chapter?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+
+    row = find.byKey(const ValueKey('book-chapter-swipe-swipe-chapter'));
+    await tester.drag(row, const Offset(-300, 0));
+    await tester.pumpAndSettle();
+    await tester.tap(find.descendant(of: row, matching: find.text('Hide')));
+    await tester.pumpAndSettle();
+    expect(await database.getChapters(book.id), isEmpty);
+    expect(row, findsNothing);
+  });
+
   testWidgets('book defaults to and saves a voice matching its language', (
     tester,
   ) async {

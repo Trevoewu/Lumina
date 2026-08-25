@@ -58,60 +58,6 @@ void main() {
     },
   );
 
-  testWidgets('book rows reveal read, hide, and delete actions on left swipe', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(390, 844);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    final database = AppDatabase.forTesting(NativeDatabase.memory());
-    addTearDown(database.close);
-    await _seedScrollableHome(database);
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [appDatabaseProvider.overrideWithValue(database)],
-        child: MaterialApp(
-          theme: AppTheme.lightTheme(),
-          home: const LibraryScreen(),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('home-section-books')));
-    await tester.pumpAndSettle();
-
-    final readRow = find.byKey(const ValueKey('book-swipe-row-book-0'));
-    await tester.drag(readRow, const Offset(-300, 0));
-    await tester.pumpAndSettle();
-    await tester.tap(
-      find.descendant(of: readRow, matching: find.text('Mark as read')),
-    );
-    await tester.pumpAndSettle();
-    expect((await database.getBook('book-0'))?.isRead, isTrue);
-
-    final hideRow = find.byKey(const ValueKey('book-swipe-row-book-1'));
-    await tester.drag(hideRow, const Offset(-300, 0));
-    await tester.pumpAndSettle();
-    await tester.tap(find.descendant(of: hideRow, matching: find.text('Hide')));
-    await tester.pumpAndSettle();
-    expect(
-      (await database.getHiddenBooks()).map((book) => book.id),
-      contains('book-1'),
-    );
-    expect(find.byKey(const ValueKey('book-swipe-row-book-1')), findsNothing);
-
-    final deleteRow = find.byKey(const ValueKey('book-swipe-row-book-2'));
-    await tester.drag(deleteRow, const Offset(-300, 0));
-    await tester.pumpAndSettle();
-    await tester.tap(
-      find.descendant(of: deleteRow, matching: find.text('Delete')),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('删除书籍？'), findsOneWidget);
-  });
-
   testWidgets('home header stays fixed through full all-page scrolls', (
     tester,
   ) async {
@@ -310,9 +256,10 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    // Populated book rows own left drags so they can reveal their actions;
-    // switch sections through the fixed tab instead of stealing that gesture.
-    await tester.tap(find.byKey(const ValueKey('home-section-podcasts')));
+    final pages = find.byKey(const ValueKey('home-section-pages'));
+    await tester.drag(pages, const Offset(-330, 0));
+    await tester.pumpAndSettle();
+    await tester.drag(pages, const Offset(-330, 0));
     await tester.pumpAndSettle();
 
     expect(
@@ -321,6 +268,12 @@ void main() {
         matching: find.byType(PodcastEpisodeTile),
       ),
       findsNWidgets(5),
+    );
+    expect(
+      tester
+          .widgetList<PodcastEpisodeTile>(find.byType(PodcastEpisodeTile))
+          .every((tile) => !tile.enableSwipeActions),
+      isTrue,
     );
     expect(
       find.byKey(const ValueKey('podcast-latest-see-all')),
@@ -333,6 +286,12 @@ void main() {
       find.byKey(const ValueKey('podcast-all-episodes-list')),
     );
     expect(allEpisodes.childrenDelegate.estimatedChildCount, 8);
+    expect(
+      tester
+          .widgetList<PodcastEpisodeTile>(find.byType(PodcastEpisodeTile))
+          .every((tile) => !tile.enableSwipeActions),
+      isTrue,
+    );
     await tester.tap(find.byType(BackButton));
     await tester.pumpAndSettle();
 
@@ -411,6 +370,23 @@ void main() {
         lastRefreshedAt: 1,
       ),
     );
+    await database.upsertPodcastEpisode(
+      const PodcastEpisode(
+        id: 'tagged-episode',
+        showId: 'tagged-show',
+        guid: 'tagged-guid',
+        title: 'Tagged Episode',
+        description: '',
+        audioUrl: 'https://example.com/tagged.mp3',
+        publishedAt: 1,
+        durationMs: 60000,
+        playbackPositionMs: 0,
+        lastPlayedAt: 0,
+        isPlayed: false,
+        transcriptProgressMs: 0,
+        transcriptStatus: 'none',
+      ),
+    );
 
     await tester.pumpWidget(
       ProviderScope(
@@ -426,6 +402,12 @@ void main() {
     expect(find.text('Comedy'), findsOneWidget);
     expect(find.text('News'), findsOneWidget);
     expect(find.text('Podcast'), findsOneWidget);
+    expect(
+      tester
+          .widget<PodcastEpisodeTile>(find.byType(PodcastEpisodeTile))
+          .enableSwipeActions,
+      isTrue,
+    );
     expect(find.byType(PodcastLinkText), findsOneWidget);
     expect(
       find.byKey(const ValueKey('podcast-description-toggle')),
