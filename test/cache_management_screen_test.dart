@@ -93,45 +93,42 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Books'), findsOneWidget);
-    expect(find.text('Podcast'), findsOneWidget);
+    // Both shows appear as selectable rows, including the transcript-only one.
     expect(find.text('Cached Podcast'), findsOneWidget);
     expect(find.text('Transcript-only Podcast'), findsOneWidget);
-    expect(find.textContaining('Podcast 12.0 MB'), findsOneWidget);
-    expect(find.text('Audio 0 B · 1 transcript'), findsWidgets);
-    expect(find.byType(PopupMenuButton), findsNothing);
-    expect(find.byIcon(Icons.more_vert), findsNothing);
-    expect(find.byIcon(Icons.more_horiz), findsNothing);
-
-    final showTile = tester.widget<ExpansionTile>(
-      find.byKey(const ValueKey('podcast-cache-cached-show')),
-    );
-    expect((showTile.shape! as RoundedRectangleBorder).side, BorderSide.none);
+    expect(find.byKey(const ValueKey('cache-row-show:cached-show')), findsOneWidget);
     expect(
-      (showTile.collapsedShape! as RoundedRectangleBorder).side,
-      BorderSide.none,
+      find.byKey(const ValueKey('cache-row-show:transcript-show')),
+      findsOneWidget,
     );
+    // The legend reports the podcast total.
+    expect(find.textContaining('12.0 MB'), findsWidgets);
 
-    await tester.tap(find.byKey(const ValueKey('podcast-cache-cached-show')));
+    // Nothing is selected, so the delete bar is inert.
+    expect(find.byKey(const ValueKey('cache-delete-selection')), findsOneWidget);
+
+    // Selecting a show reveals the selected size and enables deletion.
+    await tester.tap(find.byKey(const ValueKey('cache-row-show:cached-show')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Selected'), findsOneWidget);
+    expect(find.textContaining('Delete 1'), findsOneWidget);
+
+    // A show still expands to its episodes so one episode can be cleared.
+    await tester.tap(
+      find.byKey(const ValueKey('cache-expand-show:cached-show')),
+    );
     await tester.pumpAndSettle();
     expect(find.text('Cached Episode'), findsOneWidget);
-    expect(find.textContaining('1 transcript'), findsWidgets);
+    expect(
+      find.byKey(const ValueKey('cache-row-episode:cached-episode')),
+      findsOneWidget,
+    );
 
-    final episodeTile = find.byKey(
-      const ValueKey('podcast-cache-episode-cached-episode'),
-    );
-    final deleteButton = find.descendant(
-      of: episodeTile,
-      matching: find.byKey(
-        const ValueKey('podcast-delete-episode-cached-episode'),
-      ),
-    );
-    await tester.ensureVisible(deleteButton);
-    await tester.tap(deleteButton);
+    // Select-all ticks every row in the group.
+    await tester.tap(find.byKey(const ValueKey('cache-select-all-podcasts')));
     await tester.pumpAndSettle();
-    expect(find.text('Delete audio'), findsOneWidget);
-    expect(find.text('Delete transcript'), findsOneWidget);
-    expect(find.text('Delete audio and transcript'), findsOneWidget);
+    expect(find.textContaining('Delete 2'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }
 

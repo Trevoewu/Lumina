@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/app_colors.dart';
+import '../../../core/app_design_tokens.dart';
 import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart' as drift_db;
 import '../../../services/app_log_service.dart';
 import '../../../services/cache_manager.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
+import '../../widgets/design_system/settings_components.dart';
 
-const _cacheExpansionShape = RoundedRectangleBorder(
-  borderRadius: BorderRadius.all(Radius.circular(8)),
-);
-
+/// Cache management: a usage summary, then grouped rows that can be ticked and
+/// deleted in one go. Rows expand to chapters and episodes so a single chapter
+/// or one episode's audio can still be cleared on its own.
 class CacheManagementScreen extends ConsumerStatefulWidget {
   const CacheManagementScreen({super.key});
 
@@ -22,339 +22,387 @@ class CacheManagementScreen extends ConsumerStatefulWidget {
 }
 
 class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
-  bool _clearing = false;
+  final Set<String> _selected = {};
+  final Map<String, List<_CacheEntry>> _expanded = {};
+  final Set<String> _loadingChildren = {};
+  Future<_CachePageData>? _data;
+  bool _deleting = false;
 
   @override
   Widget build(BuildContext context) {
+    final design = context.appDesign;
+    final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
     final db = ref.watch(appDatabaseProvider);
     final cache = ref.watch(cacheManagerProvider);
+    _data ??= _loadData(db, cache);
 
     return CollapsingPageScaffold(
-      title: context.tr('缓存管理', 'Audio Cache', '音声キャッシュ'),
+      title: context.tr('缓存管理', 'Cache Management', 'キャッシュ管理'),
       showBackButton: true,
       body: FutureBuilder<_CachePageData>(
-        future: _loadData(db, cache),
+        future: _data,
         builder: (context, snapshot) {
           final data = snapshot.data;
-          if (snapshot.connectionState == ConnectionState.waiting &&
-              data == null) {
+          if (data == null) {
             return const Center(child: CircularProgressIndicator());
           }
-          if (data == null) {
-            return Center(
-              child: Text(
-                context.tr('暂无缓存信息', 'No cache information', 'キャッシュ情報はありません'),
+          return Stack(
+            children: [
+              ListView(
+                padding: EdgeInsets.fromLTRB(inset, design.spaceSm, inset, 140),
+                children: [
+                  _SummaryCard(data: data, selectedBytes: _selectedBytes(data)),
+                  for (final group in data.groups) ..._groupSection(group),
+                  const SizedBox(height: 22),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: Text(
+                      context.tr(
+                        '删除只影响缓存文件，书籍、订阅与生词本都会保留，需要时可重新生成。',
+                        'Deleting only removes cached files. Books, subscriptions and vocabulary stay, and can be regenerated.',
+                        '削除されるのはキャッシュのみです。書籍・購読・単語帳は残り、必要なら再生成できます。',
+                      ),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        height: 1.55,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            );
-          }
-
-          return RefreshIndicator(
-            onRefresh: () async => setState(() {}),
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                _SurfaceTile(
-                  child: ListTile(
-                    leading: Icon(
-                      Icons.storage_outlined,
-                      color: context.appTextSecondary,
-                    ),
-                    title: Text(
-                      context.tr('总音频缓存', 'Total audio cache', '音声キャッシュ合計'),
-                      style: TextStyle(color: context.appTextPrimary),
-                    ),
-                    subtitle: Text(
-                      '${data.total.humanReadable} · '
-                      '${context.tr('书籍', 'Books', '書籍')} '
-                      '${data.bookAudio.humanReadable} · Podcast '
-                      '${data.podcastAudio.humanReadable}',
-                    ),
-                    trailing: IconButton(
-                      tooltip: context.tr('清空', 'Clear all', 'すべてクリア'),
-                      onPressed: _clearing || data.total.bytes == 0
-                          ? null
-                          : () => _clearAll(cache),
-                      icon: _clearing
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Icon(Icons.delete_sweep_outlined),
-                    ),
-                  ),
+              _DeleteBar(
+                visible: _selected.isNotEmpty,
+                busy: _deleting,
+                label: context.tr(
+                  '删除 ${_selected.length} 项 · ${CacheUsage(_selectedBytes(data)).humanReadable}',
+                  'Delete ${_selected.length} · ${CacheUsage(_selectedBytes(data)).humanReadable}',
+                  '${_selected.length} 件を削除 · ${CacheUsage(_selectedBytes(data)).humanReadable}',
                 ),
-                const SizedBox(height: 16),
-                Padding(
-                  padding: EdgeInsets.only(left: 4, bottom: 8),
-                  child: Text(
-                    context.tr('书籍', 'Books', '書籍'),
-                    style: TextStyle(
-                      color: context.appTextSecondary,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                if (data.books.isEmpty)
-                  _SurfaceTile(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text(
-                        context.tr(
-                          '暂无导入书籍',
-                          'No imported books',
-                          'インポートした書籍はありません',
-                        ),
-                      ),
-                    ),
-                  )
-                else
-                  for (final row in data.books)
-                    _SurfaceTile(
-                      child: ExpansionTile(
-                        shape: _cacheExpansionShape,
-                        collapsedShape: _cacheExpansionShape,
-                        collapsedIconColor: context.appTextSecondary,
-                        iconColor: context.appTextSecondary,
-                        leading: Icon(
-                          Icons.menu_book_outlined,
-                          color: context.appTextSecondary,
-                        ),
-                        title: Text(
-                          row.book.title,
-                          style: TextStyle(color: context.appTextPrimary),
-                        ),
-                        subtitle: Text(
-                          '${row.usage.humanReadable} · ${row.book.chapterCount} ${context.tr('章', 'chapters', '章')}',
-                          style: TextStyle(color: context.appTextSecondary),
-                        ),
-                        children: [
-                          OverflowBar(
-                            alignment: MainAxisAlignment.end,
-                            children: [
-                              IconButton(
-                                tooltip: context.tr(
-                                  '清理整本书音频',
-                                  'Clear audio for this book',
-                                  'この書籍の音声をクリア',
-                                ),
-                                onPressed: row.usage.bytes == 0 || _clearing
-                                    ? null
-                                    : () => _clearBook(cache, row.book),
-                                icon: Icon(Icons.delete_outline),
-                              ),
-                            ],
-                          ),
-                          FutureBuilder<List<_ChapterCacheRow>>(
-                            future: _loadChapterRows(db, cache, row.book.id),
-                            builder: (context, chapterSnapshot) {
-                              final chaptersRows =
-                                  chapterSnapshot.data ??
-                                  const <_ChapterCacheRow>[];
-                              if (chaptersRows.isEmpty) {
-                                return Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Text(
-                                    context.tr(
-                                      '暂无章节',
-                                      'No chapters',
-                                      '章はありません',
-                                    ),
-                                  ),
-                                );
-                              }
-                              return Column(
-                                children: [
-                                  for (final chapterRow in chaptersRows)
-                                    ListTile(
-                                      dense: true,
-                                      title: Text(
-                                        chapterRow.chapter.title,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          color: context.appTextPrimary,
-                                        ),
-                                      ),
-                                      subtitle: Text(
-                                        chapterRow.usage.humanReadable,
-                                        style: TextStyle(
-                                          color: context.appTextSecondary,
-                                        ),
-                                      ),
-                                      trailing: IconButton(
-                                        tooltip: context.tr(
-                                          '清理章节音频',
-                                          'Clear chapter audio',
-                                          '章の音声をクリア',
-                                        ),
-                                        onPressed: _clearing
-                                            ? null
-                                            : () => _clearChapter(
-                                                cache,
-                                                row.book,
-                                                chapterRow.chapter,
-                                              ),
-                                        icon: Icon(Icons.delete_outline),
-                                      ),
-                                    ),
-                                ],
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                const SizedBox(height: 16),
-                Padding(
-                  padding: const EdgeInsets.only(left: 4, bottom: 8),
-                  child: Text(
-                    'Podcast',
-                    style: TextStyle(
-                      color: context.appTextSecondary,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                if (data.podcasts.isEmpty)
-                  _SurfaceTile(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text(
-                        context.tr(
-                          '暂无 Podcast 音频或字幕缓存',
-                          'No cached podcast audio or transcripts',
-                          'Podcastの音声・文字起こしキャッシュはありません',
-                        ),
-                      ),
-                    ),
-                  )
-                else
-                  for (final row in data.podcasts)
-                    _SurfaceTile(
-                      child: ExpansionTile(
-                        key: ValueKey('podcast-cache-${row.show.id}'),
-                        shape: _cacheExpansionShape,
-                        collapsedShape: _cacheExpansionShape,
-                        collapsedIconColor: context.appTextSecondary,
-                        iconColor: context.appTextSecondary,
-                        leading: Icon(
-                          Icons.podcasts_rounded,
-                          color: context.appTextSecondary,
-                        ),
-                        title: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                row.show.title,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(color: context.appTextPrimary),
-                              ),
-                            ),
-                            _podcastDeleteButton(
-                              key: ValueKey(
-                                'podcast-delete-show-${row.show.id}',
-                              ),
-                              hasAudio: row.usage.bytes > 0,
-                              hasTranscript: row.transcriptCount > 0,
-                              onDelete: (action) =>
-                                  _clearPodcastShow(cache, row, action),
-                            ),
-                          ],
-                        ),
-                        subtitle: Text(
-                          _podcastSummary(row.usage, row.transcriptCount),
-                          style: TextStyle(color: context.appTextSecondary),
-                        ),
-                        children: [
-                          for (final episode in row.episodes)
-                            ListTile(
-                              dense: true,
-                              key: ValueKey(
-                                'podcast-cache-episode-${episode.episode.id}',
-                              ),
-                              title: Text(
-                                episode.episode.title,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(color: context.appTextPrimary),
-                              ),
-                              subtitle: Text(
-                                _podcastSummary(
-                                  episode.usage,
-                                  episode.hasTranscript ? 1 : 0,
-                                ),
-                                style: TextStyle(
-                                  color: context.appTextSecondary,
-                                ),
-                              ),
-                              trailing: _podcastDeleteButton(
-                                key: ValueKey(
-                                  'podcast-delete-episode-'
-                                  '${episode.episode.id}',
-                                ),
-                                hasAudio: episode.usage.bytes > 0,
-                                hasTranscript: episode.hasTranscript,
-                                onDelete: (action) => _clearPodcastEpisode(
-                                  cache,
-                                  episode,
-                                  action,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-              ],
-            ),
+                onClear: () => setState(_selected.clear),
+                onDelete: () => _deleteSelected(data),
+              ),
+            ],
           );
         },
       ),
     );
   }
 
+  List<Widget> _groupSection(_CacheGroup group) {
+    final allSelected =
+        group.entries.isNotEmpty &&
+        group.entries.every((e) => _selected.contains(e.key));
+    return [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(6, 26, 6, 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Expanded(
+              child: Text(
+                '${group.label} · ${context.tr('${group.entries.length} 项', '${group.entries.length} items', '${group.entries.length} 件')}',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  fontFamily: 'monospace',
+                  fontSize: 11,
+                  letterSpacing: 1.3,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            if (group.entries.isNotEmpty)
+              InkWell(
+                key: ValueKey('cache-select-all-${group.id}'),
+                onTap: () => setState(() {
+                  for (final entry in group.entries) {
+                    allSelected
+                        ? _selected.remove(entry.key)
+                        : _selected.add(entry.key);
+                  }
+                }),
+                child: Text(
+                  allSelected
+                      ? context.tr('取消全选', 'Deselect all', 'すべて解除')
+                      : context.tr('全选', 'Select all', 'すべて選択'),
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+      if (group.entries.isEmpty)
+        SettingsCard(
+          padding: const EdgeInsets.all(20),
+          child: Center(
+            child: Text(
+              context.tr('已清空', 'Empty', '空です'),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.3),
+              ),
+            ),
+          ),
+        )
+      else
+        SettingsCard(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var i = 0; i < group.entries.length; i++) ...[
+                if (i > 0)
+                  Divider(
+                    height: 1,
+                    thickness: 1,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.06),
+                  ),
+                _EntryRow(
+                  entry: group.entries[i],
+                  selected: _selected.contains(group.entries[i].key),
+                  expanded: _expanded.containsKey(group.entries[i].key),
+                  loadingChildren: _loadingChildren.contains(
+                    group.entries[i].key,
+                  ),
+                  onToggle: () => _toggle(group.entries[i].key),
+                  onExpand: () => _toggleExpanded(group.entries[i]),
+                ),
+                for (final child in _expanded[group.entries[i].key] ?? const [])
+                  _EntryRow(
+                    entry: child,
+                    selected: _selected.contains(child.key),
+                    expanded: false,
+                    loadingChildren: false,
+                    indented: true,
+                    onToggle: () => _toggle(child.key),
+                    onExpand: null,
+                  ),
+              ],
+            ],
+          ),
+        ),
+    ];
+  }
+
+  void _toggle(String key) {
+    setState(() {
+      _selected.contains(key) ? _selected.remove(key) : _selected.add(key);
+    });
+  }
+
+  Future<void> _toggleExpanded(_CacheEntry entry) async {
+    if (_expanded.containsKey(entry.key)) {
+      setState(() => _expanded.remove(entry.key));
+      return;
+    }
+    setState(() => _loadingChildren.add(entry.key));
+    final children = await entry.loadChildren!();
+    if (!mounted) return;
+    setState(() {
+      _loadingChildren.remove(entry.key);
+      _expanded[entry.key] = children;
+    });
+  }
+
+  /// Bytes covered by the current selection. A selected parent already covers
+  /// its children, so those are not counted twice.
+  int _selectedBytes(_CachePageData data) {
+    final all = <String, _CacheEntry>{};
+    for (final group in data.groups) {
+      for (final entry in group.entries) {
+        all[entry.key] = entry;
+        for (final child in _expanded[entry.key] ?? const <_CacheEntry>[]) {
+          all[child.key] = child;
+        }
+      }
+    }
+    var total = 0;
+    for (final key in _selected) {
+      final entry = all[key];
+      if (entry == null) continue;
+      if (entry.parentKey != null && _selected.contains(entry.parentKey)) {
+        continue;
+      }
+      total += entry.bytes;
+    }
+    return total;
+  }
+
+  Future<void> _deleteSelected(_CachePageData data) async {
+    final all = <String, _CacheEntry>{};
+    for (final group in data.groups) {
+      for (final entry in group.entries) {
+        all[entry.key] = entry;
+        for (final child in _expanded[entry.key] ?? const <_CacheEntry>[]) {
+          all[child.key] = child;
+        }
+      }
+    }
+    final targets = [
+      for (final key in _selected)
+        if (all[key] case final entry?)
+          if (entry.parentKey == null || !_selected.contains(entry.parentKey))
+            entry,
+    ];
+    if (targets.isEmpty) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          context.tr(
+            '删除 ${targets.length} 项缓存？',
+            'Delete ${targets.length} cached items?',
+            '${targets.length} 件のキャッシュを削除しますか？',
+          ),
+        ),
+        content: Text(
+          context.tr(
+            '只删除音频与字幕缓存，书籍与订阅会保留。',
+            'Only audio and transcript caches are removed. Books and subscriptions stay.',
+            '音声と文字起こしのキャッシュのみ削除されます。書籍と購読は残ります。',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(context.tr('取消', 'Cancel', 'キャンセル')),
+          ),
+          FilledButton(
+            key: const ValueKey('confirm-delete-cache'),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
+            ),
+            child: Text(context.tr('删除', 'Delete', '削除')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _deleting = true);
+    final cache = ref.read(cacheManagerProvider);
+    try {
+      for (final entry in targets) {
+        await entry.clear(cache);
+      }
+    } catch (error, stackTrace) {
+      AppLogger.error('Cache', '清理缓存失败', error: error, stackTrace: stackTrace);
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$error')));
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _deleting = false;
+      _selected.clear();
+      _expanded.clear();
+      _data = _loadData(ref.read(appDatabaseProvider), cache);
+    });
+  }
+
   Future<_CachePageData> _loadData(
     drift_db.AppDatabase db,
     CacheManager cache,
   ) async {
-    final books = await db.getAllBooks();
-    final bookRows = <_BookCacheRow>[];
-    for (final book in books) {
-      bookRows.add(
-        _BookCacheRow(book: book, usage: await cache.usageForBook(book.id)),
+    // Resolved up front: the labels need a BuildContext, and everything below
+    // this point is asynchronous.
+    final bookLabel = context.tr('有声书音频', 'Audiobook audio', 'オーディオブック音声');
+    final podcastLabel = context.tr(
+      '播客与字幕',
+      'Podcasts & transcripts',
+      'Podcastと文字起こし',
+    );
+    final accent = Theme.of(context).colorScheme.primary;
+
+    final bookEntries = <_CacheEntry>[];
+    for (final book in await db.getAllBooks()) {
+      final usage = await cache.usageForBook(book.id);
+      if (usage.bytes == 0) continue;
+      bookEntries.add(
+        _CacheEntry(
+          key: 'book:${book.id}',
+          title: book.title,
+          meta: book.author ?? '',
+          bytes: usage.bytes,
+          art: _swatch(book.id),
+          clear: (c) => c.clearBook(book.id),
+          loadChildren: () async {
+            final rows = <_CacheEntry>[];
+            for (final chapter in await db.getChapters(book.id)) {
+              final chapterUsage = await cache.usageForChapter(
+                book.id,
+                chapter.id,
+              );
+              if (chapterUsage.bytes == 0) continue;
+              rows.add(
+                _CacheEntry(
+                  key: 'chapter:${book.id}:${chapter.id}',
+                  parentKey: 'book:${book.id}',
+                  title: chapter.title,
+                  meta: '',
+                  bytes: chapterUsage.bytes,
+                  art: _swatch(chapter.id),
+                  clear: (c) => c.clearChapter(book.id, chapter.id),
+                ),
+              );
+            }
+            return rows;
+          },
+        ),
       );
     }
 
-    final podcastRows = <_PodcastCacheRow>[];
+    final podcastEntries = <_CacheEntry>[];
     for (final show in await db.getAllPodcastShows()) {
-      final episodeRows = <_PodcastEpisodeCacheRow>[];
-      var showBytes = 0;
-      var transcriptCount = 0;
-      for (final episode in await db.getPodcastEpisodes(show.id)) {
+      final episodes = await db.getPodcastEpisodes(show.id);
+      var bytes = 0;
+      var transcripts = 0;
+      final kept = <drift_db.PodcastEpisode>[];
+      for (final episode in episodes) {
         final usage = await cache.usageForPodcastEpisode(episode);
         final hasTranscript =
             episode.transcriptJson?.trim().isNotEmpty ?? false;
         if (usage.bytes == 0 && !hasTranscript) continue;
-        showBytes += usage.bytes;
-        if (hasTranscript) transcriptCount++;
-        episodeRows.add(
-          _PodcastEpisodeCacheRow(
-            episode: episode,
-            usage: usage,
-            hasTranscript: hasTranscript,
-          ),
-        );
+        bytes += usage.bytes;
+        if (hasTranscript) transcripts++;
+        kept.add(episode);
       }
-      if (episodeRows.isEmpty) continue;
-      podcastRows.add(
-        _PodcastCacheRow(
-          show: show,
-          usage: CacheUsage(showBytes),
-          transcriptCount: transcriptCount,
-          episodes: episodeRows,
+      if (kept.isEmpty) continue;
+      podcastEntries.add(
+        _CacheEntry(
+          key: 'show:${show.id}',
+          title: show.title,
+          meta: '${kept.length} · $transcripts transcripts',
+          bytes: bytes,
+          art: _swatch(show.id),
+          clear: (c) => c.clearPodcastShowData(show.id),
+          loadChildren: () async {
+            final rows = <_CacheEntry>[];
+            for (final episode in kept) {
+              final usage = await cache.usageForPodcastEpisode(episode);
+              rows.add(
+                _CacheEntry(
+                  key: 'episode:${episode.id}',
+                  parentKey: 'show:${show.id}',
+                  title: episode.title,
+                  meta: '',
+                  bytes: usage.bytes,
+                  art: _swatch(episode.id),
+                  clear: (c) => c.clearPodcastEpisodeData(episode.id),
+                ),
+              );
+            }
+            return rows;
+          },
         ),
       );
     }
@@ -362,415 +410,459 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
     final bookAudio = await cache.bookAudioUsage();
     final podcastAudio = await cache.podcastAudioUsage();
     return _CachePageData(
-      total: CacheUsage(bookAudio.bytes + podcastAudio.bytes),
-      bookAudio: bookAudio,
-      podcastAudio: podcastAudio,
-      books: bookRows,
-      podcasts: podcastRows,
-    );
-  }
-
-  String _podcastSummary(CacheUsage usage, int transcriptCount) {
-    return [
-      context.tr(
-        '音频 ${usage.humanReadable}',
-        'Audio ${usage.humanReadable}',
-        '音声 ${usage.humanReadable}',
-      ),
-      context.tr(
-        '$transcriptCount 份 Transcript',
-        '$transcriptCount transcript${transcriptCount == 1 ? '' : 's'}',
-        '$transcriptCount件の文字起こし${transcriptCount == 1 ? '' : ''}',
-      ),
-    ].join(' · ');
-  }
-
-  Widget _podcastDeleteButton({
-    required Key key,
-    required bool hasAudio,
-    required bool hasTranscript,
-    required Future<void> Function(_PodcastClearAction action) onDelete,
-  }) {
-    return IconButton(
-      key: key,
-      tooltip: context.tr('删除缓存', 'Delete cache', 'キャッシュを削除'),
-      onPressed: _clearing
-          ? null
-          : () async {
-              final action = await _selectPodcastDeleteAction(
-                hasAudio: hasAudio,
-                hasTranscript: hasTranscript,
-              );
-              if (action != null) await onDelete(action);
-            },
-      icon: const Icon(Icons.delete_outline_rounded),
-    );
-  }
-
-  Future<_PodcastClearAction?> _selectPodcastDeleteAction({
-    required bool hasAudio,
-    required bool hasTranscript,
-  }) async {
-    if (hasAudio && !hasTranscript) return _PodcastClearAction.audio;
-    if (!hasAudio && hasTranscript) return _PodcastClearAction.transcript;
-    if (!hasAudio && !hasTranscript) return null;
-
-    return showDialog<_PodcastClearAction>(
-      context: context,
-      builder: (context) => SimpleDialog(
-        title: Text(
-          context.tr('删除哪些缓存？', 'Delete which cache?', 'どのキャッシュを削除しますか？'),
+      totalBytes: bookAudio.bytes + podcastAudio.bytes,
+      groups: [
+        _CacheGroup(
+          id: 'books',
+          label: bookLabel,
+          bytes: bookAudio.bytes,
+          color: const Color(0xFF12161C),
+          entries: bookEntries,
         ),
-        children: [
-          SimpleDialogOption(
-            key: const ValueKey('podcast-delete-choice-audio'),
-            onPressed: () =>
-                Navigator.of(context).pop(_PodcastClearAction.audio),
-            child: Row(
-              children: [
-                const Icon(Icons.audio_file_outlined),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(context.tr('删除音频', 'Delete audio', '音声を削除')),
-                ),
-              ],
-            ),
-          ),
-          SimpleDialogOption(
-            key: const ValueKey('podcast-delete-choice-transcript'),
-            onPressed: () =>
-                Navigator.of(context).pop(_PodcastClearAction.transcript),
-            child: Row(
-              children: [
-                const Icon(Icons.subtitles_off_outlined),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    context.tr(
-                      '删除 Transcript',
-                      'Delete transcript',
-                      '文字起こしを削除',
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SimpleDialogOption(
-            key: const ValueKey('podcast-delete-choice-all'),
-            onPressed: () => Navigator.of(context).pop(_PodcastClearAction.all),
-            child: Row(
-              children: [
-                const Icon(Icons.delete_sweep_outlined),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    context.tr(
-                      '删除音频和 Transcript',
-                      'Delete audio and transcript',
-                      '音声と文字起こしを削除',
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<List<_ChapterCacheRow>> _loadChapterRows(
-    drift_db.AppDatabase db,
-    CacheManager cache,
-    String bookId,
-  ) async {
-    final chapters = await db.getChapters(bookId);
-    final rows = <_ChapterCacheRow>[];
-    for (final chapter in chapters) {
-      rows.add(
-        _ChapterCacheRow(
-          chapter: chapter,
-          usage: await cache.usageForChapter(bookId, chapter.id),
+        _CacheGroup(
+          id: 'podcasts',
+          label: podcastLabel,
+          bytes: podcastAudio.bytes,
+          color: accent,
+          entries: podcastEntries,
         ),
-      );
-    }
-    return rows;
-  }
-
-  Future<void> _clearAll(CacheManager cache) async {
-    if (!await _confirm(
-      context.tr('清空所有音频缓存？', 'Clear all audio cache?', 'すべての音声キャッシュをクリアしますか？'),
-    )) {
-      return;
-    }
-    setState(() => _clearing = true);
-    try {
-      await cache.clearAll();
-      if (mounted) setState(() {});
-    } catch (e, stackTrace) {
-      AppLogger.error('Cache', '清理全部缓存失败', error: e, stackTrace: stackTrace);
-      _showError(e);
-    } finally {
-      if (mounted) setState(() => _clearing = false);
-    }
-  }
-
-  Future<void> _clearBook(CacheManager cache, drift_db.Book book) async {
-    if (!await _confirm(
-      context.tr(
-        '清理《${book.title}》的所有音频缓存？',
-        'Clear all cached audio for "${book.title}"?',
-        '「${book.title}」の音声キャッシュをすべてクリアしますか？',
-      ),
-    )) {
-      return;
-    }
-    setState(() => _clearing = true);
-    try {
-      await cache.clearBook(book.id);
-      if (mounted) setState(() {});
-    } catch (e, stackTrace) {
-      AppLogger.error(
-        'Cache',
-        '清理书籍缓存失败 book=${book.id}',
-        error: e,
-        stackTrace: stackTrace,
-      );
-      _showError(e);
-    } finally {
-      if (mounted) setState(() => _clearing = false);
-    }
-  }
-
-  Future<void> _clearChapter(
-    CacheManager cache,
-    drift_db.Book book,
-    drift_db.Chapter chapter,
-  ) async {
-    if (!await _confirm(
-      context.tr(
-        '清理《${book.title}》- ${chapter.title} 的音频缓存？',
-        'Clear cached audio for "${book.title}" — ${chapter.title}?',
-        '「${book.title}」- ${chapter.title}の音声キャッシュをクリアしますか？',
-      ),
-    )) {
-      return;
-    }
-    setState(() => _clearing = true);
-    try {
-      await cache.clearChapter(book.id, chapter.id);
-      if (mounted) setState(() {});
-    } catch (e, stackTrace) {
-      AppLogger.error(
-        'Cache',
-        '清理章节缓存失败 chapter=${chapter.id}',
-        error: e,
-        stackTrace: stackTrace,
-      );
-      _showError(e);
-    } finally {
-      if (mounted) setState(() => _clearing = false);
-    }
-  }
-
-  Future<void> _clearPodcastShow(
-    CacheManager cache,
-    _PodcastCacheRow row,
-    _PodcastClearAction action,
-  ) {
-    return _runPodcastClear(
-      _podcastClearConfirmation(row.show.title, action),
-      () async {
-        switch (action) {
-          case _PodcastClearAction.audio:
-            await cache.clearPodcastShowAudio(row.show.id);
-            break;
-          case _PodcastClearAction.transcript:
-            await cache.clearPodcastShowTranscripts(row.show.id);
-            break;
-          case _PodcastClearAction.all:
-            await cache.clearPodcastShowData(row.show.id);
-            break;
-        }
-      },
+      ],
     );
   }
 
-  Future<void> _clearPodcastEpisode(
-    CacheManager cache,
-    _PodcastEpisodeCacheRow row,
-    _PodcastClearAction action,
-  ) {
-    return _runPodcastClear(
-      _podcastClearConfirmation(row.episode.title, action),
-      () async {
-        switch (action) {
-          case _PodcastClearAction.audio:
-            await cache.clearPodcastEpisodeAudio(row.episode.id);
-            break;
-          case _PodcastClearAction.transcript:
-            await cache.clearPodcastEpisodeTranscript(row.episode.id);
-            break;
-          case _PodcastClearAction.all:
-            await cache.clearPodcastEpisodeData(row.episode.id);
-            break;
-        }
-      },
-    );
-  }
-
-  String _podcastClearConfirmation(String title, _PodcastClearAction action) {
-    return switch (action) {
-      _PodcastClearAction.audio => context.tr(
-        '清理“$title”的本地音频？字幕会保留。',
-        'Clear local audio for "$title"? Transcripts will be kept.',
-        '「$title」のローカル音声をクリアしますか？文字起こしは保持されます。',
-      ),
-      _PodcastClearAction.transcript => context.tr(
-        '清理“$title”的字幕？本地音频会保留。',
-        'Clear transcripts for "$title"? Local audio will be kept.',
-        '「$title」の文字起こしをクリアしますか？ローカル音声は保持されます。',
-      ),
-      _PodcastClearAction.all => context.tr(
-        '清理“$title”的本地音频和字幕？',
-        'Clear local audio and transcripts for "$title"?',
-        '「$title」のローカル音声と文字起こしをクリアしますか？',
-      ),
-    };
-  }
-
-  Future<void> _runPodcastClear(
-    String confirmation,
-    Future<void> Function() action,
-  ) async {
-    if (!await _confirm(confirmation)) return;
-    setState(() => _clearing = true);
-    try {
-      await action();
-      if (mounted) setState(() {});
-    } catch (error, stackTrace) {
-      AppLogger.error(
-        'Cache',
-        '清理 Podcast 缓存失败',
-        error: error,
-        stackTrace: stackTrace,
-      );
-      _showError(error);
-    } finally {
-      if (mounted) setState(() => _clearing = false);
-    }
-  }
-
-  void _showError(Object error) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        duration: const Duration(seconds: 6),
-        content: Text(
-          context.tr(
-            '缓存清理未完全完成，请稍后重试。',
-            'The cache could not be fully cleared. Please try again.',
-            'キャッシュを完全にクリアできませんでした。後でもう一度お試しください。',
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<bool> _confirm(String message) async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(context.tr('确认清理', 'Confirm clearing', 'クリアを確認')),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(context.tr('取消', 'Cancel', 'キャンセル')),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(context.tr('清理', 'Clear', 'クリア')),
-          ),
-        ],
-      ),
-    );
-    return result ?? false;
+  /// Stable stand-in artwork colour, so rows stay visually distinguishable
+  /// without loading cover images.
+  static Color _swatch(String seed) {
+    const palette = [
+      Color(0xFF3A4436),
+      Color(0xFF1E2B45),
+      Color(0xFF5A4632),
+      Color(0xFF4A3550),
+      Color(0xFF2E5A4A),
+      Color(0xFF7A4A2E),
+    ];
+    return palette[seed.hashCode.abs() % palette.length];
   }
 }
 
 class _CachePageData {
-  final CacheUsage total;
-  final CacheUsage bookAudio;
-  final CacheUsage podcastAudio;
-  final List<_BookCacheRow> books;
-  final List<_PodcastCacheRow> podcasts;
+  final int totalBytes;
+  final List<_CacheGroup> groups;
 
-  const _CachePageData({
-    required this.total,
-    required this.bookAudio,
-    required this.podcastAudio,
-    required this.books,
-    required this.podcasts,
+  const _CachePageData({required this.totalBytes, required this.groups});
+}
+
+class _CacheGroup {
+  final String id;
+  final String label;
+  final int bytes;
+  final Color color;
+  final List<_CacheEntry> entries;
+
+  const _CacheGroup({
+    required this.id,
+    required this.label,
+    required this.bytes,
+    required this.color,
+    required this.entries,
   });
 }
 
-class _BookCacheRow {
-  final drift_db.Book book;
-  final CacheUsage usage;
+class _CacheEntry {
+  final String key;
+  final String? parentKey;
+  final String title;
+  final String meta;
+  final int bytes;
+  final Color art;
+  final Future<void> Function(CacheManager cache) clear;
+  final Future<List<_CacheEntry>> Function()? loadChildren;
 
-  const _BookCacheRow({required this.book, required this.usage});
-}
-
-class _ChapterCacheRow {
-  final drift_db.Chapter chapter;
-  final CacheUsage usage;
-
-  const _ChapterCacheRow({required this.chapter, required this.usage});
-}
-
-enum _PodcastClearAction { audio, transcript, all }
-
-class _PodcastCacheRow {
-  final drift_db.PodcastShow show;
-  final CacheUsage usage;
-  final int transcriptCount;
-  final List<_PodcastEpisodeCacheRow> episodes;
-
-  const _PodcastCacheRow({
-    required this.show,
-    required this.usage,
-    required this.transcriptCount,
-    required this.episodes,
+  const _CacheEntry({
+    required this.key,
+    this.parentKey,
+    required this.title,
+    required this.meta,
+    required this.bytes,
+    required this.art,
+    required this.clear,
+    this.loadChildren,
   });
 }
 
-class _PodcastEpisodeCacheRow {
-  final drift_db.PodcastEpisode episode;
-  final CacheUsage usage;
-  final bool hasTranscript;
+class _SummaryCard extends StatelessWidget {
+  final _CachePageData data;
+  final int selectedBytes;
 
-  const _PodcastEpisodeCacheRow({
-    required this.episode,
-    required this.usage,
-    required this.hasTranscript,
-  });
-}
-
-class _SurfaceTile extends StatelessWidget {
-  final Widget child;
-
-  const _SurfaceTile({required this.child});
+  const _SummaryCard({required this.data, required this.selectedBytes});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Material(
-        color: context.appSurface,
-        borderRadius: BorderRadius.circular(8),
-        child: child,
+    final scheme = Theme.of(context).colorScheme;
+    final usage = CacheUsage(data.totalBytes);
+    final parts = usage.humanReadable.split(' ');
+    final nonEmpty = data.groups.where((g) => g.bytes > 0).toList();
+    return SettingsCard(
+      padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                parts.first,
+                style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  height: 1,
+                  letterSpacing: -1,
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Both halves shrink before the row can overflow at large text
+              // scales or with a long selection badge.
+              Flexible(
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 3),
+                  child: Text(
+                    context.tr(
+                      '${parts.length > 1 ? parts[1] : 'B'} 已占用',
+                      '${parts.length > 1 ? parts[1] : 'B'} used',
+                      '${parts.length > 1 ? parts[1] : 'B'} 使用中',
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ),
+              const Spacer(),
+              if (selectedBytes > 0)
+                Flexible(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 11,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: scheme.primary.withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      context.tr(
+                        '已选 ${CacheUsage(selectedBytes).humanReadable}',
+                        'Selected ${CacheUsage(selectedBytes).humanReadable}',
+                        '選択 ${CacheUsage(selectedBytes).humanReadable}',
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        fontFamily: 'monospace',
+                        color: scheme.onSurface,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: SizedBox(
+              height: 10,
+              child: nonEmpty.isEmpty
+                  ? ColoredBox(color: scheme.onSurface.withValues(alpha: 0.06))
+                  : Row(
+                      children: [
+                        for (var i = 0; i < nonEmpty.length; i++) ...[
+                          if (i > 0) const SizedBox(width: 2),
+                          Expanded(
+                            flex: nonEmpty[i].bytes,
+                            child: ColoredBox(color: nonEmpty[i].color),
+                          ),
+                        ],
+                      ],
+                    ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          // A legend entry can be wider than the card at large text scales, so
+          // each one is bounded and allowed to ellipsize.
+          LayoutBuilder(
+            builder: (context, constraints) => Wrap(
+              spacing: 16,
+              runSpacing: 8,
+              children: [
+                for (final group in data.groups)
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: group.color,
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        ),
+                        const SizedBox(width: 7),
+                        Flexible(
+                          child: Text(
+                            '${group.label} ${CacheUsage(group.bytes).humanReadable}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.labelMedium
+                                ?.copyWith(
+                                  fontFamily: 'monospace',
+                                  color: scheme.onSurfaceVariant,
+                                ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EntryRow extends StatelessWidget {
+  final _CacheEntry entry;
+  final bool selected;
+  final bool expanded;
+  final bool loadingChildren;
+  final bool indented;
+  final VoidCallback onToggle;
+  final VoidCallback? onExpand;
+
+  const _EntryRow({
+    required this.entry,
+    required this.selected,
+    required this.expanded,
+    required this.loadingChildren,
+    this.indented = false,
+    required this.onToggle,
+    required this.onExpand,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: selected
+          ? scheme.primary.withValues(alpha: 0.08)
+          : Colors.transparent,
+      child: InkWell(
+        key: ValueKey('cache-row-${entry.key}'),
+        onTap: onToggle,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(indented ? 32 : 16, 13, 16, 13),
+          child: Row(
+            children: [
+              _Checkbox(selected: selected),
+              const SizedBox(width: 12),
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: entry.art,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      entry.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (entry.meta.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        entry.meta,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontFamily: 'monospace',
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                CacheUsage(entry.bytes).humanReadable,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  fontFamily: 'monospace',
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+              if (entry.loadChildren != null && onExpand != null)
+                IconButton(
+                  key: ValueKey('cache-expand-${entry.key}'),
+                  onPressed: onExpand,
+                  visualDensity: VisualDensity.compact,
+                  icon: loadingChildren
+                      ? const SizedBox.square(
+                          dimension: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(
+                          expanded ? Icons.expand_less : Icons.expand_more,
+                          size: 20,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Checkbox extends StatelessWidget {
+  final bool selected;
+
+  const _Checkbox({required this.selected});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      width: 21,
+      height: 21,
+      decoration: BoxDecoration(
+        color: selected ? scheme.primary : Colors.transparent,
+        borderRadius: BorderRadius.circular(7),
+        border: selected
+            ? null
+            : Border.all(
+                color: scheme.onSurface.withValues(alpha: 0.18),
+                width: 2,
+              ),
+      ),
+      child: selected
+          ? Icon(Icons.check, size: 14, color: scheme.onPrimary)
+          : null,
+    );
+  }
+}
+
+class _DeleteBar extends StatelessWidget {
+  final bool visible;
+  final bool busy;
+  final String label;
+  final VoidCallback onClear;
+  final VoidCallback onDelete;
+
+  const _DeleteBar({
+    required this.visible,
+    required this.busy,
+    required this.label,
+    required this.onClear,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 0,
+      child: IgnorePointer(
+        ignoring: !visible,
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 250),
+          opacity: visible ? 1 : 0,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 26),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [scheme.surface.withValues(alpha: 0), scheme.surface],
+                stops: const [0, 0.26],
+              ),
+            ),
+            child: Row(
+              children: [
+                Material(
+                  color: scheme.onSurface.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(16),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    key: const ValueKey('cache-clear-selection'),
+                    onTap: busy ? null : onClear,
+                    child: SizedBox(
+                      width: 46,
+                      height: 46,
+                      child: Icon(
+                        Icons.close,
+                        size: 18,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Material(
+                    color: scheme.error,
+                    borderRadius: BorderRadius.circular(23),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      key: const ValueKey('cache-delete-selection'),
+                      onTap: busy ? null : onDelete,
+                      child: SizedBox(
+                        height: 46,
+                        child: Center(
+                          child: busy
+                              ? SizedBox.square(
+                                  dimension: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: scheme.onError,
+                                  ),
+                                )
+                              : Text(
+                                  label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w800,
+                                        color: scheme.onError,
+                                      ),
+                                ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

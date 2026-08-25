@@ -307,11 +307,13 @@ void main() {
     await tester.tap(logsRow);
     await tester.pumpAndSettle();
 
-    expect(find.text('Debug'), findsOneWidget);
-    expect(find.text('Warning'), findsOneWidget);
-    expect(find.text('Error'), findsOneWidget);
-    expect(find.byTooltip('Copy Logs'), findsNothing);
-    expect(find.byTooltip('Clear Logs'), findsOneWidget);
+    // Subsystem filter chips over the console, with export and clear below.
+    expect(find.text('All'), findsOneWidget);
+    expect(find.text('ASR'), findsWidgets);
+    expect(find.text('AI'), findsWidgets);
+    expect(find.text('TTS'), findsWidgets);
+    expect(find.byKey(const ValueKey('export-logs')), findsOneWidget);
+    expect(find.byKey(const ValueKey('clear-logs')), findsOneWidget);
     expect(find.byType(BottomSheet), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());

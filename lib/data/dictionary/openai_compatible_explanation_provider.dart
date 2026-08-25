@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 
 import '../../domain/models/vocabulary_entry.dart';
+import '../../services/app_log_service.dart';
 import '../../tts/api_key_store.dart';
 
 typedef DictionarySettingReader = Future<String?> Function(String key);
@@ -361,8 +362,18 @@ class OpenAiCompatibleExplanationProvider {
               .where((item) => item.id.isNotEmpty)
               .toList(growable: false)
             ..sort((a, b) => a.id.toLowerCase().compareTo(b.id.toLowerCase()));
+      AppLogger.info(
+        'AI',
+        'model list synced · ${provider.displayName} · ${models.length} models',
+      );
       return LlmProviderModels(provider: provider, models: models);
-    } catch (error) {
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        'AI',
+        'model list failed · ${provider.displayName}',
+        error: error,
+        stackTrace: stackTrace,
+      );
       return LlmProviderModels(provider: provider, error: error);
     }
   }

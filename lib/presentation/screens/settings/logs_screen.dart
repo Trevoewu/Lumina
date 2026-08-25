@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../../core/app_colors.dart';
+import '../../../core/app_design_tokens.dart';
 import '../../../core/app_localizations.dart';
 import '../../../services/app_log_service.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
+import '../../widgets/design_system/settings_components.dart';
 
+/// The log console: subsystem filter chips over a dark terminal-style card,
+/// with export and clear beneath it.
 class LogsScreen extends StatefulWidget {
   const LogsScreen({super.key});
 
@@ -14,234 +17,274 @@ class LogsScreen extends StatefulWidget {
 }
 
 class _LogsScreenState extends State<LogsScreen> {
-  final Set<AppLogLevel> _visibleLevels = {...AppLogLevel.values};
+  /// Null means "All"; `sys` entries only surface there, as in the spec.
+  AppLogCategory? _filter;
 
   @override
   Widget build(BuildContext context) {
-    final logger = AppLogService.instance;
+    final design = context.appDesign;
+    final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
+    final scheme = Theme.of(context).colorScheme;
 
     return CollapsingPageScaffold(
       title: context.tr('日志', 'Logs', 'ログ'),
       showBackButton: true,
-      actions: [
-        Tooltip(
-          message: context.tr('清空日志', 'Clear Logs', 'ログを消去'),
-          child: IconButton(
-            icon: Icon(Icons.delete_outline),
-            onPressed: () => _confirmClear(context, logger),
-          ),
-        ),
-      ],
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
+      body: ValueListenableBuilder<List<AppLogEntry>>(
+        valueListenable: AppLogService.instance.entries,
+        builder: (context, entries, _) {
+          final visible = _filter == null
+              ? entries
+              : entries.where((e) => e.category == _filter).toList();
+          return ListView(
+            padding: EdgeInsets.fromLTRB(inset, design.spaceSm, inset, 120),
+            children: [
+              Row(
                 children: [
-                  for (final level in AppLogLevel.values)
-                    FilterChip(
-                      label: Text(_levelLabel(context, level)),
-                      selected: _visibleLevels.contains(level),
-                      avatar: Icon(_levelIcon(level), size: 16),
-                      onSelected: (selected) {
-                        setState(() {
-                          if (selected) {
-                            _visibleLevels.add(level);
-                          } else {
-                            _visibleLevels.remove(level);
-                          }
-                        });
-                      },
+                  SettingsChip(
+                    label: context.tr('全部', 'All', 'すべて'),
+                    selected: _filter == null,
+                    expand: true,
+                    onTap: () => setState(() => _filter = null),
+                  ),
+                  for (final category in const [
+                    AppLogCategory.asr,
+                    AppLogCategory.ai,
+                    AppLogCategory.tts,
+                  ]) ...[
+                    const SizedBox(width: 8),
+                    SettingsChip(
+                      label: category.label,
+                      selected: _filter == category,
+                      expand: true,
+                      onTap: () => setState(() => _filter = category),
                     ),
+                  ],
                 ],
               ),
-            ),
-          ),
-          Expanded(
-            child: ValueListenableBuilder<List<AppLogEntry>>(
-              valueListenable: logger.entries,
-              builder: (context, entries, _) {
-                if (entries.isEmpty) {
-                  return _EmptyLogsMessage(
-                    message: context.tr('暂无日志', 'No logs yet', 'ログはありません'),
-                  );
-                }
-
-                final newestFirst = entries.reversed
-                    .where((entry) => _visibleLevels.contains(entry.level))
-                    .toList(growable: false);
-                if (newestFirst.isEmpty) {
-                  return _EmptyLogsMessage(
-                    message: context.tr(
-                      '当前级别没有日志',
-                      'No logs at this level',
-                      'このレベルのログはありません',
+              const SizedBox(height: 16),
+              _Console(entries: visible),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _FlatButton(
+                      key: const ValueKey('export-logs'),
+                      label: context.tr('导出日志', 'Export logs', 'ログを書き出す'),
+                      emphasised: true,
+                      onTap: entries.isEmpty ? null : _export,
                     ),
-                  );
-                }
-
-                return ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-                  itemCount: newestFirst.length,
-                  separatorBuilder: (_, _) =>
-                      Divider(height: 24, color: context.appSurfaceHighlight),
-                  itemBuilder: (context, index) {
-                    return _LogEntryView(entry: newestFirst[index]);
-                  },
-                );
-              },
-            ),
-          ),
-        ],
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _FlatButton(
+                      key: const ValueKey('clear-logs'),
+                      label: context.tr('清空', 'Clear', '消去'),
+                      emphasised: false,
+                      onTap: entries.isEmpty ? null : _confirmClear,
+                    ),
+                  ),
+                ],
+              ),
+              if (visible.isEmpty) ...[
+                const SizedBox(height: 24),
+                Center(
+                  child: Text(
+                    context.tr('暂无日志', 'No logs yet', 'ログはありません'),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          );
+        },
       ),
     );
   }
 
-  Future<void> _confirmClear(BuildContext context, AppLogService logger) async {
+  Future<void> _export() async {
+    await Clipboard.setData(
+      ClipboardData(text: AppLogService.instance.exportText()),
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          context.tr('日志已复制到剪贴板', 'Logs copied to the clipboard', 'ログをクリップボードにコピーしました'),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmClear() async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('清空日志？'),
-        content: Text('该操作会删除当前设备上保存的运行日志。'),
+      builder: (dialogContext) => AlertDialog(
+        title: Text(context.tr('清空日志？', 'Clear logs?', 'ログを消去しますか？')),
+        content: Text(
+          context.tr(
+            '记录会被永久删除，不影响书库与缓存。',
+            'The records are deleted for good. Your library and cache are untouched.',
+            '記録は完全に削除されます。ライブラリとキャッシュには影響しません。',
+          ),
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text('取消'),
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(context.tr('取消', 'Cancel', 'キャンセル')),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text('清空'),
+            key: const ValueKey('confirm-clear-logs'),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
+            ),
+            child: Text(context.tr('清空', 'Clear', '消去')),
           ),
         ],
       ),
     );
-    if (confirmed == true) await logger.clear();
-  }
-
-  String _levelLabel(BuildContext context, AppLogLevel level) {
-    return switch (level) {
-      AppLogLevel.debug => context.tr('Debug', 'Debug', 'デバッグ'),
-      AppLogLevel.warning => context.tr('Warning', 'Warning', '警告'),
-      AppLogLevel.error => context.tr('Error', 'Error', 'エラー'),
-    };
-  }
-
-  IconData _levelIcon(AppLogLevel level) {
-    return switch (level) {
-      AppLogLevel.debug => Icons.bug_report_outlined,
-      AppLogLevel.warning => Icons.warning_amber_outlined,
-      AppLogLevel.error => Icons.error_outline,
-    };
+    if (confirmed != true) return;
+    await AppLogService.instance.clear();
   }
 }
 
-class _EmptyLogsMessage extends StatelessWidget {
-  final String message;
+class _Console extends StatelessWidget {
+  final List<AppLogEntry> entries;
 
-  const _EmptyLogsMessage({required this.message});
+  const _Console({required this.entries});
 
   @override
   Widget build(BuildContext context) {
-    return Center(
+    // The console is intentionally dark in both themes, like a terminal.
+    const background = Color(0xFF12161C);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 16),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(18),
+      ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Icon(
-            Icons.receipt_long_outlined,
-            size: 36,
-            color: context.appTextSecondary,
-          ),
-          SizedBox(height: 12),
-          Text(message, style: TextStyle(color: context.appTextSecondary)),
+          for (var i = 0; i < entries.length; i++) ...[
+            if (i > 0) const SizedBox(height: 11),
+            _ConsoleLine(entry: entries[i]),
+          ],
+          if (entries.isEmpty)
+            Text(
+              context.tr('没有匹配的记录', 'Nothing matches', '該当する記録はありません'),
+              style: const TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 11.5,
+                color: Color(0x59FFFFFF),
+              ),
+            ),
         ],
       ),
     );
   }
 }
 
-class _LogEntryView extends StatelessWidget {
+class _ConsoleLine extends StatelessWidget {
   final AppLogEntry entry;
 
-  const _LogEntryView({required this.entry});
+  const _ConsoleLine({required this.entry});
 
   @override
   Widget build(BuildContext context) {
-    final levelColor = switch (entry.level) {
-      AppLogLevel.debug => context.appTextSecondary,
-      AppLogLevel.warning => Colors.amberAccent,
-      AppLogLevel.error => Colors.redAccent,
+    final tagColor = switch (entry.level) {
+      AppLogLevel.error => const Color(0xFFF08A7E),
+      AppLogLevel.warning => const Color(0xFFE8C06A),
+      AppLogLevel.debug => Theme.of(context).colorScheme.primary,
     };
-    final localTime = entry.timestamp.toLocal();
-    final time =
-        '${localTime.year.toString().padLeft(4, '0')}-'
-        '${localTime.month.toString().padLeft(2, '0')}-'
-        '${localTime.day.toString().padLeft(2, '0')} '
-        '${localTime.hour.toString().padLeft(2, '0')}:'
-        '${localTime.minute.toString().padLeft(2, '0')}:'
-        '${localTime.second.toString().padLeft(2, '0')}';
-
-    return Column(
+    final time = entry.timestamp.toLocal();
+    final stamp =
+        '${time.hour.toString().padLeft(2, '0')}:'
+        '${time.minute.toString().padLeft(2, '0')}';
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Icon(
-              entry.level == AppLogLevel.error
-                  ? Icons.error_outline
-                  : entry.level == AppLogLevel.warning
-                  ? Icons.warning_amber_outlined
-                  : Icons.bug_report_outlined,
-              size: 16,
-              color: levelColor,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                '$time · ${entry.source}',
-                style: TextStyle(
-                  color: context.appTextSecondary,
-                  fontSize: 12,
-                  fontFamily: 'monospace',
-                ),
-              ),
-            ),
-            Tooltip(
-              message: context.tr('复制单条日志', 'Copy Log', 'ログをコピー'),
-              child: IconButton(
-                visualDensity: VisualDensity.compact,
-                iconSize: 18,
-                icon: const Icon(Icons.copy_outlined),
-                onPressed: () => _copyEntry(context),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        SelectableText(
-          entry.formatted.split('\n').skip(1).join('\n').trim().isEmpty
-              ? entry.message
-              : '${entry.message}\n'
-                    '${entry.formatted.split('\n').skip(1).join('\n')}',
-          style: TextStyle(
-            color: context.appTextPrimary,
-            fontSize: 13,
-            height: 1.45,
+        Text(
+          stamp,
+          style: const TextStyle(
             fontFamily: 'monospace',
+            fontSize: 11,
+            color: Color(0x59FFFFFF),
+          ),
+        ),
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 34,
+          child: Text(
+            entry.category.label,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: tagColor,
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            entry.error?.isNotEmpty == true
+                ? '${entry.message} — ${entry.error}'
+                : entry.message,
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 11.5,
+              height: 1.5,
+              color: Color(0xB3FFFFFF),
+            ),
           ),
         ),
       ],
     );
   }
+}
 
-  Future<void> _copyEntry(BuildContext context) async {
-    await Clipboard.setData(ClipboardData(text: entry.formatted));
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(context.tr('日志已复制', 'Log copied', 'ログをコピーしました'))),
+class _FlatButton extends StatelessWidget {
+  final String label;
+  final bool emphasised;
+  final VoidCallback? onTap;
+
+  const _FlatButton({
+    super.key,
+    required this.label,
+    required this.emphasised,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.onSurface.withValues(alpha: 0.06),
+      borderRadius: BorderRadius.circular(24),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          height: 48,
+          child: Center(
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: onTap == null
+                    ? scheme.onSurface.withValues(alpha: 0.3)
+                    : emphasised
+                    ? scheme.onSurface
+                    : scheme.onSurface.withValues(alpha: 0.5),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

@@ -8,6 +8,19 @@ import 'package:path_provider/path_provider.dart';
 
 enum AppLogLevel { debug, warning, error }
 
+/// The four buckets the log console groups entries into. Only the first three
+/// get a filter chip; `sys` shows under "All".
+enum AppLogCategory {
+  asr('ASR'),
+  ai('AI'),
+  tts('TTS'),
+  sys('SYS');
+
+  final String label;
+
+  const AppLogCategory(this.label);
+}
+
 class AppLogEntry {
   final DateTime timestamp;
   final AppLogLevel level;
@@ -45,6 +58,15 @@ class AppLogEntry {
     'message': message,
     if (error != null) 'error': error,
     if (stackTrace != null) 'stackTrace': stackTrace,
+  };
+
+  /// Subsystem bucket the settings log console filters by. Derived from
+  /// [source] so call sites keep their finer-grained tags.
+  AppLogCategory get category => switch (source) {
+    'Podcast' => AppLogCategory.asr,
+    'Generation' || 'Voice' => AppLogCategory.tts,
+    'AI' || 'Dictionary' => AppLogCategory.ai,
+    _ => AppLogCategory.sys,
   };
 
   String get formatted {
