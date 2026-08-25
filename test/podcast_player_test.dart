@@ -493,6 +493,11 @@ void main() {
     final transcriptToggle = find.byKey(
       const ValueKey('player-transcript-toggle'),
     );
+    final coverControls = find.descendant(
+      of: coverScroll,
+      matching: find.byKey(const ValueKey('player-cache-playback-progress')),
+    );
+    final coverControlsTop = tester.getTopLeft(coverControls).dy;
     await tester.ensureVisible(transcriptToggle);
     await tester.tap(transcriptToggle);
 
@@ -509,6 +514,11 @@ void main() {
     );
     expect(routeControls, findsOneWidget);
     final controlsTopDuringTransition = tester.getTopLeft(routeControls).dy;
+    expect(
+      controlsTopDuringTransition,
+      closeTo(coverControlsTop, 0.1),
+      reason: 'cover and transcript controls share the same bottom band',
+    );
 
     await tester.pumpAndSettle();
     expect(coverScroll, findsNothing);

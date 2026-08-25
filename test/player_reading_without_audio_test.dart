@@ -440,29 +440,13 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         find.byKey(const ValueKey('player-sticky-mini-player')),
-        findsOneWidget,
+        findsNothing,
+        reason: 'the mini player must wait for the full player stage to exit',
       );
       expect(
-        find.byKey(const ValueKey('player-sticky-mini-player-action')),
+        find.byKey(const ValueKey('player-default-header')),
         findsOneWidget,
       );
-      expect(
-        find.byKey(const ValueKey('player-sticky-mini-player-progress')),
-        findsOneWidget,
-      );
-      expect(find.byKey(const ValueKey('player-default-header')), findsNothing);
-      await tester.tap(
-        find.byKey(const ValueKey('player-sticky-mini-player-action')),
-      );
-      await tester.pumpAndSettle();
-      expect(audioHandler.playbackState.value.playing, isFalse);
-      audioHandler.startLoadedChapter(
-        bookId: book.id,
-        chapterId: chapter.id,
-        paragraphId: 'readable-paragraph-3',
-      );
-      await tester.pumpAndSettle();
-      expect(audioHandler.playbackState.value.playing, isTrue);
       expect(
         find.byKey(const ValueKey('ai-summary-card')).hitTestable(),
         findsWidgets,

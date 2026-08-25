@@ -482,16 +482,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   void _handlePlayerScroll() {
     if (!_playerScrollController.hasClients) return;
-    final position = _playerScrollController.position;
-    final offset = position.pixels;
-    // Normally the header appears once the artwork has scrolled away. Since
-    // the transcript moved behind its own toggle the cover face can be shorter
-    // than that, so also accept "scrolled to the end" — otherwise a short page
-    // could never reveal the header at all.
-    final trigger = math.min(
-      _stickyMiniPlayerTriggerOffset,
-      math.max(0.0, position.maxScrollExtent - 80),
-    );
+    final offset = _playerScrollController.position.pixels;
+    // Do not swap the header while any part of the full-size player stage is
+    // still visible. Besides matching the visual handoff, this avoids an
+    // AnimatedSwitcher + page rebuild halfway through the user's cover swipe.
+    final trigger = _stickyMiniPlayerTriggerOffset;
     final shouldShow = _showStickyMiniPlayer
         ? offset >= trigger - 24
         : offset >= trigger;
@@ -1995,12 +1990,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       availableArtworkWidth,
       compact ? 260.0 : 320.0,
     );
-    final viewportContentHeight = math.max(
-      0.0,
-      constraints.maxHeight - design.spaceLg,
-    );
-    _stickyMiniPlayerTriggerOffset =
-        artworkSize + (compact ? design.spaceSm : design.spaceLg);
+    final viewportContentHeight = math.max(360.0, constraints.maxHeight);
+    _stickyMiniPlayerTriggerOffset = viewportContentHeight;
     if (_transcriptPageActive) return const SizedBox.shrink();
 
     return _buildBookCoverBody(
@@ -2047,46 +2038,78 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       controller: _playerScrollController,
       physics: const BouncingScrollPhysics(),
       padding: EdgeInsets.only(bottom: design.spaceXxl),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(minHeight: viewportContentHeight),
-        child: Column(
-          children: [
-            SizedBox(height: compact ? design.spaceSm : design.spaceLg),
-            _buildTranscriptHeroArtwork(
-              artworkSize,
-              borderRadius: design.radiusLarge,
+      child: Column(
+        children: [
+          SizedBox(
+            height: viewportContentHeight,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: Padding(
+                    key: const ValueKey('book-cover-focus-viewport'),
+                    padding: EdgeInsets.symmetric(horizontal: pageInset),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Flexible(
+                          child: Center(
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: _buildTranscriptHeroArtwork(
+                                artworkSize,
+                                borderRadius: design.radiusLarge,
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(
+                          height: compact ? design.spaceLg : design.spaceXl,
+                        ),
+                        _buildChapterMetadata(chapterTitle),
+                      ],
+                    ),
+                  ),
+                ),
+                _buildTranscriptChromeBand(
+                  fromTop: false,
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      pageInset,
+                      design.spaceXl,
+                      pageInset,
+                      design.spaceXl,
+                    ),
+                    child: _buildReactiveControls(
+                      handler: handler,
+                      fallbackDuration: duration,
+                      manifest: manifest,
+                      foregroundColor: context.appTextPrimary,
+                      showSecondaryActions: true,
+                      transcriptModeActive: false,
+                      onTranscriptToggle: onTranscriptTap,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            SizedBox(height: compact ? design.spaceLg : design.spaceXl),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: pageInset),
-              child: _buildChapterMetadata(chapterTitle),
+          ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              pageInset,
+              design.spaceLg,
+              pageInset,
+              0,
             ),
-            SizedBox(height: design.spaceLg),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: pageInset),
-              child: _buildReactiveControls(
-                handler: handler,
-                fallbackDuration: duration,
-                manifest: manifest,
-                foregroundColor: context.appTextPrimary,
-                showSecondaryActions: true,
-                transcriptModeActive: false,
-                onTranscriptToggle: onTranscriptTap,
-              ),
+            child: Column(
+              children: [
+                _buildAiSummaryCard(handler: handler, manifest: manifest),
+                SizedBox(height: design.spaceMd),
+                _buildTranscriptPointerCard(onTap: onTranscriptTap),
+              ],
             ),
-            SizedBox(height: design.spaceXxl),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: pageInset),
-              child: Column(
-                children: [
-                  _buildAiSummaryCard(handler: handler, manifest: manifest),
-                  SizedBox(height: design.spaceMd),
-                  _buildTranscriptPointerCard(onTap: onTranscriptTap),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -2112,12 +2135,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       availableArtworkWidth,
       compact ? 260.0 : 320.0,
     );
-    final viewportContentHeight = math.max(
-      0.0,
-      constraints.maxHeight - design.spaceLg,
-    );
-    _stickyMiniPlayerTriggerOffset =
-        artworkSize + (compact ? design.spaceSm : design.spaceLg);
+    final viewportContentHeight = math.max(360.0, constraints.maxHeight);
+    _stickyMiniPlayerTriggerOffset = viewportContentHeight;
 
     if (_transcriptPageActive) return const SizedBox.shrink();
 
@@ -2164,52 +2183,81 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       controller: _playerScrollController,
       physics: const BouncingScrollPhysics(),
       padding: EdgeInsets.only(bottom: design.spaceXxl),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(minHeight: viewportContentHeight),
-        child: Column(
-          children: [
-            SizedBox(height: compact ? design.spaceSm : design.spaceLg),
-            _buildTranscriptHeroArtwork(
-              artworkSize,
-              borderRadius: design.radiusLarge,
-            ),
-            SizedBox(height: compact ? design.spaceLg : design.spaceXl),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: pageInset),
-              child: _buildChapterMetadata(chapterTitle),
-            ),
-            SizedBox(height: design.spaceLg),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: pageInset),
-              child: _buildReactiveControls(
-                handler: handler,
-                fallbackDuration: duration,
-                manifest: manifest,
-                foregroundColor: context.appTextPrimary,
-                showSecondaryActions: true,
-                transcriptModeActive: false,
-                onTranscriptToggle: onTranscriptTap,
-              ),
-            ),
-            SizedBox(height: design.spaceXxl),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: pageInset),
-              child: Column(
-                children: [
-                  _buildPodcastShownotesCard(
-                    episode: episode,
-                    handler: handler,
+      child: Column(
+        children: [
+          SizedBox(
+            height: viewportContentHeight,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: Padding(
+                    key: const ValueKey('podcast-cover-focus-viewport'),
+                    padding: EdgeInsets.symmetric(horizontal: pageInset),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Flexible(
+                          child: Center(
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: _buildTranscriptHeroArtwork(
+                                artworkSize,
+                                borderRadius: design.radiusLarge,
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(
+                          height: compact ? design.spaceLg : design.spaceXl,
+                        ),
+                        _buildChapterMetadata(chapterTitle),
+                      ],
+                    ),
                   ),
-                  SizedBox(height: design.spaceMd),
-                  _buildAiSummaryCard(handler: handler, manifest: manifest),
-                  SizedBox(height: design.spaceMd),
-                  _buildTranscriptPointerCard(onTap: onTranscriptTap),
-                  SizedBox(height: design.spaceMd),
-                ],
-              ),
+                ),
+                _buildTranscriptChromeBand(
+                  fromTop: false,
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      pageInset,
+                      design.spaceXl,
+                      pageInset,
+                      design.spaceXl,
+                    ),
+                    child: _buildReactiveControls(
+                      handler: handler,
+                      fallbackDuration: duration,
+                      manifest: manifest,
+                      foregroundColor: context.appTextPrimary,
+                      showSecondaryActions: true,
+                      transcriptModeActive: false,
+                      onTranscriptToggle: onTranscriptTap,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              pageInset,
+              design.spaceLg,
+              pageInset,
+              0,
+            ),
+            child: Column(
+              children: [
+                _buildPodcastShownotesCard(episode: episode, handler: handler),
+                SizedBox(height: design.spaceMd),
+                _buildAiSummaryCard(handler: handler, manifest: manifest),
+                SizedBox(height: design.spaceMd),
+                _buildTranscriptPointerCard(onTap: onTranscriptTap),
+                SizedBox(height: design.spaceMd),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
