@@ -178,7 +178,11 @@ class _TtsServiceScreenState extends ConsumerState<TtsServiceScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            context.tr('无法播放试听片段', 'Unable to play this preview.', '試聴サンプルを再生できません'),
+            context.tr(
+              '无法播放试听片段',
+              'Unable to play this preview.',
+              '試聴サンプルを再生できません',
+            ),
           ),
         ),
       );

@@ -268,7 +268,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   /// Joins the provider/selection detail line, falling back to a "not set up"
   /// hint when a service has not been configured yet.
   String _joinDetail(List<String?> parts) {
-    final detail = parts.whereType<String>().where((p) => p.isNotEmpty).toList();
+    final detail = parts
+        .whereType<String>()
+        .where((p) => p.isNotEmpty)
+        .toList();
     if (detail.isEmpty) {
       return context.tr('未配置', 'Not set up', '未設定');
     }

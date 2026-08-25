@@ -47,7 +47,11 @@ class DictionaryExplanationServiceScreen extends ConsumerWidget {
             ),
 
             SettingsSectionLabel(
-              title: context.tr('已添加的提供商', 'Configured providers', '追加済みのプロバイダー'),
+              title: context.tr(
+                '已添加的提供商',
+                'Configured providers',
+                '追加済みのプロバイダー',
+              ),
             ),
             for (final card in data.cards) ...[
               _ProviderCard(

@@ -46,7 +46,11 @@ class AppearanceScreen extends ConsumerWidget {
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     children: [
-                      for (var i = 0; i < appearanceFontOptions.length; i++) ...[
+                      for (
+                        var i = 0;
+                        i < appearanceFontOptions.length;
+                        i++
+                      ) ...[
                         if (i > 0) const SizedBox(width: 8),
                         _FontChoice(
                           option: appearanceFontOptions[i],

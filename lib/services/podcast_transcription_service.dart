@@ -1127,12 +1127,17 @@ class PodcastTranscriptionService {
     _installingModel = target;
     if (await file.exists()) await file.delete();
 
-    final label = '正在下载 ${option.name} 模型'
+    final label =
+        '正在下载 ${option.name} 模型'
         '（约 ${_formatModelBytes(option.expectedBytes)}）';
     final partial = File('$modelPath.partial');
     try {
       await partial.parent.create(recursive: true);
-      onProgress(PodcastTranscriptionStage.downloadingModel, label, progress: 0);
+      onProgress(
+        PodcastTranscriptionStage.downloadingModel,
+        label,
+        progress: 0,
+      );
       await _dio.download(
         option.url,
         partial.path,

@@ -322,6 +322,11 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
       'Podcastと文字起こし',
     );
     final accent = Theme.of(context).colorScheme.primary;
+    String episodeMeta(int episodes, int transcripts) => context.tr(
+      '$episodes 集 · $transcripts 份字幕',
+      '$episodes episodes · $transcripts transcripts',
+      '$episodes エピソード · $transcripts 件の文字起こし',
+    );
 
     final bookEntries = <_CacheEntry>[];
     for (final book in await db.getAllBooks()) {
@@ -381,7 +386,7 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
         _CacheEntry(
           key: 'show:${show.id}',
           title: show.title,
-          meta: '${kept.length} · $transcripts transcripts',
+          meta: episodeMeta(kept.length, transcripts),
           bytes: bytes,
           art: _swatch(show.id),
           clear: (c) => c.clearPodcastShowData(show.id),
@@ -490,6 +495,12 @@ class _CacheEntry {
   });
 }
 
+/// Proportion of [total] taken by [bytes], as a flex share out of 1000.
+int _share(int bytes, int total) {
+  if (total <= 0) return 1;
+  return (bytes * 1000 ~/ total).clamp(1, 1000);
+}
+
 class _SummaryCard extends StatelessWidget {
   final _CachePageData data;
   final int selectedBytes;
@@ -570,17 +581,24 @@ class _SummaryCard extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           ClipRRect(
-            borderRadius: BorderRadius.circular(999),
+            // Half the bar's height: a pill, without asking RRect to scale a
+            // radius far larger than the box.
+            borderRadius: BorderRadius.circular(5),
             child: SizedBox(
               height: 10,
               child: nonEmpty.isEmpty
                   ? ColoredBox(color: scheme.onSurface.withValues(alpha: 0.06))
                   : Row(
+                      // Stretch, or the childless ColoredBox segments collapse
+                      // to zero height under the default centre alignment.
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         for (var i = 0; i < nonEmpty.length; i++) ...[
                           if (i > 0) const SizedBox(width: 2),
                           Expanded(
-                            flex: nonEmpty[i].bytes,
+                            // Flex is a share out of 1000 rather than a raw
+                            // byte count, which would be a huge flex factor.
+                            flex: _share(nonEmpty[i].bytes, data.totalBytes),
                             child: ColoredBox(color: nonEmpty[i].color),
                           ),
                         ],

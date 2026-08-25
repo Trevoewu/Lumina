@@ -51,7 +51,7 @@ class VoicePreviewController {
         p.join(
           directory.path,
           'lumina_voice_preview_${voice.id.hashCode}.'
-              '${extension.isEmpty ? 'wav' : extension}',
+          '${extension.isEmpty ? 'wav' : extension}',
         ),
       );
       await file.writeAsBytes(chunk.audioBytes, flush: true);
@@ -65,20 +65,13 @@ class VoicePreviewController {
 
   void unawaitedPlay() {
     _player.play().catchError((Object error, StackTrace stackTrace) {
-      AppLogger.error(
-        'Voice',
-        '试听音色失败',
-        error: error,
-        stackTrace: stackTrace,
-      );
+      AppLogger.error('Voice', '试听音色失败', error: error, stackTrace: stackTrace);
     });
   }
 
   String _previewText(TtsVoice voice) {
     final name = voice.name.trim();
-    return name.isEmpty
-        ? '这是一段音色试听。'
-        : '你好，我是$name。这是一段音色试听。';
+    return name.isEmpty ? '这是一段音色试听。' : '你好，我是$name。这是一段音色试听。';
   }
 
   Future<void> dispose() async {

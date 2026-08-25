@@ -111,7 +111,11 @@ class _LogsScreenState extends State<LogsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          context.tr('日志已复制到剪贴板', 'Logs copied to the clipboard', 'ログをクリップボードにコピーしました'),
+          context.tr(
+            '日志已复制到剪贴板',
+            'Logs copied to the clipboard',
+            'ログをクリップボードにコピーしました',
+          ),
         ),
       ),
     );

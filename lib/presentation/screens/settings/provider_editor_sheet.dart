@@ -121,18 +121,18 @@ class _LlmProviderEditorSheetState
 
             const SizedBox(height: 22),
             SettingsSectionLabel(title: context.tr('预设', 'Preset', 'プリセット')),
-            Row(
+            // The app ships one more preset than the spec drew, so the chips
+            // size to their labels and wrap instead of being squeezed equal.
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
-                for (final kind in LlmProviderKind.values) ...[
-                  if (kind != LlmProviderKind.values.first)
-                    const SizedBox(width: 8),
+                for (final kind in LlmProviderKind.values)
                   SettingsChip(
                     label: kind.displayName,
                     selected: _kind == kind,
-                    expand: true,
                     onTap: _isEdit ? null : () => _pickKind(kind),
                   ),
-                ],
               ],
             ),
 
@@ -140,7 +140,11 @@ class _LlmProviderEditorSheetState
               SettingsSectionLabel(title: context.tr('名称', 'Name', '名称')),
               _Field(
                 controller: _name,
-                hint: context.tr('例如 本地 vLLM', 'e.g. Local vLLM', '例：ローカル vLLM'),
+                hint: context.tr(
+                  '例如 本地 vLLM',
+                  'e.g. Local vLLM',
+                  '例：ローカル vLLM',
+                ),
               ),
               const SettingsSectionLabel(title: 'Base URL'),
               _Field(
@@ -216,7 +220,9 @@ class _LlmProviderEditorSheetState
               TextButton(
                 onPressed: _saving ? null : _remove,
                 style: TextButton.styleFrom(foregroundColor: scheme.error),
-                child: Text(context.tr('删除提供商', 'Remove provider', 'プロバイダーを削除')),
+                child: Text(
+                  context.tr('删除提供商', 'Remove provider', 'プロバイダーを削除'),
+                ),
               ),
             ],
           ],
@@ -269,8 +275,12 @@ class _LlmProviderEditorSheetState
         target = await controller.addProvider(
           kind: _kind,
           apiKey: key,
-          displayName: _kind == LlmProviderKind.custom ? _name.text.trim() : null,
-          baseUrl: _kind == LlmProviderKind.custom ? _baseUrl.text.trim() : null,
+          displayName: _kind == LlmProviderKind.custom
+              ? _name.text.trim()
+              : null,
+          baseUrl: _kind == LlmProviderKind.custom
+              ? _baseUrl.text.trim()
+              : null,
         );
         _created = target;
       } else {
