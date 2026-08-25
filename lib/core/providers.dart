@@ -154,7 +154,7 @@ final dictionaryRepositoryProvider = Provider<DictionaryRepository>((ref) {
   return DictionaryRepository(
     ref.watch(appDatabaseProvider),
     explanationProvider: ref.watch(openAiCompatibleExplanationProvider),
-    outputLanguageCode: preferences.resolvedLanguageCode(
+    outputLanguageCode: preferences.resolvedAiLanguageCode(
       PlatformDispatcher.instance.locale,
     ),
   );

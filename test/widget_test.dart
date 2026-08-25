@@ -217,7 +217,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
-  testWidgets('the voice pane lists providers and edits keys in a sheet', (tester) async {
+  testWidgets('the voice pane lists providers and edits keys in a sheet', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(800, 650);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -302,7 +304,11 @@ void main() {
 
     final settingsScrollable = find.byType(Scrollable).last;
     final logsRow = find.byKey(const ValueKey('logs-settings'));
-    await tester.scrollUntilVisible(logsRow, 120, scrollable: settingsScrollable);
+    await tester.scrollUntilVisible(
+      logsRow,
+      120,
+      scrollable: settingsScrollable,
+    );
     await tester.pumpAndSettle();
     await tester.tap(logsRow);
     await tester.pumpAndSettle();
@@ -354,25 +360,37 @@ void main() {
     expect(find.text('Appearance'), findsOneWidget);
     await tester.tap(languageRow);
     await tester.pumpAndSettle();
+    expect(find.text('UI Language'), findsOneWidget);
+    expect(find.text('AI Service Language'), findsOneWidget);
+    final uiLanguageRow = find.byKey(const ValueKey('ui-language-selector'));
+    await tester.tap(uiLanguageRow);
+    await tester.pumpAndSettle();
     expect(find.byType(BottomSheet), findsNothing);
     expect(find.text('简体中文'), findsOneWidget);
     await tester.tap(find.text('简体中文'));
     await tester.pumpAndSettle();
 
-    expect(find.text('更多'), findsOneWidget);
+    expect(find.text('界面'), findsOneWidget);
     expect(find.text('语言'), findsOneWidget);
-    expect(find.text('外观细节'), findsOneWidget);
+    expect(find.text('AI 服务语言'), findsOneWidget);
 
-    await tester.tap(languageRow);
+    await tester.tap(uiLanguageRow);
     await tester.pumpAndSettle();
     await tester.tap(find.text('日本語'));
     await tester.pumpAndSettle();
 
-    expect(find.text('その他'), findsOneWidget);
+    expect(find.text('インターフェース'), findsOneWidget);
     expect(find.text('言語'), findsOneWidget);
-    expect(find.text('外観の詳細'), findsOneWidget);
+    expect(find.text('AIサービス言語'), findsOneWidget);
 
-    await tester.drag(settingsScrollable, const Offset(0, 2000));
+    await tester.tap(find.byKey(const ValueKey('ai-language-selector')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('English'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+
+    await tester.drag(find.byType(Scrollable).last, const Offset(0, 2000));
     await tester.pumpAndSettle();
     await tester.tap(find.text('ライト'));
     await tester.pumpAndSettle();
@@ -382,6 +400,7 @@ void main() {
       ThemeMode.light,
     );
     expect(await database.getSetting('general_language'), 'japanese');
+    expect(await database.getSetting('ai_service_language'), 'english');
     expect(await database.getSetting('general_theme_mode'), 'light');
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());

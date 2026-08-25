@@ -16,6 +16,7 @@ import 'asr_service_screen.dart';
 import 'cache_management_screen.dart';
 import 'dictionary_explanation_service_screen.dart';
 import 'logs_screen.dart';
+import 'language_settings_screen.dart';
 import 'tts_service_screen.dart';
 
 const String _appVersion = '1.0.0+1';
@@ -35,7 +36,6 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  final _languageMenuKey = GlobalKey<PopupMenuButtonState<AppLanguage>>();
   bool _resetting = false;
 
   @override
@@ -222,7 +222,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 subtitle: _appearanceSummary(),
                 onTap: () => _push(const AppearanceScreen()),
               ),
-              _languageRow(preferences.language),
+              SettingValueRow(
+                rowKey: const ValueKey('language-selector'),
+                icon: Icons.language,
+                title: context.tr('语言', 'Language', '言語'),
+                subtitle: context.tr(
+                  '分别设置 UI 与 AI 服务语言',
+                  'Set UI and AI service languages separately',
+                  'UIとAIサービスの言語を個別に設定',
+                ),
+                onTap: () => _push(const LanguageSettingsScreen()),
+              ),
             ],
           ),
 
@@ -311,79 +321,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     return '${appearance.fontOption.label} · $percent% · $icon';
   }
 
-  Widget _languageRow(AppLanguage selected) => SettingValueRow(
-    rowKey: const ValueKey('language-selector'),
-    icon: Icons.language,
-    title: context.tr('语言', 'Language', '言語'),
-    onTap: () => _languageMenuKey.currentState?.showButtonMenu(),
-    trailing: PopupMenuButton<AppLanguage>(
-      key: _languageMenuKey,
-      tooltip: context.tr('选择语言', 'Choose language', '言語を選択'),
-      position: PopupMenuPosition.under,
-      color: Theme.of(context).colorScheme.surfaceContainer,
-      surfaceTintColor: Colors.transparent,
-      constraints: const BoxConstraints(minWidth: 240, maxWidth: 320),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(context.appDesign.radiusSmall),
-      ),
-      onSelected: ref.read(appPreferencesProvider.notifier).setLanguage,
-      itemBuilder: (_) => [
-        for (final language in AppLanguage.values)
-          PopupMenuItem(
-            value: language,
-            child: _popupChoice(
-              label: _languageLabel(language),
-              selected: language == selected,
-            ),
-          ),
-      ],
-      child: _menuValue(_languageLabel(selected)),
-    ),
-  );
-
-  Widget _menuValue(String value) {
-    final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: context.appDesign.spaceSm),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            value,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
-          ),
-          SizedBox(width: context.appDesign.spaceXs),
-          Icon(Icons.unfold_more, color: scheme.onSurfaceVariant, size: 18),
-        ],
-      ),
-    );
-  }
-
-  Widget _popupChoice({required String label, required bool selected}) {
-    final scheme = Theme.of(context).colorScheme;
-    return Row(
-      children: [
-        SizedBox(
-          width: context.appDesign.spaceXl,
-          child: selected
-              ? Icon(Icons.check, color: scheme.primary)
-              : const SizedBox.shrink(),
-        ),
-        SizedBox(width: context.appDesign.spaceSm),
-        Expanded(child: Text(label)),
-      ],
-    );
-  }
-
-  String _languageLabel(AppLanguage value) => switch (value) {
-    AppLanguage.system => context.tr('跟随系统', 'System', 'システムに従う'),
-    AppLanguage.zhHans => '简体中文',
-    AppLanguage.english => 'English',
-    AppLanguage.japanese => '日本語',
-  };
-
   String _themeLabel(AppThemePreference value) => switch (value) {
     AppThemePreference.system => context.tr('系统', 'System', 'システム'),
     AppThemePreference.light => context.tr('浅色', 'Light', 'ライト'),
@@ -407,16 +344,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         content: Text(
           context.tr(
             '以下内容将恢复默认值：\n\n'
-                '• 语言、主题和阅读外观\n'
+                '• UI 与 AI 服务语言、主题和阅读外观\n'
                 '• AI 与语音服务的 API Key 和 Provider 配置\n'
                 '• 模型、朗读音色和字幕偏好\n\n'
                 '书库、播客、阅读进度、下载内容和已下载的 Whisper 模型会保留。',
             'The following will return to their defaults:\n\n'
-                '• Language, theme, and reading appearance\n'
+                '• UI and AI service languages, theme, and reading appearance\n'
                 '• API keys and provider configuration for AI and voice services\n'
                 '• Model, reading voice, and transcript preferences\n\n'
                 'Your library, podcasts, reading progress, downloads, and downloaded Whisper model will be kept.',
-            '次の設定がデフォルトに戻ります：\n\n• 言語、テーマ、読書表示\n• AI・音声サービスのAPIキーとプロバイダー設定\n• モデル、読み上げ音声、文字起こし設定\n\nライブラリ、Podcast、読書進捗、ダウンロード、Whisperモデルは保持されます。',
+            '次の設定がデフォルトに戻ります：\n\n• UI・AIサービス言語、テーマ、読書表示\n• AI・音声サービスのAPIキーとプロバイダー設定\n• モデル、読み上げ音声、文字起こし設定\n\nライブラリ、Podcast、読書進捗、ダウンロード、Whisperモデルは保持されます。',
           ),
         ),
         actions: [

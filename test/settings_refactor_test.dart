@@ -94,7 +94,7 @@ void main() {
     });
   }
 
-  testWidgets('language and theme menus anchor to the trailing value', (
+  testWidgets('language settings separate UI and AI response languages', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(430, 820);
@@ -137,11 +137,17 @@ void main() {
     );
     await tester.tap(languageRow);
     await tester.pumpAndSettle();
+
+    expect(find.text('UI Language'), findsOneWidget);
+    expect(find.text('AI Service Language'), findsOneWidget);
+    final uiLanguageRow = find.byKey(const ValueKey('ui-language-selector'));
+    await tester.tap(uiLanguageRow);
+    await tester.pumpAndSettle();
     final languageItems = find.byType(PopupMenuItem<AppLanguage>);
     expect(languageItems, findsNWidgets(AppLanguage.values.length));
     expect(
       tester.getCenter(languageItems.first).dx,
-      greaterThan(tester.getCenter(languageRow).dx),
+      greaterThan(tester.getCenter(uiLanguageRow).dx),
     );
     expect(
       find.descendant(of: languageItems, matching: find.byIcon(Icons.check)),
@@ -149,9 +155,18 @@ void main() {
     );
     await tester.tap(find.text('English'));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('ai-language-selector')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('日本語'));
+    await tester.pumpAndSettle();
+
+    expect(await database.getSetting('general_language'), 'english');
+    expect(await database.getSetting('ai_service_language'), 'japanese');
 
     // Theme is a segmented pill control at the top of the page, not a menu.
-    await tester.drag(settingsScrollable, const Offset(0, 2000));
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(Scrollable).last, const Offset(0, 2000));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Dark'));
     await tester.pumpAndSettle();

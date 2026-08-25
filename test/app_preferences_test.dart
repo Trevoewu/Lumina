@@ -31,16 +31,27 @@ void main() {
     expect(find.text('言語'), findsOneWidget);
   });
 
-  test('Japanese and system locales resolve dictionary output languages', () {
-    const japanese = AppPreferences(language: AppLanguage.japanese);
-    const chinese = AppPreferences(language: AppLanguage.zhHans);
-    const system = AppPreferences(language: AppLanguage.system);
+  test('UI and AI languages resolve independently', () {
+    const japanese = AppPreferences(
+      language: AppLanguage.japanese,
+      aiLanguage: AppLanguage.english,
+    );
+    const chinese = AppPreferences(
+      language: AppLanguage.zhHans,
+      aiLanguage: AppLanguage.japanese,
+    );
+    const system = AppPreferences(
+      language: AppLanguage.english,
+      aiLanguage: AppLanguage.system,
+    );
 
     expect(japanese.locale, const Locale('ja'));
-    expect(japanese.resolvedLanguageCode(const Locale('en')), 'ja');
-    expect(chinese.resolvedLanguageCode(const Locale('ja')), 'zh');
-    expect(system.resolvedLanguageCode(const Locale('ja')), 'ja');
-    expect(system.resolvedLanguageCode(const Locale('fr')), 'en');
+    expect(japanese.resolvedAiLanguageCode(const Locale('ja')), 'en');
+    expect(chinese.locale, const Locale('zh', 'CN'));
+    expect(chinese.resolvedAiLanguageCode(const Locale('en')), 'ja');
+    expect(system.locale, const Locale('en'));
+    expect(system.resolvedAiLanguageCode(const Locale('ja')), 'ja');
+    expect(system.resolvedAiLanguageCode(const Locale('fr')), 'en');
   });
 
   test('theme defaults to the system setting', () async {
@@ -73,21 +84,40 @@ void main() {
     addTearDown(database.close);
 
     await database.setSetting('general_language', 'zhHans');
+    await database.setSetting('ai_service_language', 'japanese');
     await database.setSetting('general_theme_mode', 'light');
     final controller = container.read(appPreferencesProvider.notifier);
     await controller.load();
 
     expect(container.read(appPreferencesProvider).language, AppLanguage.zhHans);
     expect(
+      container.read(appPreferencesProvider).aiLanguage,
+      AppLanguage.japanese,
+    );
+    expect(
+      container.read(dictionaryRepositoryProvider).outputLanguageCode,
+      'ja',
+    );
+    expect(
       container.read(appPreferencesProvider).theme,
       AppThemePreference.light,
     );
 
     await controller.setLanguage(AppLanguage.english);
+    await controller.setAiLanguage(AppLanguage.zhHans);
     await controller.setTheme(AppThemePreference.dark);
 
     expect(await database.getSetting('general_language'), 'english');
+    expect(await database.getSetting('ai_service_language'), 'zhHans');
     expect(await database.getSetting('general_theme_mode'), 'dark');
+
+    await controller.reset();
+    expect(container.read(appPreferencesProvider).language, AppLanguage.system);
+    expect(
+      container.read(appPreferencesProvider).aiLanguage,
+      AppLanguage.system,
+    );
+    expect(await database.getSetting('ai_service_language'), 'system');
   });
 
   test('reading scroll speed restores, persists, and stays in range', () async {

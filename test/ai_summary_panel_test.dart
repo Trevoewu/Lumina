@@ -9,6 +9,7 @@ import 'package:lumina/ai/ai_models.dart';
 import 'package:lumina/ai/ai_thread_repository.dart';
 import 'package:lumina/ai/transcript_tool.dart';
 import 'package:lumina/core/app_colors.dart';
+import 'package:lumina/core/app_preferences.dart';
 import 'package:lumina/core/providers.dart';
 import 'package:lumina/core/theme.dart';
 import 'package:lumina/data/database/app_database.dart';
@@ -227,6 +228,51 @@ void main() {
     expect(aiSetupRequests, 1);
   });
 
+  testWidgets('summary generation uses AI language instead of UI locale', (
+    tester,
+  ) async {
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+    await database.setSetting('general_language', 'zhHans');
+    await database.setSetting('ai_service_language', 'japanese');
+    final assistantService = _LanguageCapturingAiAssistantService(database);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          aiAssistantServiceProvider.overrideWithValue(assistantService),
+        ],
+        child: MaterialApp(
+          locale: const Locale('zh'),
+          theme: AppTheme.darkTheme(),
+          home: const Scaffold(
+            body: AiSummaryPanel(
+              scope: AiContentScope(
+                type: AiScopeType.chapter,
+                id: 'chapter-language',
+                parentId: 'book-language',
+                title: 'Chapter',
+                parentTitle: 'Book',
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(AiSummaryPanel)),
+    );
+    await container.read(appPreferencesProvider.notifier).load();
+    await tester.pump();
+
+    await tester.tap(find.byKey(const ValueKey('ai-summary-generate')));
+    await tester.pumpAndSettle();
+
+    expect(assistantService.summaryLanguageCode, 'ja');
+  });
+
   testWidgets('summary markdown follows the light theme text color', (
     tester,
   ) async {
@@ -282,5 +328,33 @@ class _CountingTranscriptTools extends AiTranscriptTools {
   Future<AiTranscriptSnapshot> load(AiContentScope scope) {
     loadCount++;
     return super.load(scope);
+  }
+}
+
+class _LanguageCapturingAiAssistantService extends AiAssistantService {
+  String? summaryLanguageCode;
+
+  _LanguageCapturingAiAssistantService(AppDatabase database)
+    : super(
+        transcriptTools: AiTranscriptTools(database),
+        threads: AiThreadRepository(database),
+        configurationLoader: () async => const AiServiceConfiguration(
+          baseUrl: 'https://example.invalid',
+          apiKey: 'test-key',
+          modelId: 'test-model',
+        ),
+      );
+
+  @override
+  Stream<AiAgentUpdate> summarize(
+    AiContentScope scope, {
+    required String languageCode,
+  }) {
+    summaryLanguageCode = languageCode;
+    return Stream<AiAgentUpdate>.fromIterable(const [
+      AiAgentUpdate.resetText(),
+      AiAgentUpdate.textDelta('Generated summary.'),
+      AiAgentUpdate.completed('response-language'),
+    ]);
   }
 }

@@ -11,10 +11,15 @@ import '../../ai/ai_models.dart';
 import '../../core/app_colors.dart';
 import '../../core/app_design_tokens.dart';
 import '../../core/app_localizations.dart';
+import '../../core/app_preferences.dart';
 import '../../core/providers.dart';
 import '../../data/database/app_database.dart';
 
 typedef AiCitationCallback = Future<void> Function(AiCitation citation);
+
+String _resolvedAiServiceLanguageCode(WidgetRef ref) => ref
+    .read(appPreferencesProvider)
+    .resolvedAiLanguageCode(WidgetsBinding.instance.platformDispatcher.locale);
 
 class AiSummaryPanel extends ConsumerStatefulWidget {
   final AiContentScope scope;
@@ -132,7 +137,7 @@ class _AiSummaryPanelState extends ConsumerState<AiSummaryPanel> {
     });
     await _subscription?.cancel();
     if (!mounted) return;
-    final languageCode = Localizations.localeOf(context).languageCode;
+    final languageCode = _resolvedAiServiceLanguageCode(ref);
     _subscription = ref
         .read(aiAssistantServiceProvider)
         .summarize(widget.scope, languageCode: languageCode)
@@ -623,7 +628,7 @@ class _AiConversationSheetState extends ConsumerState<AiConversationSheet> {
     await _chatController.insertMessage(draft);
     await _subscription?.cancel();
     if (!mounted) return;
-    final languageCode = Localizations.localeOf(context).languageCode;
+    final languageCode = _resolvedAiServiceLanguageCode(ref);
     _subscription = ref
         .read(aiAssistantServiceProvider)
         .ask(widget.scope, value, languageCode: languageCode)

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'database_provider.dart';
 
 const _languageKey = 'general_language';
+const _aiLanguageKey = 'ai_service_language';
 const _themeModeKey = 'general_theme_mode';
 const _readingScrollSpeedKey = 'reading_scroll_speed';
 const _lyricSweepEnabledKey = 'reading_lyric_sweep_enabled';
@@ -14,6 +15,7 @@ enum AppThemePreference { system, light, dark }
 
 class AppPreferences {
   final AppLanguage language;
+  final AppLanguage aiLanguage;
   final AppThemePreference theme;
 
   /// Multiplier for the synchronized text auto-scroll animation.
@@ -26,6 +28,7 @@ class AppPreferences {
 
   const AppPreferences({
     this.language = AppLanguage.system,
+    this.aiLanguage = AppLanguage.system,
     this.theme = AppThemePreference.system,
     this.readingScrollSpeed = 1.0,
     this.lyricSweepEnabled = true,
@@ -40,7 +43,23 @@ class AppPreferences {
   };
 
   String resolvedLanguageCode(Locale systemLocale) {
-    final code = locale?.languageCode ?? systemLocale.languageCode;
+    return _resolvedLanguageCode(language, systemLocale);
+  }
+
+  String resolvedAiLanguageCode(Locale systemLocale) {
+    return _resolvedLanguageCode(aiLanguage, systemLocale);
+  }
+
+  static String _resolvedLanguageCode(
+    AppLanguage preference,
+    Locale systemLocale,
+  ) {
+    final code = switch (preference) {
+      AppLanguage.system => systemLocale.languageCode,
+      AppLanguage.zhHans => 'zh',
+      AppLanguage.english => 'en',
+      AppLanguage.japanese => 'ja',
+    };
     return switch (code) {
       'zh' => 'zh',
       'ja' => 'ja',
@@ -56,6 +75,7 @@ class AppPreferences {
 
   AppPreferences copyWith({
     AppLanguage? language,
+    AppLanguage? aiLanguage,
     AppThemePreference? theme,
     double? readingScrollSpeed,
     bool? lyricSweepEnabled,
@@ -63,6 +83,7 @@ class AppPreferences {
   }) {
     return AppPreferences(
       language: language ?? this.language,
+      aiLanguage: aiLanguage ?? this.aiLanguage,
       theme: theme ?? this.theme,
       readingScrollSpeed: readingScrollSpeed ?? this.readingScrollSpeed,
       lyricSweepEnabled: lyricSweepEnabled ?? this.lyricSweepEnabled,
@@ -79,6 +100,7 @@ class AppPreferencesController extends Notifier<AppPreferences> {
     if (state.loaded) return;
     final database = ref.read(appDatabaseProvider);
     final languageValue = await database.getSetting(_languageKey);
+    final aiLanguageValue = await database.getSetting(_aiLanguageKey);
     final themeValue = await database.getSetting(_themeModeKey);
     final readingScrollSpeedValue = await database.getSetting(
       _readingScrollSpeedKey,
@@ -88,6 +110,7 @@ class AppPreferencesController extends Notifier<AppPreferences> {
     );
     state = AppPreferences(
       language: _parseLanguage(languageValue),
+      aiLanguage: _parseLanguage(aiLanguageValue),
       theme: _parseTheme(themeValue),
       readingScrollSpeed: _parseReadingScrollSpeed(readingScrollSpeedValue),
       lyricSweepEnabled: _parseBool(lyricSweepEnabledValue, defaultValue: true),
@@ -98,6 +121,13 @@ class AppPreferencesController extends Notifier<AppPreferences> {
   Future<void> setLanguage(AppLanguage language) async {
     state = state.copyWith(language: language, loaded: true);
     await ref.read(appDatabaseProvider).setSetting(_languageKey, language.name);
+  }
+
+  Future<void> setAiLanguage(AppLanguage language) async {
+    state = state.copyWith(aiLanguage: language, loaded: true);
+    await ref
+        .read(appDatabaseProvider)
+        .setSetting(_aiLanguageKey, language.name);
   }
 
   Future<void> setTheme(AppThemePreference theme) async {
@@ -125,6 +155,7 @@ class AppPreferencesController extends Notifier<AppPreferences> {
     state = defaults;
     final database = ref.read(appDatabaseProvider);
     await database.setSetting(_languageKey, defaults.language.name);
+    await database.setSetting(_aiLanguageKey, defaults.aiLanguage.name);
     await database.setSetting(_themeModeKey, defaults.theme.name);
     await database.setSetting(
       _readingScrollSpeedKey,
