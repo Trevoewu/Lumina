@@ -101,7 +101,7 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
           children: [
             Expanded(
               child: Text(
-                '${group.label} · ${context.tr('${group.entries.length} 项', '${group.entries.length} items', '${group.entries.length} 件')}',
+                '${group.label} · ${context.tr('${group.entries.length} 项', '${group.entries.length} ${group.entries.length == 1 ? 'item' : 'items'}', '${group.entries.length} 件')}',
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   fontFamily: 'monospace',
                   fontSize: 11,
@@ -256,15 +256,17 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
         title: Text(
           context.tr(
             '删除 ${targets.length} 项缓存？',
-            'Delete ${targets.length} cached items?',
+            targets.length == 1
+                ? 'Delete 1 cached item?'
+                : 'Delete ${targets.length} cached items?',
             '${targets.length} 件のキャッシュを削除しますか？',
           ),
         ),
         content: Text(
           context.tr(
-            '只删除音频与字幕缓存，书籍与订阅会保留。',
-            'Only audio and transcript caches are removed. Books and subscriptions stay.',
-            '音声と文字起こしのキャッシュのみ削除されます。書籍と購読は残ります。',
+            '只删除缓存文件，书籍与订阅会保留。删除的模型可以重新下载。',
+            'Only cached files are removed. Books and subscriptions stay, and a deleted model can be downloaded again.',
+            'キャッシュのみ削除されます。書籍と購読は残り、削除したモデルは再ダウンロードできます。',
           ),
         ),
         actions: [
@@ -322,9 +324,15 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
       'Podcastと文字起こし',
     );
     final accent = Theme.of(context).colorScheme.primary;
+    final modelLabel = context.tr('语音识别模型', 'Speech models', '音声認識モデル');
+    final inUseLabel = context.tr('使用中', 'In use', '使用中');
+    final modelColor = Theme.of(
+      context,
+    ).colorScheme.onSurface.withValues(alpha: 0.22);
     String episodeMeta(int episodes, int transcripts) => context.tr(
       '$episodes 集 · $transcripts 份字幕',
-      '$episodes episodes · $transcripts transcripts',
+      '$episodes ${episodes == 1 ? 'episode' : 'episodes'} · '
+          '$transcripts ${transcripts == 1 ? 'transcript' : 'transcripts'}',
       '$episodes エピソード · $transcripts 件の文字起こし',
     );
 
@@ -412,10 +420,31 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
       );
     }
 
+    // Downloaded Whisper weights are the largest thing on disk after audio,
+    // so they are cleared from here rather than the speech settings page.
+    final asr = ref.read(podcastTranscriptionServiceProvider);
+    final modelEntries = <_CacheEntry>[];
+    var modelBytes = 0;
+    for (final info in await asr.listModelInfos()) {
+      if (!info.installed) continue;
+      modelBytes += info.installedBytes;
+      final active = info.model == await asr.selectedModel();
+      modelEntries.add(
+        _CacheEntry(
+          key: 'asr-model:${info.option.id}',
+          title: info.option.name,
+          meta: active ? inUseLabel : '',
+          bytes: info.installedBytes,
+          art: _swatch(info.option.id),
+          clear: (_) => asr.deleteModel(model: info.model),
+        ),
+      );
+    }
+
     final bookAudio = await cache.bookAudioUsage();
     final podcastAudio = await cache.podcastAudioUsage();
     return _CachePageData(
-      totalBytes: bookAudio.bytes + podcastAudio.bytes,
+      totalBytes: bookAudio.bytes + podcastAudio.bytes + modelBytes,
       groups: [
         _CacheGroup(
           id: 'books',
@@ -430,6 +459,13 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
           bytes: podcastAudio.bytes,
           color: accent,
           entries: podcastEntries,
+        ),
+        _CacheGroup(
+          id: 'asr-models',
+          label: modelLabel,
+          bytes: modelBytes,
+          color: modelColor,
+          entries: modelEntries,
         ),
       ],
     );
@@ -518,62 +554,62 @@ class _SummaryCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
+          // A Wrap rather than a Row: the badge sits right-aligned when it
+          // fits and drops to its own line when it does not, so neither half
+          // has to ellipsize at large text scales.
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.end,
+            alignment: WrapAlignment.spaceBetween,
+            runSpacing: 8,
             children: [
-              Text(
-                parts.first,
-                style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  height: 1,
-                  letterSpacing: -1,
-                ),
-              ),
-              const SizedBox(width: 8),
-              // Both halves shrink before the row can overflow at large text
-              // scales or with a long selection badge.
-              Flexible(
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 3),
-                  child: Text(
-                    context.tr(
-                      '${parts.length > 1 ? parts[1] : 'B'} 已占用',
-                      '${parts.length > 1 ? parts[1] : 'B'} used',
-                      '${parts.length > 1 ? parts[1] : 'B'} 使用中',
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: scheme.onSurfaceVariant,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    parts.first,
+                    style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      height: 1,
+                      letterSpacing: -1,
                     ),
                   ),
-                ),
-              ),
-              const Spacer(),
-              if (selectedBytes > 0)
-                Flexible(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 11,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: scheme.primary.withValues(alpha: 0.16),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
+                  const SizedBox(width: 8),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 3),
                     child: Text(
                       context.tr(
-                        '已选 ${CacheUsage(selectedBytes).humanReadable}',
-                        'Selected ${CacheUsage(selectedBytes).humanReadable}',
-                        '選択 ${CacheUsage(selectedBytes).humanReadable}',
+                        '${parts.length > 1 ? parts[1] : 'B'} 已占用',
+                        '${parts.length > 1 ? parts[1] : 'B'} used',
+                        '${parts.length > 1 ? parts[1] : 'B'} 使用中',
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        fontFamily: 'monospace',
-                        color: scheme.onSurface,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: scheme.onSurfaceVariant,
                       ),
+                    ),
+                  ),
+                ],
+              ),
+              if (selectedBytes > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 11,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: scheme.primary.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    context.tr(
+                      '已选 ${CacheUsage(selectedBytes).humanReadable}',
+                      'Selected ${CacheUsage(selectedBytes).humanReadable}',
+                      '選択 ${CacheUsage(selectedBytes).humanReadable}',
+                    ),
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      fontFamily: 'monospace',
+                      color: scheme.onSurface,
                     ),
                   ),
                 ),

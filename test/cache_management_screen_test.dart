@@ -9,6 +9,8 @@ import 'package:lumina/presentation/screens/settings/cache_management_screen.dar
 import 'package:lumina/services/cache_manager.dart';
 import 'package:lumina/services/generation_orchestrator.dart';
 import 'package:lumina/services/manifest_store.dart';
+import 'package:whisper_ggml/whisper_ggml.dart';
+import 'package:lumina/services/podcast_transcription_service.dart';
 
 void main() {
   testWidgets('audio cache screen includes podcast audio and transcripts', (
@@ -78,12 +80,14 @@ void main() {
       ),
     );
     final cache = _FakeCacheManager(database);
+    final asr = _FakeAsrService(database);
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           appDatabaseProvider.overrideWithValue(database),
           cacheManagerProvider.overrideWithValue(cache),
+          podcastTranscriptionServiceProvider.overrideWithValue(asr),
         ],
         child: MaterialApp(
           theme: AppTheme.darkTheme(),
@@ -96,7 +100,10 @@ void main() {
     // Both shows appear as selectable rows, including the transcript-only one.
     expect(find.text('Cached Podcast'), findsOneWidget);
     expect(find.text('Transcript-only Podcast'), findsOneWidget);
-    expect(find.byKey(const ValueKey('cache-row-show:cached-show')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('cache-row-show:cached-show')),
+      findsOneWidget,
+    );
     expect(
       find.byKey(const ValueKey('cache-row-show:transcript-show')),
       findsOneWidget,
@@ -105,7 +112,10 @@ void main() {
     expect(find.textContaining('12.0 MB'), findsWidgets);
 
     // Nothing is selected, so the delete bar is inert.
-    expect(find.byKey(const ValueKey('cache-delete-selection')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('cache-delete-selection')),
+      findsOneWidget,
+    );
 
     // Selecting a show reveals the selected size and enables deletion.
     await tester.tap(find.byKey(const ValueKey('cache-row-show:cached-show')));
@@ -130,6 +140,86 @@ void main() {
     expect(find.textContaining('Delete 2'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('downloaded speech models are cleared from cache management', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+    final cache = _FakeCacheManager(database);
+    final asr = _FakeAsrService(database)
+      ..installedIds.addAll({'base', 'tiny'});
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          cacheManagerProvider.overrideWithValue(cache),
+          podcastTranscriptionServiceProvider.overrideWithValue(asr),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.darkTheme(),
+          home: const CacheManagementScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Only installed weights are listed, and the active one is marked.
+    expect(find.textContaining('Speech models'), findsWidgets);
+    expect(find.text('whisper-base'), findsOneWidget);
+    expect(find.text('whisper-tiny'), findsOneWidget);
+    expect(find.text('whisper-small'), findsNothing);
+    expect(find.text('In use'), findsOneWidget);
+
+    // Deleting one goes through the shared select-then-delete flow.
+    await tester.tap(find.byKey(const ValueKey('cache-row-asr-model:tiny')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('cache-delete-selection')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('confirm-delete-cache')));
+    await tester.pumpAndSettle();
+
+    expect(asr.installedIds, ['base']);
+    expect(tester.takeException(), isNull);
+  });
+}
+
+class _FakeAsrService extends PodcastTranscriptionService {
+  final List<String> installedIds = [];
+
+  _FakeAsrService(super.database);
+
+  @override
+  Future<WhisperModel> selectedModel() async =>
+      PodcastTranscriptionService.defaultModel;
+
+  @override
+  Future<PodcastAsrModelInfo> getModelInfo({WhisperModel? model}) async {
+    final option = asrModelOptionFor(
+      model ?? PodcastTranscriptionService.defaultModel,
+    );
+    final present = installedIds.contains(option.id);
+    return PodcastAsrModelInfo(
+      model: option.model,
+      installed: present,
+      path: '/tmp/${option.name}.bin',
+      installedBytes: present ? option.expectedBytes : 0,
+      partialBytes: 0,
+      expectedBytes: option.expectedBytes,
+    );
+  }
+
+  @override
+  Future<void> deleteModel({WhisperModel? model}) async {
+    installedIds.remove(
+      asrModelOptionFor(model ?? PodcastTranscriptionService.defaultModel).id,
+    );
+  }
 }
 
 class _FakeCacheManager extends CacheManager {

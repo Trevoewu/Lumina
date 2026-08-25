@@ -60,11 +60,6 @@ class AsrServiceScreen extends ConsumerWidget {
                 onDownload: !model.installed && !model.downloading
                     ? () => controller.installModel(model.id)
                     : null,
-                // The spec has no delete affordance, so removing a weight to
-                // reclaim space lives on long press.
-                onDelete: model.installed && !model.active
-                    ? () => controller.deleteModel(model.id)
-                    : null,
               ),
               const SizedBox(height: 10),
             ],
@@ -187,14 +182,12 @@ class _AsrModelCard extends StatelessWidget {
   final String note;
   final VoidCallback? onSelect;
   final VoidCallback? onDownload;
-  final VoidCallback? onDelete;
 
   const _AsrModelCard({
     required this.model,
     required this.note,
     required this.onSelect,
     required this.onDownload,
-    required this.onDelete,
   });
 
   @override
@@ -219,7 +212,6 @@ class _AsrModelCard extends StatelessWidget {
         child: InkWell(
           key: ValueKey('asr-model-${model.id}'),
           onTap: onSelect,
-          onLongPress: onDelete,
           child: Container(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 15),
             decoration: BoxDecoration(

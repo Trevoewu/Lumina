@@ -21,11 +21,19 @@ import 'tts_service_screen.dart';
 
 const String _appVersion = '1.0.0+1';
 
-/// Total on-disk audio cache, surfaced as the badge on the cache row.
+/// Total on-disk cache surfaced as the badge on the cache row: audio plus the
+/// downloaded speech models, so it matches the total the cache page shows.
 final settingsCacheUsageProvider = FutureProvider.autoDispose<CacheUsage>((
   ref,
 ) async {
-  return ref.watch(cacheManagerProvider).totalUsage();
+  final audio = await ref.watch(cacheManagerProvider).totalUsage();
+  final models = await ref
+      .watch(podcastTranscriptionServiceProvider)
+      .listModelInfos();
+  final modelBytes = models
+      .where((info) => info.installed)
+      .fold(0, (sum, info) => sum + info.installedBytes);
+  return CacheUsage(audio.bytes + modelBytes);
 });
 
 class SettingsScreen extends ConsumerStatefulWidget {
