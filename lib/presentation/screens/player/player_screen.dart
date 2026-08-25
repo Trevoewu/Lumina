@@ -1318,6 +1318,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (hasPlayablePrefix) {
       startedPlayback = await _startPlayback(handler, manifest);
     }
+    if (!mounted) return;
 
     final needsCaching = manifest == null || !manifest.isReady;
     var caching = _generationSubscription != null;
@@ -1325,6 +1326,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       caching = await _ensureChapterCachingStarted(
         priorityParagraphIndex: priorityParagraphIndex,
       );
+      if (!mounted) return;
     } else if (caching && priorityParagraphIndex != null) {
       ref
           .read(generationOrchestratorProvider)

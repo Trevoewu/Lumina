@@ -504,6 +504,115 @@ void main() {
     },
   );
 
+  testWidgets('autoplay does not use providers after player is disposed', (
+    tester,
+  ) async {
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final temp = Directory.systemTemp.createTempSync('lumina_autoplay_test_');
+    final manifestStore = _TestManifestStore(temp);
+    final audioHandler = _TestAudioHandler();
+    final pendingLoad = Completer<void>();
+    audioHandler.pendingLoadChapter = pendingLoad;
+    addTearDown(database.close);
+    addTearDown(audioHandler.dispose);
+    addTearDown(() {
+      if (temp.existsSync()) temp.deleteSync(recursive: true);
+    });
+
+    const book = Book(
+      id: 'autoplay-dispose-book',
+      title: 'Autoplay Dispose Book',
+      format: 'epub',
+      sourcePath: '/tmp/autoplay-dispose.epub',
+      chapterCount: 1,
+      paragraphCount: 2,
+      currentChapterId: 'autoplay-dispose-chapter',
+      currentParagraphIndex: 0,
+      playbackOffsetMs: 0,
+      importedAt: 1,
+      lastReadAt: 1,
+      isRead: false,
+      kind: 'book',
+      rightsStatus: 'user_uploaded',
+    );
+    const chapter = Chapter(
+      id: 'autoplay-dispose-chapter',
+      bookId: 'autoplay-dispose-book',
+      chapterIndex: 0,
+      title: 'Autoplay Chapter',
+      textOffset: 0,
+      isHidden: false,
+    );
+    await database.replaceBookData(
+      book: book,
+      chapterEntries: const [chapter],
+      paragraphEntries: const [
+        Paragraph(
+          id: 'autoplay-dispose-paragraph-1',
+          chapterId: 'autoplay-dispose-chapter',
+          bookId: 'autoplay-dispose-book',
+          paragraphIndex: 0,
+          content: 'The first paragraph is cached.',
+        ),
+        Paragraph(
+          id: 'autoplay-dispose-paragraph-2',
+          chapterId: 'autoplay-dispose-chapter',
+          bookId: 'autoplay-dispose-book',
+          paragraphIndex: 1,
+          content: 'The second paragraph is still pending.',
+        ),
+      ],
+    );
+    manifestStore.manifest = const ChapterManifest(
+      chapterId: 'autoplay-dispose-chapter',
+      bookId: 'autoplay-dispose-book',
+      providerId: 'test',
+      voiceId: 'test',
+      speed: 1,
+      updatedAt: 1,
+      segments: [
+        SegmentEntry(
+          paragraphId: 'autoplay-dispose-paragraph-1',
+          audioFile: 'autoplay-dispose-chapter/paragraph-1.mp3',
+          durationMs: 1000,
+          state: ParagraphAudioState.ready,
+        ),
+        SegmentEntry(
+          paragraphId: 'autoplay-dispose-paragraph-2',
+          audioFile: 'autoplay-dispose-chapter/paragraph-2.mp3',
+          durationMs: 0,
+          state: ParagraphAudioState.notGenerated,
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          manifestStoreProvider.overrideWithValue(manifestStore),
+          luminaAudioHandlerProvider.overrideWith((ref) async => audioHandler),
+        ],
+        child: const MaterialApp(
+          home: PlayerScreen(
+            book: book,
+            initialChapter: chapter,
+            autoplayOnOpen: true,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    pendingLoad.complete();
+    await tester.pump();
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('play guides an unconfigured user to cloud TTS settings', (
     tester,
   ) async {
@@ -1161,6 +1270,7 @@ class _TestAudioHandler extends BaseAudioHandler implements LuminaAudioHandler {
   int seekCalls = 0;
   Duration? soughtPosition;
   Completer<void>? pendingSeek;
+  Completer<void>? pendingLoadChapter;
   Duration? loadedInitialPosition;
   bool _disposed = false;
 
@@ -1237,6 +1347,33 @@ class _TestAudioHandler extends BaseAudioHandler implements LuminaAudioHandler {
 
   @override
   Future<void> setSpeed(double speed) async {}
+
+  @override
+  Future<void> loadChapter({
+    required ChapterManifest manifest,
+    required String audioRoot,
+    String? bookTitle,
+    String? chapterTitle,
+    String? coverPath,
+    String paragraphLabel = 'Paragraph',
+    Duration initialPosition = Duration.zero,
+  }) async {
+    await pendingLoadChapter?.future;
+    await loadChapters(
+      chapters: [
+        ChapterPlaybackSource(
+          manifest: manifest,
+          chapterTitle: chapterTitle ?? '',
+          coverPath: coverPath,
+        ),
+      ],
+      initialChapterId: manifest.chapterId,
+      audioRoot: audioRoot,
+      bookTitle: bookTitle,
+      paragraphLabel: paragraphLabel,
+      initialPosition: initialPosition,
+    );
+  }
 
   @override
   Future<void> loadChapters({
