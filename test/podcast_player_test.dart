@@ -227,6 +227,11 @@ void main() {
 
       expect(find.byType(PlayerScreen), findsOneWidget);
       expect(find.text('A Reused Player'), findsOneWidget);
+      await tester.drag(
+        find.byKey(const ValueKey('podcast-player-scroll-view')),
+        const Offset(0, -900),
+      );
+      await tester.pumpAndSettle();
       expect(find.text(episodeDescription), findsOneWidget);
       expect(
         find.byKey(const ValueKey('podcast-episode-description')),
@@ -498,6 +503,7 @@ void main() {
       matching: find.byKey(const ValueKey('player-cache-playback-progress')),
     );
     final coverControlsTop = tester.getTopLeft(coverControls).dy;
+    final coverControlsLeft = tester.getTopLeft(coverControls).dx;
     await tester.ensureVisible(transcriptToggle);
     await tester.tap(transcriptToggle);
 
@@ -518,6 +524,11 @@ void main() {
       controlsTopDuringTransition,
       closeTo(coverControlsTop, 0.1),
       reason: 'cover and transcript controls share the same bottom band',
+    );
+    expect(
+      tester.getTopLeft(routeControls).dx,
+      closeTo(coverControlsLeft, 0.1),
+      reason: 'the controls stay fixed while transcript replaces the cover',
     );
 
     await tester.pumpAndSettle();

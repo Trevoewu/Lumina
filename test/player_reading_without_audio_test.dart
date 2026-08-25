@@ -111,10 +111,7 @@ void main() {
 
     final player = tester.widget<PlayerScreen>(find.byType(PlayerScreen));
     expect(player.initialChapter?.id, chapter.id);
-    expect(
-      find.byKey(const ValueKey('ai-summary-configure-service')),
-      findsOneWidget,
-    );
+    expect(find.byType(CustomScrollView), findsOneWidget);
   });
 
   testWidgets(
@@ -309,28 +306,18 @@ void main() {
       );
       expect(find.byKey(const ValueKey('player-artwork')), findsOneWidget);
       expect(
+        find.byKey(const ValueKey('player-artwork-repaint-boundary')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('player-controls-repaint-boundary')),
+        findsOneWidget,
+      );
+      expect(
         find.byKey(const ValueKey('book-player-scroll-view')),
         findsOneWidget,
       );
       expect(find.byKey(const ValueKey('book-information-card')), findsNothing);
-      expect(find.byKey(const ValueKey('ai-summary-card')), findsOneWidget);
-      expect(
-        find.byKey(const ValueKey('transcript-pointer-card')),
-        findsOneWidget,
-      );
-      expect(
-        tester.getTopLeft(find.byKey(const ValueKey('ai-summary-card'))).dy,
-        lessThan(
-          tester
-              .getTopLeft(find.byKey(const ValueKey('transcript-pointer-card')))
-              .dy,
-        ),
-      );
-      final lightOnSurface = AppTheme.lightTheme().colorScheme.onSurface;
-      expect(
-        tester.widget<Text>(find.text('AI Summary')).style?.color,
-        lightOnSurface,
-      );
       expect(find.byIcon(Icons.more_horiz_rounded), findsOneWidget);
       expect(find.byIcon(Icons.timer_outlined), findsOneWidget);
 
@@ -375,6 +362,32 @@ void main() {
         matchesGoldenFile('goldens/player_spotify_light_390.png'),
       );
 
+      await tester.drag(
+        find.byKey(const ValueKey('book-player-scroll-view')),
+        const Offset(0, -900),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('ai-summary-card')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('transcript-pointer-card')),
+        findsOneWidget,
+      );
+      expect(
+        tester.getTopLeft(find.byKey(const ValueKey('ai-summary-card'))).dy,
+        lessThan(
+          tester
+              .getTopLeft(find.byKey(const ValueKey('transcript-pointer-card')))
+              .dy,
+        ),
+      );
+      final lightOnSurface = AppTheme.lightTheme().colorScheme.onSurface;
+      expect(
+        tester.widget<Text>(find.text('AI Summary')).style?.color,
+        lightOnSurface,
+      );
+
+      await tester.ensureVisible(find.byIcon(Icons.timer_outlined));
+      await tester.pumpAndSettle();
       await tester.tap(find.byIcon(Icons.timer_outlined));
       await tester.pumpAndSettle();
       expect(find.text('Sleep timer'), findsOneWidget);
@@ -433,10 +446,34 @@ void main() {
         matchesGoldenFile('goldens/player_spotify_light_playing_390.png'),
       );
 
-      await tester.drag(
-        find.byKey(const ValueKey('book-player-scroll-view')),
-        const Offset(0, -520),
+      expect(audioHandler.hasChapterPositionListener, isTrue);
+      final coverDrag = await tester.startGesture(
+        tester.getCenter(
+          find.byKey(const ValueKey('book-cover-focus-viewport')),
+        ),
       );
+      await coverDrag.moveBy(const Offset(0, -40));
+      await tester.pump();
+      expect(
+        audioHandler.hasChapterPositionListener,
+        isFalse,
+        reason: 'cover scrolling should suspend high-frequency progress UI',
+      );
+      await coverDrag.up();
+      await tester.pumpAndSettle();
+      expect(audioHandler.hasChapterPositionListener, isTrue);
+
+      final overscrollDrag = await tester.startGesture(
+        tester.getCenter(find.byKey(const ValueKey('book-player-scroll-view'))),
+      );
+      await overscrollDrag.moveBy(const Offset(0, -1000));
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('player-sticky-mini-player')),
+        findsNothing,
+        reason: 'elastic overscroll must not toggle the mini player',
+      );
+      await overscrollDrag.up();
       await tester.pumpAndSettle();
       expect(
         find.byKey(const ValueKey('player-sticky-mini-player')),
@@ -1257,6 +1294,8 @@ class _TestAudioHandler extends BaseAudioHandler implements LuminaAudioHandler {
   Completer<void>? pendingLoadChapter;
   Duration? loadedInitialPosition;
   bool _disposed = false;
+
+  bool get hasChapterPositionListener => _chapterPositionController.hasListener;
 
   void startLoadedChapter({
     required String bookId,

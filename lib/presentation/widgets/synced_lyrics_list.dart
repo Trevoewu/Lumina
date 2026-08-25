@@ -1628,7 +1628,13 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
       _manualScrollResume = Timer(const Duration(seconds: 3), () {
         if (!mounted) return;
         _manuallyScrolling = false;
-        _sync(widget.handler.position, forceScroll: true);
+        // A paused transcript has no moving playhead to follow. Forcing the
+        // current line back into view after every manual drag feels like a
+        // delayed scroll correction and is especially visible during the
+        // page's elastic settle. Resume following only for active playback.
+        if (widget.handler.playbackState.value.playing) {
+          _sync(widget.handler.position, forceScroll: true);
+        }
       });
     }
     return false;

@@ -3,9 +3,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
 import '../../../ai/ai_models.dart';
@@ -386,19 +386,21 @@ _PodcastTranscriptContent _buildPodcastTranscriptContent(
 }
 
 class _PlayerScreenState extends ConsumerState<PlayerScreen> {
-  static const _playerTransitionDuration = Duration(milliseconds: 480);
   static const _transcriptPageTransitionDuration = Duration(milliseconds: 720);
   static const _transcriptPageReverseDuration = Duration(milliseconds: 520);
 
-  final ScrollController _playerScrollController = ScrollController();
+  late final ScrollController _playerScrollController;
 
   /// The transcript page owns a separate controller because it is pushed over
   /// the cover route, and one controller cannot be attached to both scroll
   /// views while the Hero transition is in flight.
-  final ScrollController _transcriptScrollController = ScrollController();
+  late final ScrollController _transcriptScrollController;
+  final ValueNotifier<bool> _pageScrollActive = ValueNotifier(false);
+  bool? _pendingPageScrollActive;
+  bool _pageScrollUpdateScheduled = false;
   double _speed = 1.0;
   double _stickyMiniPlayerTriggerOffset = 360;
-  bool _showStickyMiniPlayer = false;
+  final ValueNotifier<bool> _showStickyMiniPlayer = ValueNotifier(false);
   ChapterManifest? _selectedManifest;
   GenerationProgress? _generationProgress;
   StreamSubscription<GenerationProgress>? _generationSubscription;
@@ -438,6 +440,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   void initState() {
     super.initState();
+    _playerScrollController = ScrollController(
+      onAttach: _handlePageScrollPositionAttached,
+      onDetach: _handlePageScrollPositionDetached,
+    );
+    _transcriptScrollController = ScrollController(
+      onAttach: _handlePageScrollPositionAttached,
+      onDetach: _handlePageScrollPositionDetached,
+    );
     _playerScrollController.addListener(_handlePlayerScroll);
     _podcastEpisode = widget.podcast?.episode;
     if (_isPodcast) {
@@ -476,6 +486,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       ..removeListener(_handlePlayerScroll)
       ..dispose();
     _transcriptScrollController.dispose();
+    _pageScrollActive.dispose();
+    _showStickyMiniPlayer.dispose();
     _controlStateRevision.dispose();
     _transcriptPageRevision.dispose();
     super.dispose();
@@ -483,16 +495,54 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   void _handlePlayerScroll() {
     if (!_playerScrollController.hasClients) return;
-    final offset = _playerScrollController.position.pixels;
+    final position = _playerScrollController.position;
+    final offset = position.pixels;
     // Do not swap the header while any part of the full-size player stage is
     // still visible. Besides matching the visual handoff, this avoids an
     // AnimatedSwitcher + page rebuild halfway through the user's cover swipe.
     final trigger = _stickyMiniPlayerTriggerOffset;
-    final shouldShow = _showStickyMiniPlayer
-        ? offset >= trigger - 24
-        : offset >= trigger;
-    if (shouldShow == _showStickyMiniPlayer || !mounted) return;
-    setState(() => _showStickyMiniPlayer = shouldShow);
+    final canScrollPlayerFullyOut = position.maxScrollExtent >= trigger;
+    final shouldShow = canScrollPlayerFullyOut && !position.outOfRange
+        ? _showStickyMiniPlayer.value
+              ? offset >= trigger - 24
+              : offset >= trigger
+        : false;
+    if (shouldShow == _showStickyMiniPlayer.value || !mounted) return;
+    _showStickyMiniPlayer.value = shouldShow;
+  }
+
+  void _handlePageScrollPositionAttached(ScrollPosition position) {
+    position.isScrollingNotifier.addListener(_handlePageScrollingChanged);
+  }
+
+  void _handlePageScrollPositionDetached(ScrollPosition position) {
+    position.isScrollingNotifier.removeListener(_handlePageScrollingChanged);
+    _handlePageScrollingChanged();
+  }
+
+  void _handlePageScrollingChanged() {
+    final scrolling = [
+      ..._playerScrollController.positions,
+      ..._transcriptScrollController.positions,
+    ].any((position) => position.isScrollingNotifier.value);
+    if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.idle) {
+      if (_pageScrollActive.value != scrolling) {
+        _pageScrollActive.value = scrolling;
+      }
+      return;
+    }
+    _pendingPageScrollActive = scrolling;
+    if (_pageScrollUpdateScheduled) return;
+    _pageScrollUpdateScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _pageScrollUpdateScheduled = false;
+      if (!mounted) return;
+      final pending = _pendingPageScrollActive;
+      _pendingPageScrollActive = null;
+      if (pending != null && _pageScrollActive.value != pending) {
+        _pageScrollActive.value = pending;
+      }
+    });
   }
 
   String get _transcriptArtworkHeroTag =>
@@ -507,9 +557,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }) async {
     if (!mounted || (!_isPodcast && chapterId == null)) return;
     _transcriptRouteOpen = true;
-    if (_showStickyMiniPlayer) {
-      setState(() => _showStickyMiniPlayer = false);
+    if (_showStickyMiniPlayer.value) {
+      _showStickyMiniPlayer.value = false;
     }
+    if (_pageScrollActive.value) _pageScrollActive.value = false;
 
     Widget buildTranscriptPage(BuildContext routeContext) {
       return ValueListenableBuilder<int>(
@@ -527,34 +578,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       );
     }
 
-    final PageRoute<void> route;
-    if (Theme.of(context).platform == TargetPlatform.iOS) {
-      // CupertinoPageRoute installs Flutter's native interactive edge-pop
-      // gesture. PageRouteBuilder does not, even when used on iOS.
-      route = CupertinoPageRoute<void>(
-        settings: const RouteSettings(name: 'player-transcript'),
-        builder: buildTranscriptPage,
-      );
-    } else {
-      route = PageRouteBuilder<void>(
-        settings: const RouteSettings(name: 'player-transcript'),
-        opaque: false,
-        barrierColor: Colors.transparent,
-        transitionDuration: _transcriptPageTransitionDuration,
-        reverseTransitionDuration: _transcriptPageReverseDuration,
-        pageBuilder: (routeContext, _, _) => buildTranscriptPage(routeContext),
-        transitionsBuilder: (context, animation, _, child) {
-          final fade = CurvedAnimation(
-            parent: animation,
-            curve: const Interval(0.08, 1, curve: Curves.easeOutCubic),
-          );
-          // The lower transport menu is part of the fixed player chrome. A
-          // page-level slide would move it even though the reference keeps it
-          // locked to the same baseline throughout the transition.
-          return FadeTransition(opacity: fade, child: child);
-        },
-      );
-    }
+    final route = PageRouteBuilder<void>(
+      settings: const RouteSettings(name: 'player-transcript'),
+      opaque: false,
+      barrierColor: Colors.transparent,
+      transitionDuration: _transcriptPageTransitionDuration,
+      reverseTransitionDuration: _transcriptPageReverseDuration,
+      pageBuilder: (routeContext, _, _) => buildTranscriptPage(routeContext),
+      // The route only supplies back-stack semantics. It must not animate as
+      // a page: the Hero artwork and transcript content own the transition,
+      // while both copies of the transport chrome stay on the same baseline.
+      transitionsBuilder: (context, animation, _, child) => child,
+    );
 
     _transcriptPageActivationTimer?.cancel();
     _transcriptPageActivationTimer = Timer(
@@ -639,32 +674,105 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       );
     }
 
-    return DecoratedBox(
+    int? edgeSwipePointer;
+    Offset? edgeSwipeStart;
+    Offset? edgeSwipeLatest;
+
+    return Listener(
       key: const ValueKey('player-transcript-page'),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [topTint, middleTint, pageBottom],
-          stops: const [0, 0.46, 1],
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (event) {
+        if (event.position.dx > 28 || edgeSwipePointer != null) return;
+        edgeSwipePointer = event.pointer;
+        edgeSwipeStart = event.position;
+        edgeSwipeLatest = event.position;
+      },
+      onPointerMove: (event) {
+        if (event.pointer == edgeSwipePointer) edgeSwipeLatest = event.position;
+      },
+      onPointerUp: (event) {
+        if (event.pointer != edgeSwipePointer) return;
+        final start = edgeSwipeStart;
+        final latest = edgeSwipeLatest ?? event.position;
+        edgeSwipePointer = null;
+        edgeSwipeStart = null;
+        edgeSwipeLatest = null;
+        if (start != null &&
+            latest.dx - start.dx > 72 &&
+            (latest.dx - start.dx).abs() > (latest.dy - start.dy).abs() * 1.2 &&
+            Navigator.of(routeContext).canPop()) {
+          closePage();
+        }
+      },
+      onPointerCancel: (event) {
+        if (event.pointer != edgeSwipePointer) return;
+        edgeSwipePointer = null;
+        edgeSwipeStart = null;
+        edgeSwipeLatest = null;
+      },
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [topTint, middleTint, pageBottom],
+            stops: const [0, 0.46, 1],
+          ),
         ),
-      ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          Positioned.fill(child: _buildPageAmbience()),
-          Scaffold(
-            resizeToAvoidBottomInset: false,
-            backgroundColor: Colors.transparent,
-            body: SafeArea(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final pageInset = context.appDesign.pageInsetFor(
-                    constraints.maxWidth,
-                  );
-                  if (_isPodcast) {
-                    final data = widget.podcast!;
-                    final episode = _podcastEpisode ?? data.episode;
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Positioned.fill(child: _buildPageAmbience()),
+            Scaffold(
+              resizeToAvoidBottomInset: false,
+              backgroundColor: Colors.transparent,
+              body: SafeArea(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final pageInset = context.appDesign.pageInsetFor(
+                      constraints.maxWidth,
+                    );
+                    if (_isPodcast) {
+                      final data = widget.podcast!;
+                      final episode = _podcastEpisode ?? data.episode;
+                      return _buildTranscriptModeBody(
+                        constraints: constraints,
+                        handler: handler,
+                        selectedLoaded: selectedLoaded,
+                        duration: duration,
+                        manifest: manifest,
+                        pageInset: pageInset,
+                        lyricsChapterId: episode.id,
+                        scrollKey: const ValueKey(
+                          'podcast-transcript-scroll-view',
+                        ),
+                        viewportKey: const ValueKey(
+                          'podcast-transcript-focus-viewport',
+                        ),
+                        miniHeader: _buildTranscriptMiniHeader(
+                          title: episode.title,
+                          subtitle: data.show.title,
+                          pageInset: pageInset,
+                          trailing: _buildPodcastTranscriptionActions(episode),
+                          onClosePlayer: closePlayer,
+                        ),
+                        belowFold: [
+                          _buildPodcastShownotesCard(
+                            episode: episode,
+                            handler: handler,
+                          ),
+                          SizedBox(height: context.appDesign.spaceMd),
+                          _buildAiSummaryCard(
+                            handler: handler,
+                            manifest: manifest,
+                          ),
+                        ],
+                        pageAnimation: pageAnimation,
+                        onExit: closePage,
+                      );
+                    }
+
+                    if (chapterId == null) return const SizedBox.shrink();
                     return _buildTranscriptModeBody(
                       constraints: constraints,
                       handler: handler,
@@ -672,26 +780,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       duration: duration,
                       manifest: manifest,
                       pageInset: pageInset,
-                      lyricsChapterId: episode.id,
-                      scrollKey: const ValueKey(
-                        'podcast-transcript-scroll-view',
-                      ),
+                      lyricsChapterId: chapterId,
+                      scrollKey: const ValueKey('book-transcript-scroll-view'),
                       viewportKey: const ValueKey(
-                        'podcast-transcript-focus-viewport',
+                        'book-transcript-focus-viewport',
                       ),
                       miniHeader: _buildTranscriptMiniHeader(
-                        title: episode.title,
-                        subtitle: data.show.title,
+                        title: chapterTitle,
+                        subtitle: widget.book.title,
                         pageInset: pageInset,
-                        trailing: _buildPodcastTranscriptionActions(episode),
                         onClosePlayer: closePlayer,
                       ),
                       belowFold: [
-                        _buildPodcastShownotesCard(
-                          episode: episode,
-                          handler: handler,
-                        ),
-                        SizedBox(height: context.appDesign.spaceMd),
                         _buildAiSummaryCard(
                           handler: handler,
                           manifest: manifest,
@@ -700,38 +800,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       pageAnimation: pageAnimation,
                       onExit: closePage,
                     );
-                  }
-
-                  if (chapterId == null) return const SizedBox.shrink();
-                  return _buildTranscriptModeBody(
-                    constraints: constraints,
-                    handler: handler,
-                    selectedLoaded: selectedLoaded,
-                    duration: duration,
-                    manifest: manifest,
-                    pageInset: pageInset,
-                    lyricsChapterId: chapterId,
-                    scrollKey: const ValueKey('book-transcript-scroll-view'),
-                    viewportKey: const ValueKey(
-                      'book-transcript-focus-viewport',
-                    ),
-                    miniHeader: _buildTranscriptMiniHeader(
-                      title: chapterTitle,
-                      subtitle: widget.book.title,
-                      pageInset: pageInset,
-                      onClosePlayer: closePlayer,
-                    ),
-                    belowFold: [
-                      _buildAiSummaryCard(handler: handler, manifest: manifest),
-                    ],
-                    pageAnimation: pageAnimation,
-                    onExit: closePage,
-                  );
-                },
+                  },
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -2070,14 +2144,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     required VoidCallback? onTranscriptTap,
   }) {
     final design = context.appDesign;
-    return SingleChildScrollView(
+    return CustomScrollView(
       key: const ValueKey('book-player-scroll-view'),
       controller: _playerScrollController,
       physics: const BouncingScrollPhysics(),
-      padding: EdgeInsets.only(bottom: design.spaceXxl),
-      child: Column(
-        children: [
-          SizedBox(
+      slivers: [
+        SliverToBoxAdapter(
+          child: SizedBox(
             height: viewportContentHeight,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2090,14 +2163,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Flexible(
-                          child: Center(
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: _buildTranscriptHeroArtwork(
-                                artworkSize,
-                                borderRadius: design.radiusLarge,
-                              ),
-                            ),
+                          child: LayoutBuilder(
+                            builder: (context, artworkConstraints) {
+                              return Center(
+                                child: _buildTranscriptHeroArtwork(
+                                  _pixelAlignedArtworkSize(
+                                    artworkConstraints,
+                                    artworkSize,
+                                  ),
+                                  borderRadius: design.radiusLarge,
+                                ),
+                              );
+                            },
                           ),
                         ),
                         SizedBox(
@@ -2131,23 +2208,32 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ],
             ),
           ),
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-              pageInset,
-              design.spaceLg,
-              pageInset,
-              0,
-            ),
+        ),
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(
+            pageInset,
+            design.spaceLg,
+            pageInset,
+            design.spaceXxl,
+          ),
+          sliver: SliverToBoxAdapter(
             child: Column(
               children: [
-                _buildAiSummaryCard(handler: handler, manifest: manifest),
+                RepaintBoundary(
+                  child: _buildAiSummaryCard(
+                    handler: handler,
+                    manifest: manifest,
+                  ),
+                ),
                 SizedBox(height: design.spaceMd),
-                _buildTranscriptPointerCard(onTap: onTranscriptTap),
+                RepaintBoundary(
+                  child: _buildTranscriptPointerCard(onTap: onTranscriptTap),
+                ),
               ],
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -2215,14 +2301,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }) {
     final design = context.appDesign;
 
-    return SingleChildScrollView(
+    return CustomScrollView(
       key: const ValueKey('podcast-player-scroll-view'),
       controller: _playerScrollController,
       physics: const BouncingScrollPhysics(),
-      padding: EdgeInsets.only(bottom: design.spaceXxl),
-      child: Column(
-        children: [
-          SizedBox(
+      slivers: [
+        SliverToBoxAdapter(
+          child: SizedBox(
             height: viewportContentHeight,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2235,14 +2320,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Flexible(
-                          child: Center(
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: _buildTranscriptHeroArtwork(
-                                artworkSize,
-                                borderRadius: design.radiusLarge,
-                              ),
-                            ),
+                          child: LayoutBuilder(
+                            builder: (context, artworkConstraints) {
+                              return Center(
+                                child: _buildTranscriptHeroArtwork(
+                                  _pixelAlignedArtworkSize(
+                                    artworkConstraints,
+                                    artworkSize,
+                                  ),
+                                  borderRadius: design.radiusLarge,
+                                ),
+                              );
+                            },
                           ),
                         ),
                         SizedBox(
@@ -2276,26 +2365,39 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ],
             ),
           ),
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-              pageInset,
-              design.spaceLg,
-              pageInset,
-              0,
-            ),
+        ),
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(
+            pageInset,
+            design.spaceLg,
+            pageInset,
+            design.spaceXxl,
+          ),
+          sliver: SliverToBoxAdapter(
             child: Column(
               children: [
-                _buildPodcastShownotesCard(episode: episode, handler: handler),
+                RepaintBoundary(
+                  child: _buildPodcastShownotesCard(
+                    episode: episode,
+                    handler: handler,
+                  ),
+                ),
                 SizedBox(height: design.spaceMd),
-                _buildAiSummaryCard(handler: handler, manifest: manifest),
+                RepaintBoundary(
+                  child: _buildAiSummaryCard(
+                    handler: handler,
+                    manifest: manifest,
+                  ),
+                ),
                 SizedBox(height: design.spaceMd),
-                _buildTranscriptPointerCard(onTap: onTranscriptTap),
-                SizedBox(height: design.spaceMd),
+                RepaintBoundary(
+                  child: _buildTranscriptPointerCard(onTap: onTranscriptTap),
+                ),
               ],
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -2409,14 +2511,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // vacated by the cover, and the transport controls at the bottom.
     final stageHeight = math.max(360.0, constraints.maxHeight);
 
-    return SingleChildScrollView(
+    return CustomScrollView(
       key: scrollKey,
       controller: _transcriptScrollController,
       physics: const BouncingScrollPhysics(),
-      padding: EdgeInsets.only(bottom: design.spaceXxl),
-      child: Column(
-        children: [
-          SizedBox(
+      slivers: [
+        SliverToBoxAdapter(
+          child: SizedBox(
             height: stageHeight,
             child: Stack(
               fit: StackFit.expand,
@@ -2432,24 +2533,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       child: SizedBox.expand(
                         child: KeyedSubtree(
                           key: viewportKey,
-                          // Fading the transcript's own alpha at both ends
-                          // keeps lines inside the space vacated by the
-                          // cover, rather than under the fixed chrome.
                           child: _buildTranscriptEnteringContent(
                             animation: pageAnimation,
-                            child: ShaderMask(
-                              blendMode: BlendMode.dstIn,
-                              shaderCallback: (bounds) => const LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  Colors.transparent,
-                                  Colors.black,
-                                  Colors.black,
-                                  Colors.transparent,
-                                ],
-                                stops: [0, 0.14, 0.7, 0.93],
-                              ).createShader(bounds),
+                            // A ShaderMask around a moving ListView forces an
+                            // offscreen saveLayer to be rasterized on every
+                            // drag frame. Static edge scrims preserve the fade
+                            // while the transcript remains independently
+                            // composited by the viewport.
+                            child: _buildTranscriptEdgeFade(
                               child: _buildSyncedLyrics(
                                 chapterId: lyricsChapterId,
                                 handler: handler,
@@ -2491,17 +2582,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ],
             ),
           ),
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-              pageInset,
-              design.spaceLg,
-              pageInset,
-              0,
-            ),
-            child: Column(children: belowFold),
+        ),
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(
+            pageInset,
+            design.spaceLg,
+            pageInset,
+            design.spaceXxl,
           ),
-        ],
-      ),
+          sliver: SliverToBoxAdapter(
+            child: Column(
+              children: [
+                for (final child in belowFold) RepaintBoundary(child: child),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -2524,6 +2621,50 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     return FadeTransition(
       opacity: opacity,
       child: SlideTransition(position: position, child: child),
+    );
+  }
+
+  Widget _buildTranscriptEdgeFade({required Widget child}) {
+    final theme = Theme.of(context);
+    final top = theme.colorScheme.surfaceContainer;
+    final bottom = theme.colorScheme.surface;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        RepaintBoundary(child: child),
+        IgnorePointer(
+          child: Column(
+            children: [
+              Expanded(
+                flex: 14,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [top, top.withValues(alpha: 0)],
+                    ),
+                  ),
+                ),
+              ),
+              const Spacer(flex: 56),
+              Expanded(
+                flex: 23,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [bottom.withValues(alpha: 0), bottom],
+                    ),
+                  ),
+                ),
+              ),
+              const Spacer(flex: 7),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -3080,32 +3221,36 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (_transcriptPageActive) {
       return SizedBox(height: design.toolbarHeight);
     }
-    final header = AnimatedSwitcher(
-      duration: const Duration(milliseconds: 220),
-      switchInCurve: Curves.easeOutCubic,
-      switchOutCurve: Curves.easeInCubic,
-      transitionBuilder: (child, animation) => FadeTransition(
-        opacity: animation,
-        child: SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(0, -0.08),
-            end: Offset.zero,
-          ).animate(animation),
-          child: child,
-        ),
-      ),
-      child: _showStickyMiniPlayer
-          ? handlerAsync.maybeWhen(
-              data: (handler) => _buildStickyMiniPlayerHeader(handler),
-              orElse: _buildDefaultPlayerHeader,
-            )
-          : _buildDefaultPlayerHeader(),
-    );
     // Keep the toolbar's slot fixed while its content changes. Transcript is
     // a separate route now, so its own mini header and chrome own their input.
     return SizedBox(
       height: design.toolbarHeight,
-      child: ClipRect(child: header),
+      child: ClipRect(
+        child: ValueListenableBuilder<bool>(
+          valueListenable: _showStickyMiniPlayer,
+          builder: (context, showStickyMiniPlayer, _) => AnimatedSwitcher(
+            duration: const Duration(milliseconds: 220),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            transitionBuilder: (child, animation) => FadeTransition(
+              opacity: animation,
+              child: SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0, -0.08),
+                  end: Offset.zero,
+                ).animate(animation),
+                child: child,
+              ),
+            ),
+            child: showStickyMiniPlayer
+                ? handlerAsync.maybeWhen(
+                    data: (handler) => _buildStickyMiniPlayerHeader(handler),
+                    orElse: _buildDefaultPlayerHeader,
+                  )
+                : _buildDefaultPlayerHeader(),
+          ),
+        ),
+      ),
     );
   }
 
@@ -3157,14 +3302,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final sourceTitle = _isPodcast
         ? widget.podcast!.show.title
         : widget.book.title;
-    return StreamBuilder(
+    return StreamBuilder<bool>(
       key: const ValueKey('player-sticky-mini-player'),
-      stream: handler.playbackState,
-      initialData: handler.playbackState.value,
+      stream: handler.playbackState.map((state) => state.playing).distinct(),
+      initialData: handler.playbackState.value.playing,
       builder: (context, playbackSnapshot) {
         final selectedLoaded = _isSelectedChapterLoaded(handler);
-        final playing =
-            selectedLoaded && (playbackSnapshot.data?.playing ?? false);
+        final playing = selectedLoaded && (playbackSnapshot.data ?? false);
         final duration = selectedLoaded
             ? handler.chapterDuration
             : Duration(
@@ -3308,48 +3452,49 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   Widget _buildArtwork(double size, {required double borderRadius}) {
     final compactArtwork = size <= 96;
-    return TweenAnimationBuilder<double>(
-      key: const ValueKey('player-artwork'),
-      tween: Tween<double>(end: size),
-      duration: _playerTransitionDuration,
-      curve: Curves.easeInOutCubic,
-      builder: (context, animatedSize, child) {
-        final scale = size <= 0 ? 1.0 : animatedSize / size;
-        return SizedBox.square(
-          dimension: size,
-          child: Transform.scale(
-            alignment: Alignment.topCenter,
-            scale: scale,
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(borderRadius),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.46),
-                    blurRadius: compactArtwork ? 16 : 32,
-                    spreadRadius: compactArtwork ? 0 : 2,
-                    offset: Offset(0, compactArtwork ? 6 : 16),
-                  ),
-                ],
+    return RepaintBoundary(
+      key: const ValueKey('player-artwork-repaint-boundary'),
+      child: SizedBox.square(
+        key: const ValueKey('player-artwork'),
+        dimension: size,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(borderRadius),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.46),
+                blurRadius: compactArtwork ? 16 : 32,
+                spreadRadius: compactArtwork ? 0 : 2,
+                offset: Offset(0, compactArtwork ? 6 : 16),
               ),
-              child: child,
-            ),
+            ],
           ),
-        );
-      },
-      child: _isPodcast
-          ? PodcastArtwork(
-              imageUrl:
-                  _podcastEpisode?.imageUrl ?? widget.podcast?.show.imageUrl,
-              size: size,
-              borderRadius: borderRadius,
-            )
-          : BookCover(
-              coverPath: widget.book.coverPath,
-              iconSize: size * 0.32,
-              borderRadius: borderRadius,
-            ),
+          child: _isPodcast
+              ? PodcastArtwork(
+                  imageUrl:
+                      _podcastEpisode?.imageUrl ??
+                      widget.podcast?.show.imageUrl,
+                  size: size,
+                  borderRadius: borderRadius,
+                )
+              : BookCover(
+                  coverPath: widget.book.coverPath,
+                  iconSize: size * 0.32,
+                  borderRadius: borderRadius,
+                ),
+        ),
+      ),
     );
+  }
+
+  double _pixelAlignedArtworkSize(
+    BoxConstraints constraints,
+    double targetSize,
+  ) {
+    final pixelRatio = MediaQuery.devicePixelRatioOf(context);
+    final availableSize = math.min(constraints.maxWidth, constraints.maxHeight);
+    return (math.min(targetSize, availableSize) * pixelRatio).floorToDouble() /
+        pixelRatio;
   }
 
   Widget _buildTranscriptHeroArtwork(
@@ -3613,40 +3758,52 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     required bool transcriptModeActive,
     required VoidCallback? onTranscriptToggle,
   }) {
-    return StreamBuilder(
-      stream: handler.playbackState,
-      initialData: handler.playbackState.value,
-      builder: (context, playbackSnapshot) {
-        final selectedLoaded = _isSelectedChapterLoaded(handler);
-        final playing =
-            selectedLoaded && (playbackSnapshot.data?.playing ?? false);
-        final duration = selectedLoaded
-            ? handler.chapterDuration
-            : fallbackDuration;
-        return StreamBuilder<Duration>(
-          stream: handler.chapterPositionStream,
-          initialData: handler.chapterPosition,
-          builder: (context, positionSnapshot) {
-            return ValueListenableBuilder<int>(
-              valueListenable: _controlStateRevision,
-              builder: (context, _, _) => _buildControls(
-                handler,
-                playing,
-                selectedLoaded
-                    ? positionSnapshot.data ?? Duration.zero
-                    : Duration.zero,
-                duration,
-                manifest: manifest,
-                selectedLoaded: selectedLoaded,
-                foregroundColor: foregroundColor,
-                showSecondaryActions: showSecondaryActions,
-                transcriptModeActive: transcriptModeActive,
-                onTranscriptToggle: onTranscriptToggle,
-              ),
+    return RepaintBoundary(
+      key: const ValueKey('player-controls-repaint-boundary'),
+      child: StreamBuilder<bool>(
+        stream: handler.playbackState.map((state) => state.playing).distinct(),
+        initialData: handler.playbackState.value.playing,
+        builder: (context, playbackSnapshot) {
+          final selectedLoaded = _isSelectedChapterLoaded(handler);
+          final playing = selectedLoaded && (playbackSnapshot.data ?? false);
+          final duration = selectedLoaded
+              ? handler.chapterDuration
+              : fallbackDuration;
+          Widget buildPositionControls(bool pausePositionUpdates) {
+            return StreamBuilder<Duration>(
+              stream: pausePositionUpdates
+                  ? null
+                  : handler.chapterPositionStream,
+              initialData: handler.chapterPosition,
+              builder: (context, positionSnapshot) {
+                return ValueListenableBuilder<int>(
+                  valueListenable: _controlStateRevision,
+                  builder: (context, _, _) => _buildControls(
+                    handler,
+                    playing,
+                    selectedLoaded
+                        ? positionSnapshot.data ?? Duration.zero
+                        : Duration.zero,
+                    duration,
+                    manifest: manifest,
+                    selectedLoaded: selectedLoaded,
+                    foregroundColor: foregroundColor,
+                    showSecondaryActions: showSecondaryActions,
+                    transcriptModeActive: transcriptModeActive,
+                    onTranscriptToggle: onTranscriptToggle,
+                  ),
+                );
+              },
             );
-          },
-        );
-      },
+          }
+
+          return ValueListenableBuilder<bool>(
+            valueListenable: _pageScrollActive,
+            builder: (context, scrolling, _) =>
+                buildPositionControls(scrolling),
+          );
+        },
+      ),
     );
   }
 
