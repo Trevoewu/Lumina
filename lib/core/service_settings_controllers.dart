@@ -47,6 +47,32 @@ class ProviderOptionViewData {
   });
 }
 
+/// A voice provider as the settings page draws it. Only the active card
+/// expands to its model chips and voice rows.
+class TtsProviderCardData {
+  final String id;
+  final String name;
+  final String tag;
+  final bool active;
+  final bool configured;
+  final String? selectedModelId;
+  final String? selectedVoiceId;
+  final List<TtsModel> models;
+  final List<TtsVoice> voices;
+
+  const TtsProviderCardData({
+    required this.id,
+    required this.name,
+    required this.tag,
+    required this.active,
+    required this.configured,
+    this.selectedModelId,
+    this.selectedVoiceId,
+    this.models = const [],
+    this.voices = const [],
+  });
+}
+
 class TtsSettingsState {
   final String? providerId;
   final String? providerName;
@@ -58,6 +84,8 @@ class TtsSettingsState {
   final List<ProviderOptionViewData> providers;
   final List<TtsModel> models;
   final List<TtsVoice> voices;
+  final List<TtsProviderCardData> cards;
+  final int chunkChars;
   final ServiceSettingsNotice? notice;
 
   const TtsSettingsState({
@@ -71,6 +99,8 @@ class TtsSettingsState {
     required this.providers,
     this.models = const [],
     required this.voices,
+    this.cards = const [],
+    this.chunkChars = TtsSettingsController.defaultChunkChars,
     this.notice,
   }) : assert(
          (providerId == null) == (providerName == null),
@@ -403,7 +433,21 @@ class AsrSettingsController extends AsyncNotifier<AsrSettingsState> {
 }
 
 class TtsSettingsController extends AsyncNotifier<TtsSettingsState> {
+  /// Text slice length in characters, as offered by the settings spec. The
+  /// provider's own per-call ceiling still applies on top of this.
+  static const defaultChunkChars = 500;
+  static const supportedChunkChars = <int>[200, 500, 1000, 2000];
+  static const chunkCharsSettingKey = 'tts_chunk_chars';
+
   ServiceSettingsNotice? _notice;
+
+  /// Reads the user's slice length, clamped to the offered options.
+  static Future<int> readChunkChars(drift_db.AppDatabase database) async {
+    final stored = int.tryParse(
+      await database.getSetting(chunkCharsSettingKey) ?? '',
+    );
+    return supportedChunkChars.contains(stored) ? stored! : defaultChunkChars;
+  }
 
   @override
   Future<TtsSettingsState> build() async {
@@ -441,6 +485,17 @@ class TtsSettingsController extends AsyncNotifier<TtsSettingsState> {
             ),
         ],
         voices: const [],
+        cards: [
+          for (final item in registry.all)
+            TtsProviderCardData(
+              id: item.id,
+              name: item.displayName,
+              tag: _ttsSubtitle(item.capabilities.requiresNetwork),
+              active: false,
+              configured: false,
+            ),
+        ],
+        chunkChars: await readChunkChars(ref.read(appDatabaseProvider)),
         notice: _notice,
       );
     }
@@ -498,11 +553,70 @@ class TtsSettingsController extends AsyncNotifier<TtsSettingsState> {
       ],
       models: models,
       voices: voices,
+      cards: [
+        for (final item in registry.all)
+          TtsProviderCardData(
+            id: item.id,
+            name: item.displayName,
+            tag: _ttsSubtitle(item.capabilities.requiresNetwork),
+            active: item.id == provider.id,
+            configured: (await _apiKeyFor(item))?.isNotEmpty == true,
+            selectedModelId: item.id == provider.id ? selectedModelId : null,
+            selectedVoiceId: item.id == provider.id ? selectedVoice?.id : null,
+            models: item.id == provider.id ? models : const [],
+            voices: item.id == provider.id ? voices : const [],
+          ),
+      ],
+      chunkChars: await readChunkChars(ref.read(appDatabaseProvider)),
       notice: _notice,
     );
   }
 
   Future<void> reload() async => ref.invalidateSelf();
+
+  Future<String?> _apiKeyFor(TtsProvider provider) async {
+    return switch (provider) {
+      FishAudioApiTtsProvider value => await value.apiKey,
+      MinimaxTtsProvider value => await value.apiKey,
+      _ => null,
+    };
+  }
+
+  /// The stored key for a provider, so the editor sheet can prefill it.
+  Future<String?> apiKeyFor(String providerId) async {
+    final provider = ref.read(providerRegistryProvider).get(providerId);
+    return provider == null ? null : _apiKeyFor(provider);
+  }
+
+  /// Saves a provider's key. An empty value clears it.
+  Future<void> setApiKey(String providerId, String key) async {
+    final provider = ref.read(providerRegistryProvider).get(providerId);
+    final trimmed = key.trim();
+    switch (provider) {
+      case FishAudioApiTtsProvider value:
+        trimmed.isEmpty
+            ? await value.clearApiKey()
+            : await value.setApiKey(trimmed);
+      case MinimaxTtsProvider value:
+        trimmed.isEmpty
+            ? await value.clearApiKey()
+            : await value.setApiKey(trimmed);
+      default:
+        return;
+    }
+    ref.invalidate(ttsProviderConfigurationStatusProvider);
+    ref.invalidateSelf();
+  }
+
+  Future<void> setChunkChars(int chars) async {
+    if (!supportedChunkChars.contains(chars)) {
+      throw ArgumentError.value(chars, 'chars');
+    }
+    await ref
+        .read(appDatabaseProvider)
+        .setSetting(chunkCharsSettingKey, '$chars');
+    ref.invalidateSelf();
+  }
 
   Future<void> selectProvider(String providerId) async {
     final registry = ref.read(providerRegistryProvider);

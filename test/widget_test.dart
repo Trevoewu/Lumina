@@ -10,8 +10,10 @@ import 'package:lumina/main.dart';
 import 'package:lumina/presentation/widgets/narrator_label.dart';
 import 'package:lumina/presentation/screens/settings/settings_screen.dart';
 import 'package:lumina/presentation/screens/settings/provider_editor_sheet.dart';
-import 'package:lumina/presentation/screens/settings/tts_setup_wizard_screen.dart';
-import 'package:lumina/presentation/screens/settings/voice_library_screen.dart';
+import 'package:lumina/presentation/screens/settings/tts_provider_editor_sheet.dart';
+import 'package:lumina/presentation/screens/settings/tts_service_screen.dart';
+import 'package:lumina/tts/models/tts_voice.dart';
+import 'package:lumina/tts/models/tts_model.dart';
 import 'package:lumina/presentation/widgets/mini_player.dart';
 import 'package:lumina/presentation/widgets/book_list_card.dart';
 
@@ -215,7 +217,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
-  testWidgets('TTS setup advances inside one wizard page', (tester) async {
+  testWidgets('the voice pane lists providers and edits keys in a sheet', (tester) async {
     tester.view.physicalSize = const Size(800, 650);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -258,19 +260,20 @@ void main() {
     // The trimmed settings page fits all three service rows without scrolling.
     await tester.tap(find.byKey(const ValueKey('tts-service-settings')));
     await tester.pumpAndSettle();
-    final wizardElement = tester.element(find.byType(TtsSetupWizardScreen));
-    await tester.tap(find.text('Fish Audio'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('setup-next')));
-    await tester.pumpAndSettle();
 
-    expect(find.byType(TtsSetupWizardScreen), findsOneWidget);
+    // Both built-in providers are listed as cards.
     expect(
-      tester.element(find.byType(TtsSetupWizardScreen)),
-      same(wizardElement),
+      find.byKey(const ValueKey('tts-provider-fish_audio_api')),
+      findsOneWidget,
     );
-    expect(find.byKey(const ValueKey('wizard-tts-api-key')), findsOneWidget);
-    expect(find.text('Where do I get an API key?'), findsOneWidget);
+    expect(find.byKey(const ValueKey('tts-provider-minimax')), findsOneWidget);
+
+    // Credentials live in a sheet behind the edit button.
+    await tester.tap(find.byKey(const ValueKey('tts-edit-fish_audio_api')));
+    await tester.pumpAndSettle();
+    expect(find.byType(TtsProviderEditorSheet), findsOneWidget);
+    expect(find.byKey(const ValueKey('tts-api-key')), findsOneWidget);
+    expect(find.byKey(const ValueKey('save-tts-provider')), findsOneWidget);
 
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
@@ -383,67 +386,41 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
-  testWidgets('voice library marks and updates the active voice inline', (
+  testWidgets('the active provider card selects a voice inline', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(430, 760);
+    tester.view.physicalSize = const Size(430, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    final database = AppDatabase.forTesting(NativeDatabase.memory());
-    addTearDown(database.close);
-    await database.upsertVoice(
-      const Voice(
-        id: 'voice-a',
-        name: 'Voice A',
-        providerId: 'fish_audio_api',
-        type: 'preset',
-        providerVoiceId: 'af_heart',
-        languagesJson: '["en"]',
-        sampleCount: 2,
-        createdAt: 1,
-      ),
-    );
-    await database.upsertVoice(
-      const Voice(
-        id: 'voice-b',
-        name: 'Voice B',
-        providerId: 'fish_audio_api',
-        type: 'preset',
-        providerVoiceId: 'af_bella',
-        createdAt: 2,
-      ),
-    );
-    await database.setSetting('active_voice_id', 'voice-a');
+    final controller = _VoiceCardTtsController();
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [appDatabaseProvider.overrideWithValue(database)],
-        child: const MaterialApp(home: VoiceLibraryScreen()),
+        overrides: [
+          ttsSettingsControllerProvider.overrideWith(() => controller),
+        ],
+        child: const MaterialApp(home: TtsServiceScreen()),
       ),
     );
-    await tester.pump(const Duration(milliseconds: 500));
-
-    expect(
-      find.textContaining('Current voice · preset · af_heart'),
-      findsOneWidget,
-    );
-    expect(find.text('🇺🇸'), findsOneWidget);
-    expect(find.text('2 audio samples'), findsOneWidget);
-    expect(find.text('0 audio samples'), findsOneWidget);
-    expect(find.byIcon(Icons.spatial_audio_off_outlined), findsNothing);
-    await tester.drag(find.byType(ListView), const Offset(0, -320));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Voice B'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
 
-    expect(
-      find.textContaining('Current voice · preset · af_bella'),
-      findsOneWidget,
-    );
-    expect(find.byType(SnackBar), findsNothing);
-    expect(find.text('Set as current voice'), findsOneWidget);
+    // Both voices show on the active provider card, each with a preview.
+    expect(find.byKey(const ValueKey('tts-voice-voice-a')), findsOneWidget);
+    expect(find.byKey(const ValueKey('tts-voice-voice-b')), findsOneWidget);
+    expect(find.byKey(const ValueKey('tts-preview-voice-a')), findsOneWidget);
+    // The inactive provider stays collapsed.
+    expect(find.byKey(const ValueKey('tts-voice-voice-m')), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('tts-voice-voice-b')));
+    await tester.pumpAndSettle();
+    expect(controller.selectedVoiceIds, ['voice-b']);
+
+    // Model chips belong to the active card too.
+    await tester.tap(find.text('Speech 1.6'));
+    await tester.pumpAndSettle();
+    expect(controller.selectedModelIds, ['speech-1.6']);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('settings opens the AI provider sheet and requires an API key', (
@@ -495,6 +472,80 @@ void main() {
   });
 }
 
+class _VoiceCardTtsController extends TtsSettingsController {
+  final selectedVoiceIds = <String>[];
+  final selectedModelIds = <String>[];
+
+  static const _voices = <TtsVoice>[
+    TtsVoice(
+      id: 'voice-a',
+      name: 'Voice A',
+      providerId: 'fish_audio_api',
+      type: VoiceType.preset,
+      providerVoiceId: 'af_heart',
+      languages: ['en'],
+      createdAt: 1,
+    ),
+    TtsVoice(
+      id: 'voice-b',
+      name: 'Voice B',
+      providerId: 'fish_audio_api',
+      type: VoiceType.preset,
+      providerVoiceId: 'af_bella',
+      createdAt: 2,
+    ),
+  ];
+
+  TtsSettingsState _state(String voiceId) => TtsSettingsState(
+    providerId: 'fish_audio_api',
+    providerName: 'Fish Audio API',
+    modelId: 'speech-1.5',
+    modelName: 'Speech 1.5',
+    voiceId: voiceId,
+    voiceName: voiceId,
+    readiness: ServiceReadiness.ready,
+    providers: const [],
+    voices: _voices,
+    cards: [
+      TtsProviderCardData(
+        id: 'fish_audio_api',
+        name: 'Fish Audio API',
+        tag: 'Cloud service',
+        active: true,
+        configured: true,
+        selectedModelId: 'speech-1.5',
+        selectedVoiceId: voiceId,
+        models: const [
+          TtsModel(id: 'speech-1.5', name: 'Speech 1.5', description: ''),
+          TtsModel(id: 'speech-1.6', name: 'Speech 1.6', description: ''),
+        ],
+        voices: _voices,
+      ),
+      const TtsProviderCardData(
+        id: 'minimax',
+        name: 'MiniMax',
+        tag: 'Cloud service',
+        active: false,
+        configured: false,
+      ),
+    ],
+  );
+
+  @override
+  Future<TtsSettingsState> build() async => _state('voice-a');
+
+  @override
+  Future<void> selectVoice(String voiceId) async {
+    selectedVoiceIds.add(voiceId);
+    state = AsyncData(_state(voiceId));
+  }
+
+  @override
+  Future<void> selectModel(String modelId) async {
+    selectedModelIds.add(modelId);
+  }
+}
+
 class _WidgetTtsController extends TtsSettingsController {
   @override
   Future<TtsSettingsState> build() async => const TtsSettingsState(
@@ -524,5 +575,26 @@ class _WidgetTtsController extends TtsSettingsController {
       ),
     ],
     voices: [],
+    cards: [
+      TtsProviderCardData(
+        id: 'fish_audio_api',
+        name: 'Fish Audio API',
+        tag: 'Cloud service',
+        active: true,
+        configured: false,
+      ),
+      TtsProviderCardData(
+        id: 'minimax',
+        name: 'MiniMax 语音合成',
+        tag: 'Cloud service',
+        active: false,
+        configured: false,
+      ),
+    ],
   );
+
+  /// The real lookup goes through the platform keychain, which is not
+  /// available under `flutter test`.
+  @override
+  Future<String?> apiKeyFor(String providerId) async => null;
 }

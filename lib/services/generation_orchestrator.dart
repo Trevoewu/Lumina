@@ -994,7 +994,12 @@ class GenerationOrchestrator {
     required double speed,
     required int maxRetries,
   }) async {
-    final pieces = splitTextForTts(text, provider.capabilities.maxCharsPerCall);
+    // The user's slice length, never above what the provider accepts per call.
+    final preferredChars = await _preferredChunkChars();
+    final pieces = splitTextForTts(
+      text,
+      min(preferredChars, provider.capabilities.maxCharsPerCall),
+    );
     final chunks = <TtsChunk>[];
     for (final piece in pieces) {
       job.throwIfCancelled();
@@ -1007,6 +1012,15 @@ class GenerationOrchestrator {
       job.throwIfCancelled();
     }
     return chunks;
+  }
+
+  /// Slice length chosen in settings, falling back to the default.
+  Future<int> _preferredChunkChars() async {
+    const supported = <int>[200, 500, 1000, 2000];
+    final stored = int.tryParse(
+      await database.getSetting('tts_chunk_chars') ?? '',
+    );
+    return supported.contains(stored) ? stored! : 500;
   }
 
   Future<T> _retry<T>(Future<T> Function() fn, int maxRetries) async {

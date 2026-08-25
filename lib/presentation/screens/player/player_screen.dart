@@ -1105,7 +1105,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (openSettings != true || !mounted) return false;
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => const TtsServiceScreen(returnWhenReady: true),
+        builder: (_) => const TtsServiceScreen(),
       ),
     );
     return mounted;
