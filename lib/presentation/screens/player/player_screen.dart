@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
+import 'package:hugeicons/hugeicons.dart';
 
 import '../../../ai/ai_models.dart';
 import '../../../ai/transcript_tool.dart';
@@ -966,24 +967,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         );
       }
     }
-  }
-
-  Future<void> _skipAudiobookChapter(
-    LuminaAudioHandler handler,
-    int offset,
-  ) async {
-    final chapters = await ref
-        .read(appDatabaseProvider)
-        .getChapters(widget.book.id);
-    if (!mounted || chapters.isEmpty) return;
-    final currentId = _selectedAudiobookChapter?.id ?? handler.currentChapterId;
-    final currentIndex = chapters.indexWhere(
-      (chapter) => chapter.id == currentId,
-    );
-    if (currentIndex < 0) return;
-    final targetIndex = currentIndex + offset;
-    if (targetIndex < 0 || targetIndex >= chapters.length) return;
-    await _selectAudiobookChapter(handler, chapters[targetIndex]);
   }
 
   Future<void> _resumeInterruptedAudiobookGeneration() async {
@@ -4114,24 +4097,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               onPressed: _showSpeedSheet,
             ),
             IconButton(
+              key: const ValueKey('player-backward-10-seconds'),
               tooltip: _isPodcast
                   ? context.tr('后退 15 秒', 'Back 15 seconds', '15秒戻る')
-                  : context.tr('上一章', 'Previous chapter', '前の章'),
-              icon: Icon(
-                _isPodcast
-                    ? Icons.replay_10_rounded
-                    : Icons.skip_previous_rounded,
+                  : context.tr('后退 10 秒', 'Back 10 seconds', '10秒戻る'),
+              icon: const HugeIcon(
+                icon: HugeIcons.strokeRoundedGoBackward10Sec,
                 size: 36,
               ),
               color: foregroundColor,
               disabledColor: secondaryColor.withValues(alpha: 0.42),
-              onPressed: _isPodcast
-                  ? !selectedLoaded
-                        ? null
-                        : () => handler.seek(
-                            handler.position - const Duration(seconds: 15),
-                          )
-                  : () => unawaited(_skipAudiobookChapter(handler, -1)),
+              onPressed: !selectedLoaded
+                  ? null
+                  : () => handler.seek(
+                      (_isPodcast
+                              ? handler.position
+                              : handler.chapterPosition) -
+                          Duration(seconds: _isPodcast ? 15 : 10),
+                    ),
             ),
             Tooltip(
               message: primaryTooltip,
@@ -4177,22 +4160,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ),
             ),
             IconButton(
-              tooltip: _isPodcast
-                  ? context.tr('前进 30 秒', 'Forward 30 seconds', '30秒進む')
-                  : context.tr('下一章', 'Next chapter', '次の章'),
-              icon: Icon(
-                _isPodcast ? Icons.forward_30_rounded : Icons.skip_next_rounded,
+              key: const ValueKey('player-forward-30-seconds'),
+              tooltip: context.tr('前进 30 秒', 'Forward 30 seconds', '30秒進む'),
+              icon: const HugeIcon(
+                icon: HugeIcons.strokeRoundedGoForward30Sec,
                 size: 36,
               ),
               color: foregroundColor,
               disabledColor: secondaryColor.withValues(alpha: 0.42),
-              onPressed: _isPodcast
-                  ? !selectedLoaded
-                        ? null
-                        : () => handler.seek(
-                            handler.position + const Duration(seconds: 30),
-                          )
-                  : () => unawaited(_skipAudiobookChapter(handler, 1)),
+              onPressed: !selectedLoaded
+                  ? null
+                  : () => handler.seek(
+                      (_isPodcast
+                              ? handler.position
+                              : handler.chapterPosition) +
+                          const Duration(seconds: 30),
+                    ),
             ),
             StreamBuilder<SleepTimerState>(
               stream: ref.watch(sleepTimerServiceProvider).stream,

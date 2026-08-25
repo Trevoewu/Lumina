@@ -114,7 +114,7 @@ void main() {
     expect(find.byType(CustomScrollView), findsOneWidget);
   });
 
-  testWidgets('playlist and chapter controls switch the active audiobook', (
+  testWidgets('playlist switches chapters and seek controls change progress', (
     tester,
   ) async {
     final database = AppDatabase.forTesting(NativeDatabase.memory());
@@ -264,15 +264,16 @@ void main() {
     expect(find.text('Queue Chapter Two'), findsOneWidget);
     expect(audioHandler.skippedQueueIndex, 1);
 
-    await tester.tap(find.byIcon(Icons.skip_next_rounded));
+    await audioHandler.seek(const Duration(seconds: 45));
+    await tester.tap(find.byKey(const ValueKey('player-forward-30-seconds')));
     await tester.pumpAndSettle();
-    expect(find.text('Queue Chapter Three'), findsOneWidget);
-    expect(audioHandler.skippedQueueIndex, 2);
+    expect(audioHandler.soughtPosition, const Duration(seconds: 75));
 
-    await tester.tap(find.byIcon(Icons.skip_previous_rounded));
+    await tester.tap(find.byKey(const ValueKey('player-backward-10-seconds')));
     await tester.pumpAndSettle();
     expect(find.text('Queue Chapter Two'), findsOneWidget);
     expect(audioHandler.skippedQueueIndex, 1);
+    expect(audioHandler.soughtPosition, const Duration(seconds: 65));
   });
 
   testWidgets(

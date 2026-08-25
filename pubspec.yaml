@@ -65,6 +65,7 @@ dependencies:
   flutter_markdown_plus: ^1.0.12
   flutter_chat_core: ^2.9.0
   flutter_chat_ui: ^2.11.1
+  hugeicons: ^1.1.7
 
 dev_dependencies:
   flutter_test:
