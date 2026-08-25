@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
@@ -510,13 +511,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       setState(() => _showStickyMiniPlayer = false);
     }
 
-    final route = PageRouteBuilder<void>(
-      settings: const RouteSettings(name: 'player-transcript'),
-      opaque: false,
-      barrierColor: Colors.transparent,
-      transitionDuration: _transcriptPageTransitionDuration,
-      reverseTransitionDuration: _transcriptPageReverseDuration,
-      pageBuilder: (routeContext, _, _) => ValueListenableBuilder<int>(
+    Widget buildTranscriptPage(BuildContext routeContext) {
+      return ValueListenableBuilder<int>(
         valueListenable: _transcriptPageRevision,
         builder: (context, _, _) => _buildTranscriptRoutePage(
           routeContext: routeContext,
@@ -528,18 +524,37 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           chapterId: chapterId,
           chapterTitle: chapterTitle,
         ),
-      ),
-      transitionsBuilder: (context, animation, _, child) {
-        final fade = CurvedAnimation(
-          parent: animation,
-          curve: const Interval(0.08, 1, curve: Curves.easeOutCubic),
-        );
-        // The lower transport menu is part of the fixed player chrome. A
-        // page-level slide would move it even though the reference keeps it
-        // locked to the same baseline throughout the transition.
-        return FadeTransition(opacity: fade, child: child);
-      },
-    );
+      );
+    }
+
+    final PageRoute<void> route;
+    if (Theme.of(context).platform == TargetPlatform.iOS) {
+      // CupertinoPageRoute installs Flutter's native interactive edge-pop
+      // gesture. PageRouteBuilder does not, even when used on iOS.
+      route = CupertinoPageRoute<void>(
+        settings: const RouteSettings(name: 'player-transcript'),
+        builder: buildTranscriptPage,
+      );
+    } else {
+      route = PageRouteBuilder<void>(
+        settings: const RouteSettings(name: 'player-transcript'),
+        opaque: false,
+        barrierColor: Colors.transparent,
+        transitionDuration: _transcriptPageTransitionDuration,
+        reverseTransitionDuration: _transcriptPageReverseDuration,
+        pageBuilder: (routeContext, _, _) => buildTranscriptPage(routeContext),
+        transitionsBuilder: (context, animation, _, child) {
+          final fade = CurvedAnimation(
+            parent: animation,
+            curve: const Interval(0.08, 1, curve: Curves.easeOutCubic),
+          );
+          // The lower transport menu is part of the fixed player chrome. A
+          // page-level slide would move it even though the reference keeps it
+          // locked to the same baseline throughout the transition.
+          return FadeTransition(opacity: fade, child: child);
+        },
+      );
+    }
 
     _transcriptPageActivationTimer?.cancel();
     _transcriptPageActivationTimer = Timer(
@@ -551,7 +566,29 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       },
     );
 
-    await Navigator.of(context).push(route);
+    final popped = Navigator.of(context).push(route);
+    void handleRouteAnimation(AnimationStatus status) {
+      if (!mounted || !_transcriptRouteOpen) return;
+      if (status == AnimationStatus.reverse) {
+        // An iOS edge swipe reveals the cover interactively before the route
+        // has popped. Restore it as soon as that gesture begins.
+        _transcriptPageActivationTimer?.cancel();
+        _transcriptPageActivationTimer = null;
+        if (_transcriptPageActive) {
+          setState(() => _transcriptPageActive = false);
+        }
+      } else if (status == AnimationStatus.completed && route.isCurrent) {
+        // A short swipe can be cancelled. Hide the covered parent again once
+        // the transcript settles back into place.
+        if (!_transcriptPageActive) {
+          setState(() => _transcriptPageActive = true);
+        }
+      }
+    }
+
+    route.animation?.addStatusListener(handleRouteAnimation);
+    await popped;
+    route.animation?.removeStatusListener(handleRouteAnimation);
     _transcriptRouteOpen = false;
     _transcriptPageActivationTimer?.cancel();
     _transcriptPageActivationTimer = null;

@@ -566,6 +566,67 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
+  testWidgets('iOS edge swipe returns from transcript to the cover', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final handler = _PodcastTestAudioHandler();
+    final sleepTimer = SleepTimerService();
+    final service = _FakeTranscriptionService(database, null);
+    addTearDown(database.close);
+    addTearDown(handler.dispose);
+    addTearDown(sleepTimer.dispose);
+    addTearDown(service.dispose);
+
+    await _insertPodcast(
+      database,
+      episodeId: 'episode-edge-pop',
+      transcriptStatus: 'complete',
+      transcriptJson:
+          '[{"text":"Swipe back sentence.","startMs":0,"endMs":1200}]',
+    );
+    await tester.pumpWidget(
+      _podcastApp(
+        database: database,
+        handler: handler,
+        sleepTimer: sleepTimer,
+        service: service,
+        episodeId: 'episode-edge-pop',
+        platform: TargetPlatform.iOS,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('player-transcript-toggle')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('player-transcript-page')),
+      findsOneWidget,
+    );
+
+    await tester.timedDragFrom(
+      const Offset(5, 420),
+      const Offset(360, 0),
+      const Duration(milliseconds: 500),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('player-transcript-page')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('podcast-player-scroll-view')),
+      findsOneWidget,
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump(const Duration(milliseconds: 1));
+  });
+
   testWidgets('transcript mode keeps its chrome visible while playing', (
     tester,
   ) async {
@@ -966,6 +1027,7 @@ Widget _podcastApp({
   required SleepTimerService sleepTimer,
   required _FakeTranscriptionService service,
   required String episodeId,
+  TargetPlatform? platform,
 }) {
   return ProviderScope(
     overrides: [
@@ -975,7 +1037,7 @@ Widget _podcastApp({
       podcastTranscriptionServiceProvider.overrideWithValue(service),
     ],
     child: MaterialApp(
-      theme: AppTheme.darkTheme(),
+      theme: AppTheme.darkTheme().copyWith(platform: platform),
       home: PodcastEpisodeScreen(episodeId: episodeId),
     ),
   );
