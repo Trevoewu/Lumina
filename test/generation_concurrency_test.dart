@@ -293,6 +293,77 @@ void main() {
     },
   );
 
+  test(
+    'playback generation pauses on media switch and explicit cache resumes it',
+    () async {
+      final temp = await Directory.systemTemp.createTemp(
+        'lumina_playback_preemption_',
+      );
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      final store = _TestManifestStore(temp);
+      final provider = _ConcurrentTestProvider(concurrency: 1);
+      const voice = TtsVoice(
+        id: 'voice',
+        name: 'Test voice',
+        providerId: 'parallel_test',
+        type: VoiceType.preset,
+        providerVoiceId: 'voice',
+        createdAt: 1,
+      );
+      addTearDown(() async {
+        await database.close();
+        if (await temp.exists()) await temp.delete(recursive: true);
+      });
+
+      await _insertBookFixture(database);
+      final orchestrator = GenerationOrchestrator(
+        database: database,
+        manifestStore: store,
+      );
+      final firstSegmentFinished = Completer<void>();
+      final playbackDone = Completer<void>();
+      final playbackSubscription = orchestrator
+          .generateChapter(
+            bookId: 'book',
+            chapterId: 'chapter',
+            provider: provider,
+            voice: voice,
+            intent: GenerationTaskIntent.playback,
+          )
+          .listen((progress) {
+            if (progress.generating > 0) {
+              orchestrator.activatePlaybackChapter(
+                bookId: 'book',
+                chapterId: 'another-chapter',
+              );
+            }
+            if (progress.ready == 1 && !firstSegmentFinished.isCompleted) {
+              firstSegmentFinished.complete();
+            }
+          }, onDone: playbackDone.complete);
+
+      await firstSegmentFinished.future.timeout(const Duration(seconds: 2));
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(provider.synthesisRequests, 1);
+
+      final backgroundProgress = orchestrator.generateChapter(
+        bookId: 'book',
+        chapterId: 'chapter',
+        provider: provider,
+        voice: voice,
+        intent: GenerationTaskIntent.background,
+      );
+      await backgroundProgress.drain<void>().timeout(
+        const Duration(seconds: 2),
+      );
+      await playbackDone.future.timeout(const Duration(seconds: 2));
+      await playbackSubscription.cancel();
+
+      expect(provider.synthesisRequests, 5);
+      expect(store.saved?.isReady, isTrue);
+    },
+  );
+
   test('generation pauses new work and resumes from saved segments', () async {
     final temp = await Directory.systemTemp.createTemp('lumina_pause_');
     final database = AppDatabase.forTesting(NativeDatabase.memory());

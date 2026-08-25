@@ -452,8 +452,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_loadPlaybackSpeed());
       if (_isPodcast) {
+        ref.read(generationOrchestratorProvider).pausePlaybackGenerations();
         _watchPodcastEpisode();
         _watchTranscriptionProgress();
+        unawaited(_watchPodcastPlaybackSelection());
         unawaited(_resumeInterruptedPodcastTranscription());
         unawaited(_autoplayIfRequested());
       } else {
@@ -748,6 +750,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (chapter == null) return;
 
     final database = ref.read(appDatabaseProvider);
+    ref
+        .read(generationOrchestratorProvider)
+        .activatePlaybackChapter(bookId: widget.book.id, chapterId: chapter.id);
     final manifestStore = ref.read(manifestStoreProvider);
     final paragraphsFuture = _audiobookParagraphsFuture ??= database
         .getParagraphs(chapter.id);
@@ -823,6 +828,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     ) {
       if (paragraphId == null) return;
       final chapter = widget.initialChapter;
+      final currentBookId = handler.currentBookId;
+      final currentChapterId = handler.currentChapterId;
+      if (chapter != null &&
+          currentBookId != null &&
+          currentChapterId != null &&
+          currentChapterId != chapter.id) {
+        ref
+            .read(generationOrchestratorProvider)
+            .activatePlaybackChapter(
+              bookId: currentBookId,
+              chapterId: currentChapterId,
+            );
+        return;
+      }
       final index = _selectedManifest?.segments.indexWhere(
         (segment) => segment.paragraphId == paragraphId,
       );
@@ -1036,6 +1055,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             speed: (recoveryConfig['speed'] as num?)?.toDouble() ?? 1.0,
             priorityParagraphIndex: priorityParagraphIndex,
             prefetchCount: 3,
+            intent: GenerationTaskIntent.playback,
           );
       _listenToGeneration(stream);
       return true;
@@ -1103,11 +1123,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       ),
     );
     if (openSettings != true || !mounted) return false;
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const TtsServiceScreen(),
-      ),
-    );
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const TtsServiceScreen()));
     return mounted;
   }
 
@@ -1406,6 +1424,47 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     });
   }
 
+  Future<void> _watchPodcastPlaybackSelection() async {
+    final data = widget.podcast;
+    if (data == null) return;
+    final handler = await ref.read(luminaAudioHandlerProvider.future);
+    if (!mounted || widget.podcast == null) return;
+    await _playbackParagraphSubscription?.cancel();
+    _playbackParagraphSubscription = handler.currentParagraphIdStream.listen((
+      episodeId,
+    ) async {
+      if (!mounted || episodeId == null || episodeId == _podcastEpisode?.id) {
+        return;
+      }
+      final episode = await ref
+          .read(appDatabaseProvider)
+          .getPodcastEpisode(episodeId);
+      if (!mounted || episode == null || episode.showId != data.show.id) return;
+      _bindPodcastEpisode(episode);
+    });
+  }
+
+  void _bindPodcastEpisode(drift_db.PodcastEpisode episode) {
+    final data = widget.podcast;
+    if (data == null) return;
+    final transcript = _buildPodcastTranscriptContent(data, episode);
+    final service = ref.read(podcastTranscriptionServiceProvider);
+    setState(() {
+      _podcastEpisode = episode;
+      _podcastTranscript = transcript;
+      _selectedManifest = transcript.manifest;
+      _paragraphCount = transcript.paragraphs.length;
+      _selectedPodcastLocalAudioAvailable = false;
+      _transcribingPodcast = service.activeEpisodeId == episode.id;
+      _transcriptionProgress = null;
+    });
+    _watchPodcastEpisode();
+    _watchTranscriptionProgress();
+    unawaited(_refreshPodcastLocalAudioAvailability());
+    unawaited(_resumeInterruptedPodcastTranscription());
+    _refreshTranscriptPage();
+  }
+
   Future<void> _resumeInterruptedPodcastTranscription() async {
     final episode = _podcastEpisode;
     final data = widget.podcast;
@@ -1446,6 +1505,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   Future<void> _pausePodcastTranscription() async {
     if (_pausingPodcastTranscription) return;
+    final episodeId = _podcastEpisode?.id;
     final service = ref.read(podcastTranscriptionServiceProvider);
     // Whisper finishes the chunk it is holding before it lets go, which can
     // take a while on a long chunk size. Say so instead of looking stuck.
@@ -1457,8 +1517,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       if (mounted) {
         setState(() {
           _pausingPodcastTranscription = false;
-          _transcribingPodcast = false;
-          _transcriptionProgress = null;
+          if (_podcastEpisode?.id == episodeId) {
+            _transcribingPodcast = false;
+            _transcriptionProgress = null;
+          }
         });
         _refreshTranscriptPage();
       }
@@ -1480,12 +1542,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         .isModelInstalled()) {
       return;
     }
-    if (!mounted) return;
+    if (!mounted || _podcastEpisode?.id != episode.id) return;
     final handler = await ref.read(luminaAudioHandlerProvider.future);
     if (pausePlayback && handler.playbackState.value.playing) {
       await handler.pause();
     }
-    if (!mounted) return;
+    if (!mounted || _podcastEpisode?.id != episode.id) return;
     setState(() {
       _transcribingPodcast = true;
       _transcriptionProgress = PodcastTranscriptionProgress(
@@ -1510,14 +1572,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 ? null
                 : data.show.language,
             onProgress: (progress) {
-              if (mounted) {
+              if (mounted && progress.episodeId == _podcastEpisode?.id) {
                 setState(() => _transcriptionProgress = progress);
                 _refreshTranscriptPage();
               }
             },
           );
     } catch (error) {
-      if (mounted) {
+      if (mounted && _podcastEpisode?.id == episode.id) {
         _showSnackBar(
           context.tr(
             '本地转写失败：$error',
@@ -1527,7 +1589,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         );
       }
     } finally {
-      if (mounted) {
+      if (mounted && _podcastEpisode?.id == episode.id) {
         setState(() {
           _transcribingPodcast = false;
           _transcriptionProgress = null;
@@ -2654,8 +2716,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Future<void> _openAiServiceSettings() async {
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) =>
-            const DictionaryExplanationServiceScreen(),
+        builder: (_) => const DictionaryExplanationServiceScreen(),
       ),
     );
     ref.invalidate(llmSettingsControllerProvider);
@@ -4164,15 +4225,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         throw StateError('Episode is not available in the playback queue.');
       }
       await handler.skipToQueueItem(queueIndex);
-      final transcript = _buildPodcastTranscriptContent(data, episode);
       if (!mounted) return;
-      setState(() {
-        _podcastEpisode = episode;
-        _podcastTranscript = transcript;
-        _selectedManifest = transcript.manifest;
-        _paragraphCount = transcript.paragraphs.length;
-      });
-      _watchPodcastEpisode();
+      _bindPodcastEpisode(episode);
     } catch (error, stackTrace) {
       AppLogger.error(
         'Playback',

@@ -50,6 +50,13 @@ class GenerationProgress {
   bool get isDone => total > 0 && finished >= total;
 }
 
+/// Why a chapter is being generated.
+///
+/// Playback work follows the selected media and may be paused when another
+/// chapter takes focus. Background work was explicitly requested by the user
+/// and is therefore allowed to keep running across playback switches.
+enum GenerationTaskIntent { playback, background }
+
 /// 增量生成调度器。
 ///
 /// 策略：用户打开某章时，只生成该章；不预读下一章。
@@ -78,6 +85,7 @@ class GenerationOrchestrator {
     int maxRetries = 3,
     int? priorityParagraphIndex,
     int prefetchCount = 3,
+    GenerationTaskIntent intent = GenerationTaskIntent.background,
   }) {
     if (_allBooksBlocked || _blockedBooks.contains(bookId)) {
       return Stream<GenerationProgress>.error(
@@ -85,8 +93,15 @@ class GenerationOrchestrator {
       );
     }
     final generationKey = '$bookId\u0000$chapterId';
+    if (intent == GenerationTaskIntent.playback) {
+      activatePlaybackChapter(bookId: bookId, chapterId: chapterId);
+    }
     final active = _activeChapterJobs[generationKey];
     if (active != null) {
+      if (intent == GenerationTaskIntent.background) {
+        active.allowBackground();
+      }
+      active.resume();
       if (priorityParagraphIndex != null) {
         active.prioritize(priorityParagraphIndex, lookahead: prefetchCount);
       }
@@ -97,7 +112,9 @@ class GenerationOrchestrator {
       return active.stream;
     }
 
-    final job = _ChapterGenerationJob();
+    final job = _ChapterGenerationJob(
+      backgroundAllowed: intent == GenerationTaskIntent.background,
+    );
     if (priorityParagraphIndex != null) {
       job.prioritize(priorityParagraphIndex, lookahead: prefetchCount);
     }
@@ -117,6 +134,31 @@ class GenerationOrchestrator {
       ),
     );
     return job.stream;
+  }
+
+  /// Gives a playback-driven chapter the foreground slot without starting a
+  /// new task. Explicit background jobs are never interrupted by this method.
+  void activatePlaybackChapter({
+    required String bookId,
+    required String chapterId,
+  }) {
+    final selectedKey = '$bookId\u0000$chapterId';
+    for (final entry in _activeChapterJobs.entries) {
+      final job = entry.value;
+      if (entry.key == selectedKey) {
+        job.resume();
+      } else if (!job.backgroundAllowed) {
+        job.pause();
+      }
+    }
+  }
+
+  /// Pauses all playback-driven generation, for example when Podcast playback
+  /// replaces an audiobook. Explicit cache requests continue in background.
+  void pausePlaybackGenerations() {
+    for (final job in _activeChapterJobs.values) {
+      if (!job.backgroundAllowed) job.pause();
+    }
   }
 
   /// Promotes the current listening position and a small safety buffer while
@@ -1055,8 +1097,11 @@ class _ChapterGenerationJob {
   Completer<void>? _resumeCompleter;
   final Completer<void> _done = Completer<void>();
   bool _cancelled = false;
+  bool backgroundAllowed;
   int? priorityParagraphIndex;
   int prefetchCount = 3;
+
+  _ChapterGenerationJob({required this.backgroundAllowed});
 
   Future<void> get done => _done.future;
   bool get isCancelled => _cancelled;
@@ -1086,6 +1131,11 @@ class _ChapterGenerationJob {
     final completer = _resumeCompleter;
     _resumeCompleter = null;
     if (completer != null && !completer.isCompleted) completer.complete();
+  }
+
+  void allowBackground() {
+    backgroundAllowed = true;
+    resume();
   }
 
   void cancel() {

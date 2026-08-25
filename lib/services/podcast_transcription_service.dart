@@ -419,18 +419,23 @@ class PodcastTranscriptionService {
       // during the same foreground frame. Reuse the first future instead of
       // pausing and submitting the same episode again.
       if (_active == null || _active?.episodeId == episode.id) return running;
-      return running.then(
-        (_) => transcribe(
+      // A different episode takes the foreground ASR slot. Pause the current
+      // run at its next completed chunk, then start from the new episode's
+      // durable prefix instead of waiting for the old episode to finish.
+      return pause().then((_) async {
+        // `finished` is completed from the active run's finally block. Wait
+        // for the run Future too so its ownership cleanup has settled before
+        // recursively claiming the slot for the new episode.
+        try {
+          await running;
+        } catch (_) {}
+        if (identical(_activeFuture, running)) _activeFuture = null;
+        return transcribe(
           episode,
           languageHint: languageHint,
           onProgress: onProgress,
-        ),
-        onError: (Object _, StackTrace _) => transcribe(
-          episode,
-          languageHint: languageHint,
-          onProgress: onProgress,
-        ),
-      );
+        );
+      });
     }
 
     final future = _transcribeInternal(

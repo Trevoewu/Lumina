@@ -787,6 +787,72 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
+  testWidgets('automatic episode changes rebind transcript and running state', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final handler = _PodcastTestAudioHandler();
+    final sleepTimer = SleepTimerService();
+    final service = _FakeTranscriptionService(database, 'episode-running');
+    addTearDown(database.close);
+    addTearDown(handler.dispose);
+    addTearDown(sleepTimer.dispose);
+    addTearDown(service.dispose);
+
+    await _insertPodcast(
+      database,
+      episodeId: 'episode-running',
+      transcriptStatus: 'running',
+    );
+    await _insertPodcast(
+      database,
+      episodeId: 'episode-next',
+      transcriptStatus: 'complete',
+      transcriptJson:
+          '[{"text":"Transcript from the next episode.",'
+          '"startMs":0,"endMs":1200}]',
+    );
+
+    await tester.pumpWidget(
+      _podcastApp(
+        database: database,
+        handler: handler,
+        sleepTimer: sleepTimer,
+        service: service,
+        episodeId: 'episode-running',
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    handler.selectPodcastEpisode('episode-next');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final transcriptToggle = find.byKey(
+      const ValueKey('player-transcript-toggle'),
+    );
+    await tester.ensureVisible(transcriptToggle);
+    await tester.tap(transcriptToggle);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 800));
+
+    expect(find.text('Transcript from the next episode.'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('podcast-transcript-pause')),
+      findsNothing,
+      reason: 'the ASR job still belongs to the previous episode',
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
+  });
+
   testWidgets('a paused episode offers to resume in transcript mode', (
     tester,
   ) async {
@@ -1001,6 +1067,11 @@ class _PodcastTestAudioHandler extends BaseAudioHandler
 
   void setPlaying(bool playing) {
     playbackState.add(playbackState.value.copyWith(playing: playing));
+  }
+
+  void selectPodcastEpisode(String episodeId) {
+    loadedPodcastEpisodeId = episodeId;
+    _paragraphController.add(episodeId);
   }
 
   @override
