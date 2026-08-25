@@ -8,6 +8,7 @@ import '../../../core/service_settings_controllers.dart';
 import '../../../tts/models/tts_voice.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
 import '../../widgets/design_system/settings_components.dart';
+import '../../widgets/voice_selection_card.dart';
 import 'tts_provider_editor_sheet.dart';
 import 'voice_preview_controller.dart';
 
@@ -358,7 +359,7 @@ class _TtsProviderCard extends StatelessWidget {
                     _SubLabel(label: context.tr('音色', 'Voices', '音声')),
                     const SizedBox(height: 11),
                     for (final voice in card.voices)
-                      _VoiceRow(
+                      VoiceSelectionCard(
                         voice: voice,
                         selected: card.selectedVoiceId == voice.id,
                         playing: playingVoiceId == voice.id,
@@ -388,95 +389,6 @@ class _TtsProviderCard extends StatelessWidget {
       ),
     ];
     return parts.join(' · ');
-  }
-}
-
-class _VoiceRow extends StatelessWidget {
-  final TtsVoice voice;
-  final bool selected;
-  final bool playing;
-  final VoidCallback onTap;
-  final VoidCallback onPreview;
-
-  const _VoiceRow({
-    required this.voice,
-    required this.selected,
-    required this.playing,
-    required this.onTap,
-    required this.onPreview,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return InkWell(
-      key: ValueKey('tts-voice-${voice.id}'),
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2),
-        child: Row(
-          children: [
-            SettingsRadio(selected: selected, size: 19),
-            const SizedBox(width: 11),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    voice.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  if (_note(context) case final note?) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      note,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Semantics(
-              button: true,
-              label: context.tr('试听', 'Preview', '試聴'),
-              child: Material(
-                color: scheme.onSurface.withValues(alpha: 0.06),
-                shape: const CircleBorder(),
-                clipBehavior: Clip.antiAlias,
-                child: InkWell(
-                  key: ValueKey('tts-preview-${voice.id}'),
-                  onTap: onPreview,
-                  child: SizedBox(
-                    width: 32,
-                    height: 32,
-                    child: Icon(
-                      playing ? Icons.stop_rounded : Icons.play_arrow_rounded,
-                      size: 18,
-                      color: scheme.onSurface,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String? _note(BuildContext context) {
-    final languages = voice.languages;
-    if (languages.isNotEmpty) return languages.join(' · ').toUpperCase();
-    return null;
   }
 }
 

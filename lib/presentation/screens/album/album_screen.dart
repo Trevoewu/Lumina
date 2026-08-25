@@ -10,6 +10,7 @@ import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart' as drift_db;
 import '../../../data/settings/provider_selection_repository.dart';
+import '../../../domain/models/book_language.dart';
 import '../../../domain/models/chapter_manifest.dart';
 import '../../../services/app_log_service.dart';
 import '../../../services/book_introduction_service.dart';
@@ -25,7 +26,9 @@ import '../../widgets/animated_pressable_card.dart';
 import '../../widgets/book_cover.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
 import '../../widgets/half_screen_action_sheet.dart';
+import '../../widgets/voice_selection_card.dart';
 import '../player/player_screen.dart';
+import '../settings/voice_preview_controller.dart';
 
 class AlbumScreen extends ConsumerStatefulWidget {
   final drift_db.Book book;
@@ -45,6 +48,9 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   late Future<String?> _bookIntroductionFuture;
   late Future<_AlbumChapterData> _chapterDataFuture;
   late Future<Color?> _coverSeedFuture;
+  late Future<_BookVoiceData?> _bookVoiceFuture;
+  VoicePreviewController? _voicePreview;
+  String? _selectedBookVoiceId;
   _AlbumChapterData? _chapterData;
   late String? _currentChapterId;
   late int _currentParagraphIndex;
@@ -57,6 +63,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     _bookIntroductionFuture = _loadBookIntroduction();
     _chapterDataFuture = _loadChapterData(ref.read(appDatabaseProvider));
     _coverSeedFuture = CoverPaletteService.seedForPath(widget.book.coverPath);
+    _bookVoiceFuture = _loadBookVoice();
     _currentChapterId = widget.book.currentChapterId;
     _currentParagraphIndex = widget.book.currentParagraphIndex;
     _playbackOffsetMs = widget.book.playbackOffsetMs;
@@ -64,6 +71,12 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_resumeInterruptedChapter());
     });
+  }
+
+  @override
+  void dispose() {
+    _voicePreview?.dispose();
+    super.dispose();
   }
 
   Future<void> _resumeInterruptedChapter() async {
@@ -102,6 +115,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       _chapterData = null;
       _chapterDataFuture = _loadChapterData(ref.read(appDatabaseProvider));
       _didScrollToInitialChapter = false;
+      _bookVoiceFuture = _loadBookVoice();
     }
     if (oldWidget.book.coverPath != widget.book.coverPath) {
       _coverSeedFuture = CoverPaletteService.seedForPath(widget.book.coverPath);
@@ -133,10 +147,14 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   }
 
   Future<void> _openChapter(drift_db.Chapter chapter) async {
+    final latestBook =
+        await ref.read(appDatabaseProvider).getBook(widget.book.id) ??
+        widget.book;
+    if (!mounted) return;
     await Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute<void>(
         builder: (_) => PlayerScreen(
-          book: widget.book,
+          book: latestBook,
           initialChapter: chapter,
           autoplayOnOpen: true,
         ),
@@ -148,15 +166,138 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       _loadChapterData(database),
     ]);
     if (!mounted) return;
-    final latestBook = results[0] as drift_db.Book?;
+    final refreshedBook = results[0] as drift_db.Book?;
     final chapterData = results[1] as _AlbumChapterData;
     setState(() {
-      _currentChapterId = latestBook?.currentChapterId ?? chapter.id;
-      _currentParagraphIndex = latestBook?.currentParagraphIndex ?? 0;
-      _playbackOffsetMs = latestBook?.playbackOffsetMs ?? 0;
+      _currentChapterId = refreshedBook?.currentChapterId ?? chapter.id;
+      _currentParagraphIndex = refreshedBook?.currentParagraphIndex ?? 0;
+      _playbackOffsetMs = refreshedBook?.playbackOffsetMs ?? 0;
       _chapterData = chapterData;
       _chapterDataFuture = Future<_AlbumChapterData>.value(chapterData);
     });
+  }
+
+  Future<_BookVoiceData?> _loadBookVoice() async {
+    final provider = ref.read(activeTtsProviderProvider);
+    final database = ref.read(appDatabaseProvider);
+    final savedVoices = await database.getVoicesByProvider(provider.id);
+    final presetVoices = await provider.listPresetVoices();
+    final voices = <TtsVoice>[
+      for (final voice in savedVoices) _voiceFromDb(voice),
+      for (final voice in presetVoices)
+        if (!savedVoices.any(
+          (saved) =>
+              saved.id == voice.id ||
+              saved.providerVoiceId == voice.providerVoiceId,
+        ))
+          voice,
+    ];
+    if (voices.isEmpty) return null;
+
+    final stored = _findVoice(voices, widget.book.voiceId);
+    final language =
+        widget.book.language ?? inferLanguageFromTitle(widget.book.title);
+    final languageDefault = voiceMatchingLanguage(voices, language);
+    final activeVoiceId = await ref
+        .read(providerSelectionRepositoryProvider)
+        .selectedVoice(provider.id);
+    final selected =
+        stored ??
+        languageDefault ??
+        _findVoice(voices, activeVoiceId) ??
+        voices.first;
+    _selectedBookVoiceId = selected.id;
+
+    // Materialize the language-based default so playback and whole-book
+    // caching use the same voice even before the user opens the picker.
+    if (widget.book.voiceId != selected.id) {
+      await database.updateBookMetadata(widget.book.id, voiceId: selected.id);
+    }
+    return _BookVoiceData(
+      providerName: provider.displayName,
+      voices: voices,
+      selectedVoiceId: selected.id,
+    );
+  }
+
+  TtsVoice? _findVoice(Iterable<TtsVoice> voices, String? id) {
+    if (id == null) return null;
+    return voices
+        .where((voice) => voice.id == id || voice.providerVoiceId == id)
+        .firstOrNull;
+  }
+
+  Future<void> _showBookVoicePicker(_BookVoiceData data) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) => SafeArea(
+          top: false,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.72,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
+                  child: Text(
+                    context.tr('选取使用的音色', 'Choose a voice', '使用する音声を選択'),
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                Flexible(
+                  child: ListView(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.fromLTRB(22, 0, 22, 20),
+                    children: [
+                      for (final voice in data.voices)
+                        VoiceSelectionCard(
+                          voice: voice,
+                          selected: data.selectedVoiceId == voice.id,
+                          playing: _voicePreview?.playingVoiceId == voice.id,
+                          subtitle:
+                              voiceLanguageLabel(voice) ?? data.providerName,
+                          onTap: () =>
+                              _saveBookVoice(sheetContext, data, voice),
+                          onPreview: () async {
+                            _voicePreview ??= VoicePreviewController(
+                              ref.read(providerRegistryProvider),
+                            );
+                            await _voicePreview!.toggle(voice);
+                            if (sheetContext.mounted) setSheetState(() {});
+                          },
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _saveBookVoice(
+    BuildContext sheetContext,
+    _BookVoiceData data,
+    TtsVoice voice,
+  ) async {
+    await ref
+        .read(appDatabaseProvider)
+        .updateBookMetadata(widget.book.id, voiceId: voice.id);
+    if (!mounted || !sheetContext.mounted) return;
+    setState(() {
+      _selectedBookVoiceId = voice.id;
+      _bookVoiceFuture = Future.value(data.copyWith(selectedVoiceId: voice.id));
+    });
+    Navigator.of(sheetContext).pop();
   }
 
   Future<_AlbumChapterData> _loadChapterData(
@@ -442,6 +583,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     final activeVoiceId = await selections.selectedVoice(provider.id);
     for (final preferredVoiceId in [
       chapterVoiceId,
+      _selectedBookVoiceId,
       widget.book.voiceId,
       activeVoiceId,
     ]) {
@@ -643,6 +785,13 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   }
 
   TtsVoice _voiceFromDb(drift_db.Voice voice) {
+    final languages = switch (voice.languagesJson) {
+      final json? =>
+        (jsonDecode(json) as List<dynamic>).whereType<String>().toList(
+          growable: false,
+        ),
+      null => const <String>[],
+    };
     return TtsVoice(
       id: voice.id,
       name: voice.name,
@@ -653,6 +802,9 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       description: voice.description,
       presetDescription: voice.presetDescription,
       previewUrl: voice.previewUrl,
+      coverUrl: voice.coverUrl,
+      languages: languages,
+      sampleCount: voice.sampleCount ?? 0,
       createdAt: voice.createdAt,
     );
   }
@@ -747,7 +899,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildBookHeader(chapters),
+                            _buildBookHeader(),
                             SizedBox(height: design.spaceXl),
                             _buildBookIntroduction(),
                             SizedBox(height: design.spaceXxl),
@@ -832,16 +984,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     );
   }
 
-  Widget _buildBookHeader(List<drift_db.Chapter> chapters) {
+  Widget _buildBookHeader() {
     final design = context.appDesign;
-    final currentIndex = chapters.indexWhere(
-      (chapter) => chapter.id == _currentChapterId,
-    );
-    final currentChapter = chapters.isEmpty
-        ? null
-        : currentIndex < 0
-        ? chapters.first
-        : chapters[currentIndex];
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -877,16 +1021,68 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                 style: TextStyle(color: context.appTextSecondary),
               ),
               SizedBox(height: design.spaceLg),
-              FilledButton.icon(
-                onPressed: currentChapter == null
-                    ? null
-                    : () => _openChapter(currentChapter),
-                icon: const Icon(Icons.play_arrow_rounded),
-                label: Text(
-                  _currentChapterId == null
-                      ? context.tr('开始阅读', 'Start reading', '読み始める')
-                      : context.tr('继续阅读', 'Continue reading', '読書を続ける'),
+              Text(
+                context.tr('使用的音色', 'VOICE', '使用する音声'),
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: context.appTextSecondary,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.1,
                 ),
+              ),
+              const SizedBox(height: 4),
+              FutureBuilder<_BookVoiceData?>(
+                future: _bookVoiceFuture,
+                builder: (context, snapshot) {
+                  final data = snapshot.data;
+                  if (data == null) {
+                    return SizedBox(
+                      height: 44,
+                      child: snapshot.connectionState == ConnectionState.waiting
+                          ? Align(
+                              alignment: Alignment.centerLeft,
+                              child: Icon(
+                                Icons.record_voice_over_outlined,
+                                size: 22,
+                                color: context.appTextSecondary,
+                              ),
+                            )
+                          : Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                context.tr(
+                                  '没有可用音色',
+                                  'No voice available',
+                                  '利用できる音声がありません',
+                                ),
+                                style: TextStyle(
+                                  color: context.appTextSecondary,
+                                ),
+                              ),
+                            ),
+                    );
+                  }
+                  final selected = data.voices
+                      .where((voice) => voice.id == data.selectedVoiceId)
+                      .firstOrNull;
+                  if (selected == null) return const SizedBox.shrink();
+                  return Material(
+                    key: const ValueKey('book-voice-selector'),
+                    color: Theme.of(context).colorScheme.surfaceContainer,
+                    borderRadius: BorderRadius.circular(12),
+                    clipBehavior: Clip.antiAlias,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      child: VoiceSelectionCard(
+                        voice: selected,
+                        selected: true,
+                        playing: false,
+                        subtitle:
+                            voiceLanguageLabel(selected) ?? data.providerName,
+                        onTap: () => _showBookVoicePicker(data),
+                      ),
+                    ),
+                  );
+                },
               ),
             ],
           ),
@@ -964,6 +1160,24 @@ class _AlbumChapterData {
     this.progressByChapterId =
         const <String, drift_db.ChapterPlaybackProgress>{},
   });
+}
+
+class _BookVoiceData {
+  final String providerName;
+  final List<TtsVoice> voices;
+  final String selectedVoiceId;
+
+  const _BookVoiceData({
+    required this.providerName,
+    required this.voices,
+    required this.selectedVoiceId,
+  });
+
+  _BookVoiceData copyWith({String? selectedVoiceId}) => _BookVoiceData(
+    providerName: providerName,
+    voices: voices,
+    selectedVoiceId: selectedVoiceId ?? this.selectedVoiceId,
+  );
 }
 
 class _ChapterCard extends StatelessWidget {
