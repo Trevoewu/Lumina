@@ -114,6 +114,167 @@ void main() {
     expect(find.byType(CustomScrollView), findsOneWidget);
   });
 
+  testWidgets('playlist and chapter controls switch the active audiobook', (
+    tester,
+  ) async {
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final temp = Directory.systemTemp.createTempSync('lumina_queue_test_');
+    final manifestStore = _MultiManifestStore(temp);
+    final audioHandler = _TestAudioHandler();
+    addTearDown(database.close);
+    addTearDown(audioHandler.dispose);
+    addTearDown(() {
+      if (temp.existsSync()) temp.deleteSync(recursive: true);
+    });
+
+    const book = Book(
+      id: 'queue-book',
+      title: 'Queue Book',
+      format: 'epub',
+      sourcePath: '/tmp/queue.epub',
+      chapterCount: 3,
+      paragraphCount: 3,
+      currentChapterId: 'queue-chapter-1',
+      currentParagraphIndex: 0,
+      playbackOffsetMs: 0,
+      importedAt: 1,
+      lastReadAt: 1,
+      isRead: false,
+      kind: 'book',
+      rightsStatus: 'user_uploaded',
+    );
+    const chapters = [
+      Chapter(
+        id: 'queue-chapter-1',
+        bookId: 'queue-book',
+        chapterIndex: 0,
+        title: 'Queue Chapter One',
+        textOffset: 0,
+        isHidden: false,
+      ),
+      Chapter(
+        id: 'queue-chapter-2',
+        bookId: 'queue-book',
+        chapterIndex: 1,
+        title: 'Queue Chapter Two',
+        textOffset: 0,
+        isHidden: false,
+      ),
+      Chapter(
+        id: 'queue-chapter-3',
+        bookId: 'queue-book',
+        chapterIndex: 2,
+        title: 'Queue Chapter Three',
+        textOffset: 0,
+        isHidden: false,
+      ),
+    ];
+    const paragraphs = [
+      Paragraph(
+        id: 'queue-paragraph-1',
+        chapterId: 'queue-chapter-1',
+        bookId: 'queue-book',
+        paragraphIndex: 0,
+        content: 'First chapter text.',
+      ),
+      Paragraph(
+        id: 'queue-paragraph-2',
+        chapterId: 'queue-chapter-2',
+        bookId: 'queue-book',
+        paragraphIndex: 0,
+        content: 'Second chapter text.',
+      ),
+      Paragraph(
+        id: 'queue-paragraph-3',
+        chapterId: 'queue-chapter-3',
+        bookId: 'queue-book',
+        paragraphIndex: 0,
+        content: 'Third chapter text.',
+      ),
+    ];
+    await database.replaceBookData(
+      book: book,
+      chapterEntries: chapters,
+      paragraphEntries: paragraphs,
+    );
+    for (var index = 0; index < chapters.length; index++) {
+      manifestStore.manifests[chapters[index].id] = ChapterManifest(
+        chapterId: chapters[index].id,
+        bookId: book.id,
+        providerId: 'test',
+        voiceId: 'voice',
+        speed: 1,
+        updatedAt: 1,
+        segments: [
+          SegmentEntry(
+            paragraphId: paragraphs[index].id,
+            audioFile: '${chapters[index].id}.mp3',
+            durationMs: 1000,
+            state: ParagraphAudioState.ready,
+          ),
+        ],
+      );
+    }
+    audioHandler.startLoadedChapter(
+      bookId: book.id,
+      chapterId: chapters.first.id,
+      paragraphId: paragraphs.first.id,
+    );
+    audioHandler.queue.add([
+      for (var index = 0; index < chapters.length; index++)
+        MediaItem(
+          id: paragraphs[index].id,
+          title: chapters[index].title,
+          extras: {
+            'bookId': book.id,
+            'chapterId': chapters[index].id,
+            'paragraphId': paragraphs[index].id,
+          },
+        ),
+    ]);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          manifestStoreProvider.overrideWithValue(manifestStore),
+          luminaAudioHandlerProvider.overrideWith((ref) async => audioHandler),
+        ],
+        child: MaterialApp(
+          home: PlayerScreen(book: book, initialChapter: chapters.first),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('player-playlist-toggle')));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: find.byType(BottomSheet),
+        matching: find.text('Queue Chapter One'),
+      ),
+      findsNothing,
+    );
+    expect(find.text('Queue Chapter Two'), findsOneWidget);
+    expect(find.text('Queue Chapter Three'), findsOneWidget);
+
+    await tester.tap(find.text('Queue Chapter Two'));
+    await tester.pumpAndSettle();
+    expect(find.text('Queue Chapter Two'), findsOneWidget);
+    expect(audioHandler.skippedQueueIndex, 1);
+
+    await tester.tap(find.byIcon(Icons.skip_next_rounded));
+    await tester.pumpAndSettle();
+    expect(find.text('Queue Chapter Three'), findsOneWidget);
+    expect(audioHandler.skippedQueueIndex, 2);
+
+    await tester.tap(find.byIcon(Icons.skip_previous_rounded));
+    await tester.pumpAndSettle();
+    expect(find.text('Queue Chapter Two'), findsOneWidget);
+    expect(audioHandler.skippedQueueIndex, 1);
+  });
+
   testWidgets(
     'an uncached chapter remains readable and offers streaming playback',
     (tester) async {
@@ -1256,6 +1417,17 @@ class _TestManifestStore extends ManifestStore {
   }
 }
 
+class _MultiManifestStore extends ManifestStore {
+  final Map<String, ChapterManifest> manifests = {};
+
+  _MultiManifestStore(Directory root)
+    : super(documentsDirectory: () async => root);
+
+  @override
+  Future<ChapterManifest?> load(String bookId, String chapterId) async =>
+      manifests[chapterId];
+}
+
 class _UnconfiguredCloudTtsProvider extends FishAudioApiTtsProvider {
   @override
   String get displayName => 'Cloud TTS';
@@ -1289,6 +1461,7 @@ class _TestAudioHandler extends BaseAudioHandler implements LuminaAudioHandler {
   ChapterManifest? _manifest;
   int playCalls = 0;
   int seekCalls = 0;
+  int? skippedQueueIndex;
   Duration? soughtPosition;
   Completer<void>? pendingSeek;
   Completer<void>? pendingLoadChapter;
@@ -1471,6 +1644,20 @@ class _TestAudioHandler extends BaseAudioHandler implements LuminaAudioHandler {
         playing: false,
       ),
     );
+  }
+
+  @override
+  Future<void> skipToQueueItem(int index) async {
+    skippedQueueIndex = index;
+    final item = queue.value[index];
+    final extras = item.extras!;
+    _bookId = extras['bookId'] as String?;
+    _chapterId = extras['chapterId'] as String?;
+    _paragraphId = extras['paragraphId'] as String?;
+    _manifest = null;
+    _position = Duration.zero;
+    mediaItem.add(item);
+    _paragraphController.add(_paragraphId);
   }
 
   @override

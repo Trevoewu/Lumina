@@ -422,6 +422,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   StreamSubscription<drift_db.PodcastEpisode?>? _podcastEpisodeSubscription;
   StreamSubscription<PodcastTranscriptionProgress>? _transcriptionSubscription;
   StreamSubscription<String?>? _playbackParagraphSubscription;
+  StreamSubscription? _audiobookMediaItemSubscription;
   bool _transcribingPodcast = false;
   bool _pausingPodcastTranscription = false;
   PodcastTranscriptionProgress? _transcriptionProgress;
@@ -434,8 +435,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Timer? _transcriptPageActivationTimer;
   String? _ambientArtworkUrl;
   Future<Color?>? _ambientSeed;
+  drift_db.Chapter? _activeAudiobookChapter;
+  int _audiobookSelectionRevision = 0;
 
   bool get _isPodcast => widget.podcast != null;
+  drift_db.Chapter? get _selectedAudiobookChapter =>
+      _activeAudiobookChapter ?? widget.initialChapter;
 
   @override
   void initState() {
@@ -450,6 +455,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
     _playerScrollController.addListener(_handlePlayerScroll);
     _podcastEpisode = widget.podcast?.episode;
+    _activeAudiobookChapter = widget.initialChapter;
     if (_isPodcast) {
       final transcript = _buildPodcastTranscriptContent(
         widget.podcast!,
@@ -481,6 +487,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     unawaited(_podcastEpisodeSubscription?.cancel());
     unawaited(_transcriptionSubscription?.cancel());
     unawaited(_playbackParagraphSubscription?.cancel());
+    unawaited(_audiobookMediaItemSubscription?.cancel());
     _transcriptPageActivationTimer?.cancel();
     _playerScrollController
       ..removeListener(_handlePlayerScroll)
@@ -852,8 +859,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Future<void> _loadSelectedChapterState() async {
-    final chapter = widget.initialChapter;
+    final chapter = _selectedAudiobookChapter;
     if (chapter == null) return;
+    final selectionRevision = _audiobookSelectionRevision;
 
     final database = ref.read(appDatabaseProvider);
     ref
@@ -867,7 +875,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       paragraphsFuture,
       database.getChapterPlaybackProgress(chapter.id),
     ]);
-    if (!mounted) return;
+    if (!mounted ||
+        selectionRevision != _audiobookSelectionRevision ||
+        _selectedAudiobookChapter?.id != chapter.id) {
+      return;
+    }
     final storedManifest = results[0] as ChapterManifest?;
     final paragraphs = results[1] as List<drift_db.Paragraph>;
     final manifest = storedManifest == null
@@ -893,8 +905,89 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     await _autoplayIfRequested();
   }
 
+  Future<void> _selectAudiobookChapter(
+    LuminaAudioHandler handler,
+    drift_db.Chapter chapter,
+  ) async {
+    if (_isPodcast) return;
+    final alreadySelected = _selectedAudiobookChapter?.id == chapter.id;
+    final queueIndex = handler.queue.value.indexWhere(
+      (item) => item.extras?['chapterId'] == chapter.id,
+    );
+    if (alreadySelected && queueIndex >= 0) {
+      await handler.skipToQueueItem(queueIndex);
+      await handler.play();
+      return;
+    }
+
+    _audiobookSelectionRevision++;
+    await _generationSubscription?.cancel();
+    _generationSubscription = null;
+    _audiobookParagraphsFuture = null;
+    _setStreamPlaybackRequested(false);
+    _setStartingPlayback(false);
+    if (!mounted) return;
+    setState(() {
+      _activeAudiobookChapter = chapter;
+      _selectedManifest = null;
+      _generationProgress = null;
+      _paragraphCount = 0;
+      _audiobookParagraphs = const [];
+      _chapterPlaybackProgress = null;
+    });
+    _refreshTranscriptPage();
+
+    try {
+      await _loadSelectedChapterState();
+      if (!mounted || _selectedAudiobookChapter?.id != chapter.id) return;
+      final refreshedQueueIndex = handler.queue.value.indexWhere(
+        (item) => item.extras?['chapterId'] == chapter.id,
+      );
+      if (refreshedQueueIndex >= 0) {
+        await handler.skipToQueueItem(refreshedQueueIndex);
+        await handler.play();
+      } else {
+        await _handlePrimaryAudioAction(handler, false);
+      }
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        'Playback',
+        '播放列表切换章节失败 chapter=${chapter.id}',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      if (mounted) {
+        _showSnackBar(
+          context.tr(
+            '无法切换到该章节：$error',
+            'Unable to play chapter: $error',
+            '章を再生できません：$error',
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _skipAudiobookChapter(
+    LuminaAudioHandler handler,
+    int offset,
+  ) async {
+    final chapters = await ref
+        .read(appDatabaseProvider)
+        .getChapters(widget.book.id);
+    if (!mounted || chapters.isEmpty) return;
+    final currentId = _selectedAudiobookChapter?.id ?? handler.currentChapterId;
+    final currentIndex = chapters.indexWhere(
+      (chapter) => chapter.id == currentId,
+    );
+    if (currentIndex < 0) return;
+    final targetIndex = currentIndex + offset;
+    if (targetIndex < 0 || targetIndex >= chapters.length) return;
+    await _selectAudiobookChapter(handler, chapters[targetIndex]);
+  }
+
   Future<void> _resumeInterruptedAudiobookGeneration() async {
-    final chapter = widget.initialChapter;
+    final chapter = _selectedAudiobookChapter;
     if (chapter == null) return;
     final task = await ref
         .read(appDatabaseProvider)
@@ -928,12 +1021,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (_isPodcast) return;
     final handler = await ref.read(luminaAudioHandlerProvider.future);
     if (!mounted || _isPodcast) return;
+    await _audiobookMediaItemSubscription?.cancel();
+    _audiobookMediaItemSubscription = handler.mediaItem.listen((item) {
+      final extras = item?.extras;
+      if (extras?['bookId'] != widget.book.id) return;
+      final chapterId = extras?['chapterId'] as String?;
+      if (chapterId == null || chapterId == _selectedAudiobookChapter?.id) {
+        return;
+      }
+      unawaited(_bindAudiobookChapterFromPlayback(chapterId));
+    });
     await _playbackParagraphSubscription?.cancel();
     _playbackParagraphSubscription = handler.currentParagraphIdStream.listen((
       paragraphId,
     ) {
       if (paragraphId == null) return;
-      final chapter = widget.initialChapter;
+      final chapter = _selectedAudiobookChapter;
       final currentBookId = handler.currentBookId;
       final currentChapterId = handler.currentChapterId;
       if (chapter != null &&
@@ -961,6 +1064,31 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             lookahead: 3,
           );
     });
+  }
+
+  Future<void> _bindAudiobookChapterFromPlayback(String chapterId) async {
+    final chapter = await ref.read(appDatabaseProvider).getChapter(chapterId);
+    if (!mounted ||
+        chapter == null ||
+        chapter.bookId != widget.book.id ||
+        chapter.id == _selectedAudiobookChapter?.id) {
+      return;
+    }
+    _audiobookSelectionRevision++;
+    await _generationSubscription?.cancel();
+    _generationSubscription = null;
+    _audiobookParagraphsFuture = null;
+    if (!mounted) return;
+    setState(() {
+      _activeAudiobookChapter = chapter;
+      _selectedManifest = null;
+      _generationProgress = null;
+      _paragraphCount = 0;
+      _audiobookParagraphs = const [];
+      _chapterPlaybackProgress = null;
+    });
+    _refreshTranscriptPage();
+    await _loadSelectedChapterState();
   }
 
   Future<void> _autoplayIfRequested() async {
@@ -996,7 +1124,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         AppLogger.error(
           'Generation',
           '阅读页缓存章节失败 book=${widget.book.id} '
-              'chapter=${widget.initialChapter?.id}',
+              'chapter=${_selectedAudiobookChapter?.id}',
           error: error,
           stackTrace: stackTrace,
         );
@@ -1026,12 +1154,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // are already queued in `_generationUpdate`. They may run after this screen
     // has been disposed, when reading from `ref` is no longer safe.
     if (!mounted) return;
-    final chapter = widget.initialChapter;
-    if (chapter == null) return;
+    final chapter = _selectedAudiobookChapter;
+    if (chapter == null || progress.chapterId != chapter.id) return;
     final storedManifest = await ref
         .read(manifestStoreProvider)
         .load(widget.book.id, chapter.id);
-    if (!mounted) return;
+    if (!mounted || _selectedAudiobookChapter?.id != chapter.id) return;
     final manifest = storedManifest == null
         ? null
         : validateAudiobookManifest(storedManifest, _audiobookParagraphs);
@@ -1050,7 +1178,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // `onDone` is chained behind any pending progress update and can therefore
     // also start after the widget has been removed.
     if (!mounted) return;
-    final chapter = widget.initialChapter;
+    final chapter = _selectedAudiobookChapter;
     final storedManifest = chapter == null
         ? null
         : await ref
@@ -1072,7 +1200,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     drift_db.GenerationTask? recoveryTask,
     bool silent = false,
   }) async {
-    final chapter = widget.initialChapter;
+    final chapter = _selectedAudiobookChapter;
     if (chapter == null) return false;
     if (_generationSubscription != null) {
       if (priorityParagraphIndex != null) {
@@ -1328,7 +1456,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       return handler.mediaItem.valueOrNull?.extras?['audioUrl'] ==
           File(localPath).uri.toString();
     }
-    final chapter = widget.initialChapter;
+    final chapter = _selectedAudiobookChapter;
     if (chapter == null) return handler.currentBookId == widget.book.id;
     return handler.currentBookId == widget.book.id &&
         handler.currentChapterId == chapter.id;
@@ -1346,7 +1474,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   ChapterManifest? _effectiveManifest(LuminaAudioHandler handler) {
     if (_isPodcast) return _selectedManifest;
-    return widget.initialChapter == null
+    return _selectedAudiobookChapter == null
         ? handler.currentManifest
         : _selectedManifest;
   }
@@ -1420,7 +1548,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       return;
     }
 
-    final chapter = widget.initialChapter;
+    final chapter = _selectedAudiobookChapter;
     if (chapter == null) {
       await handler.play();
       return;
@@ -1798,7 +1926,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       manifest: playable,
       audioRoot: audioRoot.path,
       bookTitle: widget.book.title,
-      chapterTitle: widget.initialChapter?.title ?? '',
+      chapterTitle: _selectedAudiobookChapter?.title ?? '',
       paragraphLabel: paragraphLabel,
     );
     if (extended && _streamPlaybackRequested) {
@@ -1823,7 +1951,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     LuminaAudioHandler handler, {
     ChapterManifest? manifest,
   }) async {
-    final chapter = widget.initialChapter;
+    final chapter = _selectedAudiobookChapter;
     if (chapter == null) {
       await handler.play();
       return true;
@@ -2037,10 +2165,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                         manifest?.totalDurationMs ?? 0,
                                   );
                             final currentChapterId =
-                                widget.initialChapter?.id ??
+                                _selectedAudiobookChapter?.id ??
                                 currentItem?.extras?['chapterId'] as String?;
                             final chapterTitle =
-                                widget.initialChapter?.title ??
+                                _selectedAudiobookChapter?.title ??
                                 currentItem?.title ??
                                 context.tr('未知章节', 'Unknown Chapter', '不明な章');
 
@@ -2898,7 +3026,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         llmState.asData?.value.readiness == ServiceReadiness.ready;
     final podcast = widget.podcast;
     final episode = _podcastEpisode ?? podcast?.episode;
-    final chapter = widget.initialChapter;
+    final chapter = _selectedAudiobookChapter;
     final activeChapterId =
         chapter?.id ??
         handler.currentChapterId ??
@@ -3068,7 +3196,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
 
     final paragraphIndex = citation.paragraphIndex;
-    final chapter = widget.initialChapter;
+    final chapter = _selectedAudiobookChapter;
     if (paragraphIndex == null || chapter == null || manifest == null) return;
     final paragraphs = await ref
         .read(appDatabaseProvider)
@@ -3296,7 +3424,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final design = context.appDesign;
     final chapterTitle =
         _podcastEpisode?.title ??
-        widget.initialChapter?.title ??
+        _selectedAudiobookChapter?.title ??
         handler.mediaItem.valueOrNull?.title ??
         widget.book.title;
     final sourceTitle = _isPodcast
@@ -3738,7 +3866,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           expanded: expanded,
           focusMode: focusMode,
           bookTitle: widget.book.title,
-          chapterTitle: widget.initialChapter?.title,
+          chapterTitle: _selectedAudiobookChapter?.title,
           bookId: widget.book.id,
           chapterId: chapterId,
           virtualized: true,
@@ -3988,7 +4116,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             IconButton(
               tooltip: _isPodcast
                   ? context.tr('后退 15 秒', 'Back 15 seconds', '15秒戻る')
-                  : context.tr('上一段', 'Previous', '前へ'),
+                  : context.tr('上一章', 'Previous chapter', '前の章'),
               icon: Icon(
                 _isPodcast
                     ? Icons.replay_10_rounded
@@ -3997,13 +4125,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ),
               color: foregroundColor,
               disabledColor: secondaryColor.withValues(alpha: 0.42),
-              onPressed: !selectedLoaded
-                  ? null
-                  : _isPodcast
-                  ? () => handler.seek(
-                      handler.position - const Duration(seconds: 15),
-                    )
-                  : handler.skipToPrevious,
+              onPressed: _isPodcast
+                  ? !selectedLoaded
+                        ? null
+                        : () => handler.seek(
+                            handler.position - const Duration(seconds: 15),
+                          )
+                  : () => unawaited(_skipAudiobookChapter(handler, -1)),
             ),
             Tooltip(
               message: primaryTooltip,
@@ -4051,20 +4179,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             IconButton(
               tooltip: _isPodcast
                   ? context.tr('前进 30 秒', 'Forward 30 seconds', '30秒進む')
-                  : context.tr('下一段', 'Next', '次へ'),
+                  : context.tr('下一章', 'Next chapter', '次の章'),
               icon: Icon(
                 _isPodcast ? Icons.forward_30_rounded : Icons.skip_next_rounded,
                 size: 36,
               ),
               color: foregroundColor,
               disabledColor: secondaryColor.withValues(alpha: 0.42),
-              onPressed: !selectedLoaded
-                  ? null
-                  : _isPodcast
-                  ? () => handler.seek(
-                      handler.position + const Duration(seconds: 30),
-                    )
-                  : handler.skipToNext,
+              onPressed: _isPodcast
+                  ? !selectedLoaded
+                        ? null
+                        : () => handler.seek(
+                            handler.position + const Duration(seconds: 30),
+                          )
+                  : () => unawaited(_skipAudiobookChapter(handler, 1)),
             ),
             StreamBuilder<SleepTimerState>(
               stream: ref.watch(sleepTimerServiceProvider).stream,
@@ -4253,28 +4381,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     ];
   }
 
-  /// The chapters after the one playing. Only chapters already in the playback
-  /// queue are offered: one without generated audio has nothing to skip to.
+  /// Every other chapter in the book is offered. Selecting an uncached chapter
+  /// starts the same cache-and-play flow as opening it from the album page.
   Future<List<_PlaylistEntry>> _bookPlaylistEntries(
     LuminaAudioHandler handler,
   ) async {
     final chapters = await ref
         .read(appDatabaseProvider)
         .getChapters(widget.book.id);
-    final queue = handler.queue.value;
-    final currentId = handler.currentChapterId ?? widget.initialChapter?.id;
-    final currentIndex = chapters.indexWhere(
-      (chapter) => chapter.id == currentId,
-    );
-    final upcoming = currentIndex < 0
-        ? chapters
-        : chapters.skip(currentIndex + 1).toList(growable: false);
+    final currentId = _selectedAudiobookChapter?.id ?? handler.currentChapterId;
     final entries = <_PlaylistEntry>[];
-    for (final chapter in upcoming) {
-      final queueIndex = queue.indexWhere(
-        (item) => item.extras?['chapterId'] == chapter.id,
-      );
-      if (queueIndex < 0) continue;
+    for (final chapter in chapters) {
+      if (chapter.id == currentId) continue;
       entries.add(
         _PlaylistEntry(
           title: chapter.title,
@@ -4284,7 +4402,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             iconSize: 18,
             borderRadius: 11,
           ),
-          onTap: () => handler.skipToQueueItem(queueIndex),
+          onTap: () => _selectAudiobookChapter(handler, chapter),
         ),
       );
     }
@@ -4400,41 +4518,44 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           SizedBox(height: design.spaceXs),
                       itemBuilder: (context, index) {
                         final entry = entries[index];
-                        return ListTile(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(
-                              design.radiusMedium,
+                        return Material(
+                          color: Colors.transparent,
+                          child: ListTile(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                design.radiusMedium,
+                              ),
                             ),
-                          ),
-                          leading: SizedBox.square(
-                            dimension: 50,
-                            child: entry.leading,
-                          ),
-                          title: Text(
-                            entry.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: context.appTextPrimary,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14.5,
+                            leading: SizedBox.square(
+                              dimension: 50,
+                              child: entry.leading,
                             ),
-                          ),
-                          subtitle: Text(
-                            entry.subtitle,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: context.appTextSecondary,
-                              fontSize: 12.5,
+                            title: Text(
+                              entry.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: context.appTextPrimary,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14.5,
+                              ),
                             ),
+                            subtitle: Text(
+                              entry.subtitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: context.appTextSecondary,
+                                fontSize: 12.5,
+                              ),
+                            ),
+                            onTap: () async {
+                              await entry.onTap();
+                              if (sheetContext.mounted) {
+                                Navigator.of(sheetContext).pop();
+                              }
+                            },
                           ),
-                          onTap: () async {
-                            await entry.onTap();
-                            if (sheetContext.mounted) {
-                              Navigator.of(sheetContext).pop();
-                            }
-                          },
                         );
                       },
                     ),
