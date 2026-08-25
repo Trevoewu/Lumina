@@ -61,7 +61,7 @@ void main() {
     expect(repaired?.coverPath, cover.path);
   });
 
-  test('schema 1 books migrate to schema 18 without data loss', () async {
+  test('schema 1 books migrate to schema 19 without data loss', () async {
     final tempDir = Directory.systemTemp.createTempSync('lumina_migration_');
     final databaseFile = File('${tempDir.path}/lumina.db');
 
@@ -105,7 +105,7 @@ void main() {
         .customSelect('PRAGMA user_version;')
         .getSingle();
 
-    expect(version.read<int>('user_version'), 18);
+    expect(version.read<int>('user_version'), 19);
     expect(await database.select(database.generationTasks).get(), isEmpty);
     expect(await database.select(database.generationTaskChunks).get(), isEmpty);
     expect(await database.getPodcastShows(), isEmpty);
@@ -123,6 +123,12 @@ void main() {
     expect((await database.getBook('book-1'))?.isRead, isTrue);
     await database.updateBookReadStatus('book-1', false);
     expect((await database.getBook('book-1'))?.isRead, isFalse);
+
+    await database.updateBookHidden('book-1', true);
+    expect(await database.getAllBooks(), isEmpty);
+    expect((await database.getHiddenBooks()).single.id, 'book-1');
+    await database.updateBookHidden('book-1', false);
+    expect(await database.getAllBooks(), hasLength(1));
 
     await database.updateReadingProgress(
       'book-1',
@@ -272,7 +278,7 @@ void main() {
       final version = await database
           .customSelect('PRAGMA user_version;')
           .getSingle();
-      expect(version.read<int>('user_version'), 18);
+      expect(version.read<int>('user_version'), 19);
       expect(show?.title, 'Legacy Show');
       expect(show?.categoriesJson, equals(null));
       final progress = await database.getChapterPlaybackProgress('chapter-1');
@@ -280,6 +286,10 @@ void main() {
       expect(progress?.isFinished, isFalse);
       final episode = await database.getPodcastEpisode('episode-1');
       expect(episode?.title, 'Legacy Episode');
+      await database.updatePodcastEpisodeHidden('episode-1', true);
+      expect(await database.getPodcastEpisodes('show-1'), isEmpty);
+      await database.updatePodcastEpisodeHidden('episode-1', false);
+      expect(await database.getPodcastEpisodes('show-1'), hasLength(1));
       expect(
         episode?.transcriptProgressMs,
         0,

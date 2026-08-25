@@ -1364,6 +1364,221 @@ class BooksCompanion extends UpdateCompanion<Book> {
   }
 }
 
+class $HiddenBooksTable extends HiddenBooks
+    with TableInfo<$HiddenBooksTable, HiddenBook> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $HiddenBooksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _bookIdMeta = const VerificationMeta('bookId');
+  @override
+  late final GeneratedColumn<String> bookId = GeneratedColumn<String>(
+    'book_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _hiddenAtMeta = const VerificationMeta(
+    'hiddenAt',
+  );
+  @override
+  late final GeneratedColumn<int> hiddenAt = GeneratedColumn<int>(
+    'hidden_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [bookId, hiddenAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'hidden_books';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<HiddenBook> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('book_id')) {
+      context.handle(
+        _bookIdMeta,
+        bookId.isAcceptableOrUnknown(data['book_id']!, _bookIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bookIdMeta);
+    }
+    if (data.containsKey('hidden_at')) {
+      context.handle(
+        _hiddenAtMeta,
+        hiddenAt.isAcceptableOrUnknown(data['hidden_at']!, _hiddenAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_hiddenAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {bookId};
+  @override
+  HiddenBook map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return HiddenBook(
+      bookId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}book_id'],
+      )!,
+      hiddenAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}hidden_at'],
+      )!,
+    );
+  }
+
+  @override
+  $HiddenBooksTable createAlias(String alias) {
+    return $HiddenBooksTable(attachedDatabase, alias);
+  }
+}
+
+class HiddenBook extends DataClass implements Insertable<HiddenBook> {
+  final String bookId;
+  final int hiddenAt;
+  const HiddenBook({required this.bookId, required this.hiddenAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['book_id'] = Variable<String>(bookId);
+    map['hidden_at'] = Variable<int>(hiddenAt);
+    return map;
+  }
+
+  HiddenBooksCompanion toCompanion(bool nullToAbsent) {
+    return HiddenBooksCompanion(
+      bookId: Value(bookId),
+      hiddenAt: Value(hiddenAt),
+    );
+  }
+
+  factory HiddenBook.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return HiddenBook(
+      bookId: serializer.fromJson<String>(json['bookId']),
+      hiddenAt: serializer.fromJson<int>(json['hiddenAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'bookId': serializer.toJson<String>(bookId),
+      'hiddenAt': serializer.toJson<int>(hiddenAt),
+    };
+  }
+
+  HiddenBook copyWith({String? bookId, int? hiddenAt}) => HiddenBook(
+    bookId: bookId ?? this.bookId,
+    hiddenAt: hiddenAt ?? this.hiddenAt,
+  );
+  HiddenBook copyWithCompanion(HiddenBooksCompanion data) {
+    return HiddenBook(
+      bookId: data.bookId.present ? data.bookId.value : this.bookId,
+      hiddenAt: data.hiddenAt.present ? data.hiddenAt.value : this.hiddenAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HiddenBook(')
+          ..write('bookId: $bookId, ')
+          ..write('hiddenAt: $hiddenAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(bookId, hiddenAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is HiddenBook &&
+          other.bookId == this.bookId &&
+          other.hiddenAt == this.hiddenAt);
+}
+
+class HiddenBooksCompanion extends UpdateCompanion<HiddenBook> {
+  final Value<String> bookId;
+  final Value<int> hiddenAt;
+  final Value<int> rowid;
+  const HiddenBooksCompanion({
+    this.bookId = const Value.absent(),
+    this.hiddenAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  HiddenBooksCompanion.insert({
+    required String bookId,
+    required int hiddenAt,
+    this.rowid = const Value.absent(),
+  }) : bookId = Value(bookId),
+       hiddenAt = Value(hiddenAt);
+  static Insertable<HiddenBook> custom({
+    Expression<String>? bookId,
+    Expression<int>? hiddenAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (bookId != null) 'book_id': bookId,
+      if (hiddenAt != null) 'hidden_at': hiddenAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  HiddenBooksCompanion copyWith({
+    Value<String>? bookId,
+    Value<int>? hiddenAt,
+    Value<int>? rowid,
+  }) {
+    return HiddenBooksCompanion(
+      bookId: bookId ?? this.bookId,
+      hiddenAt: hiddenAt ?? this.hiddenAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (bookId.present) {
+      map['book_id'] = Variable<String>(bookId.value);
+    }
+    if (hiddenAt.present) {
+      map['hidden_at'] = Variable<int>(hiddenAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HiddenBooksCompanion(')
+          ..write('bookId: $bookId, ')
+          ..write('hiddenAt: $hiddenAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $ChaptersTable extends Chapters with TableInfo<$ChaptersTable, Chapter> {
   @override
   final GeneratedDatabase attachedDatabase;
@@ -8790,6 +9005,226 @@ class PodcastEpisodesCompanion extends UpdateCompanion<PodcastEpisode> {
   }
 }
 
+class $HiddenPodcastEpisodesTable extends HiddenPodcastEpisodes
+    with TableInfo<$HiddenPodcastEpisodesTable, HiddenPodcastEpisode> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $HiddenPodcastEpisodesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _episodeIdMeta = const VerificationMeta(
+    'episodeId',
+  );
+  @override
+  late final GeneratedColumn<String> episodeId = GeneratedColumn<String>(
+    'episode_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _hiddenAtMeta = const VerificationMeta(
+    'hiddenAt',
+  );
+  @override
+  late final GeneratedColumn<int> hiddenAt = GeneratedColumn<int>(
+    'hidden_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [episodeId, hiddenAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'hidden_podcast_episodes';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<HiddenPodcastEpisode> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('episode_id')) {
+      context.handle(
+        _episodeIdMeta,
+        episodeId.isAcceptableOrUnknown(data['episode_id']!, _episodeIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_episodeIdMeta);
+    }
+    if (data.containsKey('hidden_at')) {
+      context.handle(
+        _hiddenAtMeta,
+        hiddenAt.isAcceptableOrUnknown(data['hidden_at']!, _hiddenAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_hiddenAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {episodeId};
+  @override
+  HiddenPodcastEpisode map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return HiddenPodcastEpisode(
+      episodeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}episode_id'],
+      )!,
+      hiddenAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}hidden_at'],
+      )!,
+    );
+  }
+
+  @override
+  $HiddenPodcastEpisodesTable createAlias(String alias) {
+    return $HiddenPodcastEpisodesTable(attachedDatabase, alias);
+  }
+}
+
+class HiddenPodcastEpisode extends DataClass
+    implements Insertable<HiddenPodcastEpisode> {
+  final String episodeId;
+  final int hiddenAt;
+  const HiddenPodcastEpisode({required this.episodeId, required this.hiddenAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['episode_id'] = Variable<String>(episodeId);
+    map['hidden_at'] = Variable<int>(hiddenAt);
+    return map;
+  }
+
+  HiddenPodcastEpisodesCompanion toCompanion(bool nullToAbsent) {
+    return HiddenPodcastEpisodesCompanion(
+      episodeId: Value(episodeId),
+      hiddenAt: Value(hiddenAt),
+    );
+  }
+
+  factory HiddenPodcastEpisode.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return HiddenPodcastEpisode(
+      episodeId: serializer.fromJson<String>(json['episodeId']),
+      hiddenAt: serializer.fromJson<int>(json['hiddenAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'episodeId': serializer.toJson<String>(episodeId),
+      'hiddenAt': serializer.toJson<int>(hiddenAt),
+    };
+  }
+
+  HiddenPodcastEpisode copyWith({String? episodeId, int? hiddenAt}) =>
+      HiddenPodcastEpisode(
+        episodeId: episodeId ?? this.episodeId,
+        hiddenAt: hiddenAt ?? this.hiddenAt,
+      );
+  HiddenPodcastEpisode copyWithCompanion(HiddenPodcastEpisodesCompanion data) {
+    return HiddenPodcastEpisode(
+      episodeId: data.episodeId.present ? data.episodeId.value : this.episodeId,
+      hiddenAt: data.hiddenAt.present ? data.hiddenAt.value : this.hiddenAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HiddenPodcastEpisode(')
+          ..write('episodeId: $episodeId, ')
+          ..write('hiddenAt: $hiddenAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(episodeId, hiddenAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is HiddenPodcastEpisode &&
+          other.episodeId == this.episodeId &&
+          other.hiddenAt == this.hiddenAt);
+}
+
+class HiddenPodcastEpisodesCompanion
+    extends UpdateCompanion<HiddenPodcastEpisode> {
+  final Value<String> episodeId;
+  final Value<int> hiddenAt;
+  final Value<int> rowid;
+  const HiddenPodcastEpisodesCompanion({
+    this.episodeId = const Value.absent(),
+    this.hiddenAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  HiddenPodcastEpisodesCompanion.insert({
+    required String episodeId,
+    required int hiddenAt,
+    this.rowid = const Value.absent(),
+  }) : episodeId = Value(episodeId),
+       hiddenAt = Value(hiddenAt);
+  static Insertable<HiddenPodcastEpisode> custom({
+    Expression<String>? episodeId,
+    Expression<int>? hiddenAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (episodeId != null) 'episode_id': episodeId,
+      if (hiddenAt != null) 'hidden_at': hiddenAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  HiddenPodcastEpisodesCompanion copyWith({
+    Value<String>? episodeId,
+    Value<int>? hiddenAt,
+    Value<int>? rowid,
+  }) {
+    return HiddenPodcastEpisodesCompanion(
+      episodeId: episodeId ?? this.episodeId,
+      hiddenAt: hiddenAt ?? this.hiddenAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (episodeId.present) {
+      map['episode_id'] = Variable<String>(episodeId.value);
+    }
+    if (hiddenAt.present) {
+      map['hidden_at'] = Variable<int>(hiddenAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HiddenPodcastEpisodesCompanion(')
+          ..write('episodeId: $episodeId, ')
+          ..write('hiddenAt: $hiddenAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $AiThreadsTable extends AiThreads
     with TableInfo<$AiThreadsTable, AiThread> {
   @override
@@ -11727,6 +12162,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $BooksTable books = $BooksTable(this);
+  late final $HiddenBooksTable hiddenBooks = $HiddenBooksTable(this);
   late final $ChaptersTable chapters = $ChaptersTable(this);
   late final $ChapterPlaybackProgressesTable chapterPlaybackProgresses =
       $ChapterPlaybackProgressesTable(this);
@@ -11743,6 +12179,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $PodcastEpisodesTable podcastEpisodes = $PodcastEpisodesTable(
     this,
   );
+  late final $HiddenPodcastEpisodesTable hiddenPodcastEpisodes =
+      $HiddenPodcastEpisodesTable(this);
   late final $AiThreadsTable aiThreads = $AiThreadsTable(this);
   late final $AiMessagesTable aiMessages = $AiMessagesTable(this);
   late final $GenerationTasksTable generationTasks = $GenerationTasksTable(
@@ -11756,6 +12194,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     books,
+    hiddenBooks,
     chapters,
     chapterPlaybackProgresses,
     paragraphs,
@@ -11768,6 +12207,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     favoriteWords,
     podcastShows,
     podcastEpisodes,
+    hiddenPodcastEpisodes,
     aiThreads,
     aiMessages,
     generationTasks,
@@ -12357,6 +12797,149 @@ typedef $$BooksTableProcessedTableManager =
       $$BooksTableUpdateCompanionBuilder,
       (Book, BaseReferences<_$AppDatabase, $BooksTable, Book>),
       Book,
+      PrefetchHooks Function()
+    >;
+typedef $$HiddenBooksTableCreateCompanionBuilder =
+    HiddenBooksCompanion Function({
+      required String bookId,
+      required int hiddenAt,
+      Value<int> rowid,
+    });
+typedef $$HiddenBooksTableUpdateCompanionBuilder =
+    HiddenBooksCompanion Function({
+      Value<String> bookId,
+      Value<int> hiddenAt,
+      Value<int> rowid,
+    });
+
+class $$HiddenBooksTableFilterComposer
+    extends Composer<_$AppDatabase, $HiddenBooksTable> {
+  $$HiddenBooksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get bookId => $composableBuilder(
+    column: $table.bookId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get hiddenAt => $composableBuilder(
+    column: $table.hiddenAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$HiddenBooksTableOrderingComposer
+    extends Composer<_$AppDatabase, $HiddenBooksTable> {
+  $$HiddenBooksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get bookId => $composableBuilder(
+    column: $table.bookId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get hiddenAt => $composableBuilder(
+    column: $table.hiddenAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$HiddenBooksTableAnnotationComposer
+    extends Composer<_$AppDatabase, $HiddenBooksTable> {
+  $$HiddenBooksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get bookId =>
+      $composableBuilder(column: $table.bookId, builder: (column) => column);
+
+  GeneratedColumn<int> get hiddenAt =>
+      $composableBuilder(column: $table.hiddenAt, builder: (column) => column);
+}
+
+class $$HiddenBooksTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $HiddenBooksTable,
+          HiddenBook,
+          $$HiddenBooksTableFilterComposer,
+          $$HiddenBooksTableOrderingComposer,
+          $$HiddenBooksTableAnnotationComposer,
+          $$HiddenBooksTableCreateCompanionBuilder,
+          $$HiddenBooksTableUpdateCompanionBuilder,
+          (
+            HiddenBook,
+            BaseReferences<_$AppDatabase, $HiddenBooksTable, HiddenBook>,
+          ),
+          HiddenBook,
+          PrefetchHooks Function()
+        > {
+  $$HiddenBooksTableTableManager(_$AppDatabase db, $HiddenBooksTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$HiddenBooksTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$HiddenBooksTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$HiddenBooksTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> bookId = const Value.absent(),
+                Value<int> hiddenAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => HiddenBooksCompanion(
+                bookId: bookId,
+                hiddenAt: hiddenAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String bookId,
+                required int hiddenAt,
+                Value<int> rowid = const Value.absent(),
+              }) => HiddenBooksCompanion.insert(
+                bookId: bookId,
+                hiddenAt: hiddenAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$HiddenBooksTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $HiddenBooksTable,
+      HiddenBook,
+      $$HiddenBooksTableFilterComposer,
+      $$HiddenBooksTableOrderingComposer,
+      $$HiddenBooksTableAnnotationComposer,
+      $$HiddenBooksTableCreateCompanionBuilder,
+      $$HiddenBooksTableUpdateCompanionBuilder,
+      (
+        HiddenBook,
+        BaseReferences<_$AppDatabase, $HiddenBooksTable, HiddenBook>,
+      ),
+      HiddenBook,
       PrefetchHooks Function()
     >;
 typedef $$ChaptersTableCreateCompanionBuilder =
@@ -15950,6 +16533,168 @@ typedef $$PodcastEpisodesTableProcessedTableManager =
       PodcastEpisode,
       PrefetchHooks Function()
     >;
+typedef $$HiddenPodcastEpisodesTableCreateCompanionBuilder =
+    HiddenPodcastEpisodesCompanion Function({
+      required String episodeId,
+      required int hiddenAt,
+      Value<int> rowid,
+    });
+typedef $$HiddenPodcastEpisodesTableUpdateCompanionBuilder =
+    HiddenPodcastEpisodesCompanion Function({
+      Value<String> episodeId,
+      Value<int> hiddenAt,
+      Value<int> rowid,
+    });
+
+class $$HiddenPodcastEpisodesTableFilterComposer
+    extends Composer<_$AppDatabase, $HiddenPodcastEpisodesTable> {
+  $$HiddenPodcastEpisodesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get episodeId => $composableBuilder(
+    column: $table.episodeId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get hiddenAt => $composableBuilder(
+    column: $table.hiddenAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$HiddenPodcastEpisodesTableOrderingComposer
+    extends Composer<_$AppDatabase, $HiddenPodcastEpisodesTable> {
+  $$HiddenPodcastEpisodesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get episodeId => $composableBuilder(
+    column: $table.episodeId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get hiddenAt => $composableBuilder(
+    column: $table.hiddenAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$HiddenPodcastEpisodesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $HiddenPodcastEpisodesTable> {
+  $$HiddenPodcastEpisodesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get episodeId =>
+      $composableBuilder(column: $table.episodeId, builder: (column) => column);
+
+  GeneratedColumn<int> get hiddenAt =>
+      $composableBuilder(column: $table.hiddenAt, builder: (column) => column);
+}
+
+class $$HiddenPodcastEpisodesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $HiddenPodcastEpisodesTable,
+          HiddenPodcastEpisode,
+          $$HiddenPodcastEpisodesTableFilterComposer,
+          $$HiddenPodcastEpisodesTableOrderingComposer,
+          $$HiddenPodcastEpisodesTableAnnotationComposer,
+          $$HiddenPodcastEpisodesTableCreateCompanionBuilder,
+          $$HiddenPodcastEpisodesTableUpdateCompanionBuilder,
+          (
+            HiddenPodcastEpisode,
+            BaseReferences<
+              _$AppDatabase,
+              $HiddenPodcastEpisodesTable,
+              HiddenPodcastEpisode
+            >,
+          ),
+          HiddenPodcastEpisode,
+          PrefetchHooks Function()
+        > {
+  $$HiddenPodcastEpisodesTableTableManager(
+    _$AppDatabase db,
+    $HiddenPodcastEpisodesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$HiddenPodcastEpisodesTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$HiddenPodcastEpisodesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$HiddenPodcastEpisodesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> episodeId = const Value.absent(),
+                Value<int> hiddenAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => HiddenPodcastEpisodesCompanion(
+                episodeId: episodeId,
+                hiddenAt: hiddenAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String episodeId,
+                required int hiddenAt,
+                Value<int> rowid = const Value.absent(),
+              }) => HiddenPodcastEpisodesCompanion.insert(
+                episodeId: episodeId,
+                hiddenAt: hiddenAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$HiddenPodcastEpisodesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $HiddenPodcastEpisodesTable,
+      HiddenPodcastEpisode,
+      $$HiddenPodcastEpisodesTableFilterComposer,
+      $$HiddenPodcastEpisodesTableOrderingComposer,
+      $$HiddenPodcastEpisodesTableAnnotationComposer,
+      $$HiddenPodcastEpisodesTableCreateCompanionBuilder,
+      $$HiddenPodcastEpisodesTableUpdateCompanionBuilder,
+      (
+        HiddenPodcastEpisode,
+        BaseReferences<
+          _$AppDatabase,
+          $HiddenPodcastEpisodesTable,
+          HiddenPodcastEpisode
+        >,
+      ),
+      HiddenPodcastEpisode,
+      PrefetchHooks Function()
+    >;
 typedef $$AiThreadsTableCreateCompanionBuilder =
     AiThreadsCompanion Function({
       required String id,
@@ -17350,6 +18095,8 @@ class $AppDatabaseManager {
   $AppDatabaseManager(this._db);
   $$BooksTableTableManager get books =>
       $$BooksTableTableManager(_db, _db.books);
+  $$HiddenBooksTableTableManager get hiddenBooks =>
+      $$HiddenBooksTableTableManager(_db, _db.hiddenBooks);
   $$ChaptersTableTableManager get chapters =>
       $$ChaptersTableTableManager(_db, _db.chapters);
   $$ChapterPlaybackProgressesTableTableManager get chapterPlaybackProgresses =>
@@ -17377,6 +18124,8 @@ class $AppDatabaseManager {
       $$PodcastShowsTableTableManager(_db, _db.podcastShows);
   $$PodcastEpisodesTableTableManager get podcastEpisodes =>
       $$PodcastEpisodesTableTableManager(_db, _db.podcastEpisodes);
+  $$HiddenPodcastEpisodesTableTableManager get hiddenPodcastEpisodes =>
+      $$HiddenPodcastEpisodesTableTableManager(_db, _db.hiddenPodcastEpisodes);
   $$AiThreadsTableTableManager get aiThreads =>
       $$AiThreadsTableTableManager(_db, _db.aiThreads);
   $$AiMessagesTableTableManager get aiMessages =>

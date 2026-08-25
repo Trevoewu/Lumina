@@ -10,6 +10,7 @@ import '../../../data/database/app_database.dart';
 import '../../widgets/animated_pressable_card.dart';
 import '../../widgets/half_screen_action_sheet.dart';
 import '../../widgets/podcast_artwork.dart';
+import '../../widgets/swipe_action_row.dart';
 import 'podcast_formatters.dart';
 
 class PodcastEpisodeTile extends ConsumerStatefulWidget {
@@ -32,6 +33,7 @@ class _PodcastEpisodeTileState extends ConsumerState<PodcastEpisodeTile> {
   late PodcastEpisode _resolvedEpisode;
   bool _downloading = false;
   double? _downloadProgress;
+  bool _removedFromList = false;
 
   @override
   void initState() {
@@ -51,6 +53,7 @@ class _PodcastEpisodeTileState extends ConsumerState<PodcastEpisodeTile> {
 
   @override
   Widget build(BuildContext context) {
+    if (_removedFromList) return const SizedBox.shrink();
     final resolvedEpisode = _resolvedEpisode;
     final date = formatPodcastDate(resolvedEpisode.publishedAt);
     final duration = formatPodcastDuration(resolvedEpisode.durationMs);
@@ -66,78 +69,197 @@ class _PodcastEpisodeTileState extends ConsumerState<PodcastEpisodeTile> {
               .clamp(0.0, 1.0)
               .toDouble();
 
-    return AnimatedPressableCard(
-      key: ValueKey('podcast-episode-${resolvedEpisode.id}'),
-      onTap: widget.onTap,
-      onLongPress: () => _showActions(context, resolvedEpisode),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            PodcastArtwork(imageUrl: resolvedEpisode.imageUrl, size: 76),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    resolvedEpisode.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: context.appTextPrimary,
-                      fontWeight: FontWeight.w700,
+    return SwipeActionRow(
+      key: ValueKey('podcast-episode-swipe-${resolvedEpisode.id}'),
+      actions: [
+        SwipeAction(
+          label: resolvedEpisode.isPlayed
+              ? context.tr('标为未读', 'Mark as unread', '未読にする')
+              : context.tr('标为已读', 'Mark as read', '既読にする'),
+          backgroundColor: const Color(0xFF2389E9),
+          onPressed: () => _setPlayedStatus(
+            resolvedEpisode,
+            isPlayed: !resolvedEpisode.isPlayed,
+          ),
+        ),
+        SwipeAction(
+          label: context.tr('隐藏', 'Hide', '非表示'),
+          backgroundColor: const Color(0xFFFF9D32),
+          onPressed: () => _hideEpisode(resolvedEpisode),
+        ),
+        SwipeAction(
+          label: context.tr('删除', 'Delete', '削除'),
+          backgroundColor: const Color(0xFFFF4D52),
+          onPressed: () => _confirmDeleteEpisode(resolvedEpisode),
+        ),
+      ],
+      child: ColoredBox(
+        color: context.appBackground,
+        child: AnimatedPressableCard(
+          key: ValueKey('podcast-episode-${resolvedEpisode.id}'),
+          onTap: widget.onTap,
+          onLongPress: () => _showActions(context, resolvedEpisode),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                PodcastArtwork(imageUrl: resolvedEpisode.imageUrl, size: 76),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        resolvedEpisode.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: context.appTextPrimary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                      if (metadata.isNotEmpty) ...[
+                        const SizedBox(height: 5),
+                        Text(
+                          metadata,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: context.appTextSecondary),
+                        ),
+                      ],
+                      if (resolvedEpisode.playbackPositionMs > 0 &&
+                          !resolvedEpisode.isPlayed) ...[
+                        const SizedBox(height: 9),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(2),
+                          child: LinearProgressIndicator(
+                            value: progress,
+                            minHeight: 3,
+                            backgroundColor: context.appSurfaceHighlight,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (resolvedEpisode.isPlayed) ...[
+                  const SizedBox(width: 6),
+                  Icon(
+                    Icons.check_circle_rounded,
+                    color: context.appTextSecondary,
+                    size: 32,
+                  ),
+                ],
+                if (_downloading) ...[
+                  const SizedBox(width: 10),
+                  SizedBox.square(
+                    dimension: 22,
+                    child: CircularProgressIndicator(
+                      value: _downloadProgress,
+                      strokeWidth: 2.5,
                     ),
                   ),
-                  if (metadata.isNotEmpty) ...[
-                    const SizedBox(height: 5),
-                    Text(
-                      metadata,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: context.appTextSecondary,
-                      ),
-                    ),
-                  ],
-                  if (resolvedEpisode.playbackPositionMs > 0 &&
-                      !resolvedEpisode.isPlayed) ...[
-                    const SizedBox(height: 9),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(2),
-                      child: LinearProgressIndicator(
-                        value: progress,
-                        minHeight: 3,
-                        backgroundColor: context.appSurfaceHighlight,
-                      ),
-                    ),
-                  ],
                 ],
-              ),
+              ],
             ),
-            if (resolvedEpisode.isPlayed) ...[
-              const SizedBox(width: 6),
-              Icon(
-                Icons.check_circle_rounded,
-                color: context.appTextSecondary,
-                size: 32,
-              ),
-            ],
-            if (_downloading) ...[
-              const SizedBox(width: 10),
-              SizedBox.square(
-                dimension: 22,
-                child: CircularProgressIndicator(
-                  value: _downloadProgress,
-                  strokeWidth: 2.5,
-                ),
-              ),
-            ],
-          ],
+          ),
         ),
       ),
     );
+  }
+
+  Future<void> _setPlayedStatus(
+    PodcastEpisode episode, {
+    required bool isPlayed,
+  }) async {
+    try {
+      await ref
+          .read(appDatabaseProvider)
+          .setPodcastEpisodePlayed(episode.id, isPlayed);
+      if (!mounted) return;
+      setState(() {
+        _resolvedEpisode = episode.copyWith(
+          playbackPositionMs: isPlayed ? episode.durationMs : 0,
+          lastPlayedAt: DateTime.now().millisecondsSinceEpoch,
+          isPlayed: isPlayed,
+        );
+      });
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.tr('无法更新单集状态', 'Unable to update episode', '状態を更新できません'),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _hideEpisode(PodcastEpisode episode) async {
+    await ref
+        .read(appDatabaseProvider)
+        .updatePodcastEpisodeHidden(episode.id, true);
+    if (!mounted) return;
+    setState(() => _removedFromList = true);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(context.tr('已隐藏该单集', 'Episode hidden', 'エピソードを非表示にしました')),
+        action: SnackBarAction(
+          label: context.tr('撤销', 'Undo', '元に戻す'),
+          onPressed: () async {
+            await ref
+                .read(appDatabaseProvider)
+                .updatePodcastEpisodeHidden(episode.id, false);
+            if (mounted) setState(() => _removedFromList = false);
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmDeleteEpisode(PodcastEpisode episode) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(context.tr('删除单集？', 'Delete episode?', '削除しますか？')),
+        content: Text(
+          context.tr(
+            '将删除该单集及其本地音频和字幕。',
+            'This removes the episode, its local audio, and transcript.',
+            'エピソード、ローカル音声、文字起こしを削除します。',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(context.tr('取消', 'Cancel', 'キャンセル')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(context.tr('删除', 'Delete', '削除')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await ref.read(cacheManagerProvider).clearPodcastEpisodeData(episode.id);
+      await ref.read(appDatabaseProvider).deletePodcastEpisode(episode.id);
+      if (mounted) setState(() => _removedFromList = true);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.tr('无法删除单集', 'Unable to delete episode', '削除できません'),
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _showActions(

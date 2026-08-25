@@ -9,6 +9,69 @@ import 'package:lumina/data/database/app_database.dart';
 import 'package:lumina/presentation/screens/podcast/podcast_episode_tile.dart';
 
 void main() {
+  testWidgets('episode rows reveal read, hide, and delete on left swipe', (
+    tester,
+  ) async {
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+    const episode = PodcastEpisode(
+      id: 'swipe-episode',
+      showId: 'show-1',
+      guid: 'swipe-guid',
+      title: 'Swipe episode',
+      description: '',
+      audioUrl: 'https://example.com/swipe.mp3',
+      publishedAt: 1,
+      durationMs: 60000,
+      playbackPositionMs: 12000,
+      lastPlayedAt: 0,
+      isPlayed: false,
+      transcriptProgressMs: 0,
+      transcriptStatus: 'none',
+    );
+    await database.upsertPodcastEpisode(episode);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [appDatabaseProvider.overrideWithValue(database)],
+        child: MaterialApp(
+          theme: AppTheme.lightTheme(),
+          home: Scaffold(
+            body: PodcastEpisodeTile(episode: episode, onTap: () {}),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    var row = find.byKey(const ValueKey('podcast-episode-swipe-swipe-episode'));
+    await tester.drag(row, const Offset(-300, 0));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(of: row, matching: find.text('Mark as read')),
+    );
+    await tester.pumpAndSettle();
+    expect((await database.getPodcastEpisode(episode.id))?.isPlayed, isTrue);
+
+    row = find.byKey(const ValueKey('podcast-episode-swipe-swipe-episode'));
+    await tester.drag(row, const Offset(-300, 0));
+    await tester.pumpAndSettle();
+    await tester.tap(find.descendant(of: row, matching: find.text('Hide')));
+    await tester.pumpAndSettle();
+    expect(await database.getPodcastEpisodes(episode.showId), isEmpty);
+
+    await tester.tap(find.text('Undo'));
+    await tester.pumpAndSettle();
+    expect(await database.getPodcastEpisodes(episode.showId), hasLength(1));
+
+    row = find.byKey(const ValueKey('podcast-episode-swipe-swipe-episode'));
+    await tester.drag(row, const Offset(-300, 0));
+    await tester.pumpAndSettle();
+    await tester.tap(find.descendant(of: row, matching: find.text('Delete')));
+    await tester.pumpAndSettle();
+    expect(find.text('Delete episode?'), findsOneWidget);
+  });
+
   testWidgets('episode actions can mark an episode as finished', (
     tester,
   ) async {
@@ -150,7 +213,7 @@ void main() {
     await tester.tap(find.text('Delete transcript'));
     await tester.pumpAndSettle();
     expect(find.text('Delete transcript?'), findsOneWidget);
-    await tester.tap(find.text('Delete'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
     await tester.pumpAndSettle();
 
     final cleared = await database.getPodcastEpisode(episode.id);

@@ -58,6 +58,60 @@ void main() {
     },
   );
 
+  testWidgets('book rows reveal read, hide, and delete actions on left swipe', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+    await _seedScrollableHome(database);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [appDatabaseProvider.overrideWithValue(database)],
+        child: MaterialApp(
+          theme: AppTheme.lightTheme(),
+          home: const LibraryScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('home-section-books')));
+    await tester.pumpAndSettle();
+
+    final readRow = find.byKey(const ValueKey('book-swipe-row-book-0'));
+    await tester.drag(readRow, const Offset(-300, 0));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(of: readRow, matching: find.text('Mark as read')),
+    );
+    await tester.pumpAndSettle();
+    expect((await database.getBook('book-0'))?.isRead, isTrue);
+
+    final hideRow = find.byKey(const ValueKey('book-swipe-row-book-1'));
+    await tester.drag(hideRow, const Offset(-300, 0));
+    await tester.pumpAndSettle();
+    await tester.tap(find.descendant(of: hideRow, matching: find.text('Hide')));
+    await tester.pumpAndSettle();
+    expect(
+      (await database.getHiddenBooks()).map((book) => book.id),
+      contains('book-1'),
+    );
+    expect(find.byKey(const ValueKey('book-swipe-row-book-1')), findsNothing);
+
+    final deleteRow = find.byKey(const ValueKey('book-swipe-row-book-2'));
+    await tester.drag(deleteRow, const Offset(-300, 0));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(of: deleteRow, matching: find.text('Delete')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('删除书籍？'), findsOneWidget);
+  });
+
   testWidgets('home header stays fixed through full all-page scrolls', (
     tester,
   ) async {
@@ -256,10 +310,9 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    final pages = find.byKey(const ValueKey('home-section-pages'));
-    await tester.drag(pages, const Offset(-330, 0));
-    await tester.pumpAndSettle();
-    await tester.drag(pages, const Offset(-330, 0));
+    // Populated book rows own left drags so they can reveal their actions;
+    // switch sections through the fixed tab instead of stealing that gesture.
+    await tester.tap(find.byKey(const ValueKey('home-section-podcasts')));
     await tester.pumpAndSettle();
 
     expect(
