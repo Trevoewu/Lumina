@@ -1660,7 +1660,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final data = widget.podcast;
     final selected = episode ?? _podcastEpisode;
     if (data == null || selected == null) return;
-    _followedPodcastEpisodeId = selected.id;
 
     final database = ref.read(appDatabaseProvider);
     final freshEpisodes = await database.getPodcastEpisodes(data.show.id);

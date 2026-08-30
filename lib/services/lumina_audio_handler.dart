@@ -102,6 +102,20 @@ class LuminaAudioHandler extends BaseAudioHandler
   StreamSubscription? _playbackEventSub;
   StreamSubscription? _currentIndexSub;
   StreamSubscription? _durationSub;
+
+  /// True while a load is swapping the queue out from under the player.
+  ///
+  /// `currentIndexStream` is not distinct and keeps repeating the index of the
+  /// playlist that is being replaced until the platform finishes loading the
+  /// new one. Those repeats land after the queue lists have been swapped, so
+  /// they address the new queue with an index that belongs to the old one and
+  /// announce a chapter or episode nobody asked for — which is how starting a
+  /// new episode used to report the previous one as current. Every load
+  /// publishes what it settled on itself, so these listeners stay quiet until
+  /// it is finished.
+  bool _loadingQueue = false;
+  String? _broadcastParagraphId;
+  bool _broadcastParagraphIdSet = false;
   late final Stream<Duration> _uiPositionStream;
 
   final _currentParagraphController = StreamController<String?>.broadcast();
@@ -127,7 +141,7 @@ class LuminaAudioHandler extends BaseAudioHandler
     );
     _currentIndexSub = _player.currentIndexStream.listen(
       (index) {
-        if (index == null || index < 0) return;
+        if (_loadingQueue || index == null || index < 0) return;
         if (_podcastEntries.isNotEmpty) {
           if (index >= _podcastEntries.length || index >= queue.value.length) {
             return;
@@ -135,7 +149,7 @@ class LuminaAudioHandler extends BaseAudioHandler
           _manifest = null;
           _chapterDurationMs = _podcastEntries[index].durationMs;
           mediaItem.add(queue.value[index]);
-          _currentParagraphController.add(_podcastEntries[index].episodeId);
+          _publishParagraphId(_podcastEntries[index].episodeId);
           _broadcastState(_player.playbackEvent);
           return;
         }
@@ -143,9 +157,7 @@ class LuminaAudioHandler extends BaseAudioHandler
         _applyCurrentEntry(index);
         final item = queue.value[index];
         mediaItem.add(item);
-        _currentParagraphController.add(
-          _queueEntries[index].segment.paragraphId,
-        );
+        _publishParagraphId(_queueEntries[index].segment.paragraphId);
         _broadcastState(_player.playbackEvent);
       },
       onError: (Object error, StackTrace stackTrace) {
@@ -154,7 +166,9 @@ class LuminaAudioHandler extends BaseAudioHandler
     );
     _durationSub = _player.durationStream.listen(
       (duration) {
-        if (_podcastEntries.isEmpty || duration == null) return;
+        if (_loadingQueue || _podcastEntries.isEmpty || duration == null) {
+          return;
+        }
         _chapterDurationMs = duration.inMilliseconds;
         final index = _player.currentIndex;
         if (index == null || index < 0 || index >= queue.value.length) return;
@@ -171,6 +185,17 @@ class LuminaAudioHandler extends BaseAudioHandler
 
   Stream<String?> get currentParagraphIdStream =>
       _currentParagraphController.stream;
+
+  /// `currentIndexStream` republishes its value on every playback event, and
+  /// listeners do real work per notification. Only genuine changes go out.
+  void _publishParagraphId(String? paragraphId) {
+    if (_broadcastParagraphIdSet && _broadcastParagraphId == paragraphId) {
+      return;
+    }
+    _broadcastParagraphId = paragraphId;
+    _broadcastParagraphIdSet = true;
+    _currentParagraphController.add(paragraphId);
+  }
 
   AudioPlayer get player => _player;
   Duration get position => _player.position;
@@ -309,37 +334,42 @@ class LuminaAudioHandler extends BaseAudioHandler
       throw StateError('这一章没有可播放的缓存音频，请重新生成。');
     }
 
-    _queueEntries = entries;
-    _paragraphIds = entries
-        .map((entry) => entry.segment.paragraphId)
-        .toList(growable: false);
-    queue.add(items);
-    try {
-      await _player.setAudioSources(sources, initialIndex: initialIndex);
-    } catch (error, stackTrace) {
-      try {
-        await _player.stop();
-        await _player.clearAudioSources();
-      } catch (_) {}
-      await _resetLoadedState();
-      AppLogger.error(
-        'Playback',
-        '播放器加载音频源失败 chapter=$initialChapterId',
-        error: error,
-        stackTrace: stackTrace,
-      );
-      throw StateError('音频缓存无法播放，请清除后重新生成。$error');
-    }
-
     var loadedIndex = initialIndex;
-    _applyCurrentEntry(loadedIndex);
-    if (initialPosition > Duration.zero) {
-      await seekToChapterOffset(initialPosition);
-      loadedIndex = _player.currentIndex ?? loadedIndex;
+    _loadingQueue = true;
+    try {
+      _queueEntries = entries;
+      _paragraphIds = entries
+          .map((entry) => entry.segment.paragraphId)
+          .toList(growable: false);
+      queue.add(items);
+      try {
+        await _player.setAudioSources(sources, initialIndex: initialIndex);
+      } catch (error, stackTrace) {
+        try {
+          await _player.stop();
+          await _player.clearAudioSources();
+        } catch (_) {}
+        await _resetLoadedState();
+        AppLogger.error(
+          'Playback',
+          '播放器加载音频源失败 chapter=$initialChapterId',
+          error: error,
+          stackTrace: stackTrace,
+        );
+        throw StateError('音频缓存无法播放，请清除后重新生成。$error');
+      }
+
       _applyCurrentEntry(loadedIndex);
+      if (initialPosition > Duration.zero) {
+        await seekToChapterOffset(initialPosition);
+        loadedIndex = _player.currentIndex ?? loadedIndex;
+        _applyCurrentEntry(loadedIndex);
+      }
+    } finally {
+      _loadingQueue = false;
     }
     mediaItem.add(items[loadedIndex]);
-    _currentParagraphController.add(items[loadedIndex].id);
+    _publishParagraphId(items[loadedIndex].id);
     _broadcastState(_player.playbackEvent);
     AppLogger.info(
       'Playback',
@@ -389,34 +419,39 @@ class LuminaAudioHandler extends BaseAudioHandler
         AudioSource.uri(Uri.parse(episodes[index].audioUrl), tag: items[index]),
     ];
 
-    _manifest = null;
-    _queueEntries = const [];
-    _paragraphIds = const [];
-    _podcastEntries = episodes;
-    _chapterDurationMs = episodes[initialIndex].durationMs;
-    queue.add(items);
+    _loadingQueue = true;
     try {
-      await _player.setAudioSources(sources, initialIndex: initialIndex);
-      if (initialPosition > Duration.zero) {
-        await _player.seek(initialPosition, index: initialIndex);
-      }
-    } catch (error, stackTrace) {
+      _manifest = null;
+      _queueEntries = const [];
+      _paragraphIds = const [];
+      _podcastEntries = episodes;
+      _chapterDurationMs = episodes[initialIndex].durationMs;
+      queue.add(items);
       try {
-        await _player.stop();
-        await _player.clearAudioSources();
-      } catch (_) {}
-      await _resetLoadedState();
-      AppLogger.error(
-        'Playback',
-        'Podcast 音频加载失败 episode=$initialEpisodeId',
-        error: error,
-        stackTrace: stackTrace,
-      );
-      throw StateError('无法加载 Podcast 音频：$error');
+        await _player.setAudioSources(sources, initialIndex: initialIndex);
+        if (initialPosition > Duration.zero) {
+          await _player.seek(initialPosition, index: initialIndex);
+        }
+      } catch (error, stackTrace) {
+        try {
+          await _player.stop();
+          await _player.clearAudioSources();
+        } catch (_) {}
+        await _resetLoadedState();
+        AppLogger.error(
+          'Playback',
+          'Podcast 音频加载失败 episode=$initialEpisodeId',
+          error: error,
+          stackTrace: stackTrace,
+        );
+        throw StateError('无法加载 Podcast 音频：$error');
+      }
+    } finally {
+      _loadingQueue = false;
     }
 
     mediaItem.add(items[initialIndex]);
-    _currentParagraphController.add(initialEpisodeId);
+    _publishParagraphId(initialEpisodeId);
     _broadcastState(_player.playbackEvent);
   }
 
@@ -743,7 +778,7 @@ class LuminaAudioHandler extends BaseAudioHandler
     _chapterDurationMs = 0;
     queue.add(const []);
     mediaItem.add(null);
-    _currentParagraphController.add(null);
+    _publishParagraphId(null);
   }
 
   @override
