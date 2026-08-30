@@ -38,5 +38,15 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_macos_build_settings(target)
+
+    # whisper_ggml vendors whisper.cpp/ggml. Xcode's warnings for that upstream
+    # source are not actionable in this app, so keep them from obscuring warnings
+    # emitted by Lumina's own native code.
+    next unless target.name == 'whisper_ggml'
+
+    target.build_configurations.each do |config|
+      config.build_settings['GCC_WARN_INHIBIT_ALL_WARNINGS'] = 'YES'
+      config.build_settings['OTHER_LDFLAGS'] = '$(inherited) -Wl,-no_warn_duplicate_libraries'
+    end
   end
 end

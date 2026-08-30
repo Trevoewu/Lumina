@@ -1470,10 +1470,10 @@ packages:
     dependency: "direct main"
     description:
       name: whisper_ggml
-      sha256: e1e0e1c3ab8f0adf3fa230acebdac1ce39dd79008745efc429a82c5c8ea3a616
+      sha256: "8236903d9430e83b30921200ad270451077fba740ec3974927f5db600082bd24"
       url: "https://pub.dev"
     source: hosted
-    version: "2.4.0"
+    version: "2.6.0"
   win32:
     dependency: transitive
     description:
