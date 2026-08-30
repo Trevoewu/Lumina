@@ -3892,6 +3892,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 return ValueListenableBuilder<int>(
                   valueListenable: _controlStateRevision,
                   builder: (context, _, _) => _buildControls(
+                    context,
                     handler,
                     playing,
                     selectedLoaded
@@ -3920,7 +3921,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
+  /// [context] is the builder's, deliberately shadowing this state's own.
+  ///
+  /// The transcript page is a separate route that renders its transport chrome
+  /// through these methods. Reading inherited widgets from the player's context
+  /// there means reading them from another route's element, which is gone the
+  /// moment that route is popped — and a lookup on a deactivated element
+  /// returns nothing rather than failing loudly.
   Widget _buildControls(
+    BuildContext context,
     LuminaAudioHandler handler,
     bool playing,
     Duration position,
@@ -4217,6 +4226,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 _buildPodcastActionButton(
+                  context,
                   key: const ValueKey('player-transcript-toggle'),
                   icon: Icons.chat_bubble_outline_rounded,
                   tooltip: transcriptModeActive
@@ -4226,8 +4236,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   active: transcriptModeActive,
                   onPressed: onTranscriptToggle,
                 ),
-                _buildOutputRouteButton(),
+                _buildOutputRouteButton(context),
                 _buildPodcastActionButton(
+                  context,
                   key: const ValueKey('player-playlist-toggle'),
                   icon: Icons.format_list_bulleted_rounded,
                   tooltip: context.tr('列表', 'Playlist', '再生リスト'),
@@ -4244,10 +4255,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   /// The output button hands its slot to the system route picker where one
   /// exists. Elsewhere it keeps the affordance's place in the row, disabled,
   /// rather than offering a tap that could not open anything.
-  Widget _buildOutputRouteButton() {
+  Widget _buildOutputRouteButton(BuildContext context) {
     final label = context.tr('输出', 'Output', '出力');
     if (!airPlayRoutePickerSupported) {
       return _buildPodcastActionButton(
+        context,
         key: const ValueKey('player-output-toggle'),
         icon: Icons.airplay_rounded,
         tooltip: label,
@@ -4275,7 +4287,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   /// the transcript toggle reads as a switch rather than a one-shot action;
   /// [active] deepens that pill while transcript mode is on. A null
   /// [onPressed] renders the icon as unavailable.
-  Widget _buildPodcastActionButton({
+  Widget _buildPodcastActionButton(
+    BuildContext context, {
     required Key key,
     required IconData icon,
     required String tooltip,
