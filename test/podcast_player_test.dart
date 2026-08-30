@@ -1313,6 +1313,101 @@ void main() {
     },
   );
 
+  test('the playback queue window follows the selected episode', () {
+    final episodes = [
+      for (var index = 0; index < 40; index++)
+        PodcastEpisode(
+          id: 'episode-$index',
+          showId: 'show',
+          guid: 'episode-$index-guid',
+          title: 'Episode $index',
+          description: '',
+          audioUrl: 'https://example.com/$index.mp3',
+          publishedAt: 40 - index,
+          durationMs: 1000,
+          playbackPositionMs: 0,
+          lastPlayedAt: 0,
+          isPlayed: false,
+          transcriptProgressMs: 0,
+          transcriptStatus: 'none',
+        ),
+    ];
+
+    final fromTop = podcastPlaybackQueueWindow(episodes, 'episode-0');
+    expect(fromTop.first.id, 'episode-0');
+    expect(fromTop, hasLength(21), reason: 'nothing precedes the newest one');
+
+    final fromMiddle = podcastPlaybackQueueWindow(episodes, 'episode-10');
+    expect(fromMiddle.first.id, 'episode-8');
+    expect(fromMiddle.last.id, 'episode-30');
+
+    final fromEnd = podcastPlaybackQueueWindow(episodes, 'episode-39');
+    expect(fromEnd.last.id, 'episode-39');
+    expect(fromEnd, hasLength(3));
+
+    expect(podcastPlaybackQueueWindow(episodes, 'episode-nope'), isEmpty);
+  });
+
+  testWidgets('starting an episode queues a window, not the whole feed', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final handler = _PodcastTestAudioHandler();
+    final sleepTimer = SleepTimerService();
+    final service = _FakeTranscriptionService(database, null);
+    addTearDown(database.close);
+    addTearDown(handler.dispose);
+    addTearDown(sleepTimer.dispose);
+    addTearDown(service.dispose);
+
+    for (var index = 0; index < 60; index++) {
+      await _insertPodcast(
+        database,
+        episodeId: 'episode-$index',
+        transcriptStatus: 'none',
+        title: 'Episode $index',
+        publishedAt: 60 - index,
+      );
+    }
+
+    await tester.pumpWidget(
+      _podcastApp(
+        database: database,
+        handler: handler,
+        sleepTimer: sleepTimer,
+        service: service,
+        episodeId: 'episode-0',
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    await tester.tap(find.byKey(const ValueKey('player-primary-audio-action')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(handler.loadedPodcastEpisodeId, 'episode-0');
+    expect(
+      handler.loadedQueueEpisodeIds,
+      hasLength(lessThanOrEqualTo(23)),
+      reason: 'a whole subscribed feed must not be handed to the platform',
+    );
+    expect(handler.loadedQueueEpisodeIds.first, 'episode-0');
+    expect(
+      handler.loadedQueueEpisodeIds[1],
+      'episode-1',
+      reason: 'auto-advance still needs what comes next',
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
+  });
+
   testWidgets('a paused episode offers to resume in transcript mode', (
     tester,
   ) async {
@@ -1479,6 +1574,7 @@ class _PodcastTestAudioHandler extends BaseAudioHandler
   final _positionController = StreamController<Duration>.broadcast();
   bool _disposed = false;
   String? loadedPodcastEpisodeId;
+  List<String> loadedQueueEpisodeIds = const [];
   Duration? soughtPosition;
 
   @override
@@ -1512,6 +1608,7 @@ class _PodcastTestAudioHandler extends BaseAudioHandler
     Duration initialPosition = Duration.zero,
   }) async {
     loadedPodcastEpisodeId = initialEpisodeId;
+    loadedQueueEpisodeIds = [for (final episode in episodes) episode.episodeId];
     queue.add([
       for (final episode in episodes)
         MediaItem(

@@ -419,6 +419,7 @@ class LuminaAudioHandler extends BaseAudioHandler
         AudioSource.uri(Uri.parse(episodes[index].audioUrl), tag: items[index]),
     ];
 
+    final startedAt = DateTime.now();
     _loadingQueue = true;
     try {
       _manifest = null;
@@ -428,10 +429,14 @@ class LuminaAudioHandler extends BaseAudioHandler
       _chapterDurationMs = episodes[initialIndex].durationMs;
       queue.add(items);
       try {
-        await _player.setAudioSources(sources, initialIndex: initialIndex);
-        if (initialPosition > Duration.zero) {
-          await _player.seek(initialPosition, index: initialIndex);
-        }
+        // Seeding the position with the load lets the platform prepare the
+        // resume point directly. Seeking afterwards costs another round trip
+        // and starts the episode from the top for as long as it takes.
+        await _player.setAudioSources(
+          sources,
+          initialIndex: initialIndex,
+          initialPosition: initialPosition,
+        );
       } catch (error, stackTrace) {
         try {
           await _player.stop();
@@ -453,6 +458,12 @@ class LuminaAudioHandler extends BaseAudioHandler
     mediaItem.add(items[initialIndex]);
     _publishParagraphId(initialEpisodeId);
     _broadcastState(_player.playbackEvent);
+    AppLogger.info(
+      'Playback',
+      'Podcast 队列加载完成 episode=$initialEpisodeId '
+          'queueItems=${episodes.length} '
+          'elapsedMs=${DateTime.now().difference(startedAt).inMilliseconds}',
+    );
   }
 
   /// 把新缓存好的连续段落追加到当前章节播放队列。

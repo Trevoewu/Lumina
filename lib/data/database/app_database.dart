@@ -1224,6 +1224,23 @@ class AppDatabase extends _$AppDatabase {
     return _withoutHiddenPodcastEpisodes(entries);
   }
 
+  /// Re-reads a known set of episodes, keeping the order they were asked in.
+  ///
+  /// An episode row carries the whole transcript, so a subscribed show's worth
+  /// of them is megabytes of JSON. Callers that only need a handful of rows
+  /// fresh — the playback queue re-reading download paths, say — must not pay
+  /// for the rest of the feed.
+  Future<List<PodcastEpisode>> getPodcastEpisodesByIds(
+    List<String> episodeIds,
+  ) async {
+    if (episodeIds.isEmpty) return const [];
+    final entries = await (select(
+      podcastEpisodes,
+    )..where((episode) => episode.id.isIn(episodeIds))).get();
+    final byId = {for (final entry in entries) entry.id: entry};
+    return [for (final episodeId in episodeIds) ?byId[episodeId]];
+  }
+
   Future<List<PodcastEpisode>> getAllPodcastEpisodes() =>
       select(podcastEpisodes).get();
 

@@ -71,6 +71,27 @@ PlayerPrimaryAudioAction resolvePlayerPrimaryAudioAction({
       state.processingState == AudioProcessingState.buffering,
 );
 
+/// The slice of the feed handed to the player around [selectedId], or an empty
+/// list when the episode is not in it.
+///
+/// A subscribed show holds hundreds of episodes and every one of them costs a
+/// platform audio source, so queueing the whole feed is most of the delay
+/// between the play button and the first sound. Auto-advance only ever reaches
+/// the next few, and picking anything further away rebuilds the queue anyway.
+List<drift_db.PodcastEpisode> podcastPlaybackQueueWindow(
+  List<drift_db.PodcastEpisode> episodes,
+  String selectedId, {
+  int behind = 2,
+  int ahead = 20,
+}) {
+  final index = episodes.indexWhere((episode) => episode.id == selectedId);
+  if (index < 0) return const [];
+  return episodes.sublist(
+    math.max(0, index - behind),
+    math.min(episodes.length, index + ahead + 1),
+  );
+}
+
 int resolveAudiobookChapterPositionMs({
   required ChapterManifest? manifest,
   required int? savedPositionMs,
@@ -1661,34 +1682,30 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final selected = episode ?? _podcastEpisode;
     if (data == null || selected == null) return;
 
+    final window = podcastPlaybackQueueWindow(data.episodes, selected.id);
+    final episodes = window.isEmpty ? [selected] : window;
+    // Only the window is re-read: an episode row carries its whole transcript,
+    // and the queue needs nothing from it but a download path that may have
+    // appeared since this screen opened.
     final database = ref.read(appDatabaseProvider);
-    final freshEpisodes = await database.getPodcastEpisodes(data.show.id);
-    final episodes = freshEpisodes.isEmpty ? data.episodes : freshEpisodes;
-
-    final playbackUrls = <String, String>{};
-    for (final episode in episodes) {
-      final localPath = episode.localAudioPath;
-      final hasLocal =
-          localPath != null &&
-          localPath.isNotEmpty &&
-          await File(localPath).exists();
-      playbackUrls[episode.id] = hasLocal
-          ? File(localPath).uri.toString()
-          : episode.audioUrl;
-      if (episode.id == selected.id) {
-        _selectedPodcastLocalAudioAvailable = hasLocal;
-      }
-    }
+    final fresh = await database.getPodcastEpisodesByIds([
+      for (final episode in episodes) episode.id,
+    ]);
+    final queued = fresh.isEmpty ? episodes : fresh;
+    final localAudioUris = await _resolveLocalAudioUris(queued);
+    _selectedPodcastLocalAudioAvailable = localAudioUris.containsKey(
+      selected.id,
+    );
 
     await handler.loadPodcastQueue(
       episodes: [
-        for (final episode in episodes)
+        for (final episode in queued)
           PodcastPlaybackSource(
             episodeId: episode.id,
             showId: data.show.id,
             showTitle: data.show.title,
             title: episode.title,
-            audioUrl: playbackUrls[episode.id] ?? episode.audioUrl,
+            audioUrl: localAudioUris[episode.id] ?? episode.audioUrl,
             imageUrl: episode.imageUrl ?? data.show.imageUrl,
             durationMs: episode.durationMs,
           ),
@@ -1696,6 +1713,28 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       initialEpisodeId: selected.id,
       initialPosition: Duration(milliseconds: selected.playbackPositionMs),
     );
+  }
+
+  /// Maps episode ids to a file URI for the ones whose download is really on
+  /// disk. Episodes that were never downloaded are not touched at all, so a
+  /// feed nobody has downloaded costs no filesystem work.
+  static Future<Map<String, String>> _resolveLocalAudioUris(
+    List<drift_db.PodcastEpisode> episodes,
+  ) async {
+    final candidates = [
+      for (final episode in episodes)
+        if (episode.localAudioPath case final path?)
+          if (path.isNotEmpty) (episode.id, File(path)),
+    ];
+    if (candidates.isEmpty) return const {};
+    final present = await Future.wait([
+      for (final (_, file) in candidates) file.exists(),
+    ]);
+    return {
+      for (var index = 0; index < candidates.length; index++)
+        if (present[index])
+          candidates[index].$1: candidates[index].$2.uri.toString(),
+    };
   }
 
   /// A run outlives the screen that started it, so the transcript card reads
