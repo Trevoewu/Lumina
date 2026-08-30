@@ -93,11 +93,14 @@ class AppLogEntry {
 class AppLogService {
   static const _maximumEntries = 500;
   static const _maximumFileBytes = 2 * 1024 * 1024;
+  static const retentionPeriod = Duration(days: 1);
   static final AppLogService instance = AppLogService._();
 
   final ValueNotifier<List<AppLogEntry>> entries = ValueNotifier(const []);
   File? _file;
   Future<void> _writeQueue = Future.value();
+  Timer? _retentionTimer;
+  bool _initialized = false;
 
   AppLogService._();
 
@@ -110,10 +113,7 @@ class AppLogService {
       if (await _file!.exists()) {
         final lines = await _file!.readAsLines();
         final loaded = <AppLogEntry>[];
-        final firstLine = lines.length > _maximumEntries
-            ? lines.length - _maximumEntries
-            : 0;
-        for (final line in lines.skip(firstLine)) {
+        for (final line in lines) {
           try {
             loaded.add(
               AppLogEntry.fromJson(jsonDecode(line) as Map<String, dynamic>),
@@ -122,9 +122,11 @@ class AppLogService {
             // Ignore incomplete lines left by an interrupted write.
           }
         }
-        entries.value = List.unmodifiable(loaded);
-        if (await _file!.length() > _maximumFileBytes) {
-          await _rewriteFile(loaded);
+        final retained = _retainedEntries(loaded, DateTime.now());
+        entries.value = List.unmodifiable(retained);
+        if (retained.length != lines.length ||
+            await _file!.length() > _maximumFileBytes) {
+          await _rewriteFile(retained);
         }
       }
     } catch (error, stackTrace) {
@@ -140,7 +142,8 @@ class AppLogService {
         persist: false,
       );
     }
-    _record(AppLogLevel.debug, 'App', 'Lumina 启动');
+    _initialized = true;
+    _scheduleRetentionCleanup();
   }
 
   String exportText() =>
@@ -148,6 +151,8 @@ class AppLogService {
 
   Future<void> clear() {
     entries.value = const [];
+    _retentionTimer?.cancel();
+    _retentionTimer = null;
     _writeQueue = _writeQueue.then((_) async {
       final file = _file;
       if (file == null) return;
@@ -167,6 +172,7 @@ class AppLogService {
     Object? error,
     StackTrace? stackTrace,
   }) {
+    if (level == AppLogLevel.debug) return;
     _add(
       AppLogEntry(
         timestamp: DateTime.now(),
@@ -180,21 +186,83 @@ class AppLogService {
   }
 
   void _add(AppLogEntry entry, {bool persist = true}) {
-    final updated = [...entries.value, entry];
+    if (entry.level == AppLogLevel.debug) return;
+
+    final retained = _retainedEntries(entries.value, DateTime.now());
+    var requiresRewrite = retained.length != entries.value.length;
+    final updated = [...retained, entry];
     if (updated.length > _maximumEntries) {
       updated.removeRange(0, updated.length - _maximumEntries);
+      requiresRewrite = true;
     }
     entries.value = List.unmodifiable(updated);
+    if (_initialized) _scheduleRetentionCleanup();
     if (!persist) return;
 
     final encoded = '${jsonEncode(entry.toJson())}\n';
+    final snapshot = List<AppLogEntry>.unmodifiable(updated);
     _writeQueue = _writeQueue.then((_) async {
       final file = _file;
       if (file == null) return;
       try {
-        await file.writeAsString(encoded, mode: FileMode.append, flush: true);
+        if (requiresRewrite) {
+          await _rewriteFile(snapshot);
+        } else {
+          await file.writeAsString(encoded, mode: FileMode.append, flush: true);
+        }
       } catch (_) {
         // Logging must never interrupt playback or generation.
+      }
+    });
+    unawaited(_writeQueue);
+  }
+
+  static List<AppLogEntry> _retainedEntries(
+    Iterable<AppLogEntry> candidates,
+    DateTime now,
+  ) {
+    final retained = candidates
+        .where((entry) => shouldRetain(entry, now))
+        .toList();
+    if (retained.length > _maximumEntries) {
+      retained.removeRange(0, retained.length - _maximumEntries);
+    }
+    return retained;
+  }
+
+  @visibleForTesting
+  static bool shouldRetain(AppLogEntry entry, DateTime now) =>
+      entry.level != AppLogLevel.debug &&
+      entry.timestamp.add(retentionPeriod).isAfter(now);
+
+  void _scheduleRetentionCleanup() {
+    _retentionTimer?.cancel();
+    _retentionTimer = null;
+    if (entries.value.isEmpty) return;
+
+    final now = DateTime.now();
+    final expiresAt = entries.value
+        .map((entry) => entry.timestamp.add(retentionPeriod))
+        .reduce((earliest, next) => next.isBefore(earliest) ? next : earliest);
+    final delay = expiresAt.isAfter(now)
+        ? expiresAt.difference(now)
+        : Duration.zero;
+    _retentionTimer = Timer(delay, () {
+      _pruneExpiredEntries();
+      _scheduleRetentionCleanup();
+    });
+  }
+
+  void _pruneExpiredEntries() {
+    final retained = _retainedEntries(entries.value, DateTime.now());
+    if (retained.length == entries.value.length) return;
+    entries.value = List.unmodifiable(retained);
+    final snapshot = List<AppLogEntry>.unmodifiable(retained);
+    _writeQueue = _writeQueue.then((_) async {
+      try {
+        await _rewriteFile(snapshot);
+      } catch (_) {
+        // Expiration must never interrupt the app.
       }
     });
     unawaited(_writeQueue);
