@@ -891,6 +891,24 @@ void main() {
       resolvePlayerPrimaryAudioAction(playing: true, playbackRequested: false),
       PlayerPrimaryAudioAction.pause,
     );
+    expect(
+      resolvePlayerPrimaryAudioAction(
+        playing: true,
+        playbackRequested: false,
+        buffering: true,
+      ),
+      PlayerPrimaryAudioAction.loading,
+      reason: 'a stream with no audio yet must not claim to be playing',
+    );
+    expect(
+      resolvePlayerPrimaryAudioAction(
+        playing: false,
+        playbackRequested: false,
+        buffering: true,
+      ),
+      PlayerPrimaryAudioAction.play,
+      reason: 'buffering nobody asked for is not a pending play request',
+    );
   });
 
   testWidgets('progress slider follows drag and seeks only on release', (

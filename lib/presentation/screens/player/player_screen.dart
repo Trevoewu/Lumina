@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/scheduler.dart';
@@ -45,14 +46,30 @@ import '../settings/tts_service_screen.dart';
 
 enum PlayerPrimaryAudioAction { play, pause, loading }
 
+/// [buffering] covers the gap the player used to hide: a stream that has been
+/// asked to play but has no audio yet. just_audio reports `playing` the moment
+/// play() is called, so without it a tap on an uncached episode flipped the
+/// button to "pause" and then sat silent with nothing on screen to explain it.
 PlayerPrimaryAudioAction resolvePlayerPrimaryAudioAction({
   required bool playing,
   required bool playbackRequested,
+  bool buffering = false,
 }) {
-  if (playing) return PlayerPrimaryAudioAction.pause;
+  if (playing) {
+    return buffering
+        ? PlayerPrimaryAudioAction.loading
+        : PlayerPrimaryAudioAction.pause;
+  }
   if (playbackRequested) return PlayerPrimaryAudioAction.loading;
   return PlayerPrimaryAudioAction.play;
 }
+
+({bool playing, bool buffering}) _transportState(PlaybackState state) => (
+  playing: state.playing,
+  buffering:
+      state.processingState == AudioProcessingState.loading ||
+      state.processingState == AudioProcessingState.buffering,
+);
 
 int resolveAudiobookChapterPositionMs({
   required ChapterManifest? manifest,
@@ -423,6 +440,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   StreamSubscription<drift_db.PodcastEpisode?>? _podcastEpisodeSubscription;
   StreamSubscription<PodcastTranscriptionProgress>? _transcriptionSubscription;
   StreamSubscription<String?>? _playbackParagraphSubscription;
+
+  /// Last episode the handler reported, used to tell an auto-advance apart
+  /// from a queue load that is still catching up with the current selection.
+  String? _followedPodcastEpisodeId;
   StreamSubscription? _audiobookMediaItemSubscription;
   bool _transcribingPodcast = false;
   bool _pausingPodcastTranscription = false;
@@ -558,8 +579,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   Future<void> _openTranscriptPage({
     required LuminaAudioHandler handler,
-    required Duration duration,
-    required ChapterManifest? manifest,
     required String? chapterId,
     required String chapterTitle,
   }) async {
@@ -570,19 +589,31 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
     if (_pageScrollActive.value) _pageScrollActive.value = false;
 
+    // The transcript grows while a Podcast is still being transcribed and the
+    // handler can load a different episode from under this route, so nothing
+    // here may close over the manifest, duration or loaded state captured when
+    // the page was pushed. Each rebuild reads them again.
     Widget buildTranscriptPage(BuildContext routeContext) {
       return ValueListenableBuilder<int>(
         valueListenable: _transcriptPageRevision,
-        builder: (context, _, _) => _buildTranscriptRoutePage(
-          routeContext: routeContext,
-          pageAnimation: ModalRoute.of(routeContext)?.animation,
-          handler: handler,
-          selectedLoaded: _isSelectedChapterLoaded(handler),
-          duration: duration,
-          manifest: manifest,
-          chapterId: chapterId,
-          chapterTitle: chapterTitle,
-        ),
+        builder: (context, _, _) =>
+            _buildOnLoadedMediaChange(handler, (context, selectedLoaded) {
+              final manifest = _effectiveManifest(handler);
+              return _buildTranscriptRoutePage(
+                routeContext: routeContext,
+                pageAnimation: ModalRoute.of(routeContext)?.animation,
+                handler: handler,
+                selectedLoaded: selectedLoaded,
+                duration: _selectedDuration(
+                  handler,
+                  selectedLoaded: selectedLoaded,
+                  manifest: manifest,
+                ),
+                manifest: manifest,
+                chapterId: _selectedAudiobookChapter?.id ?? chapterId,
+                chapterTitle: _selectedAudiobookChapter?.title ?? chapterTitle,
+              );
+            }),
       );
     }
 
@@ -1422,6 +1453,49 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     setState(() => _speed = speed.toDouble());
   }
 
+  /// Identifies what the handler currently holds loaded.
+  ///
+  /// [_isSelectedChapterLoaded] reads the handler directly, and the handler
+  /// exposes no stream for it, so every surface that branches on it has to
+  /// rebuild when the loaded item changes. The Podcast key carries the audio
+  /// URL because an episode whose download finished mid-playback keeps its id
+  /// while its source swaps from the feed to the cached file.
+  static String? _loadedMediaKey(MediaItem? item) {
+    final extras = item?.extras;
+    final podcastEpisodeId = extras?['podcastEpisodeId'] as String?;
+    if (podcastEpisodeId != null) {
+      return 'podcast:$podcastEpisodeId:${extras?['audioUrl']}';
+    }
+    final bookId = extras?['bookId'] as String?;
+    final chapterId = extras?['chapterId'] as String?;
+    return bookId == null || chapterId == null
+        ? null
+        : 'book:$bookId:$chapterId';
+  }
+
+  /// Rebuilds [builder] with a fresh `selectedLoaded` whenever the handler
+  /// loads a different chapter or episode.
+  Widget _buildOnLoadedMediaChange(
+    LuminaAudioHandler handler,
+    Widget Function(BuildContext context, bool selectedLoaded) builder,
+  ) {
+    return StreamBuilder<String?>(
+      stream: handler.mediaItem.map(_loadedMediaKey).distinct(),
+      initialData: _loadedMediaKey(handler.mediaItem.valueOrNull),
+      builder: (context, _) =>
+          builder(context, _isSelectedChapterLoaded(handler)),
+    );
+  }
+
+  Duration _selectedDuration(
+    LuminaAudioHandler handler, {
+    required bool selectedLoaded,
+    required ChapterManifest? manifest,
+  }) {
+    if (selectedLoaded) return handler.chapterDuration;
+    return Duration(milliseconds: manifest?.totalDurationMs ?? 0);
+  }
+
   bool _isSelectedChapterLoaded(LuminaAudioHandler handler) {
     if (_isPodcast) {
       if (handler.currentPodcastEpisodeId != _podcastEpisode?.id) {
@@ -1579,10 +1653,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
   }
 
-  Future<void> _loadPodcastPlayback(LuminaAudioHandler handler) async {
+  Future<void> _loadPodcastPlayback(
+    LuminaAudioHandler handler, {
+    drift_db.PodcastEpisode? episode,
+  }) async {
     final data = widget.podcast;
-    final selected = _podcastEpisode;
+    final selected = episode ?? _podcastEpisode;
     if (data == null || selected == null) return;
+    _followedPodcastEpisodeId = selected.id;
 
     final database = ref.read(appDatabaseProvider);
     final freshEpisodes = await database.getPodcastEpisodes(data.show.id);
@@ -1647,10 +1725,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final handler = await ref.read(luminaAudioHandlerProvider.future);
     if (!mounted || widget.podcast == null) return;
     await _playbackParagraphSubscription?.cancel();
+    _followedPodcastEpisodeId ??= handler.currentPodcastEpisodeId;
     _playbackParagraphSubscription = handler.currentParagraphIdStream.listen((
       episodeId,
     ) async {
+      final previousEpisodeId = _followedPodcastEpisodeId;
+      _followedPodcastEpisodeId = episodeId;
       if (!mounted || episodeId == null || episodeId == _podcastEpisode?.id) {
+        return;
+      }
+      // Broadcast events arrive a microtask late, so loading a queue for one
+      // episode while the user is already looking at another one used to drag
+      // the screen back to the episode that was playing before. Follow the
+      // handler only when it is leaving the episode this screen is showing, or
+      // when it had not reported an episode at all — anything else belongs to
+      // playback this screen never claimed.
+      if (previousEpisodeId != null &&
+          previousEpisodeId != _podcastEpisode?.id) {
         return;
       }
       final episode = await ref
@@ -2107,78 +2198,48 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             style: TextStyle(color: context.appTextSecondary),
                           ),
                         ),
-                        data: (handler) => StreamBuilder<String?>(
-                          stream: handler.mediaItem.map((item) {
-                            final extras = item?.extras;
-                            final podcastEpisodeId =
-                                extras?['podcastEpisodeId'] as String?;
-                            if (podcastEpisodeId != null) {
-                              return 'podcast:$podcastEpisodeId';
-                            }
-                            final bookId = extras?['bookId'] as String?;
-                            final chapterId = extras?['chapterId'] as String?;
-                            return bookId == null || chapterId == null
-                                ? null
-                                : 'book:$bookId:$chapterId';
-                          }).distinct(),
-                          initialData: () {
-                            final extras =
-                                handler.mediaItem.valueOrNull?.extras;
-                            final podcastEpisodeId =
-                                extras?['podcastEpisodeId'] as String?;
-                            if (podcastEpisodeId != null) {
-                              return 'podcast:$podcastEpisodeId';
-                            }
-                            final bookId = extras?['bookId'] as String?;
-                            final chapterId = extras?['chapterId'] as String?;
-                            return bookId == null || chapterId == null
-                                ? null
-                                : 'book:$bookId:$chapterId';
-                          }(),
-                          builder: (context, snapshot) {
-                            final currentItem = handler.mediaItem.valueOrNull;
-                            final selectedLoaded = _isSelectedChapterLoaded(
-                              handler,
-                            );
-                            final manifest = _effectiveManifest(handler);
-                            final duration = selectedLoaded
-                                ? handler.chapterDuration
-                                : Duration(
-                                    milliseconds:
-                                        manifest?.totalDurationMs ?? 0,
-                                  );
-                            final currentChapterId =
-                                _selectedAudiobookChapter?.id ??
-                                currentItem?.extras?['chapterId'] as String?;
-                            final chapterTitle =
-                                _selectedAudiobookChapter?.title ??
-                                currentItem?.title ??
-                                context.tr('未知章节', 'Unknown Chapter', '不明な章');
+                        data: (handler) => _buildOnLoadedMediaChange(handler, (
+                          context,
+                          selectedLoaded,
+                        ) {
+                          final currentItem = handler.mediaItem.valueOrNull;
+                          final manifest = _effectiveManifest(handler);
+                          final duration = _selectedDuration(
+                            handler,
+                            selectedLoaded: selectedLoaded,
+                            manifest: manifest,
+                          );
+                          final currentChapterId =
+                              _selectedAudiobookChapter?.id ??
+                              currentItem?.extras?['chapterId'] as String?;
+                          final chapterTitle =
+                              _selectedAudiobookChapter?.title ??
+                              currentItem?.title ??
+                              context.tr('未知章节', 'Unknown Chapter', '不明な章');
 
-                            return LayoutBuilder(
-                              builder: (context, constraints) {
-                                if (_isPodcast) {
-                                  return _buildPodcastPlayerBody(
-                                    constraints: constraints,
-                                    handler: handler,
-                                    selectedLoaded: selectedLoaded,
-                                    duration: duration,
-                                    manifest: manifest,
-                                  );
-                                }
-                                return _buildBookPlayerBody(
+                          return LayoutBuilder(
+                            builder: (context, constraints) {
+                              if (_isPodcast) {
+                                return _buildPodcastPlayerBody(
                                   constraints: constraints,
                                   handler: handler,
                                   selectedLoaded: selectedLoaded,
                                   duration: duration,
                                   manifest: manifest,
-                                  chapterId: currentChapterId,
-                                  chapterTitle: chapterTitle,
                                 );
-                              },
-                            );
-                          },
-                        ),
+                              }
+                              return _buildBookPlayerBody(
+                                constraints: constraints,
+                                handler: handler,
+                                selectedLoaded: selectedLoaded,
+                                duration: duration,
+                                manifest: manifest,
+                                chapterId: currentChapterId,
+                                chapterTitle: chapterTitle,
+                              );
+                            },
+                          );
+                        }),
                       ),
                     ),
                   ],
@@ -2231,8 +2292,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           : () => unawaited(
               _openTranscriptPage(
                 handler: handler,
-                duration: duration,
-                manifest: manifest,
                 chapterId: chapterId,
                 chapterTitle: chapterTitle,
               ),
@@ -2390,8 +2449,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       onTranscriptTap: () => unawaited(
         _openTranscriptPage(
           handler: handler,
-          duration: duration,
-          manifest: manifest,
           chapterId: episode.id,
           chapterTitle: episodeTitle,
         ),
@@ -3415,13 +3472,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final sourceTitle = _isPodcast
         ? widget.podcast!.show.title
         : widget.book.title;
-    return StreamBuilder<bool>(
+    return StreamBuilder<({bool playing, bool buffering})>(
       key: const ValueKey('player-sticky-mini-player'),
-      stream: handler.playbackState.map((state) => state.playing).distinct(),
-      initialData: handler.playbackState.value.playing,
+      stream: handler.playbackState.map(_transportState).distinct(),
+      initialData: _transportState(handler.playbackState.value),
       builder: (context, playbackSnapshot) {
+        final transport =
+            playbackSnapshot.data ?? (playing: false, buffering: false);
         final selectedLoaded = _isSelectedChapterLoaded(handler);
-        final playing = selectedLoaded && (playbackSnapshot.data ?? false);
+        final playing = selectedLoaded && transport.playing;
+        final buffering = selectedLoaded && transport.buffering;
         final duration = selectedLoaded
             ? handler.chapterDuration
             : Duration(
@@ -3492,6 +3552,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         playing: playing,
                         playbackRequested:
                             _streamPlaybackRequested || _startingPlayback,
+                        buffering: buffering,
                       );
                       final tooltip = switch (action) {
                         PlayerPrimaryAudioAction.play => context.tr(
@@ -3517,7 +3578,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           action: action,
                           color: context.appTextPrimary,
                         ),
-                        onPressed: action == PlayerPrimaryAudioAction.loading
+                        onPressed:
+                            action == PlayerPrimaryAudioAction.loading &&
+                                !playing
                             ? null
                             : () => unawaited(
                                 _handlePrimaryAudioAction(handler, playing),
@@ -3873,51 +3936,60 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }) {
     return RepaintBoundary(
       key: const ValueKey('player-controls-repaint-boundary'),
-      child: StreamBuilder<bool>(
-        stream: handler.playbackState.map((state) => state.playing).distinct(),
-        initialData: handler.playbackState.value.playing,
-        builder: (context, playbackSnapshot) {
-          final selectedLoaded = _isSelectedChapterLoaded(handler);
-          final playing = selectedLoaded && (playbackSnapshot.data ?? false);
-          final duration = selectedLoaded
-              ? handler.chapterDuration
-              : fallbackDuration;
-          Widget buildPositionControls(bool pausePositionUpdates) {
-            return StreamBuilder<Duration>(
-              stream: pausePositionUpdates
-                  ? null
-                  : handler.chapterPositionStream,
-              initialData: handler.chapterPosition,
-              builder: (context, positionSnapshot) {
-                return ValueListenableBuilder<int>(
-                  valueListenable: _controlStateRevision,
-                  builder: (context, _, _) => _buildControls(
-                    context,
-                    handler,
-                    playing,
-                    selectedLoaded
-                        ? positionSnapshot.data ?? Duration.zero
-                        : Duration.zero,
-                    duration,
-                    manifest: manifest,
-                    selectedLoaded: selectedLoaded,
-                    foregroundColor: foregroundColor,
-                    showSecondaryActions: showSecondaryActions,
-                    transcriptModeActive: transcriptModeActive,
-                    onTranscriptToggle: onTranscriptToggle,
-                  ),
-                );
-              },
-            );
-          }
+      // `selectedLoaded` is read straight off the handler, so the transport has
+      // to rebuild when the loaded item changes too. Watching only `playing`
+      // left the controls stuck on "preparing" whenever playback was already
+      // running when the newly loaded chapter or episode took over.
+      child: _buildOnLoadedMediaChange(handler, (context, selectedLoaded) {
+        return StreamBuilder<({bool playing, bool buffering})>(
+          stream: handler.playbackState.map(_transportState).distinct(),
+          initialData: _transportState(handler.playbackState.value),
+          builder: (context, playbackSnapshot) {
+            final transport =
+                playbackSnapshot.data ?? (playing: false, buffering: false);
+            final playing = selectedLoaded && transport.playing;
+            final buffering = selectedLoaded && transport.buffering;
+            final duration = selectedLoaded
+                ? handler.chapterDuration
+                : fallbackDuration;
+            Widget buildPositionControls(bool pausePositionUpdates) {
+              return StreamBuilder<Duration>(
+                stream: pausePositionUpdates
+                    ? null
+                    : handler.chapterPositionStream,
+                initialData: handler.chapterPosition,
+                builder: (context, positionSnapshot) {
+                  return ValueListenableBuilder<int>(
+                    valueListenable: _controlStateRevision,
+                    builder: (context, _, _) => _buildControls(
+                      context,
+                      handler,
+                      playing,
+                      selectedLoaded
+                          ? positionSnapshot.data ?? Duration.zero
+                          : Duration.zero,
+                      duration,
+                      manifest: manifest,
+                      selectedLoaded: selectedLoaded,
+                      buffering: buffering,
+                      foregroundColor: foregroundColor,
+                      showSecondaryActions: showSecondaryActions,
+                      transcriptModeActive: transcriptModeActive,
+                      onTranscriptToggle: onTranscriptToggle,
+                    ),
+                  );
+                },
+              );
+            }
 
-          return ValueListenableBuilder<bool>(
-            valueListenable: _pageScrollActive,
-            builder: (context, scrolling, _) =>
-                buildPositionControls(scrolling),
-          );
-        },
-      ),
+            return ValueListenableBuilder<bool>(
+              valueListenable: _pageScrollActive,
+              builder: (context, scrolling, _) =>
+                  buildPositionControls(scrolling),
+            );
+          },
+        );
+      }),
     );
   }
 
@@ -3936,6 +4008,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     Duration duration, {
     required ChapterManifest? manifest,
     required bool selectedLoaded,
+    required bool buffering,
     required Color foregroundColor,
     bool showSecondaryActions = false,
     required bool transcriptModeActive,
@@ -3966,15 +4039,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final primaryAction = resolvePlayerPrimaryAudioAction(
       playing: playing,
       playbackRequested: _streamPlaybackRequested || _startingPlayback,
+      buffering: buffering,
     );
+    // A stalled stream still has something to stop, so only a preparing button
+    // with nothing behind it is inert.
+    final primaryActionEnabled =
+        primaryAction != PlayerPrimaryAudioAction.loading || playing;
     final primaryTooltip = switch (primaryAction) {
       PlayerPrimaryAudioAction.play => context.tr('播放', 'Play', '再生'),
       PlayerPrimaryAudioAction.pause => context.tr('暂停', 'Pause', '一時停止'),
-      PlayerPrimaryAudioAction.loading => context.tr(
-        '正在准备音频',
-        'Preparing audio',
-        '音声を準備中',
-      ),
+      PlayerPrimaryAudioAction.loading =>
+        buffering
+            ? context.tr('正在缓冲…', 'Buffering…', 'バッファリング中…')
+            : context.tr('正在准备音频', 'Preparing audio', '音声を準備中'),
     };
     final remaining = duration - displayPosition;
     final remainingLabel = duration.inMilliseconds <= 0
@@ -4138,7 +4215,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   child: InkWell(
                     key: const ValueKey('player-primary-audio-action'),
                     customBorder: const CircleBorder(),
-                    onTap: primaryAction == PlayerPrimaryAudioAction.loading
+                    onTap: !primaryActionEnabled
                         ? null
                         : () => unawaited(
                             _handlePrimaryAudioAction(handler, playing),
@@ -4572,12 +4649,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   ) async {
     final data = widget.podcast;
     if (data == null) return;
+    if (episode.id == _podcastEpisode?.id &&
+        _isSelectedChapterLoaded(handler)) {
+      await handler.play();
+      return;
+    }
+    // Bind before touching the handler: the screen has to show the episode the
+    // user picked even while its audio is still being resolved.
+    _bindPodcastEpisode(episode);
+    _setStartingPlayback(true);
     try {
       var queueIndex = handler.queue.value.indexWhere(
         (item) => item.extras?['podcastEpisodeId'] == episode.id,
       );
       if (queueIndex < 0) {
-        await _loadPodcastPlayback(handler);
+        // Load starting from the episode that was picked, not the one that was
+        // showing, so the queue never opens on the previous episode.
+        await _loadPodcastPlayback(handler, episode: episode);
         queueIndex = handler.queue.value.indexWhere(
           (item) => item.extras?['podcastEpisodeId'] == episode.id,
         );
@@ -4585,9 +4673,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       if (queueIndex < 0) {
         throw StateError('Episode is not available in the playback queue.');
       }
-      await handler.skipToQueueItem(queueIndex);
+      if (handler.currentPodcastEpisodeId != episode.id) {
+        await handler.skipToQueueItem(queueIndex);
+      }
       if (!mounted) return;
-      _bindPodcastEpisode(episode);
+      await handler.play();
     } catch (error, stackTrace) {
       AppLogger.error(
         'Playback',
@@ -4595,13 +4685,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         error: error,
         stackTrace: stackTrace,
       );
-      _showSnackBar(
-        context.tr(
-          '无法切换到该单集：$error',
-          'Unable to play episode: $error',
-          'エピソードを再生できません：$error',
-        ),
-      );
+      if (mounted) {
+        _showSnackBar(
+          context.tr(
+            '无法切换到该单集：$error',
+            'Unable to play episode: $error',
+            'エピソードを再生できません：$error',
+          ),
+        );
+      }
+    } finally {
+      if (mounted) _setStartingPlayback(false);
     }
   }
 

@@ -1016,6 +1016,303 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
+  testWidgets('a buffering stream says so instead of showing pause', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final handler = _PodcastTestAudioHandler();
+    final sleepTimer = SleepTimerService();
+    final service = _FakeTranscriptionService(database, null);
+    addTearDown(database.close);
+    addTearDown(handler.dispose);
+    addTearDown(sleepTimer.dispose);
+    addTearDown(service.dispose);
+
+    await _insertPodcast(
+      database,
+      episodeId: 'episode-stream',
+      transcriptStatus: 'complete',
+      title: 'A Streamed Episode',
+    );
+
+    await tester.pumpWidget(
+      _podcastApp(
+        database: database,
+        handler: handler,
+        sleepTimer: sleepTimer,
+        service: service,
+        episodeId: 'episode-stream',
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    handler.selectPodcastEpisode('episode-stream');
+    handler.setPlaying(true);
+    handler.setProcessingState(AudioProcessingState.buffering);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(
+      find.byKey(const ValueKey(PlayerPrimaryAudioAction.loading)),
+      findsWidgets,
+      reason: 'an uncached episode has to show that it is still buffering',
+    );
+    expect(
+      find.byKey(const ValueKey(PlayerPrimaryAudioAction.pause)),
+      findsNothing,
+    );
+
+    handler.setProcessingState(AudioProcessingState.ready);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(
+      find.byKey(const ValueKey(PlayerPrimaryAudioAction.pause)),
+      findsWidgets,
+      reason: 'audio that actually plays has to offer pause again',
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
+  });
+
+  testWidgets('the transport recovers pause when a later load starts playing', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final handler = _PodcastTestAudioHandler();
+    final sleepTimer = SleepTimerService();
+    final service = _FakeTranscriptionService(database, null);
+    addTearDown(database.close);
+    addTearDown(handler.dispose);
+    addTearDown(sleepTimer.dispose);
+    addTearDown(service.dispose);
+
+    await _insertPodcast(
+      database,
+      episodeId: 'episode-selected',
+      transcriptStatus: 'complete',
+      title: 'The Episode On Screen',
+    );
+
+    // Something else is already playing, so `playing` never changes value when
+    // this episode takes over. Only the loaded item does.
+    handler.setPlaying(true);
+    handler.setProcessingState(AudioProcessingState.ready);
+
+    await tester.pumpWidget(
+      _podcastApp(
+        database: database,
+        handler: handler,
+        sleepTimer: sleepTimer,
+        service: service,
+        episodeId: 'episode-selected',
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // Transcript mode is its own route, so it has to watch the handler itself.
+    final transcriptToggle = find.byKey(
+      const ValueKey('player-transcript-toggle'),
+    );
+    await tester.ensureVisible(transcriptToggle);
+    await tester.tap(transcriptToggle);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1));
+
+    Finder transcriptAction(PlayerPrimaryAudioAction action) => find.descendant(
+      of: find.byKey(const ValueKey('player-transcript-page')),
+      matching: find.byKey(ValueKey(action)),
+    );
+
+    expect(
+      transcriptAction(PlayerPrimaryAudioAction.play),
+      findsOneWidget,
+      reason: 'another episode playing is not this one playing',
+    );
+
+    handler.selectPodcastEpisode('episode-selected');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(
+      transcriptAction(PlayerPrimaryAudioAction.pause),
+      findsOneWidget,
+      reason: 'the button has to follow the episode that just took over',
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
+  });
+
+  testWidgets('a queue load for another episode does not steal the screen', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final handler = _PodcastTestAudioHandler();
+    final sleepTimer = SleepTimerService();
+    final service = _FakeTranscriptionService(database, null);
+    addTearDown(database.close);
+    addTearDown(handler.dispose);
+    addTearDown(sleepTimer.dispose);
+    addTearDown(service.dispose);
+
+    await _insertPodcast(
+      database,
+      episodeId: 'episode-background',
+      transcriptStatus: 'complete',
+      title: 'The Episode Still Playing',
+      publishedAt: 2,
+    );
+    await _insertPodcast(
+      database,
+      episodeId: 'episode-opened',
+      transcriptStatus: 'complete',
+      title: 'The Episode Just Opened',
+      publishedAt: 1,
+    );
+
+    // The player already holds a different episode when this screen opens.
+    handler.loadedPodcastEpisodeId = 'episode-background';
+
+    await tester.pumpWidget(
+      _podcastApp(
+        database: database,
+        handler: handler,
+        sleepTimer: sleepTimer,
+        service: service,
+        episodeId: 'episode-opened',
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // A late event for the episode that was already loaded must not drag the
+    // screen back to it.
+    handler.selectPodcastEpisode('episode-background');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(
+      find.text('The Episode Still Playing'),
+      findsNothing,
+      reason: 'the screen has to stay on the episode the user opened',
+    );
+    expect(find.text('The Episode Just Opened'), findsWidgets);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
+  });
+
+  testWidgets(
+    'transcript mode keeps rendering timings cached after it opened',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      final handler = _PodcastTestAudioHandler();
+      final sleepTimer = SleepTimerService();
+      final service = _FakeTranscriptionService(database, 'episode-growing');
+      addTearDown(database.close);
+      addTearDown(handler.dispose);
+      addTearDown(sleepTimer.dispose);
+      addTearDown(service.dispose);
+
+      await _insertPodcast(
+        database,
+        episodeId: 'episode-growing',
+        transcriptStatus: 'running',
+        title: 'A Growing Transcript',
+        transcriptJson:
+            '[{"text":"First cached chunk.","startMs":0,'
+            '"endMs":1200}]',
+      );
+
+      await tester.pumpWidget(
+        _podcastApp(
+          database: database,
+          handler: handler,
+          sleepTimer: sleepTimer,
+          service: service,
+          episodeId: 'episode-growing',
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      final transcriptToggle = find.byKey(
+        const ValueKey('player-transcript-toggle'),
+      );
+      await tester.ensureVisible(transcriptToggle);
+      await tester.tap(transcriptToggle);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1));
+
+      final lyricsFinder = find.byKey(
+        const ValueKey('transcript-focus:episode-growing'),
+      );
+      expect(
+        tester
+            .widget<SyncedLyricsList>(lyricsFinder)
+            .manifest
+            ?.segments
+            .single
+            .timings
+            .length,
+        1,
+      );
+
+      await database.upsertPodcastEpisode(
+        (await database.getPodcastEpisode('episode-growing'))!.copyWith(
+          transcriptJson: const Value(
+            '[{"text":"First cached chunk.","startMs":0,"endMs":1200},'
+            '{"text":"Second cached chunk.","startMs":1200,"endMs":2400}]',
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(
+        tester
+            .widget<SyncedLyricsList>(lyricsFinder)
+            .manifest
+            ?.segments
+            .single
+            .timings
+            .length,
+        2,
+        reason:
+            'the transcript route must read the manifest again, not the one it '
+            'was pushed with, or its lines run against stale timings',
+      );
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.pump(const Duration(milliseconds: 1));
+    },
+  );
+
   testWidgets('a paused episode offers to resume in transcript mode', (
     tester,
   ) async {
@@ -1256,8 +1553,26 @@ class _PodcastTestAudioHandler extends BaseAudioHandler
     playbackState.add(playbackState.value.copyWith(playing: playing));
   }
 
+  void setProcessingState(AudioProcessingState state) {
+    playbackState.add(playbackState.value.copyWith(processingState: state));
+  }
+
   void selectPodcastEpisode(String episodeId) {
     loadedPodcastEpisodeId = episodeId;
+    // The real handler always publishes the media item alongside the paragraph
+    // change; surfaces that branch on "is my episode loaded" watch that stream.
+    mediaItem.add(
+      MediaItem(
+        id: episodeId,
+        title: episodeId,
+        extras: {
+          'mediaType': 'podcast',
+          'podcastEpisodeId': episodeId,
+          'podcastShowId': 'show-pause-ui',
+          'audioUrl': 'https://example.com/episode.mp3',
+        },
+      ),
+    );
     _paragraphController.add(episodeId);
   }
 

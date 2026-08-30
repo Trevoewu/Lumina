@@ -36,6 +36,13 @@ class MiniPlayer extends ConsumerWidget {
                 if (state == null) return const SizedBox.shrink();
 
                 final playing = state.playing;
+                // A stream that has been asked to play but has no audio yet
+                // must not sit behind a pause icon with nothing happening.
+                final buffering =
+                    playing &&
+                    (state.processingState == AudioProcessingState.loading ||
+                        state.processingState ==
+                            AudioProcessingState.buffering);
                 final duration = handler.chapterDuration;
                 final bookId = currentItem.extras?['bookId'] as String?;
                 final podcastEpisodeId =
@@ -143,7 +150,11 @@ class MiniPlayer extends ConsumerWidget {
                                   height: 42,
                                 ),
                                 icon: Icon(
-                                  playing ? Icons.pause : Icons.play_arrow,
+                                  buffering
+                                      ? Icons.hourglass_top_rounded
+                                      : playing
+                                      ? Icons.pause
+                                      : Icons.play_arrow,
                                   color: Colors.white,
                                 ),
                                 onPressed: playing
