@@ -890,11 +890,15 @@ void main() {
       database,
       episodeId: 'episode-running',
       transcriptStatus: 'running',
+      title: 'The Episode That Was Playing',
+      publishedAt: 2,
     );
     await _insertPodcast(
       database,
       episodeId: 'episode-next',
       transcriptStatus: 'complete',
+      title: 'The Episode That Came Next',
+      publishedAt: 1,
       transcriptJson:
           '[{"text":"Transcript from the next episode.",'
           '"startMs":0,"endMs":1200}]',
@@ -916,6 +920,13 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
+    expect(
+      find.text('The Episode That Came Next'),
+      findsWidgets,
+      reason: 'the player has to retitle itself when playback moves on',
+    );
+    expect(find.text('The Episode That Was Playing'), findsNothing);
+
     final transcriptToggle = find.byKey(
       const ValueKey('player-transcript-toggle'),
     );
@@ -930,6 +941,76 @@ void main() {
       findsNothing,
       reason: 'the ASR job still belongs to the previous episode',
     );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
+  });
+
+  testWidgets('the up next sheet switches the player to the tapped episode', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final handler = _PodcastTestAudioHandler();
+    final sleepTimer = SleepTimerService();
+    final service = _FakeTranscriptionService(database, null);
+    addTearDown(database.close);
+    addTearDown(handler.dispose);
+    addTearDown(sleepTimer.dispose);
+    addTearDown(service.dispose);
+
+    await _insertPodcast(
+      database,
+      episodeId: 'episode-current',
+      transcriptStatus: 'complete',
+      title: 'The Episode Playing Now',
+      publishedAt: 2,
+    );
+    await _insertPodcast(
+      database,
+      episodeId: 'episode-later',
+      transcriptStatus: 'complete',
+      title: 'The Episode Up Next',
+      publishedAt: 1,
+    );
+
+    await tester.pumpWidget(
+      _podcastApp(
+        database: database,
+        handler: handler,
+        sleepTimer: sleepTimer,
+        service: service,
+        episodeId: 'episode-current',
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final playlistToggle = find.byKey(const ValueKey('player-playlist-toggle'));
+    await tester.ensureVisible(playlistToggle);
+    await tester.tap(playlistToggle);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    await tester.tap(find.text('The Episode Up Next'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(
+      handler.loadedPodcastEpisodeId,
+      'episode-later',
+      reason: 'the tapped episode has to become the one playing',
+    );
+    expect(
+      find.text('The Episode Up Next'),
+      findsWidgets,
+      reason: 'the player has to follow the episode it just started',
+    );
+    expect(find.text('The Episode Playing Now'), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));
@@ -1001,6 +1082,8 @@ Future<void> _insertPodcast(
   required String transcriptStatus,
   String? transcriptJson,
   int transcriptProgressMs = 0,
+  String title = 'Interruptible Episode',
+  int publishedAt = 1,
 }) async {
   await database.upsertPodcastShow(
     const PodcastShow(
@@ -1017,10 +1100,10 @@ Future<void> _insertPodcast(
       id: episodeId,
       showId: 'show-pause-ui',
       guid: '$episodeId-guid',
-      title: 'Interruptible Episode',
+      title: title,
       description: 'Shownotes.',
       audioUrl: 'https://example.com/episode.mp3',
-      publishedAt: 1,
+      publishedAt: publishedAt,
       durationMs: 3600000,
       playbackPositionMs: 0,
       lastPlayedAt: 0,
@@ -1132,6 +1215,27 @@ class _PodcastTestAudioHandler extends BaseAudioHandler
     Duration initialPosition = Duration.zero,
   }) async {
     loadedPodcastEpisodeId = initialEpisodeId;
+    queue.add([
+      for (final episode in episodes)
+        MediaItem(
+          id: episode.episodeId,
+          title: episode.title,
+          album: episode.showTitle,
+          extras: {
+            'mediaType': 'podcast',
+            'podcastEpisodeId': episode.episodeId,
+            'podcastShowId': episode.showId,
+            'audioUrl': episode.audioUrl,
+          },
+        ),
+    ]);
+  }
+
+  @override
+  Future<void> skipToQueueItem(int index) async {
+    final item = queue.value[index];
+    mediaItem.add(item);
+    selectPodcastEpisode(item.extras!['podcastEpisodeId'] as String);
   }
 
   @override

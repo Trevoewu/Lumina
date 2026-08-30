@@ -2164,7 +2164,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                     selectedLoaded: selectedLoaded,
                                     duration: duration,
                                     manifest: manifest,
-                                    chapterTitle: chapterTitle,
                                   );
                                 }
                                 return _buildBookPlayerBody(
@@ -2354,10 +2353,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     required bool selectedLoaded,
     required Duration duration,
     required ChapterManifest? manifest,
-    required String chapterTitle,
   }) {
     final data = widget.podcast!;
     final episode = _podcastEpisode ?? data.episode;
+    // An episode is not a chapter: the caller's title comes from the synthetic
+    // chapter this screen was opened with, which stays on the episode that was
+    // playing then. Switching episodes has to retitle the player.
+    final episodeTitle = episode.title;
     final design = context.appDesign;
     final pageInset = design.pageInsetFor(constraints.maxWidth);
     final compact = constraints.maxHeight < 720;
@@ -2380,7 +2382,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       episode: episode,
       duration: duration,
       manifest: manifest,
-      chapterTitle: chapterTitle,
+      chapterTitle: episodeTitle,
       pageInset: pageInset,
       compact: compact,
       artworkSize: artworkSize,
@@ -2391,7 +2393,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           duration: duration,
           manifest: manifest,
           chapterId: episode.id,
-          chapterTitle: chapterTitle,
+          chapterTitle: episodeTitle,
         ),
       ),
     );
