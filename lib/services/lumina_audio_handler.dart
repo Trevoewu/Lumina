@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
+import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../domain/models/chapter_manifest.dart';
@@ -71,6 +72,20 @@ int previousChapterQueueIndex(List<String> chapterIds, int currentIndex) {
   return chapterIds.indexOf(chapterIds[currentChapterStart - 1]);
 }
 
+@visibleForTesting
+void logPlaybackStreamError(
+  String streamName,
+  Object error,
+  StackTrace stackTrace,
+) {
+  AppLogger.error(
+    'Playback',
+    '播放器事件流异常 stream=$streamName',
+    error: error,
+    stackTrace: stackTrace,
+  );
+}
+
 /// AudioService 后台播放 Handler。
 ///
 /// 每个段落作为一个 MediaItem / AudioSource queue item，便于锁屏控制、通知栏
@@ -104,37 +119,54 @@ class LuminaAudioHandler extends BaseAudioHandler
           maxPeriod: const Duration(milliseconds: 200),
         )
         .asBroadcastStream();
-    _playbackEventSub = _player.playbackEventStream.listen(_broadcastState);
-    _currentIndexSub = _player.currentIndexStream.listen((index) {
-      if (index == null || index < 0) return;
-      if (_podcastEntries.isNotEmpty) {
-        if (index >= _podcastEntries.length || index >= queue.value.length) {
+    _playbackEventSub = _player.playbackEventStream.listen(
+      _broadcastState,
+      onError: (Object error, StackTrace stackTrace) {
+        logPlaybackStreamError('playbackEvent', error, stackTrace);
+      },
+    );
+    _currentIndexSub = _player.currentIndexStream.listen(
+      (index) {
+        if (index == null || index < 0) return;
+        if (_podcastEntries.isNotEmpty) {
+          if (index >= _podcastEntries.length || index >= queue.value.length) {
+            return;
+          }
+          _manifest = null;
+          _chapterDurationMs = _podcastEntries[index].durationMs;
+          mediaItem.add(queue.value[index]);
+          _currentParagraphController.add(_podcastEntries[index].episodeId);
+          _broadcastState(_player.playbackEvent);
           return;
         }
-        _manifest = null;
-        _chapterDurationMs = _podcastEntries[index].durationMs;
-        mediaItem.add(queue.value[index]);
-        _currentParagraphController.add(_podcastEntries[index].episodeId);
+        if (index >= _queueEntries.length) return;
+        _applyCurrentEntry(index);
+        final item = queue.value[index];
+        mediaItem.add(item);
+        _currentParagraphController.add(
+          _queueEntries[index].segment.paragraphId,
+        );
         _broadcastState(_player.playbackEvent);
-        return;
-      }
-      if (index >= _queueEntries.length) return;
-      _applyCurrentEntry(index);
-      final item = queue.value[index];
-      mediaItem.add(item);
-      _currentParagraphController.add(_queueEntries[index].segment.paragraphId);
-      _broadcastState(_player.playbackEvent);
-    });
-    _durationSub = _player.durationStream.listen((duration) {
-      if (_podcastEntries.isEmpty || duration == null) return;
-      _chapterDurationMs = duration.inMilliseconds;
-      final index = _player.currentIndex;
-      if (index == null || index < 0 || index >= queue.value.length) return;
-      final currentQueue = [...queue.value];
-      currentQueue[index] = currentQueue[index].copyWith(duration: duration);
-      queue.add(currentQueue);
-      mediaItem.add(currentQueue[index]);
-    });
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        logPlaybackStreamError('currentIndex', error, stackTrace);
+      },
+    );
+    _durationSub = _player.durationStream.listen(
+      (duration) {
+        if (_podcastEntries.isEmpty || duration == null) return;
+        _chapterDurationMs = duration.inMilliseconds;
+        final index = _player.currentIndex;
+        if (index == null || index < 0 || index >= queue.value.length) return;
+        final currentQueue = [...queue.value];
+        currentQueue[index] = currentQueue[index].copyWith(duration: duration);
+        queue.add(currentQueue);
+        mediaItem.add(currentQueue[index]);
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        logPlaybackStreamError('duration', error, stackTrace);
+      },
+    );
   }
 
   Stream<String?> get currentParagraphIdStream =>
