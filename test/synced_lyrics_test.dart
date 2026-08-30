@@ -902,6 +902,90 @@ void main() {
     );
   });
 
+  testWidgets('a cached chunk keeps the transcript scrollable right away', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 500);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final handler = _VirtualLyricsAudioHandler(paragraphId: 'streaming');
+    addTearDown(handler.dispose);
+
+    await tester.pumpWidget(
+      _growingTranscript(handler, _streamedTranscriptLines(200)),
+    );
+    await tester.pumpAndSettle();
+
+    final scrollable = find.descendant(
+      of: find.byKey(const ValueKey('synced-lyrics-virtualized-list')),
+      matching: find.byType(Scrollable),
+    );
+    expect(tester.state<ScrollableState>(scrollable).position.pixels, 0);
+
+    // Whisper caches another chunk in the same frame that playback moves on.
+    // Following the new line must not wait for the appended text to be
+    // measured: everything above it was measured already, and stalling until
+    // the whole transcript is remeasured is what makes the page lurch.
+    handler.currentPosition = const Duration(seconds: 100);
+    await tester.pumpWidget(
+      _growingTranscript(handler, _streamedTranscriptLines(240)),
+    );
+    await tester.pump(const Duration(milliseconds: 20));
+    await tester.pump();
+    await tester.pump();
+
+    expect(
+      tester.state<ScrollableState>(scrollable).position.pixels,
+      greaterThan(5000),
+      reason: 'an appended chunk must not stall following the active line',
+    );
+  });
+
+  testWidgets('a rewritten earlier line keeps the reader on their line', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 500);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final handler = _VirtualLyricsAudioHandler(paragraphId: 'streaming');
+    addTearDown(handler.dispose);
+
+    await tester.pumpWidget(
+      _growingTranscript(handler, _streamedTranscriptLines(200)),
+    );
+    await tester.pumpAndSettle();
+
+    final virtualList = find.byKey(
+      const ValueKey('synced-lyrics-virtualized-list'),
+    );
+    final scrollable = find.descendant(
+      of: virtualList,
+      matching: find.byType(Scrollable),
+    );
+    final position = tester.state<ScrollableState>(scrollable).position;
+    position.jumpTo(position.maxScrollExtent * 0.6);
+    await tester.pumpAndSettle();
+
+    final anchor = _lyricLineNear(tester, virtualList, 120);
+
+    // A chunk overlap can re-transcribe the sentence it joins onto, which
+    // makes a line above the reader taller and pushes everything below it down.
+    final rewritten = _streamedTranscriptLines(240);
+    rewritten[8] =
+        'Transcript segment 8 came back from the chunk overlap far longer '
+        'than it first arrived.';
+    await tester.pumpWidget(_growingTranscript(handler, rewritten));
+    await tester.pumpAndSettle();
+
+    expect(
+      _lyricLineTop(tester, virtualList, anchor.text),
+      closeTo(anchor.dy, 1),
+      reason: 'a rewritten line above the viewport must not shift the reader',
+    );
+  });
+
   testWidgets(
     'word selection preserves the active focus-line typography and wrapping',
     (tester) async {
@@ -1142,12 +1226,114 @@ void main() {
   );
 }
 
+List<String> _streamedTranscriptLines(int count) => [
+  for (var index = 0; index < count; index++) 'Transcript segment $index.',
+];
+
+double? _lyricLineTop(WidgetTester tester, Finder virtualList, String text) =>
+    find
+        .descendant(of: virtualList, matching: find.byType(Text))
+        .evaluate()
+        .where((element) {
+          final widget = element.widget as Text;
+          return (widget.data ?? widget.textSpan?.toPlainText() ?? '') == text;
+        })
+        .map(
+          (element) =>
+              (element.renderObject as RenderBox).localToGlobal(Offset.zero).dy,
+        )
+        .singleOrNull;
+
+({String text, double dy}) _lyricLineNear(
+  WidgetTester tester,
+  Finder virtualList,
+  double y,
+) {
+  final entry = find
+      .descendant(of: virtualList, matching: find.byType(Text))
+      .evaluate()
+      .map((element) {
+        final text = element.widget as Text;
+        return (
+          // A playing transcript renders each line as word spans, so the plain
+          // `data` is only set while playback is disabled.
+          text: text.data ?? text.textSpan?.toPlainText() ?? '',
+          box: element.renderObject as RenderBox,
+        );
+      })
+      .where((entry) => entry.text.startsWith('Transcript segment '))
+      .firstWhere((entry) {
+        final top = entry.box.localToGlobal(Offset.zero).dy;
+        return top >= y && top <= y + 140;
+      });
+  return (text: entry.text, dy: entry.box.localToGlobal(Offset.zero).dy);
+}
+
+Widget _growingTranscript(
+  _VirtualLyricsAudioHandler handler,
+  List<String> lines,
+) {
+  final timings = [
+    for (var index = 0; index < lines.length; index++)
+      AudioTextTiming(
+        text: lines[index],
+        startMs: index * 1000,
+        endMs: (index + 1) * 1000,
+      ),
+  ];
+  return MaterialApp(
+    theme: AppTheme.darkTheme(),
+    home: Scaffold(
+      body: SizedBox(
+        width: 390,
+        height: 500,
+        child: SyncedLyricsList(
+          paragraphs: [
+            Paragraph(
+              id: 'streaming',
+              chapterId: 'streaming',
+              bookId: 'podcast:streaming-show',
+              paragraphIndex: 0,
+              content: lines.join('\n'),
+            ),
+          ],
+          manifest: ChapterManifest(
+            chapterId: 'streaming',
+            bookId: 'podcast:streaming-show',
+            providerId: 'whisper-local',
+            voiceId: '',
+            speed: 1,
+            updatedAt: 1,
+            segments: [
+              SegmentEntry(
+                paragraphId: 'streaming',
+                audioFile: 'https://example.com/episode.mp3',
+                durationMs: lines.length * 1000,
+                state: ParagraphAudioState.ready,
+                format: 'podcast',
+                timings: timings,
+              ),
+            ],
+          ),
+          handler: handler,
+          playbackEnabled: true,
+          expanded: true,
+          virtualized: true,
+        ),
+      ),
+    ),
+  );
+}
+
 class _VirtualLyricsAudioHandler extends BaseAudioHandler
     implements LuminaAudioHandler {
   _VirtualLyricsAudioHandler({this.paragraphId, this.initialPosition});
 
   final String? paragraphId;
   final Duration? initialPosition;
+
+  /// Lets a test advance playback between pumps.
+  Duration? currentPosition;
 
   @override
   Duration get chapterDuration => Duration.zero;
@@ -1177,7 +1363,7 @@ class _VirtualLyricsAudioHandler extends BaseAudioHandler
   Stream<String?> get currentParagraphIdStream => const Stream<String?>.empty();
 
   @override
-  Duration get position => initialPosition ?? Duration.zero;
+  Duration get position => currentPosition ?? initialPosition ?? Duration.zero;
 
   @override
   Stream<Duration> get positionStream => const Stream<Duration>.empty();

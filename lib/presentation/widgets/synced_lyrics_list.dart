@@ -1130,6 +1130,10 @@ class SyncedLyricsList extends StatefulWidget {
 
 class _SyncedLyricsListState extends State<SyncedLyricsList>
     with TickerProviderStateMixin {
+  /// Vertical padding a lyric line adds around its text, so a measured or
+  /// estimated text height turns into the extent the list lays out.
+  static const _lyricLineVerticalPadding = 20.0;
+
   final ScrollController _scrollController = ScrollController();
   final GlobalKey<SelectionAreaState> _selectionAreaKey =
       GlobalKey<SelectionAreaState>();
@@ -1144,19 +1148,32 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
   List<SyncedLyricLine> _lines = const [];
   Map<String, List<SyncedLyricLine>> _linesByParagraph = const {};
   Map<String, int> _lineIndexById = const {};
+
+  /// Per-line heights and their prefix sums. Both are kept at `_lines.length`
+  /// while the list is virtualized: the first [_virtualMeasuredCount] entries
+  /// were laid out exactly, the rest are estimates good enough to keep
+  /// `itemExtentBuilder` answerable for every index.
   List<double> _virtualLineExtents = const [];
   List<double> _virtualLineOffsets = const [];
+  int _virtualMeasuredCount = 0;
+
+  /// Row geometry sampled from real text layout, used to estimate the lines
+  /// this pass has not reached yet. Both are cleared whenever the layout
+  /// constraints or the text style change.
+  double? _estimateRowHeight;
+  double? _estimateCharsPerRow;
   double? _virtualMetricsWidth;
   TextStyle? _virtualMetricsStyle;
   TextDirection? _virtualMetricsDirection;
   TextScaler? _virtualMetricsTextScaler;
   double _virtualTopPadding = 0;
-  List<double> _pendingVirtualLineExtents = const [];
-  List<double> _pendingVirtualLineOffsets = const [];
   int _virtualMetricsGeneration = 0;
   bool _virtualMetricsBuilding = false;
   String? _deferredVirtualScrollLineId;
   bool _deferredVirtualScrollForce = false;
+  String? _anchorLineId;
+  double _anchorDelta = 0;
+  bool _parkedAtEnd = false;
   String? _paragraphId;
   String? _activeLineId;
   String? _pendingScrollLineId;
@@ -1206,7 +1223,16 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
       // A podcast caches a chunk every few minutes while the reader is
       // somewhere else in the transcript. Rebuild the lines, but let the
       // position stand unless the active line itself moved.
+      _captureScrollAnchor();
       _rebuildLines(forceScroll: false);
+      if (_anchorLineId != null) {
+        // Scroll offsets cannot be touched while the parent is building, and
+        // the new extents are not laid out yet either.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _restoreScrollAnchor();
+        });
+        WidgetsBinding.instance.scheduleFrame();
+      }
     }
     if (oldWidget.expanded != widget.expanded ||
         oldWidget.focusMode != widget.focusMode ||
@@ -1220,6 +1246,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
   }
 
   void _rebuildLines({bool forceScroll = true}) {
+    final previousLines = _lines;
     _lines = buildSyncedLyricLines(widget.paragraphs, widget.manifest);
     final linesByParagraph = <String, List<SyncedLyricLine>>{};
     final lineIndexById = <String, int>{};
@@ -1234,7 +1261,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
     _lineIndexById = lineIndexById;
     _clock.setEnabled(_clockEnabled);
     _lineKeys.removeWhere((id, _) => !lineIndexById.containsKey(id));
-    _invalidateVirtualMetrics();
+    _retainVirtualMetrics(previousLines);
     if (_wordSelectionLineId != null &&
         !_lines.any((line) => line.id == _wordSelectionLineId)) {
       _wordSelectionLineId = null;
@@ -1403,12 +1430,11 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
 
   void _animateToVirtualizedLine(String lineId, {required bool force}) {
     final index = _lineIndexById[lineId];
-    if (index == null ||
-        index >= _virtualLineExtents.length ||
-        index >= _virtualLineOffsets.length) {
+    if (index == null || index >= _virtualMeasuredCount) {
       // Exact extents are measured in small post-frame batches so a long
-      // transcript cannot block its first paint. Keep the most recent target
-      // and resolve it as soon as the exact scroll geometry is ready.
+      // transcript cannot block its first paint. Estimated extents are good
+      // enough to lay the list out but not to land a scroll on, so keep the
+      // most recent target and resolve it once this line has been measured.
       _deferredVirtualScrollLineId = lineId;
       _deferredVirtualScrollForce = _deferredVirtualScrollForce || force;
       return;
@@ -1503,12 +1529,51 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
     _virtualMetricsBuilding = false;
     _virtualLineExtents = const [];
     _virtualLineOffsets = const [];
-    _pendingVirtualLineExtents = const [];
-    _pendingVirtualLineOffsets = const [];
+    _virtualMeasuredCount = 0;
+    _estimateRowHeight = null;
+    _estimateCharsPerRow = null;
+    _parkedAtEnd = false;
     _virtualMetricsWidth = null;
     _virtualMetricsStyle = null;
     _virtualMetricsDirection = null;
     _virtualMetricsTextScaler = null;
+  }
+
+  /// Keeps the measurements a transcript update did not invalidate.
+  ///
+  /// A running podcast transcription appends chunks at the tail, so every line
+  /// above the new text keeps its id and its wrapping. Discarding those extents
+  /// is what makes the list jump: the geometry of everything the reader can
+  /// currently see gets rebuilt from scratch, twice — once when the list falls
+  /// back to lazy measurement and once when the exact extents land. Truncate to
+  /// the common prefix instead and resume measuring at the first changed line.
+  void _retainVirtualMetrics(List<SyncedLyricLine> previous) {
+    if (_virtualMeasuredCount == 0) {
+      _invalidateVirtualMetrics();
+      return;
+    }
+    var keep = math.min(
+      _virtualMeasuredCount,
+      math.min(previous.length, _lines.length),
+    );
+    for (var index = 0; index < keep; index++) {
+      if (previous[index].id != _lines[index].id ||
+          previous[index].text != _lines[index].text) {
+        keep = index;
+        break;
+      }
+    }
+    if (keep == 0) {
+      _invalidateVirtualMetrics();
+      return;
+    }
+
+    // Cancels batches already queued against the previous line list.
+    _virtualMetricsGeneration++;
+    _virtualMetricsBuilding = false;
+    _virtualLineExtents = _virtualLineExtents.sublist(0, keep);
+    _virtualLineOffsets = _virtualLineOffsets.sublist(0, keep);
+    _virtualMeasuredCount = keep;
   }
 
   void _ensureVirtualMetrics(double width) {
@@ -1522,24 +1587,123 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
     );
     final direction = Directionality.of(context);
     final textScaler = MediaQuery.textScalerOf(context);
-    if (_virtualMetricsWidth == safeWidth &&
-        _virtualMetricsStyle == style &&
-        _virtualMetricsDirection == direction &&
-        _virtualMetricsTextScaler == textScaler &&
-        (_virtualLineExtents.length == _lines.length ||
-            _virtualMetricsBuilding)) {
+    final configChanged =
+        _virtualMetricsWidth != safeWidth ||
+        _virtualMetricsStyle != style ||
+        _virtualMetricsDirection != direction ||
+        _virtualMetricsTextScaler != textScaler;
+    if (!configChanged &&
+        _virtualLineExtents.length == _lines.length &&
+        (_virtualMeasuredCount == _lines.length || _virtualMetricsBuilding)) {
+      return;
+    }
+    if (configChanged) {
+      // Every extent was measured against layout constraints that no longer
+      // hold, so none of them can be carried over.
+      _virtualLineExtents = const [];
+      _virtualLineOffsets = const [];
+      _virtualMeasuredCount = 0;
+      _estimateRowHeight = null;
+      _estimateCharsPerRow = null;
+      _virtualMetricsWidth = safeWidth;
+      _virtualMetricsStyle = style;
+      _virtualMetricsDirection = direction;
+      _virtualMetricsTextScaler = textScaler;
+    }
+    if (_lines.isEmpty) {
+      _virtualMetricsBuilding = false;
       return;
     }
 
-    final generation = ++_virtualMetricsGeneration;
+    _seedEstimatedExtents(safeWidth, style, direction, textScaler);
     _virtualMetricsBuilding = true;
-    _pendingVirtualLineExtents = <double>[];
-    _pendingVirtualLineOffsets = <double>[];
-    _virtualMetricsWidth = safeWidth;
-    _virtualMetricsStyle = style;
-    _virtualMetricsDirection = direction;
-    _virtualMetricsTextScaler = textScaler;
-    _scheduleVirtualMetricsBatch(generation);
+    _scheduleVirtualMetricsBatch(++_virtualMetricsGeneration);
+  }
+
+  /// Fills the not-yet-measured tail with estimates.
+  ///
+  /// `itemExtentBuilder` can only be used when it answers for every index, so
+  /// leaving the tail empty would drop the list back to measuring its children
+  /// lazily for the whole pass — which changes the scroll extent and the offset
+  /// of every line on screen. An estimate is wrong by a few pixels somewhere
+  /// below the viewport; the fallback moves what the reader is looking at.
+  void _seedEstimatedExtents(
+    double width,
+    TextStyle style,
+    TextDirection direction,
+    TextScaler textScaler,
+  ) {
+    if (_virtualLineExtents.length == _lines.length) return;
+    _calibrateLineEstimator(width, style, direction, textScaler);
+    final extents = List<double>.filled(_lines.length, 0);
+    final offsets = List<double>.filled(_lines.length, 0);
+    var offset = 0.0;
+    for (var index = 0; index < _lines.length; index++) {
+      offsets[index] = offset;
+      final extent = index < _virtualMeasuredCount
+          ? _virtualLineExtents[index]
+          : _estimateLineExtent(_lines[index].text);
+      extents[index] = extent;
+      offset += extent;
+    }
+    _virtualLineExtents = extents;
+    _virtualLineOffsets = offsets;
+  }
+
+  /// Lays out a handful of lines spread across the transcript to learn how tall
+  /// a wrapped row is and how many characters fit on one at this width.
+  ///
+  /// Guessing those from the font size alone is off by tens of percent, which
+  /// leaves the scroll extent wrong enough to matter. Eight real layouts cost
+  /// nothing next to a list of thousands and make the estimate track the actual
+  /// wrapping of this transcript's script.
+  void _calibrateLineEstimator(
+    double width,
+    TextStyle style,
+    TextDirection direction,
+    TextScaler textScaler,
+  ) {
+    if (_estimateRowHeight != null || _lines.isEmpty) return;
+    const sampleSize = 8;
+    final step = math.max(1, _lines.length ~/ sampleSize);
+    var sampledRows = 0;
+    var sampledCharacters = 0;
+    var sampledHeight = 0.0;
+    for (
+      var index = 0;
+      index < _lines.length && sampledRows < sampleSize * 4;
+      index += step
+    ) {
+      final text = _lines[index].text;
+      if (text.isEmpty) continue;
+      final painter = TextPainter(
+        text: TextSpan(text: text, style: style),
+        textDirection: direction,
+        textScaler: textScaler,
+      )..layout(maxWidth: width);
+      final rows = math.max(1, painter.computeLineMetrics().length);
+      sampledHeight += painter.height;
+      painter.dispose();
+      sampledRows += rows;
+      sampledCharacters += text.length;
+    }
+    if (sampledRows == 0) return;
+    _estimateRowHeight = sampledHeight / sampledRows;
+    _estimateCharsPerRow = math.max(1.0, sampledCharacters / sampledRows);
+  }
+
+  double _estimateLineExtent(String text) {
+    final rowHeight = _estimateRowHeight;
+    final charactersPerRow = _estimateCharsPerRow;
+    if (rowHeight == null || charactersPerRow == null) {
+      return _lyricLineVerticalPadding;
+    }
+    // Deliberately not rounded up to a whole row: `charactersPerRow` is an
+    // average, so rounding up turns a two-row line into three often enough to
+    // inflate the scroll extent by a third. A fractional row is unbiased
+    // across the list, and the one-row floor keeps short lines from collapsing.
+    final rows = (text.length / charactersPerRow).clamp(1.0, 40.0);
+    return rows * rowHeight + _lyricLineVerticalPadding;
   }
 
   /// A post-frame callback alone does not keep Flutter producing frames. In a
@@ -1566,34 +1730,41 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
       return;
     }
 
+    if (_virtualLineExtents.length != _lines.length) return;
+
     const linesPerFrame = 32;
-    final start = _pendingVirtualLineExtents.length;
+    final start = _virtualMeasuredCount;
     final end = math.min(start + linesPerFrame, _lines.length);
-    var offset = _pendingVirtualLineOffsets.isEmpty
-        ? 0.0
-        : _pendingVirtualLineOffsets.last + _pendingVirtualLineExtents.last;
+    final extents = List<double>.of(_virtualLineExtents);
+    final offsets = List<double>.of(_virtualLineOffsets);
+    var offset = start == 0 ? 0.0 : offsets[start - 1] + extents[start - 1];
     for (var index = start; index < end; index++) {
-      _pendingVirtualLineOffsets.add(offset);
+      offsets[index] = offset;
       final painter = TextPainter(
         text: TextSpan(text: _lines[index].text, style: style),
         textDirection: direction,
         textScaler: textScaler,
       )..layout(maxWidth: width);
-      final extent = painter.height + 20;
+      final extent = painter.height + _lyricLineVerticalPadding;
       painter.dispose();
-      _pendingVirtualLineExtents.add(extent);
+      extents[index] = extent;
       offset += extent;
     }
+    // Re-place the estimated tail behind the lines this batch corrected.
+    for (var index = end; index < _lines.length; index++) {
+      offsets[index] = offset;
+      offset += extents[index];
+    }
+    _virtualLineExtents = extents;
+    _virtualLineOffsets = offsets;
+    _virtualMeasuredCount = end;
+    _restoreScrollAnchor();
 
     if (end < _lines.length) {
       _scheduleVirtualMetricsBatch(generation);
       return;
     }
 
-    _virtualLineExtents = _pendingVirtualLineExtents;
-    _virtualLineOffsets = _pendingVirtualLineOffsets;
-    _pendingVirtualLineExtents = const [];
-    _pendingVirtualLineOffsets = const [];
     _virtualMetricsBuilding = false;
     final lineId = _deferredVirtualScrollLineId;
     final force = _deferredVirtualScrollForce;
@@ -1604,7 +1775,91 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _animateToLine(lineId, force: force);
       });
+      return;
     }
+    if (!_parkedAtEnd) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _manuallyScrolling || !_scrollController.hasClients) {
+        return;
+      }
+      final position = _scrollController.position;
+      if (position.pixels >= position.maxScrollExtent) return;
+      position.jumpTo(position.maxScrollExtent);
+    });
+  }
+
+  /// Whether the last scroll left the viewport at the end of the list.
+  ///
+  /// Correcting an estimated extent moves the end away from a reader parked
+  /// there, and it does so in the same frame, so this cannot be sampled while
+  /// measuring — by then the position is already short of the new end. Record
+  /// it as the scroll happens instead.
+  void _trackScrollEnd(ScrollNotification notification) {
+    final metrics = notification.metrics;
+    if (!metrics.hasContentDimensions || metrics.maxScrollExtent <= 0) return;
+    _parkedAtEnd = metrics.pixels >= metrics.maxScrollExtent - 0.5;
+  }
+
+  /// Remembers the line at the top of the viewport and how far into it the
+  /// viewport starts.
+  ///
+  /// The retained prefix already keeps a plain tail append from moving
+  /// anything, but a chunk overlap can also rewrite the sentence it joins onto,
+  /// which shifts every line below the rewrite. Pin the reader's line back to
+  /// where it was once the corrected geometry is known.
+  void _captureScrollAnchor() {
+    _anchorLineId = null;
+    if (!widget.virtualized ||
+        _manuallyScrolling ||
+        _selectionActive ||
+        !_scrollController.hasClients ||
+        _virtualMeasuredCount == 0) {
+      return;
+    }
+    final pixels = _scrollController.position.pixels - _virtualTopPadding;
+    var low = 0;
+    var high = _virtualMeasuredCount - 1;
+    var anchor = 0;
+    while (low <= high) {
+      final middle = low + ((high - low) >> 1);
+      if (_virtualLineOffsets[middle] <= pixels) {
+        anchor = middle;
+        low = middle + 1;
+      } else {
+        high = middle - 1;
+      }
+    }
+    _anchorLineId = _lines[anchor].id;
+    _anchorDelta = pixels - _virtualLineOffsets[anchor];
+  }
+
+  /// Puts the anchored line back under the same pixel it occupied before the
+  /// transcript changed. A no-op whenever the prefix survived intact, which is
+  /// the common case; it only does work when an earlier line was rewritten.
+  void _restoreScrollAnchor() {
+    final anchorLineId = _anchorLineId;
+    if (anchorLineId == null) return;
+    final index = _lineIndexById[anchorLineId];
+    if (index == null) {
+      _anchorLineId = null;
+      return;
+    }
+    // Still estimated — wait for the batch that measures it exactly.
+    if (index >= _virtualMeasuredCount) return;
+    _anchorLineId = null;
+    if (_manuallyScrolling ||
+        _selectionActive ||
+        !_scrollController.hasClients ||
+        (_scrollAnimation?.isAnimating ?? false)) {
+      return;
+    }
+    final position = _scrollController.position;
+    final target =
+        (_virtualTopPadding + _virtualLineOffsets[index] + _anchorDelta)
+            .clamp(position.minScrollExtent, position.maxScrollExtent)
+            .toDouble();
+    if ((target - position.pixels).abs() < 0.5) return;
+    _scrollController.jumpTo(target);
   }
 
   void _stopAutomaticScroll({bool stopCurrentMotion = false}) {
@@ -1614,6 +1869,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
     _pendingForceScroll = false;
     _deferredVirtualScrollLineId = null;
     _deferredVirtualScrollForce = false;
+    _anchorLineId = null;
     _stopScrollAnimation();
     if (!stopCurrentMotion || !_scrollController.hasClients) return;
     final position = _scrollController.position;
@@ -1623,6 +1879,10 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
   }
 
   bool _handleScrollNotification(ScrollNotification notification) {
+    if (notification is ScrollUpdateNotification ||
+        notification is ScrollEndNotification) {
+      _trackScrollEnd(notification);
+    }
     if (notification is ScrollStartNotification &&
         notification.dragDetails != null) {
       _manualScrollResume?.cancel();
