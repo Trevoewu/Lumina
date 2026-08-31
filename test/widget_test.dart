@@ -2,6 +2,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:cupertino_native_better/cupertino_native.dart';
 import 'package:lumina/core/providers.dart';
 import 'package:lumina/core/service_settings_controllers.dart';
 import 'package:lumina/data/database/app_database.dart';
@@ -76,20 +77,16 @@ void main() {
       findsNothing,
     );
     expect(find.byType(MiniPlayer), findsNothing);
-    expect(
-      find.byKey(const ValueKey('home-navigation-active-icon')),
-      findsOneWidget,
-    );
+    expect(find.byIcon(Icons.home_rounded), findsOneWidget);
     expect(find.byIcon(Icons.home), findsNothing);
     expect(find.byIcon(Icons.home_outlined), findsNothing);
-    expect(
-      find.byKey(const ValueKey('dictionary-navigation-icon')),
-      findsOneWidget,
-    );
+    expect(find.byIcon(Icons.find_in_page_rounded), findsOneWidget);
     expect(find.byIcon(Icons.menu_book), findsNothing);
     expect(find.byIcon(Icons.menu_book_outlined), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump(const Duration(milliseconds: 1));
+    // CNTabBar leaves a 200ms Future.delayed running past dispose; pump past
+    // it so the binding does not report a pending timer.
+    await tester.pump(const Duration(milliseconds: 300));
   });
 
   testWidgets('app text size is relative to system accessibility scaling', (
@@ -241,17 +238,12 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('Home'), findsWidgets);
-    expect(find.byType(NavigationBar), findsOneWidget);
-    final navigationBar = tester.widget<NavigationBar>(
-      find.byType(NavigationBar),
-    );
-    expect(
-      navigationBar.labelBehavior,
-      NavigationDestinationLabelBehavior.alwaysHide,
-    );
-    expect(tester.getSize(find.byType(NavigationBar)).height, 46);
+    expect(find.byType(CNTabBar), findsOneWidget);
+    final navigationBar = tester.widget<CNTabBar>(find.byType(CNTabBar));
+    expect(navigationBar.items, hasLength(3));
+    expect(navigationBar.currentIndex, 0);
 
-    await tester.tap(find.byIcon(Icons.person_outline));
+    await tester.tap(find.byIcon(Icons.person_rounded));
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('Me'), findsWidgets);
     expect(find.text('TODAY'), findsOneWidget);
@@ -297,7 +289,7 @@ void main() {
       ),
     );
     await tester.pump(const Duration(milliseconds: 400));
-    await tester.tap(find.byIcon(Icons.person_outline));
+    await tester.tap(find.byIcon(Icons.person_rounded));
     await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
@@ -341,7 +333,7 @@ void main() {
       ),
     );
     await tester.pump(const Duration(milliseconds: 500));
-    await tester.tap(find.byIcon(Icons.person_outline));
+    await tester.tap(find.byIcon(Icons.person_rounded));
     await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();

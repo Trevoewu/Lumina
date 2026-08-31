@@ -11,6 +11,11 @@ import 'podcast_artwork.dart';
 
 /// 全局迷你播放器
 class MiniPlayer extends ConsumerWidget {
+  /// Laid-out height, for callers that float this above the tab bar and have
+  /// to reserve the room themselves: 6 + 48 artwork + 5 padding, a 2px
+  /// progress bar, a 1px border top and bottom, and the 2px bottom margin.
+  static const double height = 65;
+
   const MiniPlayer({super.key});
 
   @override

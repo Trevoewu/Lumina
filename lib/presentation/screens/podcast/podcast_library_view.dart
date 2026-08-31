@@ -100,7 +100,12 @@ class _PodcastLibraryViewState extends ConsumerState<PodcastLibraryView> {
             key: const PageStorageKey('podcast-library-list'),
             controller: widget.scrollController,
             primary: false,
-            padding: EdgeInsets.fromLTRB(inset, design.spaceMd, inset, 120),
+            padding: EdgeInsets.fromLTRB(
+              inset,
+              design.spaceMd,
+              inset,
+              MediaQuery.paddingOf(context).bottom + design.spaceLg,
+            ),
             children: [
               Card(
                 margin: EdgeInsets.zero,

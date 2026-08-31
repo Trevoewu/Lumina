@@ -375,7 +375,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           key: const PageStorageKey('home-books-list'),
           controller: _booksScrollController,
           primary: false,
-          padding: EdgeInsets.fromLTRB(inset, design.spaceLg, inset, 120),
+          padding: EdgeInsets.fromLTRB(
+            inset,
+            design.spaceLg,
+            inset,
+            // The scaffold extends the body behind the mini player and tab
+            // bar, so the last row needs their height as slack.
+            MediaQuery.paddingOf(context).bottom + design.spaceLg,
+          ),
           itemCount: books.length,
           separatorBuilder: (_, _) => const SizedBox.shrink(),
           itemBuilder: (context, i) {

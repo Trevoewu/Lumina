@@ -165,7 +165,12 @@ class _HomeOverviewContentState extends State<_HomeOverviewContent> {
       key: const PageStorageKey('home-overview-list'),
       controller: widget.scrollController,
       primary: false,
-      padding: EdgeInsets.only(top: design.spaceLg, bottom: 120),
+      padding: EdgeInsets.only(
+        top: design.spaceLg,
+        // The scaffold extends the body behind the mini player and tab
+        // bar, so the last row needs their height as slack.
+        bottom: MediaQuery.paddingOf(context).bottom + design.spaceLg,
+      ),
       children: [
         Padding(
           padding: EdgeInsets.symmetric(horizontal: gutter),
@@ -688,7 +693,12 @@ class _EmptyHome extends StatelessWidget {
       key: const PageStorageKey('home-overview-list'),
       controller: scrollController,
       primary: false,
-      padding: EdgeInsets.fromLTRB(gutter, design.spaceLg, gutter, 120),
+      padding: EdgeInsets.fromLTRB(
+        gutter,
+        design.spaceLg,
+        gutter,
+        MediaQuery.paddingOf(context).bottom + design.spaceLg,
+      ),
       children: [
         Text(
           context.tr('开始收听', 'START LISTENING', '聴き始める'),

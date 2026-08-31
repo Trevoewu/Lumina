@@ -146,7 +146,10 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
         bottom: false,
         child: ListView(
           key: const PageStorageKey('dictionary-home-list'),
-          padding: const EdgeInsets.only(top: 20, bottom: 140),
+          padding: EdgeInsets.only(
+            top: 20,
+            bottom: MediaQuery.paddingOf(context).bottom + 20,
+          ),
           children: [
             Padding(
               padding: EdgeInsets.symmetric(horizontal: gutter),

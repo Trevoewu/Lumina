@@ -74,7 +74,10 @@ class _MeScreenState extends ConsumerState<MeScreen> {
 
                 return ListView(
                   key: const PageStorageKey('me-overview-list'),
-                  padding: const EdgeInsets.only(top: 18, bottom: 140),
+                  padding: EdgeInsets.only(
+                    top: 18,
+                    bottom: MediaQuery.paddingOf(context).bottom + 20,
+                  ),
                   children: [
                     Padding(
                       padding: EdgeInsets.symmetric(horizontal: gutter),

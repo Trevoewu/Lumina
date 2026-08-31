@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:audio_service/audio_service.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+import 'package:cupertino_native_better/cupertino_native.dart';
 
 import '../../core/app_localizations.dart';
 import '../../core/providers.dart';
@@ -130,100 +130,95 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
 
   Widget _buildScaffold({required bool hasMiniPlayer}) {
     return Scaffold(
-      body: IndexedStack(
-        key: const ValueKey('app-content-layer'),
-        index: _currentIndex,
-        children: List.generate(
-          _navigatorKeys.length,
-          (index) => _initializedTabs.contains(index)
-              ? NavigatorPopHandler<void>(
-                  enabled: index == _currentIndex,
-                  onPopWithResult: (_) {
-                    _navigatorKeys[index].currentState?.maybePop();
-                  },
-                  child: Navigator(
-                    key: _navigatorKeys[index],
-                    onGenerateRoute: (_) =>
-                        MaterialPageRoute(builder: (_) => _rootPageFor(index)),
+      extendBody: true,
+      // The mini player floats inside the body rather than sitting in a Column
+      // above the bar, so the bar stays a single widget in its slot.
+      body: Builder(
+        builder: (context) {
+          // extendBody reports the tab bar's height here as bottom padding.
+          final barInset = MediaQuery.paddingOf(context).bottom;
+          final media = MediaQuery.of(context);
+
+          return Stack(
+            children: [
+              Positioned.fill(
+                child: MediaQuery(
+                  data: media.copyWith(
+                    padding: media.padding.copyWith(
+                      bottom:
+                          barInset + (hasMiniPlayer ? MiniPlayer.height : 0),
+                    ),
                   ),
-                )
-              : const SizedBox.shrink(),
-        ),
-      ),
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (hasMiniPlayer) const MiniPlayer(),
-          NavigationBar(
-            backgroundColor: Theme.of(context).colorScheme.surface,
-            elevation: 0,
-            height: 46,
-            labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
-            selectedIndex: _currentIndex,
-            onDestinationSelected: (index) {
-              if (index == _currentIndex) {
-                _navigatorKeys[index].currentState?.popUntil(
-                  (route) => route.isFirst,
-                );
-                return;
-              }
-              setState(() {
-                _initializedTabs.add(index);
-                _currentIndex = index;
-              });
-            },
-            destinations: [
-              NavigationDestination(
-                icon: const _NavigationSvgIcon(
-                  key: ValueKey('home-navigation-icon'),
-                  assetName: 'assets/navigation_icons/home_rounded.svg',
+                  child: IndexedStack(
+                    key: const ValueKey('app-content-layer'),
+                    index: _currentIndex,
+                    children: List.generate(
+                      _navigatorKeys.length,
+                      (index) => _initializedTabs.contains(index)
+                          ? NavigatorPopHandler<void>(
+                              enabled: index == _currentIndex,
+                              onPopWithResult: (_) {
+                                _navigatorKeys[index].currentState?.maybePop();
+                              },
+                              child: Navigator(
+                                key: _navigatorKeys[index],
+                                onGenerateRoute: (_) => MaterialPageRoute(
+                                  builder: (_) => _rootPageFor(index),
+                                ),
+                              ),
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                  ),
                 ),
-                selectedIcon: const _NavigationSvgIcon(
-                  key: ValueKey('home-navigation-active-icon'),
-                  assetName: 'assets/navigation_icons/home_rounded.svg',
-                ),
-                label: context.tr('主页', 'Home', 'ホーム'),
               ),
-              NavigationDestination(
-                icon: const _NavigationSvgIcon(
-                  key: ValueKey('dictionary-navigation-icon'),
-                  assetName: 'assets/navigation_icons/dictionary.svg',
+              if (hasMiniPlayer)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: barInset,
+                  child: const MiniPlayer(),
                 ),
-                selectedIcon: const _NavigationSvgIcon(
-                  key: ValueKey('dictionary-navigation-active-icon'),
-                  assetName: 'assets/navigation_icons/dictionary.svg',
-                ),
-                label: context.tr('查词', 'Dictionary', '辞書'),
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.person_outline),
-                selectedIcon: Icon(Icons.person),
-                label: 'Me',
-              ),
             ],
+          );
+        },
+      ),
+      // CNTabBar embeds a UIKit tab bar on iOS 26 and falls back to a Flutter
+      // CupertinoTabBar elsewhere. Each item carries both an SF Symbol (used
+      // natively) and a customIcon (used by the fallback).
+      bottomNavigationBar: CNTabBar(
+        currentIndex: _currentIndex,
+        onTap: _onDestinationSelected,
+        tint: Theme.of(context).colorScheme.primary,
+        items: [
+          CNTabBarItem(
+            label: context.tr('主页', 'Home', 'ホーム'),
+            icon: const CNSymbol('house.fill'),
+            customIcon: Icons.home_rounded,
+          ),
+          CNTabBarItem(
+            label: context.tr('查词', 'Dictionary', '辞書'),
+            icon: const CNSymbol('character.book.closed.fill'),
+            customIcon: Icons.find_in_page_rounded,
+          ),
+          CNTabBarItem(
+            label: context.tr('我的', 'Me', 'マイページ'),
+            icon: const CNSymbol('person.fill'),
+            customIcon: Icons.person_rounded,
           ),
         ],
       ),
     );
   }
-}
 
-class _NavigationSvgIcon extends StatelessWidget {
-  final String assetName;
-
-  const _NavigationSvgIcon({super.key, required this.assetName});
-
-  @override
-  Widget build(BuildContext context) {
-    final iconTheme = IconTheme.of(context);
-    return SvgPicture.asset(
-      assetName,
-      width: iconTheme.size ?? 24,
-      height: iconTheme.size ?? 24,
-      colorFilter: ColorFilter.mode(
-        iconTheme.color ?? Theme.of(context).colorScheme.onSurface,
-        BlendMode.srcIn,
-      ),
-    );
+  void _onDestinationSelected(int index) {
+    if (index == _currentIndex) {
+      _navigatorKeys[index].currentState?.popUntil((route) => route.isFirst);
+      return;
+    }
+    setState(() {
+      _initializedTabs.add(index);
+      _currentIndex = index;
+    });
   }
 }
