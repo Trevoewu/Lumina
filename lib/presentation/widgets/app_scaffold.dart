@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:audio_service/audio_service.dart';
@@ -140,6 +141,15 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
           // extendBody reports the tab bar's height here as bottom padding.
           final barInset = MediaQuery.paddingOf(context).bottom;
           final media = MediaQuery.of(context);
+          // CNTabBar 1.6 reserves 14 pt above its native iOS bar for the
+          // selection animation. Measure spacing from the visible bar edge.
+          final nativeTopRoom =
+              defaultTargetPlatform == TargetPlatform.iOS &&
+                  PlatformVersion.supportsLiquidGlass
+              ? 14.0
+              : 0.0;
+          final playerBottom =
+              barInset + MiniPlayer.navigationGap - nativeTopRoom;
 
           return Stack(
             children: [
@@ -147,8 +157,9 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                 child: MediaQuery(
                   data: media.copyWith(
                     padding: media.padding.copyWith(
-                      bottom:
-                          barInset + (hasMiniPlayer ? MiniPlayer.height : 0),
+                      bottom: hasMiniPlayer
+                          ? playerBottom + MiniPlayer.height
+                          : barInset,
                     ),
                   ),
                   child: IndexedStack(
@@ -178,7 +189,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                 Positioned(
                   left: 0,
                   right: 0,
-                  bottom: barInset,
+                  bottom: playerBottom,
                   child: const MiniPlayer(),
                 ),
             ],

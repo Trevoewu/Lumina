@@ -1,4 +1,8 @@
+import 'dart:ui';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:cupertino_native_better/cupertino_native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:audio_service/audio_service.dart';
 
@@ -11,10 +15,10 @@ import 'podcast_artwork.dart';
 
 /// 全局迷你播放器
 class MiniPlayer extends ConsumerWidget {
-  /// Laid-out height, for callers that float this above the tab bar and have
-  /// to reserve the room themselves: 6 + 48 artwork + 5 padding, a 2px
-  /// progress bar, a 1px border top and bottom, and the 2px bottom margin.
-  static const double height = 65;
+  /// Includes the inset progress track and its bottom breathing room.
+  static const double height = 64;
+  static const double navigationGap = 8;
+  static const double horizontalInset = 20;
 
   const MiniPlayer({super.key});
 
@@ -92,22 +96,22 @@ class MiniPlayer extends ConsumerWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Padding(
-                          padding: const EdgeInsets.fromLTRB(8, 6, 4, 5),
+                          padding: const EdgeInsets.fromLTRB(10, 7, 8, 3),
                           child: Row(
                             children: [
                               SizedBox(
-                                width: 48,
-                                height: 48,
+                                width: 44,
+                                height: 44,
                                 child: isPodcast
                                     ? PodcastArtwork(
                                         imageUrl: imageUrl,
-                                        size: 48,
-                                        borderRadius: 5,
+                                        size: 44,
+                                        borderRadius: 10,
                                       )
                                     : BookCover(
                                         coverPath: coverPath,
                                         iconSize: 22,
-                                        borderRadius: 5,
+                                        borderRadius: 10,
                                       ),
                               ),
                               const SizedBox(width: 10),
@@ -125,7 +129,9 @@ class MiniPlayer extends ConsumerWidget {
                                           .textTheme
                                           .bodyMedium
                                           ?.copyWith(
-                                            color: Colors.white,
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.onSurface,
                                             fontWeight: FontWeight.bold,
                                           ),
                                     ),
@@ -138,9 +144,9 @@ class MiniPlayer extends ConsumerWidget {
                                           .textTheme
                                           .bodySmall
                                           ?.copyWith(
-                                            color: Colors.white.withValues(
-                                              alpha: 0.74,
-                                            ),
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.onSurfaceVariant,
                                           ),
                                     ),
                                   ],
@@ -151,8 +157,8 @@ class MiniPlayer extends ConsumerWidget {
                               IconButton(
                                 visualDensity: VisualDensity.compact,
                                 constraints: const BoxConstraints.tightFor(
-                                  width: 42,
-                                  height: 42,
+                                  width: 44,
+                                  height: 44,
                                 ),
                                 icon: Icon(
                                   buffering
@@ -160,7 +166,9 @@ class MiniPlayer extends ConsumerWidget {
                                       : playing
                                       ? Icons.pause
                                       : Icons.play_arrow,
-                                  color: Colors.white,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurface,
                                 ),
                                 onPressed: playing
                                     ? handler.pause
@@ -169,12 +177,14 @@ class MiniPlayer extends ConsumerWidget {
                               IconButton(
                                 visualDensity: VisualDensity.compact,
                                 constraints: const BoxConstraints.tightFor(
-                                  width: 42,
-                                  height: 42,
+                                  width: 44,
+                                  height: 44,
                                 ),
                                 icon: Icon(
                                   Icons.skip_next,
-                                  color: Colors.white,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurface,
                                 ),
                                 onPressed: handler.skipToNext,
                               ),
@@ -184,7 +194,7 @@ class MiniPlayer extends ConsumerWidget {
 
                         // 极细的进度条
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
                           child: ClipRRect(
                             borderRadius: const BorderRadius.vertical(
                               bottom: Radius.circular(8),
@@ -205,9 +215,12 @@ class MiniPlayer extends ConsumerWidget {
                                 return LinearProgressIndicator(
                                   value: progress,
                                   minHeight: 2,
-                                  backgroundColor: Colors.transparent,
+                                  backgroundColor: Theme.of(context)
+                                      .colorScheme
+                                      .onSurface
+                                      .withValues(alpha: 0.08),
                                   valueColor: AlwaysStoppedAnimation<Color>(
-                                    Color.lerp(accent, Colors.white, 0.72)!,
+                                    accent,
                                   ),
                                 );
                               },
@@ -276,34 +289,67 @@ class _MiniPlayerSurfaceState extends ConsumerState<_MiniPlayerSurface> {
       builder: (context, snapshot) {
         final appearance = snapshot.data;
         final seed = appearance?.seed;
-        final surface = seed == null
-            ? const Color(0xFF303030)
-            : CoverPaletteService.darkSurfaceForSeed(seed);
+        final theme = Theme.of(context);
+        final isDark = theme.brightness == Brightness.dark;
+        final surface = Color.lerp(
+          theme.colorScheme.surface,
+          seed ?? theme.colorScheme.surface,
+          isDark ? 0.10 : 0.05,
+        )!;
+        final content = SizedBox(
+          height: MiniPlayer.height,
+          child: widget.child(context, appearance?.coverPath),
+        );
+        final nativeGlass =
+            (defaultTargetPlatform == TargetPlatform.iOS ||
+                defaultTargetPlatform == TargetPlatform.macOS) &&
+            PlatformVersion.supportsLiquidGlass;
 
-        return Container(
-          margin: const EdgeInsets.fromLTRB(6, 0, 6, 2),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.28),
-                blurRadius: 8,
-                offset: const Offset(0, 3),
-              ),
-            ],
+        return Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: MiniPlayer.horizontalInset,
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 240),
-              curve: Curves.easeOutCubic,
-              decoration: BoxDecoration(
-                color: surface.withValues(alpha: 0.88),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
-              ),
-              child: widget.child(context, appearance?.coverPath),
-            ),
-          ),
+          child: nativeGlass
+              ? LiquidGlassContainer(
+                  config: LiquidGlassConfig(
+                    effect: CNGlassEffect.regular,
+                    shape: CNGlassEffectShape.capsule,
+                    tint: (seed ?? theme.colorScheme.surface).withValues(
+                      alpha: 0.06,
+                    ),
+                  ),
+                  child: content,
+                )
+              : DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(32),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 16,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(32),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: surface.withValues(alpha: 0.88),
+                          borderRadius: BorderRadius.circular(32),
+                          border: Border.all(
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.08,
+                            ),
+                          ),
+                        ),
+                        child: content,
+                      ),
+                    ),
+                  ),
+                ),
         );
       },
     );
