@@ -9,6 +9,7 @@ import '../ai/ai_thread_repository.dart';
 import '../ai/transcript_tool.dart';
 import '../services/cache_manager.dart';
 import '../data/book_sources/gutendex_repository.dart';
+import '../data/book_sources/librivox_repository.dart';
 import '../data/dictionary/dictionary_repository.dart';
 import '../data/dictionary/openai_compatible_explanation_provider.dart';
 import '../data/podcasts/podcast_index_repository.dart';
@@ -41,6 +42,10 @@ final incomingBookImportControllerProvider =
 
 final gutendexRepositoryProvider = Provider<GutendexRepository>((ref) {
   return GutendexRepository();
+});
+
+final librivoxRepositoryProvider = Provider<LibrivoxRepository>((ref) {
+  return LibrivoxRepository();
 });
 
 final podcastRepositoryProvider = Provider<PodcastRepository>((ref) {

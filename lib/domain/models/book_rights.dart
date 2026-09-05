@@ -1,4 +1,5 @@
 const gutendexSourceId = 'gutendex';
+const librivoxSourceId = 'librivox';
 
 const publicDomainRightsStatus = 'public_domain';
 const userUploadedRightsStatus = 'user_uploaded';

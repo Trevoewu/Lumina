@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:lumina/services/app_log_service.dart';
+import 'package:lumina/domain/models/chapter_manifest.dart';
 import 'package:lumina/services/lumina_audio_handler.dart';
 
 void main() {
@@ -127,6 +128,37 @@ void main() {
       ['episode-0', 'episode-1'],
       reason: 'currentIndexStream repeats itself on every playback event',
     );
+  });
+
+  test('book queues accept LibriVox remote chapter audio', () async {
+    final player = _FakeAudioPlayer();
+    final handler = LuminaAudioHandler(player: player);
+    addTearDown(handler.dispose);
+
+    await handler.loadChapter(
+      manifest: ChapterManifest(
+        chapterId: 'chapter-remote',
+        bookId: 'librivox-47',
+        providerId: 'librivox',
+        voiceId: 'Volunteer',
+        speed: 1,
+        segments: const [
+          SegmentEntry(
+            paragraphId: 'chapter-remote-audio',
+            audioFile: 'https://archive.org/download/book/chapter.mp3',
+            durationMs: 60000,
+            state: ParagraphAudioState.ready,
+          ),
+        ],
+        updatedAt: 1,
+      ),
+      audioRoot: '/path/that/does/not/exist',
+      bookTitle: 'Public domain book',
+      chapterTitle: 'Chapter 1',
+    );
+
+    expect(handler.currentBookId, 'librivox-47');
+    expect(handler.currentChapterId, 'chapter-remote');
   });
 }
 

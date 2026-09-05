@@ -240,7 +240,7 @@ void main() {
     expect(find.text('Home'), findsWidgets);
     expect(find.byType(CNTabBar), findsOneWidget);
     final navigationBar = tester.widget<CNTabBar>(find.byType(CNTabBar));
-    expect(navigationBar.items, hasLength(3));
+    expect(navigationBar.items, hasLength(4));
     expect(navigationBar.currentIndex, 0);
 
     await tester.tap(find.byIcon(Icons.person_rounded));

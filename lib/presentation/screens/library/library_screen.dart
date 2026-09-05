@@ -24,14 +24,12 @@ import '../../widgets/book_card_metadata.dart';
 import '../../widgets/book_list_card.dart';
 import '../../widgets/half_screen_action_sheet.dart';
 import '../album/album_screen.dart';
-import '../podcast/podcast_index_search_screen.dart';
 import '../podcast/podcast_library_view.dart';
-import '../search/search_screen.dart';
 import 'home_overview_view.dart';
 
 enum _HomeSection { all, books, podcasts }
 
-enum _HomeAddAction { importBook, discoverPodcast, addPodcast }
+enum _HomeAddAction { importBook, addPodcast }
 
 class _HomeSectionSelector extends StatelessWidget {
   final _HomeSection selected;
@@ -217,22 +215,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                           ),
                         ),
                         IconButton(
-                          key: const ValueKey('home-search-action'),
-                          tooltip: _section == _HomeSection.podcasts
-                              ? context.tr(
-                                  '搜索 Podcast Index',
-                                  'Search Podcast Index',
-                                  'Podcast Indexを検索',
-                                )
-                              : context.tr('搜索书籍', 'Search books', '本を検索'),
-                          onPressed: _openSearch,
-                          icon: Icon(
-                            Icons.search,
-                            size: 22,
-                            color: context.appTextPrimary,
-                          ),
-                        ),
-                        IconButton(
                           key: const ValueKey('home-add-action'),
                           tooltip: _section == _HomeSection.podcasts
                               ? context.tr(
@@ -288,7 +270,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                       scrollController: _overviewScrollController,
                       onImportBook: () => _importBook(context),
                       onAddPodcast: _showAddPodcastDialog,
-                      onSearchPodcastIndex: _showPodcastIndexSearch,
                       onBookLongPress: _showBookActions,
                       onOpenBook: _openBook,
                     ),
@@ -298,7 +279,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     child: PodcastLibraryView(
                       scrollController: _podcastsScrollController,
                       onAddPodcast: _showAddPodcastDialog,
-                      onSearchPodcastIndex: _showPodcastIndexSearch,
                     ),
                   ),
                 ],
@@ -329,17 +309,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       duration: const Duration(milliseconds: 260),
       curve: Curves.easeOutCubic,
     );
-  }
-
-  Future<void> _openSearch() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => _section == _HomeSection.podcasts
-            ? const PodcastIndexSearchScreen()
-            : const SearchScreen(),
-      ),
-    );
-    if (mounted) setState(() => _reloadToken++);
   }
 
   void _handleAddAction() {
@@ -519,15 +488,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   Navigator.pop(sheetContext, _HomeAddAction.importBook),
             ),
             ListTile(
-              leading: const Icon(Icons.travel_explore_rounded),
-              title: Text(
-                context.tr('发现 Podcast', 'Discover podcasts', 'ポッドキャストを探す'),
-              ),
-              subtitle: const Text('Podcast Index'),
-              onTap: () =>
-                  Navigator.pop(sheetContext, _HomeAddAction.discoverPodcast),
-            ),
-            ListTile(
               leading: const Icon(Icons.rss_feed),
               title: Text(context.tr('通过 RSS 添加', 'Add with RSS', 'RSSから追加')),
               subtitle: Text(
@@ -545,20 +505,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       case _HomeAddAction.importBook:
         await _importBook(context);
         break;
-      case _HomeAddAction.discoverPodcast:
-        await _showPodcastIndexSearch();
-        break;
       case _HomeAddAction.addPodcast:
         await _showAddPodcastDialog();
         break;
     }
-  }
-
-  Future<void> _showPodcastIndexSearch() async {
-    await Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const PodcastIndexSearchScreen()));
-    if (mounted) setState(() => _reloadToken++);
   }
 
   Future<void> _showAddPodcastDialog() async {

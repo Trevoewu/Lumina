@@ -21,9 +21,11 @@ import '../../../core/service_settings_controllers.dart';
 import '../../../data/database/app_database.dart' as drift_db;
 import '../../../data/settings/provider_selection_repository.dart';
 import '../../../domain/models/audio_text_timing.dart';
+import '../../../domain/models/book_rights.dart';
 import '../../../domain/models/chapter_manifest.dart';
 import '../../../services/app_log_service.dart';
 import '../../../services/audiobook_manifest_validator.dart';
+import '../../../services/audiobook_transcription_storage.dart';
 import '../../../services/book_playback_queue.dart';
 import '../../../services/cover_palette_service.dart';
 import '../../../services/generation_orchestrator.dart';
@@ -482,6 +484,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   int _audiobookSelectionRevision = 0;
 
   bool get _isPodcast => widget.podcast != null;
+  bool get _isRecordedBook => widget.book.externalSource == librivoxSourceId;
+  AudiobookTranscriptionStorage? _bookAsrStorage;
+  drift_db.PodcastEpisode? _bookAsrState;
+  PodcastTranscriptionProgress? _bookAsrProgress;
+  StreamSubscription? _bookAsrSubscription;
+  StreamSubscription? _bookAsrProgressSubscription;
+  bool _bookAsrStarting = false;
+  bool _bookAsrPausing = false;
+  int _bookAsrRefreshRevision = 0;
+
+  bool get _bookAsrRunning =>
+      _bookAsrStarting ||
+      (_selectedAudiobookChapter != null &&
+          ref.read(podcastTranscriptionServiceProvider).activeEpisodeId ==
+              _selectedAudiobookChapter?.id);
   drift_db.Chapter? get _selectedAudiobookChapter =>
       _activeAudiobookChapter ?? widget.initialChapter;
 
@@ -526,6 +543,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   @override
   void dispose() {
+    unawaited(_bookAsrSubscription?.cancel());
+    unawaited(_bookAsrProgressSubscription?.cancel());
     unawaited(_generationSubscription?.cancel());
     unawaited(_podcastEpisodeSubscription?.cancel());
     unawaited(_transcriptionSubscription?.cancel());
@@ -849,6 +868,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         title: chapterTitle,
                         subtitle: widget.book.title,
                         pageInset: pageInset,
+                        trailing: _isRecordedBook
+                            ? _bookTranscriptionActions()
+                            : const [],
                         onClosePlayer: closePlayer,
                       ),
                       belowFold: [
@@ -947,6 +969,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     });
     _refreshTranscriptPage();
 
+    if (_isRecordedBook) {
+      _watchBookTranscription(chapter);
+      await _autoplayIfRequested();
+      return;
+    }
     final activeGeneration = ref
         .read(generationOrchestratorProvider)
         .watchChapterGeneration(bookId: widget.book.id, chapterId: chapter.id);
@@ -1235,6 +1262,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     drift_db.GenerationTask? recoveryTask,
     bool silent = false,
   }) async {
+    if (_isRecordedBook) return false;
     final chapter = _selectedAudiobookChapter;
     if (chapter == null) return false;
     if (_generationSubscription != null) {
@@ -1872,6 +1900,145 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       }
     }
   }
+
+  void _watchBookTranscription(drift_db.Chapter chapter) {
+    if (_bookAsrStorage?.chapter.id == chapter.id) return;
+    unawaited(_bookAsrSubscription?.cancel());
+    unawaited(_bookAsrProgressSubscription?.cancel());
+    final storage = AudiobookTranscriptionStorage(
+      ref.read(appDatabaseProvider),
+      manifests: ref.read(manifestStoreProvider),
+      book: widget.book,
+      chapter: chapter,
+    );
+    _bookAsrStorage = storage;
+    _bookAsrState = null;
+    _bookAsrProgress = null;
+    _bookAsrStarting = false;
+    _bookAsrSubscription = storage.watch().listen((_) {
+      unawaited(_refreshBookTranscription(storage));
+    });
+    _bookAsrProgressSubscription = ref
+        .read(podcastTranscriptionServiceProvider)
+        .progressStream
+        .listen((progress) {
+          if (!mounted || progress.episodeId != _selectedAudiobookChapter?.id) {
+            return;
+          }
+          setState(() => _bookAsrProgress = progress);
+          _refreshTranscriptPage();
+        });
+  }
+
+  Future<void> _refreshBookTranscription(
+    AudiobookTranscriptionStorage storage,
+  ) async {
+    final revision = ++_bookAsrRefreshRevision;
+    try {
+      final state = await storage.read(storage.chapter.id);
+      final manifest = await storage.manifests.load(
+        widget.book.id,
+        storage.chapter.id,
+      );
+      final paragraphs = await storage.database.getParagraphs(
+        storage.chapter.id,
+      );
+      if (!mounted ||
+          revision != _bookAsrRefreshRevision ||
+          _selectedAudiobookChapter?.id != storage.chapter.id) {
+        return;
+      }
+      setState(() {
+        _bookAsrState = state;
+        _selectedManifest = manifest;
+        _audiobookParagraphs = paragraphs;
+        _audiobookParagraphsFuture = Future.value(paragraphs);
+      });
+      _refreshTranscriptPage();
+    } catch (error, stackTrace) {
+      AppLogger.error('ASR', '读取章节字幕失败', error: error, stackTrace: stackTrace);
+    }
+  }
+
+  Future<void> _startBookTranscription() async {
+    final storage = _bookAsrStorage;
+    if (storage == null || _bookAsrRunning) return;
+    setState(() => _bookAsrStarting = true);
+    _refreshTranscriptPage();
+    try {
+      if (!await _ensureWhisperModelReady()) return;
+      if (!mounted || !identical(storage, _bookAsrStorage)) return;
+      final episode = await storage.read(storage.chapter.id);
+      if (episode == null || !mounted || !identical(storage, _bookAsrStorage)) {
+        return;
+      }
+      await ref
+          .read(podcastTranscriptionServiceProvider)
+          .transcribe(
+            episode,
+            storage: storage,
+            languageHint: widget.book.language,
+          );
+    } catch (error) {
+      if (mounted && identical(storage, _bookAsrStorage)) {
+        _showSnackBar(
+          context.tr(
+            '本地转写失败：$error',
+            'Local transcription failed: $error',
+            '文字起こしに失敗しました：$error',
+          ),
+        );
+      }
+    } finally {
+      if (mounted && identical(storage, _bookAsrStorage)) {
+        setState(() => _bookAsrStarting = false);
+        await _refreshBookTranscription(storage);
+      }
+    }
+  }
+
+  Future<void> _pauseBookTranscription() async {
+    if (_bookAsrPausing) return;
+    setState(() => _bookAsrPausing = true);
+    _refreshTranscriptPage();
+    try {
+      final service = ref.read(podcastTranscriptionServiceProvider);
+      if (service.activeEpisodeId == _selectedAudiobookChapter?.id) {
+        await service.pause();
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _bookAsrPausing = false);
+        _refreshTranscriptPage();
+      }
+    }
+  }
+
+  List<Widget> _bookTranscriptionActions() => [
+    if (_bookAsrRunning)
+      IconButton(
+        key: const ValueKey('book-transcript-pause'),
+        tooltip: context.tr('暂停转写', 'Pause transcription', '文字起こしを一時停止'),
+        onPressed:
+            _bookAsrPausing ||
+                ref.read(podcastTranscriptionServiceProvider).activeEpisodeId !=
+                    _selectedAudiobookChapter?.id
+            ? null
+            : _pauseBookTranscription,
+        icon: const Icon(Icons.pause_circle_outline),
+      )
+    else if (_bookAsrState?.transcriptStatus != 'complete')
+      IconButton(
+        key: const ValueKey('book-transcript-resume'),
+        tooltip: context.tr(
+          '生成或继续字幕',
+          'Generate or resume transcript',
+          '文字起こしを開始・再開',
+        ),
+        onPressed: _startBookTranscription,
+        icon: const Icon(Icons.subtitles_outlined),
+      ),
+  ];
 
   Future<void> _startPodcastTranscription({
     bool allowSetup = true,
@@ -3135,12 +3302,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       key: const ValueKey('ai-summary-card'),
       child: AiSummaryPanel(
         scope: scope,
-        transcriptAvailable: podcast == null
+        transcriptAvailable: _isRecordedBook
+            ? (_selectedManifest?.segments.firstOrNull?.timings.isNotEmpty ??
+                  false)
+            : podcast == null
             ? null
             : (_podcastTranscript?.timingCount ?? 0) > 0,
         onCitationTap: (citation) =>
             _handleAiCitation(citation, scope, handler, manifest),
-        onTranscriptRequired: _isPodcast ? _startPodcastTranscription : null,
+        onTranscriptRequired: _isRecordedBook
+            ? _startBookTranscription
+            : _isPodcast
+            ? _startPodcastTranscription
+            : null,
         aiServiceReady: aiServiceReady,
         onAiServiceRequired: _openAiServiceSettings,
       ),
@@ -3928,6 +4102,87 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       );
     }
 
+    if (_isRecordedBook) {
+      final timings =
+          manifest?.segments.firstOrNull?.timings ?? const <AudioTextTiming>[];
+      final running = _bookAsrRunning;
+      return Column(
+        children: [
+          if (running)
+            LinearProgressIndicator(value: _bookAsrProgress?.progress),
+          Expanded(
+            child: timings.isEmpty
+                ? Center(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.subtitles_outlined, size: 34),
+                          const SizedBox(height: 12),
+                          Text(
+                            running
+                                ? context.tr(
+                                    '正在本地生成字幕',
+                                    'Transcribing on device',
+                                    '端末で文字起こし中',
+                                  )
+                                : _bookAsrState?.transcriptStatus == 'failed'
+                                ? context.tr(
+                                    '上次转写未完成，可以重试',
+                                    'Transcription stopped. Try again.',
+                                    '文字起こしが中断されました。再試行できます。',
+                                  )
+                                : context.tr(
+                                    '这一章还没有字幕',
+                                    'No transcript for this chapter yet',
+                                    'この章の字幕はまだありません',
+                                  ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 12),
+                          if (!running)
+                            FilledButton.icon(
+                              key: const ValueKey('book-transcript-start'),
+                              onPressed: _startBookTranscription,
+                              icon: const Icon(Icons.subtitles_outlined),
+                              label: Text(
+                                context.tr(
+                                  '在本地生成字幕',
+                                  'Transcribe on device',
+                                  'この端末で文字起こし',
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  )
+                : SyncedLyricsList(
+                    key: listKey,
+                    paragraphs: [
+                      for (final paragraph in _audiobookParagraphs)
+                        paragraph.copyWith(
+                          content: joinPodcastTranscriptLines(timings),
+                        ),
+                    ],
+                    manifest: manifest,
+                    handler: handler,
+                    playbackEnabled: playbackEnabled,
+                    expanded: expanded,
+                    focusMode: focusMode,
+                    bookTitle: widget.book.title,
+                    chapterTitle: _selectedAudiobookChapter?.title,
+                    bookId: widget.book.id,
+                    chapterId: chapterId,
+                    virtualized: true,
+                    scrollSpeed: _readingScrollSpeed,
+                    sweepEnabled: _lyricSweepEnabled,
+                  ),
+          ),
+        ],
+      );
+    }
     final paragraphsFuture = _audiobookParagraphsFuture ??= ref
         .read(appDatabaseProvider)
         .getParagraphs(chapterId);

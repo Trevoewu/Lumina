@@ -11,6 +11,7 @@ import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart' as drift_db;
 import '../../../data/settings/provider_selection_repository.dart';
 import '../../../domain/models/book_language.dart';
+import '../../../domain/models/book_rights.dart';
 import '../../../domain/models/chapter_manifest.dart';
 import '../../../services/app_log_service.dart';
 import '../../../services/book_introduction_service.dart';
@@ -58,13 +59,18 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   late int _playbackOffsetMs;
   late bool _isRead;
 
+  bool get _isStreamingAudiobook =>
+      widget.book.externalSource == librivoxSourceId;
+
   @override
   void initState() {
     super.initState();
     _bookIntroductionFuture = _loadBookIntroduction();
     _chapterDataFuture = _loadChapterData(ref.read(appDatabaseProvider));
     _coverSeedFuture = CoverPaletteService.seedForPath(widget.book.coverPath);
-    _bookVoiceFuture = _loadBookVoice();
+    _bookVoiceFuture = _isStreamingAudiobook
+        ? Future<_BookVoiceData?>.value(null)
+        : _loadBookVoice();
     _currentChapterId = widget.book.currentChapterId;
     _currentParagraphIndex = widget.book.currentParagraphIndex;
     _playbackOffsetMs = widget.book.playbackOffsetMs;
@@ -81,6 +87,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   }
 
   Future<void> _resumeInterruptedChapter() async {
+    if (_isStreamingAudiobook) return;
     final chapterId = widget.initialChapterId ?? widget.book.currentChapterId;
     if (chapterId == null) return;
     final database = ref.read(appDatabaseProvider);
@@ -116,7 +123,9 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       _chapterData = null;
       _chapterDataFuture = _loadChapterData(ref.read(appDatabaseProvider));
       _didScrollToInitialChapter = false;
-      _bookVoiceFuture = _loadBookVoice();
+      _bookVoiceFuture = _isStreamingAudiobook
+          ? Future<_BookVoiceData?>.value(null)
+          : _loadBookVoice();
     }
     if (oldWidget.book.coverPath != widget.book.coverPath) {
       _coverSeedFuture = CoverPaletteService.seedForPath(widget.book.coverPath);
@@ -1029,6 +1038,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                         manifestStore: ref.read(manifestStoreProvider),
                         bookId: widget.book.id,
                         chapterId: chapter.id,
+                        streamingAudio: _isStreamingAudiobook,
                         onPlay: () => _openChapter(chapter),
                         onDownload: () => _toggleChapterDownload(chapter),
                         onCancelDownload: () => _cancelChapterDownload(chapter),
@@ -1088,70 +1098,95 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(color: context.appTextSecondary),
               ),
-              SizedBox(height: design.spaceLg),
-              Text(
-                context.tr('使用的音色', 'VOICE', '使用する音声'),
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: context.appTextSecondary,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.1,
-                ),
-              ),
-              const SizedBox(height: 4),
-              FutureBuilder<_BookVoiceData?>(
-                future: _bookVoiceFuture,
-                builder: (context, snapshot) {
-                  final data = snapshot.data;
-                  if (data == null) {
-                    return SizedBox(
-                      height: 44,
-                      child: snapshot.connectionState == ConnectionState.waiting
-                          ? Align(
-                              alignment: Alignment.centerLeft,
-                              child: Icon(
-                                Icons.record_voice_over_outlined,
-                                size: 22,
-                                color: context.appTextSecondary,
-                              ),
-                            )
-                          : Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                context.tr(
-                                  '没有可用音色',
-                                  'No voice available',
-                                  '利用できる音声がありません',
-                                ),
-                                style: TextStyle(
-                                  color: context.appTextSecondary,
-                                ),
-                              ),
-                            ),
-                    );
-                  }
-                  final selected = data.voices
-                      .where((voice) => voice.id == data.selectedVoiceId)
-                      .firstOrNull;
-                  if (selected == null) return const SizedBox.shrink();
-                  return Material(
-                    key: const ValueKey('book-voice-selector'),
-                    color: Theme.of(context).colorScheme.surfaceContainer,
-                    borderRadius: BorderRadius.circular(12),
-                    clipBehavior: Clip.antiAlias,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      child: VoiceSelectionCard(
-                        voice: selected,
-                        selected: true,
-                        playing: false,
-                        subtitle:
-                            voiceLanguageLabel(selected) ?? data.providerName,
-                        onTap: () => _showBookVoicePicker(data),
+              if (_isStreamingAudiobook) ...[
+                SizedBox(height: design.spaceLg),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.record_voice_over_outlined,
+                      size: 18,
+                      color: context.appTextSecondary,
+                    ),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: Text(
+                        context.tr(
+                          'LibriVox 真人朗读',
+                          'Human narration from LibriVox',
+                          'LibriVoxの人間による朗読',
+                        ),
+                        style: TextStyle(color: context.appTextSecondary),
                       ),
                     ),
-                  );
-                },
-              ),
+                  ],
+                ),
+              ] else ...[
+                SizedBox(height: design.spaceLg),
+                Text(
+                  context.tr('使用的音色', 'VOICE', '使用する音声'),
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: context.appTextSecondary,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.1,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                FutureBuilder<_BookVoiceData?>(
+                  future: _bookVoiceFuture,
+                  builder: (context, snapshot) {
+                    final data = snapshot.data;
+                    if (data == null) {
+                      return SizedBox(
+                        height: 44,
+                        child:
+                            snapshot.connectionState == ConnectionState.waiting
+                            ? Align(
+                                alignment: Alignment.centerLeft,
+                                child: Icon(
+                                  Icons.record_voice_over_outlined,
+                                  size: 22,
+                                  color: context.appTextSecondary,
+                                ),
+                              )
+                            : Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  context.tr(
+                                    '没有可用音色',
+                                    'No voice available',
+                                    '利用できる音声がありません',
+                                  ),
+                                  style: TextStyle(
+                                    color: context.appTextSecondary,
+                                  ),
+                                ),
+                              ),
+                      );
+                    }
+                    final selected = data.voices
+                        .where((voice) => voice.id == data.selectedVoiceId)
+                        .firstOrNull;
+                    if (selected == null) return const SizedBox.shrink();
+                    return Material(
+                      key: const ValueKey('book-voice-selector'),
+                      color: Theme.of(context).colorScheme.surfaceContainer,
+                      borderRadius: BorderRadius.circular(12),
+                      clipBehavior: Clip.antiAlias,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        child: VoiceSelectionCard(
+                          voice: selected,
+                          selected: true,
+                          playing: false,
+                          subtitle:
+                              voiceLanguageLabel(selected) ?? data.providerName,
+                          onTap: () => _showBookVoicePicker(data),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
             ],
           ),
         ),
@@ -1261,6 +1296,7 @@ class _ChapterCard extends StatelessWidget {
   final ManifestStore manifestStore;
   final String bookId;
   final String chapterId;
+  final bool streamingAudio;
   final VoidCallback onPlay;
   final VoidCallback onDownload;
   final VoidCallback onCancelDownload;
@@ -1284,6 +1320,7 @@ class _ChapterCard extends StatelessWidget {
     required this.manifestStore,
     required this.bookId,
     required this.chapterId,
+    this.streamingAudio = false,
     required this.onPlay,
     required this.onDownload,
     required this.onCancelDownload,
@@ -1467,31 +1504,31 @@ class _ChapterCard extends StatelessWidget {
       context,
       title: title,
       actions: [
-        if (isGenerating)
+        if (!streamingAudio && isGenerating)
           HalfScreenActionSheetItem(
             label: paused ? '继续缓存' : '暂停缓存',
             icon: paused ? Icons.play_arrow_rounded : Icons.pause_rounded,
             onPressed: onDownload,
           )
-        else if (!isFullyCached)
+        else if (!streamingAudio && !isFullyCached)
           HalfScreenActionSheetItem(
             label: hasCache ? '继续缓存音频' : '缓存音频',
             icon: Icons.download_for_offline_outlined,
             onPressed: onDownload,
           ),
-        if (isGenerating)
+        if (!streamingAudio && isGenerating)
           HalfScreenActionSheetItem(
             label: '取消缓存',
             icon: Icons.cancel_outlined,
             onPressed: onCancelDownload,
           ),
-        if (!isGenerating && hasCache)
+        if (!streamingAudio && !isGenerating && hasCache)
           HalfScreenActionSheetItem(
             label: '清除音频',
             icon: Icons.cleaning_services_outlined,
             onPressed: onClearCache,
           ),
-        if (!isGenerating && hasCache)
+        if (!streamingAudio && !isGenerating && hasCache)
           HalfScreenActionSheetItem(
             label: '重新生成',
             icon: Icons.refresh_rounded,
@@ -1504,11 +1541,12 @@ class _ChapterCard extends StatelessWidget {
           icon: finished ? Icons.remove_done_outlined : Icons.done_all_rounded,
           onPressed: () => onSetFinished(!finished),
         ),
-        HalfScreenActionSheetItem(
-          label: context.tr('修改旁白', 'Change narrator', 'ナレーターを変更'),
-          icon: Icons.record_voice_over_outlined,
-          onPressed: onChangeNarrator,
-        ),
+        if (!streamingAudio)
+          HalfScreenActionSheetItem(
+            label: context.tr('修改旁白', 'Change narrator', 'ナレーターを変更'),
+            icon: Icons.record_voice_over_outlined,
+            onPressed: onChangeNarrator,
+          ),
         HalfScreenActionSheetItem(
           label: context.tr('在本书中隐藏', 'Hide in this book', 'この本で非表示にする'),
           icon: Icons.visibility_off_outlined,

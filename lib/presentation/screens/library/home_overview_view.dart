@@ -22,7 +22,6 @@ class HomeOverviewView extends ConsumerStatefulWidget {
   final ScrollController scrollController;
   final VoidCallback onImportBook;
   final VoidCallback onAddPodcast;
-  final VoidCallback onSearchPodcastIndex;
   final ValueChanged<Book> onBookLongPress;
   final ValueChanged<Book> onOpenBook;
 
@@ -32,7 +31,6 @@ class HomeOverviewView extends ConsumerStatefulWidget {
     required this.scrollController,
     required this.onImportBook,
     required this.onAddPodcast,
-    required this.onSearchPodcastIndex,
     required this.onBookLongPress,
     required this.onOpenBook,
   });
@@ -71,7 +69,6 @@ class _HomeOverviewViewState extends ConsumerState<HomeOverviewView> {
           scrollController: widget.scrollController,
           onImportBook: widget.onImportBook,
           onAddPodcast: widget.onAddPodcast,
-          onSearchPodcastIndex: widget.onSearchPodcastIndex,
           onBookLongPress: widget.onBookLongPress,
           onOpenBook: widget.onOpenBook,
         );
@@ -110,7 +107,6 @@ class _HomeOverviewContent extends StatefulWidget {
   final ScrollController scrollController;
   final VoidCallback onImportBook;
   final VoidCallback onAddPodcast;
-  final VoidCallback onSearchPodcastIndex;
   final ValueChanged<Book> onBookLongPress;
   final ValueChanged<Book> onOpenBook;
 
@@ -119,7 +115,6 @@ class _HomeOverviewContent extends StatefulWidget {
     required this.scrollController,
     required this.onImportBook,
     required this.onAddPodcast,
-    required this.onSearchPodcastIndex,
     required this.onBookLongPress,
     required this.onOpenBook,
   });
@@ -144,7 +139,6 @@ class _HomeOverviewContentState extends State<_HomeOverviewContent> {
         gutter: gutter,
         onImportBook: widget.onImportBook,
         onAddPodcast: widget.onAddPodcast,
-        onSearchPodcastIndex: widget.onSearchPodcastIndex,
       );
     }
 
@@ -675,14 +669,12 @@ class _EmptyHome extends StatelessWidget {
   final double gutter;
   final VoidCallback onImportBook;
   final VoidCallback onAddPodcast;
-  final VoidCallback onSearchPodcastIndex;
 
   const _EmptyHome({
     required this.scrollController,
     required this.gutter,
     required this.onImportBook,
     required this.onAddPodcast,
-    required this.onSearchPodcastIndex,
   });
 
   @override
@@ -714,16 +706,6 @@ class _EmptyHome extends StatelessWidget {
             'EPUBとTXTに対応',
           ),
           onTap: onImportBook,
-        ),
-        _StartRow(
-          icon: Icons.travel_explore_outlined,
-          title: context.tr('发现 Podcast', 'Discover podcasts', 'ポッドキャストを探す'),
-          subtitle: context.tr(
-            '通过 Podcast Index 搜索开放目录',
-            'Search the open directory with Podcast Index',
-            'Podcast Indexで公開ディレクトリを検索',
-          ),
-          onTap: onSearchPodcastIndex,
         ),
         _StartRow(
           icon: Icons.rss_feed,

@@ -8,6 +8,7 @@ import '../../core/providers.dart';
 import '../../services/incoming_book_import_controller.dart';
 import '../screens/album/album_screen.dart';
 import '../screens/dictionary/dictionary_screen.dart';
+import '../screens/discover/discover_screen.dart';
 import '../screens/library/library_screen.dart';
 import '../screens/me/me_screen.dart';
 import 'mini_player.dart';
@@ -24,15 +25,16 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
   int _currentIndex = 0;
   final Set<int> _initializedTabs = {0};
   final List<GlobalKey<NavigatorState>> _navigatorKeys = List.generate(
-    3,
+    4,
     (_) => GlobalKey<NavigatorState>(),
   );
 
   Widget _rootPageFor(int index) {
     return switch (index) {
       0 => const LibraryScreen(),
-      1 => const DictionaryScreen(),
-      2 => const MeScreen(),
+      1 => const DiscoverScreen(),
+      2 => const DictionaryScreen(),
+      3 => const MeScreen(),
       _ => const LibraryScreen(),
     };
   }
@@ -195,6 +197,11 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
             label: context.tr('主页', 'Home', 'ホーム'),
             icon: const CNSymbol('house.fill'),
             customIcon: Icons.home_rounded,
+          ),
+          CNTabBarItem(
+            label: context.tr('发现', 'Discover', '発見'),
+            icon: const CNSymbol('magnifyingglass'),
+            customIcon: Icons.search_rounded,
           ),
           CNTabBarItem(
             label: context.tr('查词', 'Dictionary', '辞書'),

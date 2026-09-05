@@ -5,28 +5,40 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/app_colors.dart';
-import '../../../core/app_design_tokens.dart';
 import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
+import '../../../data/database/app_database.dart';
 import '../../../data/podcasts/podcast_index_repository.dart';
-import '../../widgets/collapsing_page_scaffold.dart';
-import '../../widgets/design_system/app_search_field.dart';
 import '../../widgets/podcast_artwork.dart';
-import 'podcast_discovery_detail_screen.dart';
+import '../podcast/podcast_discovery_detail_screen.dart';
+import 'podcast_discover_section.dart';
 
-class PodcastIndexSearchScreen extends ConsumerStatefulWidget {
-  const PodcastIndexSearchScreen({super.key});
+/// 「发现」页的播客区：无查询时展示个性化推荐，有查询时展示 Podcast Index 结果。
+///
+/// 搜索框由 [DiscoverScreen] 统一持有，这里只负责按 [query] 拉取与展示结果；
+/// [searchToken] 变化表示用户显式重新提交了同一个查询。
+class PodcastDiscoverView extends ConsumerStatefulWidget {
+  final String query;
+  final int searchToken;
+  final double inset;
+
+  const PodcastDiscoverView({
+    super.key,
+    required this.query,
+    required this.searchToken,
+    required this.inset,
+  });
 
   @override
-  ConsumerState<PodcastIndexSearchScreen> createState() =>
-      _PodcastIndexSearchScreenState();
+  ConsumerState<PodcastDiscoverView> createState() =>
+      _PodcastDiscoverViewState();
 }
 
-class _PodcastIndexSearchScreenState
-    extends ConsumerState<PodcastIndexSearchScreen> {
-  final _controller = TextEditingController();
+class _PodcastDiscoverViewState extends ConsumerState<PodcastDiscoverView> {
   final _subscribedFeedUrls = <String>{};
-  Timer? _debounce;
+  List<PodcastShow> _shows = const [];
+  List<PodcastEpisode> _episodes = const [];
+  int _discoveryToken = 0;
   Future<List<PodcastIndexPodcast>>? _searchFuture;
   String _activeQuery = '';
 
@@ -34,104 +46,91 @@ class _PodcastIndexSearchScreenState
   void initState() {
     super.initState();
     unawaited(_loadSubscriptions());
+    _syncQuery();
   }
 
   @override
-  void dispose() {
-    _debounce?.cancel();
-    _controller.dispose();
-    super.dispose();
+  void didUpdateWidget(covariant PodcastDiscoverView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.query != widget.query ||
+        oldWidget.searchToken != widget.searchToken) {
+      _syncQuery();
+    }
   }
 
+  /// 订阅列表既用于标记搜索结果，也用作推荐的种子。
   Future<void> _loadSubscriptions() async {
-    final shows = await ref.read(appDatabaseProvider).getPodcastShows();
+    final database = ref.read(appDatabaseProvider);
+    final shows = await database.getPodcastShows();
+    final episodes = await database.getRecentPodcastEpisodes(limit: 30);
     if (!mounted) return;
     setState(() {
-      _subscribedFeedUrls.clear();
-      _subscribedFeedUrls.addAll(shows.map((show) => show.feedUrl));
+      _shows = shows;
+      _episodes = episodes;
+      _subscribedFeedUrls
+        ..clear()
+        ..addAll(shows.map((show) => show.feedUrl));
     });
   }
 
-  void _onQueryChanged(String value) {
-    _debounce?.cancel();
-    if (value.trim().isEmpty) {
-      setState(() {
-        _activeQuery = '';
-        _searchFuture = null;
-      });
-      return;
-    }
-    _debounce = Timer(const Duration(milliseconds: 350), _runSearch);
-  }
-
-  void _runSearch() {
-    _debounce?.cancel();
-    final query = _controller.text.trim();
+  void _syncQuery() {
+    final query = widget.query.trim();
     if (query.isEmpty) {
-      setState(() {
-        _activeQuery = '';
-        _searchFuture = null;
-      });
+      _activeQuery = '';
+      _searchFuture = null;
       return;
     }
-    setState(() {
-      _activeQuery = query;
-      _searchFuture = ref.read(podcastIndexRepositoryProvider).search(query);
-    });
+    _activeQuery = query;
+    _searchFuture = ref.read(podcastIndexRepositoryProvider).search(query);
+  }
+
+  void _retry() {
+    setState(_syncQuery);
   }
 
   @override
   Widget build(BuildContext context) {
-    final design = context.appDesign;
-    final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
-    return CollapsingPageScaffold(
-      title: context.tr('发现 Podcast', 'Discover podcasts', 'ポッドキャストを探す'),
-      showBackButton: true,
-      body: Column(
-        children: [
-          Padding(
-            padding: EdgeInsets.fromLTRB(inset, 8, inset, 4),
-            child: AppSearchField(
-              fieldKey: const ValueKey('podcast-index-search-field'),
-              controller: _controller,
-              autofocus: true,
-              autocorrect: false,
-              enableSuggestions: false,
-              onChanged: _onQueryChanged,
-              onSubmitted: (_) => _runSearch(),
-              onSearch: _runSearch,
-              hintText: context.tr(
-                '搜索节目或创作者',
-                'Search shows or creators',
-                '番組やクリエイターを検索',
+    final inset = widget.inset;
+    return Column(
+      children: [
+        Padding(
+          padding: EdgeInsets.fromLTRB(inset, 0, inset, 8),
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              key: const ValueKey('podcast-index-attribution'),
+              onPressed: () => launchUrl(
+                Uri.parse('https://podcastindex.org/'),
+                mode: LaunchMode.externalApplication,
               ),
+              icon: const Icon(Icons.public, size: 15),
+              label: const Text('Powered by Podcast Index'),
             ),
           ),
-          Padding(
-            padding: EdgeInsets.fromLTRB(inset, 0, inset, 8),
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                key: const ValueKey('podcast-index-attribution'),
-                onPressed: () => launchUrl(
-                  Uri.parse('https://podcastindex.org/'),
-                  mode: LaunchMode.externalApplication,
-                ),
-                icon: const Icon(Icons.public, size: 15),
-                label: const Text('Powered by Podcast Index'),
-              ),
-            ),
-          ),
-          Expanded(child: _buildResults(inset)),
-        ],
-      ),
+        ),
+        Expanded(child: _buildResults(inset)),
+      ],
     );
   }
 
   Widget _buildResults(double inset) {
     final future = _searchFuture;
     if (future == null) {
-      return _PodcastIndexIntro(inset: inset);
+      return ListView(
+        key: const ValueKey('podcast-discover-idle'),
+        padding: EdgeInsets.fromLTRB(inset, 8, inset, 120),
+        children: [
+          const _PodcastIndexIntro(),
+          const SizedBox(height: 28),
+          PodcastDiscoverSection(
+            shows: _shows,
+            episodes: _episodes,
+            preferredLanguage: Localizations.localeOf(context).languageCode,
+            refreshToken: _discoveryToken,
+            onSubscribed: _reloadLibrary,
+          ),
+        ],
+      );
     }
     return FutureBuilder<List<PodcastIndexPodcast>>(
       future: future,
@@ -142,7 +141,7 @@ class _PodcastIndexSearchScreenState
         if (snapshot.hasError) {
           return _PodcastIndexError(
             message: snapshot.error.toString(),
-            onRetry: _runSearch,
+            onRetry: _retry,
           );
         }
         final results = snapshot.data ?? const <PodcastIndexPodcast>[];
@@ -180,6 +179,11 @@ class _PodcastIndexSearchScreenState
     );
   }
 
+  void _reloadLibrary() {
+    setState(() => _discoveryToken++);
+    unawaited(_loadSubscriptions());
+  }
+
   Future<void> _openDetails(PodcastIndexPodcast podcast) async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -191,15 +195,13 @@ class _PodcastIndexSearchScreenState
 }
 
 class _PodcastIndexIntro extends StatelessWidget {
-  final double inset;
-
-  const _PodcastIndexIntro({required this.inset});
+  const _PodcastIndexIntro();
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(inset, 24, inset, 120),
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Center(
         child: Column(
           children: [
             Icon(

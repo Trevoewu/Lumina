@@ -15,6 +15,7 @@ import 'package:lumina/presentation/screens/player/player_screen.dart';
 import 'package:lumina/presentation/screens/settings/tts_service_screen.dart';
 import 'package:lumina/presentation/widgets/mini_player.dart';
 import 'package:lumina/services/lumina_audio_handler.dart';
+import 'package:lumina/services/audiobook_transcription_storage.dart';
 import 'package:lumina/services/manifest_store.dart';
 import 'package:lumina/services/sleep_timer_service.dart';
 import 'package:lumina/tts/provider_registry.dart';
@@ -22,6 +23,121 @@ import 'package:lumina/tts/providers/fish_audio_api_tts_provider.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets(
+    'recorded books offer local subtitles and show arriving ASR text',
+    (tester) async {
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      final temp = Directory.systemTemp.createTempSync('recorded_book_ui_');
+      final store = _TestManifestStore(temp);
+      final handler = _TestAudioHandler();
+      addTearDown(database.close);
+      addTearDown(handler.dispose);
+      addTearDown(() => temp.deleteSync(recursive: true));
+      const book = Book(
+        id: 'recorded-book',
+        title: 'Recorded Book',
+        format: 'txt',
+        sourcePath: '/tmp/book.txt',
+        chapterCount: 1,
+        paragraphCount: 1,
+        currentParagraphIndex: 0,
+        playbackOffsetMs: 0,
+        importedAt: 1,
+        lastReadAt: 0,
+        isRead: false,
+        kind: 'book',
+        rightsStatus: 'public_domain',
+        externalSource: 'librivox',
+      );
+      const chapter = Chapter(
+        id: 'recorded-chapter',
+        bookId: 'recorded-book',
+        chapterIndex: 0,
+        title: 'Recorded Chapter',
+        textOffset: 0,
+        isHidden: false,
+      );
+      await database.replaceBookData(
+        book: book,
+        chapterEntries: [chapter],
+        paragraphEntries: [
+          const Paragraph(
+            id: 'recorded-audio',
+            chapterId: 'recorded-chapter',
+            bookId: 'recorded-book',
+            paragraphIndex: 0,
+            content: 'Narrated by Volunteer.',
+          ),
+        ],
+      );
+      store.manifest = const ChapterManifest(
+        chapterId: 'recorded-chapter',
+        bookId: 'recorded-book',
+        providerId: 'librivox',
+        voiceId: 'Volunteer',
+        speed: 1,
+        updatedAt: 1,
+        segments: [
+          SegmentEntry(
+            paragraphId: 'recorded-audio',
+            audioFile: 'https://archive.org/download/book/audio.mp3',
+            durationMs: 60000,
+            state: ParagraphAudioState.ready,
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            appDatabaseProvider.overrideWithValue(database),
+            manifestStoreProvider.overrideWithValue(store),
+            luminaAudioHandlerProvider.overrideWith((ref) async => handler),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightTheme(),
+            home: const PlayerScreen(book: book, initialChapter: chapter),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final toggle = find.byKey(const ValueKey('player-transcript-toggle'));
+      await tester.ensureVisible(toggle);
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('book-transcript-start')),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Narrated by Volunteer'), findsNothing);
+
+      final storage = AudiobookTranscriptionStorage(
+        database,
+        manifests: store,
+        book: book,
+        chapter: chapter,
+      );
+      await storage.update(
+        chapter.id,
+        status: 'paused',
+        transcriptJson:
+            '[{"text":"The recorded story begins.","startMs":0,"endMs":3000}]',
+        progressMs: 30000,
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('book-transcript-start')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('book-transcript-resume')),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('The recorded story begins.', findRichText: true),
+        findsWidgets,
+      );
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+    },
+  );
 
   testWidgets('mini player reopens the active audiobook chapter', (
     tester,
@@ -1428,6 +1544,11 @@ class _TestManifestStore extends ManifestStore {
 
   @override
   Future<Directory> audioRoot(String bookId) async => root;
+
+  @override
+  Future<void> save(ChapterManifest value) async {
+    manifest = value;
+  }
 
   @override
   Future<ChapterManifest?> load(String bookId, String chapterId) async {

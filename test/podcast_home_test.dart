@@ -9,8 +9,10 @@ import 'package:lumina/core/providers.dart';
 import 'package:lumina/core/theme.dart';
 import 'package:lumina/data/database/app_database.dart';
 import 'package:lumina/data/podcasts/podcast_index_repository.dart';
+import 'package:lumina/data/book_sources/gutendex_repository.dart';
 import 'package:lumina/data/podcasts/podcast_repository.dart';
 import 'package:lumina/domain/models/chapter_manifest.dart';
+import 'package:lumina/presentation/screens/discover/discover_screen.dart';
 import 'package:lumina/presentation/screens/library/library_screen.dart';
 import 'package:lumina/presentation/screens/player/player_screen.dart';
 import 'package:lumina/presentation/screens/podcast/podcast_episode_tile.dart';
@@ -221,7 +223,7 @@ void main() {
     expect(isSelected('books'), isTrue);
   });
 
-  testWidgets('podcast library previews five episodes and shows discovery', (
+  testWidgets('podcast library previews five episodes', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -294,11 +296,55 @@ void main() {
     );
     await tester.tap(find.byType(BackButton));
     await tester.pumpAndSettle();
-
-    await tester.drag(
-      find.byKey(const PageStorageKey('podcast-library-list')),
-      const Offset(0, -700),
+    expect(
+      find.byKey(const ValueKey('podcast-discover-section')),
+      findsNothing,
     );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
+  });
+
+  testWidgets('discover tab recommends podcasts and previews an episode', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final handler = _PreviewAudioHandler();
+    final sleepTimer = SleepTimerService();
+    addTearDown(database.close);
+    addTearDown(handler.dispose);
+    addTearDown(sleepTimer.dispose);
+    await _seedScrollableHome(database);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          gutendexRepositoryProvider.overrideWithValue(
+            _EmptyGutendexRepository(),
+          ),
+          podcastIndexRepositoryProvider.overrideWithValue(
+            _FakePodcastIndexRepository(),
+          ),
+          podcastRepositoryProvider.overrideWithValue(
+            _FakePodcastRepository(database),
+          ),
+          luminaAudioHandlerProvider.overrideWith((ref) async => handler),
+          sleepTimerServiceProvider.overrideWithValue(sleepTimer),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.darkTheme(),
+          home: const DiscoverScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Podcasts'));
     await tester.pumpAndSettle();
     expect(
       find.byKey(const ValueKey('podcast-discover-section')),
@@ -448,27 +494,51 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Add your first podcast'), findsOneWidget);
-    expect(find.text('Search Podcast Index'), findsOneWidget);
+    expect(find.text('Search Podcast Index'), findsNothing);
     expect(find.text('Paste RSS feed URL'), findsOneWidget);
     expect(find.byType(BottomNavigationBar), findsNothing);
     expect(find.byType(NavigationBar), findsNothing);
 
-    await tester.tap(find.byKey(const ValueKey('empty-podcast-index-search')));
+    await tester.tap(find.text('Paste RSS feed URL'));
     await tester.pumpAndSettle();
-    expect(find.text('Discover podcasts'), findsOneWidget);
-    expect(find.text('Powered by Podcast Index'), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('podcast-index-search-field')),
-      findsOneWidget,
+    expect(find.text('RSS URL'), findsOneWidget);
+  });
+
+  testWidgets('discover tab searches Podcast Index', (tester) async {
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          gutendexRepositoryProvider.overrideWithValue(
+            _EmptyGutendexRepository(),
+          ),
+          podcastIndexRepositoryProvider.overrideWithValue(
+            _FakePodcastIndexRepository(),
+          ),
+          podcastRepositoryProvider.overrideWithValue(
+            _FakePodcastRepository(database),
+          ),
+        ],
+        child: const MaterialApp(home: DiscoverScreen()),
+      ),
     );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Podcasts'));
+    await tester.pumpAndSettle();
+    expect(find.text('Powered by Podcast Index'), findsOneWidget);
+
     await tester.enterText(
-      find.byKey(const ValueKey('podcast-index-search-field')),
+      find.byKey(const ValueKey('discover-search-field')),
       'flutter',
     );
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pumpAndSettle();
     expect(find.text('Flutter Example Show'), findsOneWidget);
     expect(find.text('Follow'), findsNothing);
+
     await tester.tap(find.text('Flutter Example Show'));
     await tester.pumpAndSettle();
     expect(
@@ -479,16 +549,18 @@ void main() {
 
     await tester.tap(find.byType(BackButton));
     await tester.pumpAndSettle();
-    expect(
-      find.byKey(const ValueKey('podcast-index-search-field')),
-      findsOneWidget,
-    );
-    await tester.tap(find.byType(BackButton));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Paste RSS feed URL'));
-    await tester.pumpAndSettle();
-    expect(find.text('RSS URL'), findsOneWidget);
+    expect(find.byKey(const ValueKey('discover-search-field')), findsOneWidget);
   });
+}
+
+class _EmptyGutendexRepository extends GutendexRepository {
+  @override
+  Future<GutendexSearchResult> search({
+    required String query,
+    int page = 1,
+  }) async {
+    return const GutendexSearchResult(count: 0, books: []);
+  }
 }
 
 Finder _overviewRows() => find.byWidgetPredicate((widget) {

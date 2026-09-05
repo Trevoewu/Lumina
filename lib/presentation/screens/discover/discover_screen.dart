@@ -8,6 +8,7 @@ import '../../../core/app_design_tokens.dart';
 import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
 import '../../../data/book_sources/gutendex_repository.dart';
+import '../../../data/book_sources/librivox_repository.dart';
 import '../../../data/database/app_database.dart' as drift_db;
 import '../../../domain/models/chapter_manifest.dart';
 import '../../../domain/models/book_rights.dart';
@@ -19,32 +20,58 @@ import '../../widgets/collapsing_page_scaffold.dart';
 import '../../widgets/design_system/app_search_field.dart';
 import '../album/album_screen.dart';
 import '../library/gutendex_book_detail_screen.dart';
+import '../library/librivox_book_detail_screen.dart';
+import 'discover_scope.dart';
+import 'podcast_discover_view.dart';
 
-enum _SearchScope { online, library }
-
-class SearchScreen extends ConsumerStatefulWidget {
-  const SearchScreen({super.key});
+/// 底部导航的「发现」页：书籍与播客的统一搜索与发现入口。
+class DiscoverScreen extends ConsumerStatefulWidget {
+  const DiscoverScreen({super.key});
 
   @override
-  ConsumerState<SearchScreen> createState() => _SearchScreenState();
+  ConsumerState<DiscoverScreen> createState() => _DiscoverScreenState();
 }
 
-class _SearchScreenState extends ConsumerState<SearchScreen> {
+class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
   final _controller = TextEditingController();
   Timer? _debounce;
   Future<_SearchData>? _future;
   Future<_OnlineSearchData>? _onlineFuture;
-  _SearchScope _scope = _SearchScope.online;
+  Future<_LibrivoxSearchData>? _librivoxFuture;
+  DiscoverScope _scope = DiscoverScope.onlineBooks;
   int _onlinePage = 1;
+  int _librivoxPage = 1;
   bool _localSearching = false;
   bool _onlineSearching = false;
+  bool _librivoxSearching = false;
+  String _podcastQuery = '';
+  int _podcastToken = 0;
 
   @override
   void initState() {
     super.initState();
-    _future = _startLocalSearch('');
-    _onlineSearching = true;
-    _onlineFuture = _startOnlineSearch();
+    _loadForScope();
+  }
+
+  /// 只加载当前范围需要的数据，切换范围时再按需拉取。
+  void _loadForScope() {
+    final query = _controller.text.trim();
+    switch (_scope) {
+      case DiscoverScope.audiobooks:
+        _librivoxPage = 1;
+        _librivoxSearching = true;
+        _librivoxFuture = _startLibrivoxSearch();
+      case DiscoverScope.onlineBooks:
+        _onlinePage = 1;
+        _onlineSearching = true;
+        _onlineFuture = _startOnlineSearch();
+      case DiscoverScope.podcasts:
+        _podcastQuery = query;
+        _podcastToken++;
+      case DiscoverScope.library:
+        _localSearching = true;
+        _future = _startLocalSearch(query);
+    }
   }
 
   @override
@@ -58,16 +85,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 280), () {
       if (!mounted) return;
-      setState(() {
-        if (_scope == _SearchScope.online) {
-          _onlinePage = 1;
-          _onlineSearching = true;
-          _onlineFuture = _startOnlineSearch();
-        } else {
-          _localSearching = true;
-          _future = _startLocalSearch(value.trim());
-        }
-      });
+      setState(_loadForScope);
     });
   }
 
@@ -79,6 +97,31 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       setState(() => _onlineSearching = false);
     });
     return future;
+  }
+
+  Future<_LibrivoxSearchData> _startLibrivoxSearch() {
+    late final Future<_LibrivoxSearchData> future;
+    future = _loadLibrivox();
+    future.whenComplete(() {
+      if (!mounted || !identical(_librivoxFuture, future)) return;
+      setState(() => _librivoxSearching = false);
+    });
+    return future;
+  }
+
+  Future<_LibrivoxSearchData> _loadLibrivox() async {
+    final db = ref.read(appDatabaseProvider);
+    final storedBooks = await db.getAllBooks();
+    final importedById = <String, drift_db.Book>{};
+    for (final book in storedBooks) {
+      if (book.externalSource == librivoxSourceId && book.externalId != null) {
+        importedById[book.externalId!] = book;
+      }
+    }
+    final result = await ref
+        .read(librivoxRepositoryProvider)
+        .search(query: _controller.text.trim(), page: _librivoxPage);
+    return _LibrivoxSearchData(result: result, importedById: importedById);
   }
 
   Future<_SearchData> _startLocalSearch(String query) {
@@ -163,54 +206,49 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   Widget build(BuildContext context) {
     final design = context.appDesign;
     final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
-    final searching = _scope == _SearchScope.online
-        ? _onlineSearching
-        : _localSearching;
+    // Podcast 范围有自己的加载指示，这里只反映书籍类检索的进度。
+    final searching = switch (_scope) {
+      DiscoverScope.audiobooks => _librivoxSearching,
+      DiscoverScope.onlineBooks => _onlineSearching,
+      DiscoverScope.podcasts => false,
+      DiscoverScope.library => _localSearching,
+    };
 
     return CollapsingPageScaffold(
-      title: context.tr('搜索', 'Search', '検索'),
+      title: context.tr('发现', 'Discover', '発見'),
       body: Column(
         children: [
           Padding(
             padding: EdgeInsets.fromLTRB(inset, 8, inset, 10),
             child: AppSearchField(
-              fieldKey: const ValueKey('library-search-field'),
+              fieldKey: const ValueKey('discover-search-field'),
               controller: _controller,
               onChanged: _onQueryChanged,
               autofocus: false,
+              autocorrect: _scope != DiscoverScope.podcasts,
+              enableSuggestions: _scope != DiscoverScope.podcasts,
               loading: searching,
               onSubmitted: (_) => _runSearch(),
               onSearch: _runSearch,
-              hintText: _scope == _SearchScope.online
-                  ? context.tr(
-                      '搜索 Gutenberg 公版书',
-                      'Search Gutenberg books',
-                      'Gutenbergのパブリックドメイン本を検索',
-                    )
-                  : context.tr(
-                      '搜索书籍、章节或正文',
-                      'Search books, chapters, or text',
-                      '本・章・本文を検索',
-                    ),
+              hintText: _scope.hintText(context),
             ),
           ),
           Padding(
             padding: EdgeInsets.fromLTRB(inset, 0, inset, 12),
             child: SizedBox(
               width: double.infinity,
-              child: SegmentedButton<_SearchScope>(
-                key: const ValueKey('book-search-scope-selector'),
+              child: SegmentedButton<DiscoverScope>(
+                key: const ValueKey('discover-scope-selector'),
                 segments: [
-                  ButtonSegment(
-                    value: _SearchScope.online,
-                    label: Text(
-                      context.tr('在线书库', 'Online Library', 'オンライン書庫'),
+                  for (final scope in DiscoverScope.values)
+                    ButtonSegment(
+                      value: scope,
+                      label: Text(
+                        scope.label(context),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                  ),
-                  ButtonSegment(
-                    value: _SearchScope.library,
-                    label: Text(context.tr('书架', 'Library', '本棚')),
-                  ),
                 ],
                 selected: {_scope},
                 onSelectionChanged: (selection) {
@@ -218,23 +256,23 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   if (selected == _scope) return;
                   setState(() {
                     _scope = selected;
-                    if (_scope == _SearchScope.online) {
-                      _onlinePage = 1;
-                      _onlineSearching = true;
-                      _onlineFuture = _startOnlineSearch();
-                    } else {
-                      _localSearching = true;
-                      _future = _startLocalSearch(_controller.text.trim());
-                    }
+                    _loadForScope();
                   });
                 },
               ),
             ),
           ),
           Expanded(
-            child: _scope == _SearchScope.online
-                ? _buildOnlineFuture(inset)
-                : _buildLocalFuture(),
+            child: switch (_scope) {
+              DiscoverScope.audiobooks => _buildLibrivoxFuture(inset),
+              DiscoverScope.onlineBooks => _buildOnlineFuture(inset),
+              DiscoverScope.podcasts => PodcastDiscoverView(
+                query: _podcastQuery,
+                searchToken: _podcastToken,
+                inset: inset,
+              ),
+              DiscoverScope.library => _buildLocalFuture(),
+            },
           ),
         ],
       ),
@@ -243,16 +281,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   void _runSearch() {
     _debounce?.cancel();
-    setState(() {
-      if (_scope == _SearchScope.online) {
-        _onlinePage = 1;
-        _onlineSearching = true;
-        _onlineFuture = _startOnlineSearch();
-      } else {
-        _localSearching = true;
-        _future = _startLocalSearch(_controller.text.trim());
-      }
-    });
+    setState(_loadForScope);
   }
 
   Widget _buildLocalFuture() {
@@ -292,6 +321,30 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         return _withSearchProgress(
           visible: _onlineSearching,
           child: _buildOnlineResults(data, inset),
+        );
+      },
+    );
+  }
+
+  Widget _buildLibrivoxFuture(double inset) {
+    return FutureBuilder<_LibrivoxSearchData>(
+      future: _librivoxFuture,
+      builder: (context, snapshot) {
+        final data = snapshot.data;
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            data == null) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return _OnlineErrorState(
+            message: snapshot.error.toString(),
+            onRetry: _runSearch,
+          );
+        }
+        if (data == null) return const SizedBox.shrink();
+        return _withSearchProgress(
+          visible: _librivoxSearching,
+          child: _buildLibrivoxResults(data, inset),
         );
       },
     );
@@ -394,6 +447,80 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       },
       separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemCount: books.length + (data.result.next == null ? 0 : 1),
+    );
+  }
+
+  Widget _buildLibrivoxResults(_LibrivoxSearchData data, double inset) {
+    final books = data.result.books;
+    if (books.isEmpty) {
+      return Center(
+        child: Text(
+          context.tr(
+            '没有找到可播放的真人有声书',
+            'No playable human-narrated audiobooks found',
+            '再生できる人間朗読のオーディオブックが見つかりません',
+          ),
+          style: TextStyle(color: context.appTextSecondary),
+        ),
+      );
+    }
+    return ListView.separated(
+      padding: EdgeInsets.fromLTRB(inset, 4, inset, 120),
+      itemCount: books.length + (data.result.hasMore ? 1 : 0),
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
+      itemBuilder: (context, index) {
+        if (index == books.length) {
+          return Center(
+            child: OutlinedButton.icon(
+              icon: const Icon(Icons.expand_more),
+              label: Text(context.tr('加载更多', 'Load More', 'さらに読み込む')),
+              onPressed: () => setState(() {
+                _librivoxPage++;
+                _librivoxSearching = true;
+                _librivoxFuture = _startLibrivoxSearch();
+              }),
+            ),
+          );
+        }
+        final book = books[index];
+        final imported = data.importedById[book.id];
+        return BookListCard(
+          title: book.title,
+          subtitle: book.authorLabel,
+          remoteCoverUrl: book.coverUrl,
+          metadata: [
+            BookListCardMeta(icon: Icons.language, label: book.language),
+            BookListCardMeta(
+              icon: Icons.schedule,
+              label: _formatAudiobookDuration(book.totalTimeSeconds),
+            ),
+            BookListCardMeta(
+              icon: Icons.record_voice_over_outlined,
+              label: context.tr('真人朗读', 'Human narrated', '人間による朗読'),
+            ),
+            if (imported != null)
+              BookListCardMeta(
+                icon: Icons.check_circle_outline,
+                label: context.tr('已加入', 'Added', '追加済み'),
+              ),
+          ],
+          onTap: () async {
+            await Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => LibrivoxBookDetailScreen(
+                  book: book,
+                  importedBook: imported,
+                ),
+              ),
+            );
+            if (!mounted) return;
+            setState(() {
+              _librivoxSearching = true;
+              _librivoxFuture = _startLibrivoxSearch();
+            });
+          },
+        );
+      },
     );
   }
 
@@ -600,6 +727,13 @@ class _OnlineSearchData {
   });
 }
 
+class _LibrivoxSearchData {
+  final LibrivoxSearchResult result;
+  final Map<String, drift_db.Book> importedById;
+
+  const _LibrivoxSearchData({required this.result, required this.importedById});
+}
+
 class _ChapterHit {
   final drift_db.Chapter chapter;
   final drift_db.Book? book;
@@ -645,6 +779,13 @@ String _formatDownloads(int count) {
   if (count >= 1000000) return '${(count / 1000000).toStringAsFixed(1)}M';
   if (count >= 1000) return '${(count / 1000).toStringAsFixed(1)}K';
   return count.toString();
+}
+
+String _formatAudiobookDuration(int seconds) {
+  if (seconds <= 0) return '—';
+  final hours = seconds ~/ 3600;
+  final minutes = (seconds % 3600) ~/ 60;
+  return hours > 0 ? '${hours}h ${minutes}m' : '${minutes}m';
 }
 
 class _ParagraphHit {

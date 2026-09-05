@@ -16,6 +16,7 @@ import '../data/database/app_database.dart';
 import '../domain/models/audio_text_timing.dart';
 import 'app_log_service.dart';
 import 'generation_task_store.dart';
+import 'transcription_storage.dart';
 
 enum PodcastTranscriptionStage {
   preparing,
@@ -410,6 +411,7 @@ class PodcastTranscriptionService {
 
   Future<List<AudioTextTiming>> transcribe(
     PodcastEpisode episode, {
+    TranscriptionStorage? storage,
     String? languageHint,
     void Function(PodcastTranscriptionProgress progress)? onProgress,
   }) {
@@ -432,6 +434,7 @@ class PodcastTranscriptionService {
         if (identical(_activeFuture, running)) _activeFuture = null;
         return transcribe(
           episode,
+          storage: storage,
           languageHint: languageHint,
           onProgress: onProgress,
         );
@@ -440,6 +443,7 @@ class PodcastTranscriptionService {
 
     final future = _transcribeInternal(
       episode,
+      storage: storage ?? TranscriptionStorage(database),
       languageHint: languageHint,
       onProgress: onProgress,
     );
@@ -459,6 +463,7 @@ class PodcastTranscriptionService {
 
   Future<List<AudioTextTiming>> _transcribeInternal(
     PodcastEpisode episode, {
+    required TranscriptionStorage storage,
     String? languageHint,
     void Function(PodcastTranscriptionProgress progress)? onProgress,
   }) async {
@@ -483,18 +488,14 @@ class PodcastTranscriptionService {
     }
 
     try {
-      final storedBeforeRun =
-          await database.getPodcastEpisode(episode.id) ?? episode;
-      await database.updatePodcastTranscript(
-        episode.id,
-        status: 'running',
-        error: null,
-      );
+      final storedBeforeRun = await storage.read(episode.id) ?? episode;
+      await storage.update(episode.id, status: 'running', error: null);
       emit(PodcastTranscriptionStage.preparing, '正在准备本地转写');
       await _ensureModel(onProgress: emit);
 
       final cachedAudioPath = await downloadEpisodeAudio(
         episode,
+        storage: storage,
         onProgress: (received, total) {
           emit(
             PodcastTranscriptionStage.downloadingAudio,
@@ -528,8 +529,7 @@ class PodcastTranscriptionService {
       final overlapMs = math.min(10000, (chunkSeconds * 1000) ~/ 4);
       final activeModel = await selectedModel();
       final stored = storedBeforeRun;
-      final sourceEpisode =
-          await database.getPodcastEpisode(episode.id) ?? episode;
+      final sourceEpisode = await storage.read(episode.id) ?? episode;
       final audioFile = File(cachedAudioPath);
       final audioLength = await audioFile.exists()
           ? await audioFile.length()
@@ -593,12 +593,14 @@ class PodcastTranscriptionService {
           (latestTask == null ||
               (latestTask.id == taskId &&
                   latestTask.status != GenerationChunkStatus.failed.name))) {
+        await storage.update(episode.id, status: 'complete');
+        emit(PodcastTranscriptionStage.complete, '本地转写完成', progress: 1);
         return decodeTranscript(stored.transcriptJson);
       }
       if (latestTask != null && latestTask.id != taskId) {
         // Feed/audio or language configuration changed. Never merge results
         // from the previous version into the new source.
-        await database.clearPodcastTranscript(episode.id);
+        await storage.clear(episode.id);
       }
 
       await taskStore.ensureTask(
@@ -626,6 +628,8 @@ class PodcastTranscriptionService {
       final prefix = _completedWhisperPrefix(taskChunks);
       final resumeFromMs = prefix.endMs > 0
           ? prefix.endMs
+          : latestTask != null && latestTask.id != taskId
+          ? 0
           : stored.transcriptProgressMs
                 .clamp(0, math.max(0, durationMs))
                 .toInt();
@@ -638,6 +642,7 @@ class PodcastTranscriptionService {
       final run = await _transcribeInChunks(
         active: active,
         episode: episode,
+        storage: storage,
         audioPath: cachedAudioPath,
         language: language,
         durationMs: durationMs,
@@ -651,7 +656,7 @@ class PodcastTranscriptionService {
       );
 
       if (run.paused) {
-        await database.updatePodcastTranscript(
+        await storage.update(
           episode.id,
           status: podcastTranscriptPausedStatus,
           transcriptJson: jsonEncode([
@@ -683,7 +688,7 @@ class PodcastTranscriptionService {
         throw StateError('没有识别到可显示的语音内容。');
       }
 
-      await database.updatePodcastTranscript(
+      await storage.update(
         episode.id,
         status: 'complete',
         transcriptJson: jsonEncode([
@@ -711,7 +716,7 @@ class PodcastTranscriptionService {
           latestTask.status == GenerationChunkStatus.running.name) {
         await taskStore.failTask(latestTask.id, error);
       }
-      await database.updatePodcastTranscript(
+      await storage.update(
         episode.id,
         status: 'failed',
         error: error.toString(),
@@ -731,6 +736,7 @@ class PodcastTranscriptionService {
 
   Future<String> downloadEpisodeAudio(
     PodcastEpisode episode, {
+    TranscriptionStorage? storage,
     void Function(int received, int total)? onProgress,
   }) async {
     final activeDownload = _audioDownloads[episode.id];
@@ -738,6 +744,7 @@ class PodcastTranscriptionService {
 
     final download = _ensureEpisodeAudio(
       episode,
+      storage: storage ?? TranscriptionStorage(database),
       onProgress: onProgress ?? (_, _) {},
     );
     _audioDownloads[episode.id] = download;
@@ -753,6 +760,7 @@ class PodcastTranscriptionService {
   Future<_ChunkRun> _transcribeInChunks({
     required _ActiveTranscription active,
     required PodcastEpisode episode,
+    required TranscriptionStorage storage,
     required String audioPath,
     required String language,
     required int durationMs,
@@ -932,7 +940,7 @@ class PodcastTranscriptionService {
         // Each completed chunk is durable immediately. Database watchers can
         // render these lines as lyrics while later chunks are still running,
         // and the offset lets a paused run pick up exactly here.
-        await database.updatePodcastTranscript(
+        await storage.update(
           episode.id,
           status: 'running',
           transcriptJson: jsonEncode([
@@ -1056,6 +1064,7 @@ class PodcastTranscriptionService {
 
   Future<String> _ensureEpisodeAudio(
     PodcastEpisode episode, {
+    required TranscriptionStorage storage,
     required void Function(int received, int total) onProgress,
   }) async {
     final persisted = episode.localAudioPath;
@@ -1081,11 +1090,16 @@ class PodcastTranscriptionService {
         ? sourceExtension
         : '.audio';
     final target = File(
-      p.join(support.path, 'podcasts', 'audio', '${episode.id}$extension'),
+      p.join(
+        support.path,
+        storage.audioDirectory,
+        'audio',
+        '${episode.id}$extension',
+      ),
     );
     await target.parent.create(recursive: true);
     if (await target.exists() && await target.length() > 0) {
-      await database.updatePodcastLocalAudioPath(episode.id, target.path);
+      await storage.saveAudioPath(episode.id, target.path);
       return target.path;
     }
 
@@ -1105,7 +1119,7 @@ class PodcastTranscriptionService {
     }
     if (await target.exists()) await target.delete();
     await partial.rename(target.path);
-    await database.updatePodcastLocalAudioPath(episode.id, target.path);
+    await storage.saveAudioPath(episode.id, target.path);
     return target.path;
   }
 

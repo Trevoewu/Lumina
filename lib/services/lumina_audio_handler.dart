@@ -278,6 +278,10 @@ class LuminaAudioHandler extends BaseAudioHandler
     for (final chapter in chapters) {
       final playable = <SegmentEntry>[];
       for (final segment in contiguousPlayableSegments(chapter.manifest)) {
+        if (_isRemoteAudio(segment.audioFile)) {
+          playable.add(segment);
+          continue;
+        }
         final file = File('$audioRoot/${segment.audioFile}');
         if (!await file.exists() || await file.length() <= 64) break;
         playable.add(segment);
@@ -321,10 +325,7 @@ class LuminaAudioHandler extends BaseAudioHandler
         );
         items.add(item);
         sources.add(
-          AudioSource.uri(
-            File('$audioRoot/${segment.audioFile}').uri,
-            tag: item,
-          ),
+          AudioSource.uri(_audioUri(segment.audioFile, audioRoot), tag: item),
         );
         chapterOffsetMs += segment.durationMs;
       }
@@ -495,6 +496,10 @@ class LuminaAudioHandler extends BaseAudioHandler
 
     final playable = <SegmentEntry>[];
     for (final segment in contiguousPlayableSegments(manifest)) {
+      if (_isRemoteAudio(segment.audioFile)) {
+        playable.add(segment);
+        continue;
+      }
       final file = File('$audioRoot/${segment.audioFile}');
       if (!await file.exists() || await file.length() <= 64) break;
       playable.add(segment);
@@ -517,7 +522,7 @@ class LuminaAudioHandler extends BaseAudioHandler
     final additionSources = additions
         .map(
           (segment) => AudioSource.uri(
-            File('$audioRoot/${segment.audioFile}').uri,
+            _audioUri(segment.audioFile, audioRoot),
             tag: _mediaItemForSegment(
               manifest: manifest,
               segment: segment,
@@ -591,6 +596,17 @@ class LuminaAudioHandler extends BaseAudioHandler
           'added=${additions.length} playable=${playable.length}',
     );
     return true;
+  }
+
+  bool _isRemoteAudio(String value) {
+    final scheme = Uri.tryParse(value)?.scheme.toLowerCase();
+    return scheme == 'https' || scheme == 'http';
+  }
+
+  Uri _audioUri(String value, String audioRoot) {
+    return _isRemoteAudio(value)
+        ? Uri.parse(value)
+        : File('$audioRoot/$value').uri;
   }
 
   MediaItem _mediaItemForSegment({
