@@ -336,6 +336,28 @@ class LuminaAudioHandler extends BaseAudioHandler
     }
 
     var loadedIndex = initialIndex;
+    var segmentPosition = Duration.zero;
+    final initialEntries = entries
+        .where((entry) => entry.manifest.chapterId == initialChapterId)
+        .toList();
+    final targetMs = initialPosition.inMilliseconds.clamp(
+      0,
+      initialEntries.last.chapterDurationMs,
+    );
+    for (var i = initialIndex; i < initialIndex + initialEntries.length; i++) {
+      final entry = entries[i];
+      final endMs = entry.chapterOffsetMs + entry.segment.durationMs;
+      if (targetMs < endMs || i == initialIndex + initialEntries.length - 1) {
+        loadedIndex = i;
+        segmentPosition = Duration(
+          milliseconds: (targetMs - entry.chapterOffsetMs).clamp(
+            0,
+            entry.segment.durationMs,
+          ),
+        );
+        break;
+      }
+    }
     _loadingQueue = true;
     try {
       _queueEntries = entries;
@@ -344,7 +366,11 @@ class LuminaAudioHandler extends BaseAudioHandler
           .toList(growable: false);
       queue.add(items);
       try {
-        await _player.setAudioSources(sources, initialIndex: initialIndex);
+        await _player.setAudioSources(
+          sources,
+          initialIndex: loadedIndex,
+          initialPosition: segmentPosition,
+        );
       } catch (error, stackTrace) {
         try {
           await _player.stop();
@@ -361,11 +387,6 @@ class LuminaAudioHandler extends BaseAudioHandler
       }
 
       _applyCurrentEntry(loadedIndex);
-      if (initialPosition > Duration.zero) {
-        await seekToChapterOffset(initialPosition);
-        loadedIndex = _player.currentIndex ?? loadedIndex;
-        _applyCurrentEntry(loadedIndex);
-      }
     } finally {
       _loadingQueue = false;
     }
@@ -744,7 +765,13 @@ class LuminaAudioHandler extends BaseAudioHandler
         '开始播放 chapter=${_manifest?.chapterId} paragraph=$currentParagraphId',
       );
     }
-    await _player.play();
+    // just_audio completes this future on pause/stop, not when audio starts.
+    // Let callers continue generating remaining segments and finish UI cleanup.
+    unawaited(
+      _player.play().catchError((Object error, StackTrace stackTrace) {
+        logPlaybackStreamError('play', error, stackTrace);
+      }),
+    );
   }
 
   @override

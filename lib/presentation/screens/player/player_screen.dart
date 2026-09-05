@@ -1255,6 +1255,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           selectedModel == null ||
           selectedVoice == null) {
         if (silent) return false;
+        final resumePlaybackRequest = _streamPlaybackRequested;
+        _setStreamPlaybackRequested(false);
         if (!mounted ||
             !await _openTtsSetupPrompt(
               provider.displayName,
@@ -1262,6 +1264,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             )) {
           return false;
         }
+        if (resumePlaybackRequest) _setStreamPlaybackRequested(true);
         ref.invalidate(ttsSettingsControllerProvider);
         await ref.read(ttsSettingsControllerProvider.future);
         provider = ref.read(activeTtsProviderProvider);
@@ -4298,7 +4301,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       PlayerPrimaryAudioAction.loading =>
         buffering
             ? context.tr('正在缓冲…', 'Buffering…', 'バッファリング中…')
-            : context.tr('正在准备音频', 'Preparing audio', '音声を準備中'),
+            : _audioPreparationLabel(),
     };
     final remaining = duration - displayPosition;
     final remainingLabel = duration.inMilliseconds <= 0
@@ -4538,6 +4541,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             ),
           ],
         ),
+        if (primaryAction == PlayerPrimaryAudioAction.loading)
+          Padding(
+            padding: EdgeInsets.only(top: design.spaceSm),
+            child: Semantics(
+              liveRegion: true,
+              child: Text(
+                primaryTooltip,
+                key: const ValueKey('player-audio-wait-status'),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: secondaryColor),
+              ),
+            ),
+          ),
         if (showSecondaryActions) ...[
           SizedBox(height: design.spaceXl),
           Padding(
@@ -4946,6 +4963,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
   }
 
+  String _audioPreparationLabel() {
+    if (!_isPodcast && _streamPlaybackRequested && !_startingPlayback) {
+      return context.tr('正在生成音频…', 'Generating audio…', '音声を生成中…');
+    }
+    return context.tr('正在加载音频…', 'Loading audio…', '音声を読み込み中…');
+  }
+
   Widget _buildPrimaryAudioGlyph({
     required PlayerPrimaryAudioAction action,
     required Color color,
@@ -4963,11 +4987,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         size: 32,
         color: color,
       ),
-      PlayerPrimaryAudioAction.loading => Icon(
+      PlayerPrimaryAudioAction.loading => SizedBox.square(
         key: const ValueKey(PlayerPrimaryAudioAction.loading),
-        Icons.hourglass_top_rounded,
-        size: 28,
-        color: color,
+        dimension: 28,
+        child: CircularProgressIndicator(
+          strokeWidth: 2.5,
+          color: color,
+          backgroundColor: color.withValues(alpha: 0.18),
+        ),
       ),
     };
   }

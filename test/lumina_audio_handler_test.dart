@@ -7,6 +7,15 @@ import 'package:lumina/domain/models/chapter_manifest.dart';
 import 'package:lumina/services/lumina_audio_handler.dart';
 
 void main() {
+  test('play returns while the audio session is still active', () async {
+    final player = _FakeAudioPlayer();
+    final handler = LuminaAudioHandler(player: player);
+    addTearDown(handler.dispose);
+    await handler.play().timeout(const Duration(seconds: 1));
+    expect(player.playCompletion.isCompleted, isFalse);
+    player.playCompletion.complete();
+  });
+
   const chapterIds = ['chapter-1', 'chapter-1', 'chapter-2', 'chapter-2'];
 
   test('next skips to the first paragraph of the next chapter', () {
@@ -149,16 +158,25 @@ void main() {
             durationMs: 60000,
             state: ParagraphAudioState.ready,
           ),
+          SegmentEntry(
+            paragraphId: 'chapter-remote-audio-2',
+            audioFile: 'https://archive.org/download/book/chapter2.mp3',
+            durationMs: 60000,
+            state: ParagraphAudioState.ready,
+          ),
         ],
         updatedAt: 1,
       ),
       audioRoot: '/path/that/does/not/exist',
       bookTitle: 'Public domain book',
       chapterTitle: 'Chapter 1',
+      initialPosition: const Duration(seconds: 65),
     );
 
     expect(handler.currentBookId, 'librivox-47');
     expect(handler.currentChapterId, 'chapter-remote');
+    expect(player.currentIndex, 1);
+    expect(player.loadedPosition, const Duration(seconds: 5));
   });
 }
 
@@ -172,6 +190,11 @@ class _FakeAudioPlayer implements AudioPlayer {
   /// reporting the outgoing playlist's index while the new one loads.
   int? emitIndexWhileLoading;
   int? _index;
+  Duration? loadedPosition;
+  final playCompletion = Completer<void>();
+
+  @override
+  Future<void> play() => playCompletion.future;
 
   void emitIndex(int? index) {
     _index = index;
@@ -208,6 +231,7 @@ class _FakeAudioPlayer implements AudioPlayer {
     Duration? initialPosition,
     ShuffleOrder? shuffleOrder,
   }) async {
+    loadedPosition = initialPosition;
     final stale = emitIndexWhileLoading;
     emitIndexWhileLoading = null;
     if (stale != null) {
