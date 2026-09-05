@@ -922,6 +922,8 @@ class PodcastTranscriptionService {
             ),
           );
         }
+        // Display segmentation uses text, so do not run a second audio model
+        // or alter the source timing markers for visual line breaks.
         final merged = mergePodcastTranscriptSegments(output, chunkSegments);
         output
           ..clear()

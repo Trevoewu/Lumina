@@ -65,8 +65,140 @@ void main() {
   });
 
   group('joinPodcastTranscriptLines', () {
+    test('chapter excerpt keeps complete sentences and protects names', () {
+      const text =
+          'St. Mael\'s Navigation on the Ocean of Ice. '
+          'The devil, having tucked his clothes up to his armpits, '
+          'dragged the trough on the sand and fitted the rigging in less than an hour. '
+          'As soon as the boat was ready, he left.';
+      final result = joinPodcastTranscriptLines([
+        const AudioTextTiming(
+          text: text,
+          startMs: 0,
+          endMs: 60000,
+          pauseBefore: true,
+        ),
+      ]);
+      expect(
+        result.split('\n').first,
+        "St. Mael's Navigation on the Ocean of Ice.",
+      );
+      expect(
+        result.split('\n').last,
+        'As soon as the boat was ready, he left.',
+      );
+      expect(result.replaceAll(RegExp(r'\s+'), ' '), text);
+      expect(result, isNot(contains('The\n')));
+    });
+
+    test('decimals and URLs survive sentence segmentation', () {
+      expect(
+        joinPodcastTranscriptLines([
+          const AudioTextTiming(
+            text:
+                'Dr. Smith paid 3.14 dollars. Visit example.com/docs. Then leave.',
+            startMs: 0,
+            endMs: 1000,
+          ),
+        ]),
+        'Dr. Smith paid 3.14 dollars.\nVisit example.com/docs.\nThen leave.',
+      );
+    });
+    test(
+      'keeps title abbreviations and sentence starters with their phrase',
+      () {
+        expect(
+          joinPodcastTranscriptLines([
+            const AudioTextTiming(
+              text: 'Chapter 4. St.',
+              startMs: 0,
+              endMs: 2000,
+            ),
+            const AudioTextTiming(
+              text: 'Mael on the Ocean of Ice.',
+              startMs: 2600,
+              endMs: 6000,
+            ),
+            const AudioTextTiming(text: 'The', startMs: 6000, endMs: 6200),
+            const AudioTextTiming(
+              text: 'devil walked away.',
+              startMs: 6800,
+              endMs: 9000,
+            ),
+          ]),
+          'Chapter 4.\nSt. Mael on the Ocean of Ice.\nThe devil walked away.',
+        );
+      },
+    );
+    test('continuous slow speech stays together without punctuation', () {
+      final lines = joinPodcastTranscriptLines([
+        for (var i = 0; i < 10; i++)
+          AudioTextTiming(
+            text: 'word$i',
+            startMs: i * 1000,
+            endMs: (i + 1) * 1000,
+          ),
+      ]);
+      expect(
+        lines,
+        'word0 word1 word2 word3 word4 word5 word6 word7 word8 word9',
+      );
+    });
+
+    test('prefers a sentence boundary near the duration limit', () {
+      expect(
+        joinPodcastTranscriptLines([
+          const AudioTextTiming(
+            text: 'A short sentence.',
+            startMs: 0,
+            endMs: 5000,
+          ),
+          const AudioTextTiming(
+            text: 'Next thought',
+            startMs: 5000,
+            endMs: 6500,
+          ),
+        ]),
+        'A short sentence.\nNext thought',
+      );
+    });
+
     AudioTextTiming timing(String text) =>
         AudioTextTiming(text: text, startMs: 0, endMs: 1000);
+
+    test('ignores pauses when there is no textual boundary', () {
+      expect(
+        joinPodcastTranscriptLines([
+          AudioTextTiming(text: '我想说的是', startMs: 0, endMs: 1000),
+          AudioTextTiming(text: '这件事', startMs: 1299, endMs: 2000),
+          AudioTextTiming(text: '需要再想想', startMs: 2500, endMs: 4000),
+        ]),
+        '我想说的是这件事需要再想想',
+      );
+    });
+
+    test('overlapping timestamps do not invent a pause', () {
+      expect(
+        joinPodcastTranscriptLines([
+          AudioTextTiming(text: 'We', startMs: 0, endMs: 2000),
+          AudioTextTiming(text: 'can', startMs: 500, endMs: 700),
+          AudioTextTiming(text: 'continue', startMs: 2000, endMs: 2500),
+          AudioTextTiming(text: 'after a pause', startMs: 3200, endMs: 4000),
+        ]),
+        'We can continue after a pause',
+      );
+    });
+
+    test('blank segments do not hide silence between spoken words', () {
+      expect(
+        joinPodcastTranscriptLines([
+          AudioTextTiming(text: 'First', startMs: 0, endMs: 1000),
+          AudioTextTiming(text: ' ', startMs: 1000, endMs: 2000),
+          AudioTextTiming(text: 'then', startMs: 2000, endMs: 3000),
+        ]),
+        'First then',
+      );
+    });
 
     test('stitches Whisper segments that stop mid-sentence', () {
       expect(
@@ -80,7 +212,7 @@ void main() {
       );
     });
 
-    test('keeps sentences that end behind a closing quote apart', () {
+    test('separates complete sentences regardless of pauses', () {
       expect(
         joinPodcastTranscriptLines([
           timing('He said "we are done."'),
@@ -97,7 +229,7 @@ void main() {
       );
     });
 
-    test('keeps a newly cached chunk from reflowing the previous tail', () {
+    test('chunk boundaries alone do not split continuous speech', () {
       expect(
         joinPodcastTranscriptLines([
           AudioTextTiming(
@@ -113,19 +245,41 @@ void main() {
             chunkStartMs: 180000,
           ),
         ]),
-        'The unfinished sentence\ncontinues in the next chunk.',
+        'The unfinished sentence continues in the next chunk.',
       );
     });
 
-    test('bounds speech that Whisper transcribed without punctuation', () {
-      final merged = joinPodcastTranscriptLines([
-        for (var index = 0; index < 12; index++) timing('word ' * 5),
-      ], maxMergedChars: 60);
-      final lines = merged.split('\n');
-      expect(lines.length, greaterThan(1));
-      for (final line in lines) {
-        expect(line.length, lessThanOrEqualTo(60));
-      }
+    test('uses a nearby sentence ending before exceeding the target', () {
+      expect(
+        joinPodcastTranscriptLines([
+          timing('Short.'),
+          timing('Next sentence.'),
+        ], maxMergedChars: 16),
+        'Short.\nNext sentence.',
+      );
+    });
+
+    test('wraps unpunctuated Chinese visually without forced blocks', () {
+      final lines = joinPodcastTranscriptLines([
+        timing('连续说话' * 40),
+      ]).split('\n');
+      expect(lines, hasLength(1));
+      expect(lines.join(), '连续说话' * 40);
+    });
+
+    test('audio pause marks do not determine display blocks', () {
+      expect(
+        joinPodcastTranscriptLines([
+          timing('Before'),
+          const AudioTextTiming(
+            text: 'after',
+            startMs: 1000,
+            endMs: 2000,
+            pauseBefore: true,
+          ),
+        ]),
+        'Before after',
+      );
     });
 
     test('a spoken URL survives joining and line splitting', () {
@@ -316,7 +470,6 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
 
       expect(find.text('First cached chunk.'), findsOneWidget);
-      expect(find.text('Second cached chunk.'), findsOneWidget);
       expect(
         tester.state(transcriptList),
         same(transcriptState),

@@ -3,6 +3,9 @@ class AudioTextTiming {
   final int startMs;
   final int endMs;
 
+  /// A quiet interval detected in the source audio before this marker.
+  final bool pauseBefore;
+
   /// Identifies the transcription chunk that produced this marker.
   ///
   /// Older persisted transcripts do not have this field. A null value keeps
@@ -14,6 +17,7 @@ class AudioTextTiming {
     required this.text,
     required this.startMs,
     required this.endMs,
+    this.pauseBefore = false,
     this.chunkStartMs,
   });
 
@@ -21,6 +25,7 @@ class AudioTextTiming {
     text: text,
     startMs: startMs + offsetMs,
     endMs: endMs + offsetMs,
+    pauseBefore: pauseBefore,
     chunkStartMs: chunkStartMs == null ? null : chunkStartMs! + offsetMs,
   );
 
@@ -28,6 +33,7 @@ class AudioTextTiming {
     'text': text,
     'startMs': startMs,
     'endMs': endMs,
+    if (pauseBefore) 'pauseBefore': true,
     if (chunkStartMs != null) 'chunkStartMs': chunkStartMs,
   };
 
@@ -36,6 +42,7 @@ class AudioTextTiming {
       text: json['text'] as String? ?? '',
       startMs: (json['startMs'] as num?)?.round() ?? 0,
       endMs: (json['endMs'] as num?)?.round() ?? 0,
+      pauseBefore: json['pauseBefore'] == true,
       chunkStartMs: (json['chunkStartMs'] as num?)?.round(),
     );
   }

@@ -253,6 +253,7 @@ bool _podcastTranscriptContentMatches(
       final afterTiming = after.timings[position];
       if (beforeTiming.startMs != afterTiming.startMs ||
           beforeTiming.endMs != afterTiming.endMs ||
+          beforeTiming.pauseBefore != afterTiming.pauseBefore ||
           beforeTiming.text != afterTiming.text) {
         return false;
       }
@@ -286,82 +287,35 @@ bool podcastEpisodeRequiresPlayerRefresh(
       previous.sourceTranscriptUrl != next.sourceTranscriptUrl;
 }
 
-const _transcriptSentenceTerminators = {'.', '?', '!', '。', '？', '！', '…'};
-const _transcriptClosingMarks = {
-  '"',
-  '”',
-  '’',
-  "'",
-  ')',
-  ']',
-  '}',
-  '》',
-  '」',
-  '』',
-};
 final _transcriptCjkPattern = RegExp(
   '[\u3000-\u9fff\uff00-\uffef]',
   unicode: true,
 );
 
-/// Whisper cuts a segment on every pause, so one sentence routinely spans
-/// several of them. Stitching the unterminated halves back together keeps the
-/// lyrics widget from rendering "So the thing I meant" as its own line.
-///
-/// [maxMergedChars] only bounds speech Whisper transcribed without any final
-/// punctuation at all; ordinary sentences merge in full and the lyrics widget
-/// still wraps the long ones on its own clause boundaries.
+/// Text determines display blocks; timing markers only drive playback sync.
+/// Sentence and clause parsing is shared with the existing reading renderer.
+/// Deliberately ignore pauses, chunk boundaries and elapsed audio duration.
 String joinPodcastTranscriptLines(
   List<AudioTextTiming> timings, {
-  int maxMergedChars = 200,
+  int? maxMergedChars,
 }) {
+  assert(maxMergedChars == null || maxMergedChars > 0);
   final buffer = StringBuffer();
-  var pending = '';
-  int? pendingChunkStartMs;
-
-  void flush() {
-    if (pending.isEmpty) return;
-    if (buffer.isNotEmpty) buffer.write('\n');
-    buffer.write(pending);
-    pending = '';
-    pendingChunkStartMs = null;
-  }
-
+  var previous = '';
   for (final timing in timings) {
-    final text = timing.text.trim();
-    if (text.isEmpty) continue;
-    if (pending.isEmpty) {
-      pending = text;
-      pendingChunkStartMs = timing.chunkStartMs;
-      continue;
-    }
-    final crossedChunkBoundary =
-        pendingChunkStartMs != null &&
-        timing.chunkStartMs != null &&
-        pendingChunkStartMs != timing.chunkStartMs;
-    if (crossedChunkBoundary ||
-        _endsPodcastSentence(pending) ||
-        pending.length + text.length > maxMergedChars) {
-      flush();
-      pending = text;
-      pendingChunkStartMs = timing.chunkStartMs;
-      continue;
-    }
-    pending = '$pending${_transcriptJoinSeparator(pending, text)}$text';
+    final part = timing.text.trim();
+    if (part.isEmpty) continue;
+    if (previous.isNotEmpty)
+      buffer.write(_transcriptJoinSeparator(previous, part));
+    buffer.write(part);
+    previous = part;
   }
-  flush();
-  return buffer.toString();
-}
-
-bool _endsPodcastSentence(String text) {
-  var index = text.length - 1;
-  while (index >= 0 &&
-      (_transcriptClosingMarks.contains(text[index]) ||
-          text[index].trim().isEmpty)) {
-    index--;
-  }
-  if (index < 0) return false;
-  return _transcriptSentenceTerminators.contains(text[index]);
+  final text = buffer.toString();
+  return splitLyricsText(
+    text.replaceAll(RegExp(r'\s+'), ' '),
+    maxChars:
+        maxMergedChars ?? (_transcriptCjkPattern.hasMatch(text) ? 36 : 100),
+  ).join('\n');
 }
 
 /// CJK segments read as one sentence without a separator; a space there shows
@@ -414,7 +368,7 @@ _PodcastTranscriptContent _buildPodcastTranscriptContent(
             bookId: 'podcast:${data.show.id}',
             paragraphIndex: 0,
             // Newlines are hard line breaks for the lyrics widget, so only the
-            // Whisper boundaries that end a sentence keep one. The episode
+            // audible pauses and sentence endings keep one. The episode
             // still stays a single seekable paragraph.
             content: joinPodcastTranscriptLines(timings),
           ),

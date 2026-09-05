@@ -11,6 +11,72 @@ import 'package:lumina/presentation/widgets/synced_lyrics_list.dart';
 import 'package:lumina/services/lumina_audio_handler.dart';
 
 void main() {
+  test('highlight clock stops during buffering even with play intent', () {
+    final clock = SyncedLyricsClock();
+    addTearDown(clock.dispose);
+    for (final state in AudioProcessingState.values) {
+      final advancing = syncedLyricsAudioIsAdvancing(
+        PlaybackState(playing: true, processingState: state),
+      );
+      expect(advancing, state == AudioProcessingState.ready);
+      clock.reanchor(const Duration(seconds: 37), playing: advancing);
+      clock.advance(const Duration(seconds: 2));
+      expect(clock.position, Duration(seconds: advancing ? 39 : 37));
+    }
+    clock.reanchor(const Duration(seconds: 37), playing: false);
+    clock.reanchor(const Duration(milliseconds: 37100), playing: true);
+    expect(clock.position.inMilliseconds, 37100);
+  });
+  test(
+    'reflow preserves original timestamps including repeated words and silence',
+    () {
+      const timings = [
+        AudioTextTiming(text: 'The', startMs: 1000, endMs: 1200),
+        AudioTextTiming(text: 'ocean.', startMs: 1200, endMs: 2000),
+        AudioTextTiming(text: 'The', startMs: 3500, endMs: 3700),
+        AudioTextTiming(text: 'devil.', startMs: 3700, endMs: 4500),
+      ];
+      final manifest = ChapterManifest(
+        chapterId: 'c',
+        bookId: 'b',
+        providerId: 'librivox',
+        voiceId: '',
+        speed: 1,
+        updatedAt: 0,
+        segments: [
+          SegmentEntry(
+            paragraphId: 'p',
+            audioFile: 'recording.mp3',
+            durationMs: 9000,
+            state: ParagraphAudioState.ready,
+            timings: timings,
+          ),
+        ],
+      );
+      for (final content in [
+        'The ocean.\nThe devil.',
+        'The ocean. The\ndevil.',
+      ]) {
+        final lines = buildSyncedLyricLines([
+          Paragraph(
+            id: 'p',
+            chapterId: 'c',
+            bookId: 'b',
+            paragraphIndex: 0,
+            content: content,
+          ),
+        ], manifest);
+        final words = lines.expand((line) => line.words).toList();
+        expect(words.map((word) => (word.startMs, word.endMs)), [
+          (1000, 1200),
+          (1200, 2000),
+          (3500, 3700),
+          (3700, 4500),
+        ]);
+      }
+    },
+  );
+
   test('synced lyrics clock extrapolates at playback speed', () {
     final clock = SyncedLyricsClock();
     addTearDown(clock.dispose);

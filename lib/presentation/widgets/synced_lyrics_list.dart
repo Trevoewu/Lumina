@@ -6,6 +6,7 @@ import 'package:flutter/physics.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
+import 'package:audio_service/audio_service.dart';
 
 import '../../core/app_colors.dart';
 import '../../core/app_design_tokens.dart';
@@ -20,6 +21,10 @@ import 'dictionary_lookup_sheet.dart';
 /// Speech-friendly tuning knobs for the karaoke-style renderer.
 const syncedLyricsSweepLeadMs = 80;
 const syncedLyricsSweepFeatherEm = 0.5;
+
+/// `playing` is user intent and remains true while just_audio is buffering.
+bool syncedLyricsAudioIsAdvancing(PlaybackState state) =>
+    state.playing && state.processingState == AudioProcessingState.ready;
 
 /// A frame-rate playback clock anchored to just_audio's coarse position stream.
 ///
@@ -52,7 +57,8 @@ class SyncedLyricsClock extends ChangeNotifier {
   }) {
     final nextSpeed = speed.clamp(0.5, 3.0).toDouble();
     final driftUs = realPosition.inMicroseconds - _position.inMicroseconds;
-    final largeDrift = !_initialized || driftUs.abs() >= 250000;
+    final largeDrift =
+        !_initialized || playing != _playing || driftUs.abs() >= 250000;
     final shouldMoveForward = driftUs >= 0;
     final positionChanged = !playing || largeDrift || shouldMoveForward;
     _playing = playing;
@@ -408,7 +414,18 @@ List<SyncedLyricLine> buildSyncedLyricLines(
   final lines = <SyncedLyricLine>[];
 
   for (final paragraph in paragraphs) {
-    final parts = splitLyricsText(paragraph.content, maxChars: maxChars);
+    // ASR transcripts already carry pause-aware line boundaries. Splitting
+    // them into sentences again would discard those grouping decisions.
+    final isTranscript =
+        manifest?.providerId == 'whisper-local' ||
+        manifest?.providerId == 'librivox';
+    final parts = isTranscript
+        ? paragraph.content
+              .split('\n')
+              .map((line) => line.trim())
+              .where((line) => line.isNotEmpty)
+              .toList()
+        : splitLyricsText(paragraph.content, maxChars: maxChars);
     if (parts.isEmpty) continue;
 
     // Light-novel source files sometimes put a Japanese closing quote in its
@@ -729,13 +746,27 @@ List<_PositionedTiming> _positionTimings(
   final normalizedParagraph = _normalizeForAlignment(paragraph);
   if (normalizedParagraph.isEmpty || timings.isEmpty) return const [];
 
+  // Transcripts are the timing text with only whitespace/line breaks changed.
+  // Use source order directly, avoiding ambiguous searches for repeated words.
+  final tokens = [
+    for (final timing in timings) _normalizeForAlignment(timing.text),
+  ];
+  if (tokens.join() == normalizedParagraph) {
+    var offset = 0;
+    return [
+      for (var i = 0; i < timings.length; i++)
+        if (tokens[i].isNotEmpty)
+          (timing: timings[i], start: offset, end: offset += tokens[i].length),
+    ];
+  }
+
   final positioned = <_PositionedTiming>[];
   var searchFrom = 0;
   for (final timing in timings) {
     final token = _normalizeForAlignment(timing.text);
     if (token.isEmpty) continue;
     var start = normalizedParagraph.indexOf(token, searchFrom);
-    if (start < 0) start = normalizedParagraph.indexOf(token);
+    // Never map a later repeated word backwards onto an earlier occurrence.
     if (start < 0) continue;
     final end = start + token.length;
     positioned.add((timing: timing, start: start, end: end));
@@ -1302,7 +1333,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
     _playbackStateSub = widget.handler.playbackState.listen((state) {
       _clock.reanchor(
         widget.handler.position,
-        playing: _clockEnabled && state.playing,
+        playing: _clockEnabled && syncedLyricsAudioIsAdvancing(state),
         speed: state.speed,
       );
       _handleClockTick();
@@ -1315,7 +1346,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
     final playbackState = widget.handler.playbackState.value;
     _clock.reanchor(
       position,
-      playing: _clockEnabled && playbackState.playing,
+      playing: _clockEnabled && syncedLyricsAudioIsAdvancing(playbackState),
       speed: playbackState.speed,
     );
     if (!widget.playbackEnabled) {
@@ -1332,7 +1363,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
     final playbackState = widget.handler.playbackState.value;
     _clock.reanchor(
       position,
-      playing: _clockEnabled && playbackState.playing,
+      playing: _clockEnabled && syncedLyricsAudioIsAdvancing(playbackState),
       speed: playbackState.speed,
     );
     _handleClockTick();

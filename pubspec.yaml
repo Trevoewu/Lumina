@@ -67,7 +67,6 @@ dependencies:
   flutter_chat_ui: ^2.11.1
   hugeicons: ^1.1.7
   cupertino_native_better: ^1.6.0
-
 dev_dependencies:
   flutter_test:
     sdk: flutter
