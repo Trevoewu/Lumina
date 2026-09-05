@@ -1,3 +1,4 @@
+import '../../widgets/app_glass_controls.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -83,7 +84,7 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
                           )
                         : const Icon(Icons.refresh),
                   ),
-                  PopupMenuButton<String>(
+                  AppGlassMenuButton<String>(
                     tooltip: context.tr('更多', 'More', 'その他'),
                     onSelected: (value) {
                       if (value == 'unsubscribe') _unsubscribe(show);

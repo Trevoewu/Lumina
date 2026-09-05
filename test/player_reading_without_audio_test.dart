@@ -126,6 +126,8 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('book-transcript-start')), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('player-more-menu')));
+      await tester.pumpAndSettle();
       expect(
         find.byKey(const ValueKey('book-transcript-resume')),
         findsOneWidget,
@@ -635,6 +637,19 @@ void main() {
         AppTheme.lightTheme().colorScheme.onSurface,
       );
 
+      // Inline mode preserves scroll position; normalize only the screenshot.
+      tester
+          .state<ScrollableState>(
+            find
+                .descendant(
+                  of: find.byKey(const ValueKey('book-player-scroll-view')),
+                  matching: find.byType(Scrollable),
+                )
+                .first,
+          )
+          .position
+          .jumpTo(0);
+      await tester.pumpAndSettle();
       await expectLater(
         find.byType(PlayerScreen),
         matchesGoldenFile('goldens/player_spotify_light_390.png'),
@@ -668,7 +683,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byIcon(Icons.timer_outlined));
       await tester.pumpAndSettle();
-      expect(find.text('Sleep timer'), findsOneWidget);
+      expect(find.text('15 minutes'), findsOneWidget);
+      expect(find.byType(BottomSheet), findsNothing);
       await tester.tap(find.text('15 minutes'));
       await tester.pumpAndSettle();
       expect(sleepTimerService.state.mode, SleepTimerMode.duration);
@@ -719,6 +735,19 @@ void main() {
       );
       expect(compactArtwork, const Size.square(320));
 
+      // Inline mode preserves scroll position; normalize only the screenshot.
+      tester
+          .state<ScrollableState>(
+            find
+                .descendant(
+                  of: find.byKey(const ValueKey('book-player-scroll-view')),
+                  matching: find.byType(Scrollable),
+                )
+                .first,
+          )
+          .position
+          .jumpTo(0);
+      await tester.pumpAndSettle();
       await expectLater(
         find.byType(PlayerScreen),
         matchesGoldenFile('goldens/player_spotify_light_playing_390.png'),

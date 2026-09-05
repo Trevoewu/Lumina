@@ -4,6 +4,7 @@ import 'dart:ui' show lerpDouble;
 import 'package:flutter/material.dart';
 
 import '../../core/app_colors.dart';
+import 'app_glass_controls.dart';
 import '../../core/app_design_tokens.dart';
 
 class CollapsingPageScaffold extends StatelessWidget {
@@ -123,13 +124,18 @@ class _CollapsingPageHeaderDelegate extends SliverPersistentHeaderDelegate {
 
     return Material(
       key: const ValueKey('collapsing-page-header'),
-      // Opaque so body content scrolling under the pinned header never
-      // ghosts through the collapsing title. At rest this matches the
-      // scaffold background, so the expanded header looks unchanged.
-      color: context.appBackground,
+      color: overlapsContent || shrinkOffset > 0
+          ? Colors.transparent
+          : context.appBackground,
       child: Stack(
         fit: StackFit.expand,
         children: [
+          if (overlapsContent || shrinkOffset > 0)
+            const Positioned.fill(
+              child: IgnorePointer(
+                child: AppGlassSurface(radius: 0, child: SizedBox.expand()),
+              ),
+            ),
           Positioned(
             top: titleTop,
             left: lerpDouble(pageInset, collapsedSide, easedProgress),

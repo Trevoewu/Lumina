@@ -1,3 +1,4 @@
+import '../../widgets/app_glass_controls.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -897,10 +898,9 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       title: widget.book.title,
       showBackButton: true,
       actions: [
-        PopupMenuButton<String>(
+        AppGlassMenuButton<String>(
           key: const ValueKey('book-detail-more-menu'),
           tooltip: context.tr('更多', 'More', 'その他'),
-          icon: const Icon(Icons.more_horiz_rounded),
           onSelected: (value) {
             if (value == 'hidden_chapters') {
               _showHiddenChapters();

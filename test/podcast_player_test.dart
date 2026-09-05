@@ -447,13 +447,13 @@ void main() {
         findsNothing,
       );
       expect(
-        find.byKey(const ValueKey('podcast-transcript-focus-viewport')),
+        find.byKey(const ValueKey('player-inline-transcript')),
         findsOneWidget,
       );
       expect(find.text('First cached chunk.'), findsOneWidget);
 
       final transcriptList = find.descendant(
-        of: find.byKey(const ValueKey('podcast-transcript-focus-viewport')),
+        of: find.byKey(const ValueKey('player-inline-transcript')),
         matching: find.byType(SyncedLyricsList),
       );
       final transcriptState = tester.state(transcriptList);
@@ -499,7 +499,7 @@ void main() {
       );
 
       await tester.drag(
-        find.byKey(const ValueKey('podcast-transcript-scroll-view')),
+        find.byKey(const ValueKey('podcast-player-scroll-view')),
         const Offset(0, -1000),
       );
       await tester.pumpAndSettle();
@@ -581,7 +581,7 @@ void main() {
     await tester.tap(transcriptToggle);
     await tester.pumpAndSettle();
     expect(
-      find.byKey(const ValueKey('podcast-transcript-focus-viewport')),
+      find.byKey(const ValueKey('player-inline-transcript')),
       findsOneWidget,
     );
 
@@ -603,193 +603,148 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
-  testWidgets('transcript opens as a page and settles over the cover', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(390, 844);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+  testWidgets(
+    'inline subtitle transitions keep every transport control mounted and fixed',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-    final database = AppDatabase.forTesting(NativeDatabase.memory());
-    final handler = _PodcastTestAudioHandler();
-    final sleepTimer = SleepTimerService();
-    final service = _FakeTranscriptionService(database, null);
-    addTearDown(database.close);
-    addTearDown(handler.dispose);
-    addTearDown(sleepTimer.dispose);
-    addTearDown(service.dispose);
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      final handler = _PodcastTestAudioHandler();
+      final sleepTimer = SleepTimerService();
+      final service = _FakeTranscriptionService(database, null);
+      addTearDown(database.close);
+      addTearDown(handler.dispose);
+      addTearDown(sleepTimer.dispose);
+      addTearDown(service.dispose);
 
-    await _insertPodcast(
-      database,
-      episodeId: 'episode-fade',
-      transcriptStatus: 'complete',
-      transcriptJson:
-          '[{"text":"A cached sentence.","startMs":0,"endMs":1200}]',
-    );
-
-    await tester.pumpWidget(
-      _podcastApp(
-        database: database,
-        handler: handler,
-        sleepTimer: sleepTimer,
-        service: service,
+      await _insertPodcast(
+        database,
         episodeId: 'episode-fade',
-      ),
-    );
-    await tester.pumpAndSettle();
+        transcriptStatus: 'complete',
+        transcriptJson:
+            '[{"text":"A cached sentence.","startMs":0,"endMs":1200}]',
+      );
 
-    final coverScroll = find.byKey(
-      const ValueKey('podcast-player-scroll-view'),
-    );
-    final transcriptScroll = find.byKey(
-      const ValueKey('podcast-transcript-scroll-view'),
-    );
-    expect(coverScroll, findsOneWidget);
-    expect(transcriptScroll, findsNothing);
+      await tester.pumpWidget(
+        _podcastApp(
+          database: database,
+          handler: handler,
+          sleepTimer: sleepTimer,
+          service: service,
+          episodeId: 'episode-fade',
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    final transcriptToggle = find.byKey(
-      const ValueKey('player-transcript-toggle'),
-    );
-    final coverControls = find.descendant(
-      of: coverScroll,
-      matching: find.byKey(const ValueKey('player-cache-playback-progress')),
-    );
-    final coverControlsTop = tester.getTopLeft(coverControls).dy;
-    final coverControlsLeft = tester.getTopLeft(coverControls).dx;
-    await tester.ensureVisible(transcriptToggle);
-    await tester.tap(transcriptToggle);
+      final keys = [
+        'player-more-menu',
+        'player-transcript-toggle',
+        'player-primary-audio-action',
+        'player-backward-10-seconds',
+        'player-forward-30-seconds',
+      ];
+      final elements = {
+        for (final key in keys) key: tester.element(find.byKey(ValueKey(key))),
+      };
+      final positions = {
+        for (final key in keys)
+          key: tester.getCenter(find.byKey(ValueKey(key))),
+      };
+      for (var toggle = 0; toggle < 4; toggle++) {
+        await tester.tap(
+          find.byKey(const ValueKey('player-transcript-toggle')),
+        );
+        await tester.pump();
+        for (var frame = 0; frame < 15; frame++) {
+          await tester.pump(const Duration(milliseconds: 16));
+          for (final key in keys) {
+            final control = find.byKey(ValueKey(key));
+            expect(control, findsOneWidget);
+            expect(tester.element(control), same(elements[key]));
+            expect(tester.getCenter(control), positions[key]);
+            expect(control.hitTestable(), findsOneWidget);
+          }
+        }
+        expect(
+          find.byKey(const ValueKey('player-inline-transcript')),
+          toggle.isEven ? findsOneWidget : findsNothing,
+        );
+        expect(
+          find.byKey(const ValueKey('player-sticky-mini-player')),
+          findsNothing,
+        );
+        expect(find.byType(Hero), findsNothing);
+      }
 
-    // During the route transition both pages are mounted. The cover remains
-    // underneath long enough for the Hero artwork to fly into the mini player;
-    // the parent page is removed after the route settles.
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 120));
-    expect(coverScroll, findsOneWidget);
-    expect(transcriptScroll, findsOneWidget);
-    final routeControls = find.descendant(
-      of: find.byKey(const ValueKey('player-transcript-page')),
-      matching: find.byKey(const ValueKey('player-cache-playback-progress')),
-    );
-    expect(routeControls, findsOneWidget);
-    final controlsTopDuringTransition = tester.getTopLeft(routeControls).dy;
-    expect(
-      controlsTopDuringTransition,
-      closeTo(coverControlsTop, 0.1),
-      reason: 'cover and transcript controls share the same bottom band',
-    );
-    expect(
-      tester.getTopLeft(routeControls).dx,
-      closeTo(coverControlsLeft, 0.1),
-      reason: 'the controls stay fixed while transcript replaces the cover',
-    );
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.pump(const Duration(milliseconds: 1));
+    },
+  );
 
-    await tester.pumpAndSettle();
-    expect(coverScroll, findsNothing);
-    expect(transcriptScroll, findsOneWidget);
-    expect(
-      tester.getTopLeft(routeControls).dy,
-      closeTo(controlsTopDuringTransition, 0.1),
-    );
-    expect(
-      find.byKey(const ValueKey('player-transcript-page')),
-      findsOneWidget,
-    );
-    final topChrome = tester.widget<KeyedSubtree>(
-      find.byKey(const ValueKey('player-transcript-top-chrome')),
-    );
-    expect(
-      topChrome.child,
-      isNot(isA<DecoratedBox>()),
-      reason: 'the mini player must let the page accent show through',
-    );
-    final closePlayer = find.byKey(
-      const ValueKey('player-transcript-close-player'),
-    );
-    expect(closePlayer, findsOneWidget);
-    final transcriptArtwork = find.descendant(
-      of: find.byKey(const ValueKey('player-transcript-page')),
-      matching: find.byKey(const ValueKey('player-artwork')),
-    );
-    expect(transcriptArtwork, findsOneWidget);
-    expect(
-      tester.getTopLeft(closePlayer).dx,
-      lessThan(tester.getTopLeft(transcriptArtwork).dx),
-    );
-    expect(
-      find.byKey(const ValueKey('podcast-transcript-close')),
-      findsNothing,
-    );
+  testWidgets(
+    'iOS subtitle button returns to the cover without another route',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.tap(closePlayer);
-    await tester.pumpAndSettle();
-    expect(find.byType(PlayerScreen), findsNothing);
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      final handler = _PodcastTestAudioHandler();
+      final sleepTimer = SleepTimerService();
+      final service = _FakeTranscriptionService(database, null);
+      addTearDown(database.close);
+      addTearDown(handler.dispose);
+      addTearDown(sleepTimer.dispose);
+      addTearDown(service.dispose);
 
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump(const Duration(milliseconds: 1));
-    await tester.pump(const Duration(milliseconds: 1));
-  });
-
-  testWidgets('iOS edge swipe returns from transcript to the cover', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(390, 844);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-
-    final database = AppDatabase.forTesting(NativeDatabase.memory());
-    final handler = _PodcastTestAudioHandler();
-    final sleepTimer = SleepTimerService();
-    final service = _FakeTranscriptionService(database, null);
-    addTearDown(database.close);
-    addTearDown(handler.dispose);
-    addTearDown(sleepTimer.dispose);
-    addTearDown(service.dispose);
-
-    await _insertPodcast(
-      database,
-      episodeId: 'episode-edge-pop',
-      transcriptStatus: 'complete',
-      transcriptJson:
-          '[{"text":"Swipe back sentence.","startMs":0,"endMs":1200}]',
-    );
-    await tester.pumpWidget(
-      _podcastApp(
-        database: database,
-        handler: handler,
-        sleepTimer: sleepTimer,
-        service: service,
+      await _insertPodcast(
+        database,
         episodeId: 'episode-edge-pop',
-        platform: TargetPlatform.iOS,
-      ),
-    );
-    await tester.pumpAndSettle();
+        transcriptStatus: 'complete',
+        transcriptJson:
+            '[{"text":"Swipe back sentence.","startMs":0,"endMs":1200}]',
+      );
+      await tester.pumpWidget(
+        _podcastApp(
+          database: database,
+          handler: handler,
+          sleepTimer: sleepTimer,
+          service: service,
+          episodeId: 'episode-edge-pop',
+          platform: TargetPlatform.iOS,
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const ValueKey('player-transcript-toggle')));
-    await tester.pumpAndSettle();
-    expect(
-      find.byKey(const ValueKey('player-transcript-page')),
-      findsOneWidget,
-    );
+      await tester.tap(find.byKey(const ValueKey('player-transcript-toggle')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('player-inline-transcript')),
+        findsOneWidget,
+      );
 
-    await tester.timedDragFrom(
-      const Offset(5, 420),
-      const Offset(360, 0),
-      const Duration(milliseconds: 500),
-    );
-    await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('player-transcript-toggle')));
+      await tester.pumpAndSettle();
 
-    expect(find.byKey(const ValueKey('player-transcript-page')), findsNothing);
-    expect(
-      find.byKey(const ValueKey('podcast-player-scroll-view')),
-      findsOneWidget,
-    );
+      expect(
+        find.byKey(const ValueKey('player-inline-transcript')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('podcast-player-scroll-view')),
+        findsOneWidget,
+      );
 
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump(const Duration(milliseconds: 1));
-    await tester.pump(const Duration(milliseconds: 1));
-  });
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.pump(const Duration(milliseconds: 1));
+    },
+  );
 
   testWidgets('transcript mode keeps its chrome visible while playing', (
     tester,
@@ -996,6 +951,13 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 1));
 
+    expect(
+      find.byKey(const ValueKey('podcast-transcript-pause')),
+      findsNothing,
+    );
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('player-more-menu')));
+    await tester.pumpAndSettle();
     final pauseButton = find.byKey(const ValueKey('podcast-transcript-pause'));
     expect(pauseButton, findsOneWidget);
     expect(
@@ -1010,8 +972,11 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
+    await tester.pumpAndSettle();
     expect(service.pauseCalls, 1);
     expect(pauseButton, findsNothing);
+    await tester.tap(find.byKey(const ValueKey('player-more-menu')));
+    await tester.pumpAndSettle();
     expect(
       find.byKey(const ValueKey('podcast-transcript-restart')),
       findsOneWidget,
@@ -1285,10 +1250,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 1));
 
-    Finder transcriptAction(PlayerPrimaryAudioAction action) => find.descendant(
-      of: find.byKey(const ValueKey('player-transcript-page')),
-      matching: find.byKey(ValueKey(action)),
-    );
+    Finder transcriptAction(PlayerPrimaryAudioAction action) =>
+        find.byKey(ValueKey(action));
 
     expect(
       transcriptAction(PlayerPrimaryAudioAction.play),
@@ -1606,11 +1569,17 @@ void main() {
     await tester.tap(transcriptToggle);
     await tester.pumpAndSettle();
 
+    await tester.tap(find.byKey(const ValueKey('player-more-menu')));
+    await tester.pumpAndSettle();
     final restart = find.byKey(const ValueKey('podcast-transcript-restart'));
     expect(restart, findsOneWidget);
     expect(
-      tester.widget<IconButton>(restart).tooltip,
-      'Resume transcription',
+      tester
+          .widget<Text>(
+            find.descendant(of: restart, matching: find.byType(Text)),
+          )
+          .data,
+      'Resume subtitle generation',
       reason: 'the cached chunks are kept, so this continues the run',
     );
     expect(find.text('First cached chunk.'), findsOneWidget);
