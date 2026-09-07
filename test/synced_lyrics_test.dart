@@ -711,6 +711,51 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  for (final reduceMotion in [false, true]) {
+    testWidgets('subtitle seek animates with reduce motion $reduceMotion', (
+      tester,
+    ) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          FakeAccessibilityFeatures(disableAnimations: reduceMotion);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      final handler = _VirtualLyricsAudioHandler(paragraphId: 'streaming');
+      addTearDown(handler.dispose);
+      await tester.pumpWidget(
+        _growingTranscript(handler, _streamedTranscriptLines(100)),
+      );
+      await tester.pumpAndSettle();
+      final position = tester
+          .state<ScrollableState>(
+            find.descendant(
+              of: find.byKey(const ValueKey('synced-lyrics-virtualized-list')),
+              matching: find.byType(Scrollable),
+            ),
+          )
+          .position;
+      final before = position.pixels;
+      handler.currentPosition = const Duration(seconds: 80);
+      handler.playbackState.add(PlaybackState());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 20));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 70));
+      final intermediate = position.pixels;
+      await tester.pumpAndSettle();
+      final target = position.pixels;
+      expect(target, greaterThan(before + 1000));
+      if (reduceMotion) {
+        expect(intermediate, closeTo(target, 0.1));
+      } else {
+        expect(intermediate, greaterThan(before));
+        expect(intermediate, lessThan(target - 1));
+      }
+      expect(find.text('Transcript segment 80.'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('paused long transcript eventually scrolls to active line', (
     tester,
   ) async {
@@ -999,12 +1044,17 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 20));
     await tester.pump();
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 70));
 
     expect(
       tester.state<ScrollableState>(scrollable).position.pixels,
-      greaterThan(5000),
+      greaterThan(0),
       reason: 'an appended chunk must not stall following the active line',
+    );
+    await tester.pumpAndSettle();
+    expect(
+      tester.state<ScrollableState>(scrollable).position.pixels,
+      greaterThan(5000),
     );
   });
 

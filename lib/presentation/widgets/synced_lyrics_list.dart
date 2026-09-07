@@ -1499,9 +1499,28 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
     final position = _scrollController.position;
     final largeMove =
         force || distance > math.max(position.viewportDimension, 1.0) * 1.25;
-    if (largeMove) {
+    if (MediaQuery.disableAnimationsOf(context)) {
       _stopScrollAnimation();
       _scrollController.jumpTo(target);
+      return;
+    }
+
+    final speed = widget.scrollSpeed.clamp(0.5, 2.0).toDouble();
+    if (largeMove) {
+      // Seeking and returning to the current subtitle should preserve spatial
+      // continuity too. Retarget from the live offset so rapid seeks remain
+      // interruptible, with a bounded duration even across a long transcript.
+      _ensureScrollAnimation();
+      final animation = _scrollAnimation!;
+      animation.stop();
+      animation.value = position.pixels;
+      unawaited(
+        animation.animateTo(
+          target,
+          duration: Duration(milliseconds: (280 / speed).round()),
+          curve: Curves.easeOutCubic,
+        ),
+      );
       return;
     }
 
@@ -1517,7 +1536,6 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
         .pow((1 - (interval - 100) / 700).clamp(0.0, 1.0), 0.2)
         .toDouble();
     final baseStiffness = 170 + ratio * 50;
-    final speed = widget.scrollSpeed.clamp(0.5, 2.0).toDouble();
     final description = SpringDescription(
       mass: 0.9,
       stiffness: baseStiffness * speed * speed,
