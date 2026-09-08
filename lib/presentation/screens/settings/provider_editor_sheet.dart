@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../widgets/app_sheet.dart';
 import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
 import '../../../core/service_settings_controllers.dart';
@@ -19,10 +20,8 @@ class LlmProviderEditorSheet extends ConsumerStatefulWidget {
     BuildContext context, {
     LlmProviderConfiguration? existing,
   }) {
-    return showModalBottomSheet<bool>(
+    return showAppSheet<bool>(
       context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
       builder: (_) => LlmProviderEditorSheet(existing: existing),
     );
   }

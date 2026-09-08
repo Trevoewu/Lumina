@@ -10,6 +10,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:hugeicons/hugeicons.dart';
 
+import '../../widgets/app_sheet.dart';
 import '../../../ai/ai_models.dart';
 import '../../../ai/transcript_tool.dart';
 import '../../../core/app_colors.dart';
@@ -1804,12 +1805,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       final info = await service.getModelInfo();
       if (info.installed) return true;
       if (!mounted) return false;
-      final installed = await showModalBottomSheet<bool>(
+      final installed = await showAppSheet<bool>(
         context: context,
-        isScrollControlled: true,
-        isDismissible: false,
         enableDrag: false,
-        showDragHandle: true,
         builder: (_) => _WhisperModelSetupSheet(
           service: service,
           expectedBytes: info.expectedBytes,
@@ -2965,13 +2963,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
     final canPlay =
         _isPodcast || (manifest != null && _isSelectedChapterLoaded(handler));
-    final playFromCitation = await showModalBottomSheet<bool>(
+    final playFromCitation = await showAppSheet<bool>(
       context: context,
-      useRootNavigator: true,
-      isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
-      backgroundColor: context.appSurface,
       builder: (sheetContext) => Padding(
         padding: EdgeInsets.fromLTRB(
           sheetContext.appDesign.spaceLg,
@@ -4247,11 +4240,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }) async {
     final design = context.appDesign;
 
-    await showModalBottomSheet<void>(
+    await showAppSheet<void>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withValues(alpha: 0.28),
       builder: (sheetContext) {
         final maxHeight = MediaQuery.sizeOf(sheetContext).height * 0.62;
         return Container(

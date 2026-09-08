@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'app_sheet.dart';
 import '../../core/app_colors.dart';
 import '../../core/app_design_tokens.dart';
 
@@ -18,17 +19,14 @@ class HalfScreenActionSheetItem {
   });
 }
 
-/// Shows the card action menu as a dimmed, rounded, half-height sheet.
+/// Shows the card action menu using the shared Cupertino sheet.
 Future<void> showHalfScreenActionSheet(
   BuildContext context, {
   required String title,
   required List<HalfScreenActionSheetItem> actions,
 }) {
-  return showModalBottomSheet<void>(
+  return showAppSheet<void>(
     context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    barrierColor: Colors.black.withValues(alpha: 0.52),
     builder: (context) =>
         _HalfScreenActionSheet(title: title, actions: actions),
   );
@@ -43,25 +41,8 @@ class _HalfScreenActionSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final design = context.appDesign;
-    final mediaQuery = MediaQuery.of(context);
-    // Keep the sheet compact for short menus, while allowing long menus to
-    // scroll instead of extending beneath the status bar.
-    const handleAreaHeight = 28.0;
     const headerHeight = 60.0;
-    const actionHeight = 61.0;
-    final verticalPadding = design.spaceXs + design.spaceLg;
-    final contentHeight =
-        handleAreaHeight +
-        headerHeight +
-        verticalPadding +
-        actions.length * actionHeight +
-        (actions.length - 1).clamp(0, double.maxFinite) * design.spaceXs +
-        mediaQuery.padding.bottom;
-    final maxHeight = mediaQuery.size.height * 0.78;
-    final sheetHeight = contentHeight.clamp(0.0, maxHeight).toDouble();
-
-    return SizedBox(
-      height: sheetHeight,
+    return SizedBox.expand(
       child: Material(
         color: context.appSurface,
         borderRadius: BorderRadius.vertical(
@@ -72,20 +53,6 @@ class _HalfScreenActionSheet extends StatelessWidget {
           top: false,
           child: Column(
             children: [
-              // The handle belongs inside the sheet, below its rounded edge.
-              SizedBox(
-                height: handleAreaHeight,
-                child: Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: context.appTextSecondary.withValues(alpha: 0.45),
-                      borderRadius: BorderRadius.circular(99),
-                    ),
-                  ),
-                ),
-              ),
               SizedBox(
                 height: headerHeight,
                 child: Stack(

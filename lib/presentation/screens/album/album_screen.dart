@@ -1,3 +1,4 @@
+import '../../widgets/app_sheet.dart';
 import '../../widgets/app_glass_controls.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -239,9 +240,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   }
 
   Future<void> _showBookVoicePicker(_BookVoiceData data) async {
-    await showModalBottomSheet<void>(
+    await showAppSheet<void>(
       context: context,
-      showDragHandle: true,
       builder: (sheetContext) => StatefulBuilder(
         builder: (sheetContext, setSheetState) => SafeArea(
           top: false,
@@ -706,9 +706,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       return;
     }
 
-    await showModalBottomSheet<void>(
+    await showAppSheet<void>(
       context: context,
-      showDragHandle: true,
       builder: (sheetContext) => SafeArea(
         top: false,
         child: ConstrainedBox(
@@ -820,9 +819,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       _showSnackBar(context.tr('没有隐藏章节', 'No hidden chapters', '非表示の章はありません'));
       return;
     }
-    await showModalBottomSheet<void>(
+    await showAppSheet<void>(
       context: context,
-      showDragHandle: true,
       builder: (sheetContext) => SafeArea(
         top: false,
         child: ListView(

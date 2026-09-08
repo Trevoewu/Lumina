@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../widgets/app_sheet.dart';
 import '../../../core/app_colors.dart';
 import '../../../core/app_design_tokens.dart';
 import '../../../core/app_localizations.dart';
@@ -223,15 +224,7 @@ class _MeScreenState extends ConsumerState<MeScreen> {
   }
 
   void _openGoals() {
-    showModalBottomSheet<void>(
-      context: context,
-      useRootNavigator: true,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withValues(alpha: 0.28),
-      builder: (_) => const _GoalsSheet(),
-    );
+    showAppSheet<void>(context: context, builder: (_) => const _GoalsSheet());
   }
 
   void _openSettings() {

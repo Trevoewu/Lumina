@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 
+import 'app_sheet.dart';
 import '../../core/app_colors.dart';
 import '../../core/app_design_tokens.dart';
 import '../../core/app_localizations.dart';
@@ -18,11 +19,8 @@ Future<void> showDictionaryLookupSheet(
   DictionaryLookupContext? lookupContext,
   bool askAi = false,
 }) {
-  return showModalBottomSheet<void>(
+  return showAppSheet<void>(
     context: context,
-    useRootNavigator: true,
-    isScrollControlled: true,
-    useSafeArea: true,
     builder: (_) => _DictionaryLookupSheet(
       initialQuery: initialQuery,
       lookupContext: lookupContext,
@@ -148,113 +146,98 @@ class _DictionaryLookupSheetState
   Widget build(BuildContext context) {
     final design = context.appDesign;
     final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
-    return DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.62,
-      minChildSize: 0.45,
-      maxChildSize: 0.94,
-      snap: true,
-      snapSizes: const [0.62, 0.94],
-      builder: (context, scrollController) {
-        return CustomScrollView(
-          key: const ValueKey('dictionary-lookup-sheet'),
-          controller: scrollController,
-          slivers: [
-            SliverPadding(
-              padding: EdgeInsets.fromLTRB(
-                inset,
-                design.spaceSm,
-                inset,
-                design.spaceXl,
-              ),
-              sliver: SliverList.list(
-                children: [
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 180),
-                    child: _searchExpanded
-                        ? Row(
-                            key: const ValueKey('dictionary-sheet-search-mode'),
-                            children: [
-                              Expanded(
-                                child: AppSearchField(
-                                  fieldKey: const ValueKey(
-                                    'dictionary-sheet-search-field',
-                                  ),
-                                  controller: _controller,
-                                  hintText: context.tr(
-                                    '输入英文单词或短语',
-                                    'Enter an English word',
-                                    '英単語を入力',
-                                  ),
-                                  onSubmitted: _lookup,
-                                  onSearch: _lookup,
-                                  loading: _loading,
-                                  autofocus: true,
-                                ),
+    return CustomScrollView(
+      key: const ValueKey('dictionary-lookup-sheet'),
+      slivers: [
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(
+            inset,
+            design.spaceSm,
+            inset,
+            design.spaceXl,
+          ),
+          sliver: SliverList.list(
+            children: [
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                child: _searchExpanded
+                    ? Row(
+                        key: const ValueKey('dictionary-sheet-search-mode'),
+                        children: [
+                          Expanded(
+                            child: AppSearchField(
+                              fieldKey: const ValueKey(
+                                'dictionary-sheet-search-field',
                               ),
-                              SizedBox(width: design.spaceSm),
-                              IconButton(
-                                tooltip: context.tr(
-                                  '收起搜索',
-                                  'Hide search',
-                                  '検索を隠す',
-                                ),
-                                onPressed: () {
-                                  FocusScope.of(context).unfocus();
-                                  setState(() => _searchExpanded = false);
-                                },
-                                icon: const Icon(Icons.close),
+                              controller: _controller,
+                              hintText: context.tr(
+                                '输入英文单词或短语',
+                                'Enter an English word',
+                                '英単語を入力',
                               ),
-                            ],
-                          )
-                        : Row(
-                            key: const ValueKey('dictionary-sheet-actions'),
-                            children: [
-                              IconButton(
-                                tooltip: context.tr(
-                                  '搜索其他单词',
-                                  'Search another word',
-                                  '別の単語を検索',
-                                ),
-                                onPressed: () =>
-                                    setState(() => _searchExpanded = true),
-                                icon: const Icon(Icons.search),
-                              ),
-                              const Spacer(),
-                              IconButton(
-                                tooltip: MaterialLocalizations.of(
-                                  context,
-                                ).closeButtonTooltip,
-                                onPressed: () => Navigator.of(context).pop(),
-                                icon: const Icon(Icons.close),
-                              ),
-                            ],
+                              onSubmitted: _lookup,
+                              onSearch: _lookup,
+                              loading: _loading,
+                              autofocus: true,
+                            ),
                           ),
-                  ),
-                  SizedBox(height: design.spaceSm),
-                  if (_result case final result?)
-                    DictionaryEntryContent(
-                      result: result,
-                      favorite: _favorite,
-                      onFavorite: _toggleFavorite,
-                      onPlayUs: () => _playPronunciation(british: false),
-                      onPlayUk: () => _playPronunciation(british: true),
-                      onPlayContext:
-                          result.context?.paragraphId != null &&
-                              result.context?.audioStartMs != null
-                          ? _playContext
-                          : null,
-                    )
-                  else if (_error != null)
-                    _SheetError(error: _error!, retry: _lookup)
-                  else
-                    const Center(child: CircularProgressIndicator()),
-                ],
+                          SizedBox(width: design.spaceSm),
+                          IconButton(
+                            tooltip: context.tr('收起搜索', 'Hide search', '検索を隠す'),
+                            onPressed: () {
+                              FocusScope.of(context).unfocus();
+                              setState(() => _searchExpanded = false);
+                            },
+                            icon: const Icon(Icons.close),
+                          ),
+                        ],
+                      )
+                    : Row(
+                        key: const ValueKey('dictionary-sheet-actions'),
+                        children: [
+                          IconButton(
+                            tooltip: context.tr(
+                              '搜索其他单词',
+                              'Search another word',
+                              '別の単語を検索',
+                            ),
+                            onPressed: () =>
+                                setState(() => _searchExpanded = true),
+                            icon: const Icon(Icons.search),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            tooltip: MaterialLocalizations.of(
+                              context,
+                            ).closeButtonTooltip,
+                            onPressed: () => Navigator.of(context).pop(),
+                            icon: const Icon(Icons.close),
+                          ),
+                        ],
+                      ),
               ),
-            ),
-          ],
-        );
-      },
+              SizedBox(height: design.spaceSm),
+              if (_result case final result?)
+                DictionaryEntryContent(
+                  result: result,
+                  favorite: _favorite,
+                  onFavorite: _toggleFavorite,
+                  onPlayUs: () => _playPronunciation(british: false),
+                  onPlayUk: () => _playPronunciation(british: true),
+                  onPlayContext:
+                      result.context?.paragraphId != null &&
+                          result.context?.audioStartMs != null
+                      ? _playContext
+                      : null,
+                )
+              else if (_error != null)
+                _SheetError(error: _error!, retry: _lookup)
+              else
+                const Center(child: CircularProgressIndicator()),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../widgets/app_sheet.dart';
 import '../../../core/app_localizations.dart';
 import '../../../tts/provider_registry.dart';
 import '../../../core/service_settings_controllers.dart';
@@ -17,10 +18,8 @@ class TtsProviderEditorSheet extends ConsumerStatefulWidget {
     BuildContext context, {
     required String providerId,
   }) {
-    return showModalBottomSheet<bool>(
+    return showAppSheet<bool>(
       context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
       builder: (_) => TtsProviderEditorSheet(providerId: providerId),
     );
   }

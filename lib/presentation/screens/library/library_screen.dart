@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../../widgets/app_sheet.dart';
 import '../../../core/app_colors.dart';
 import '../../../core/app_design_tokens.dart';
 import '../../../core/app_localizations.dart';
@@ -473,9 +474,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 
   Future<void> _showAddContentSheet() async {
-    final action = await showModalBottomSheet<_HomeAddAction>(
+    final action = await showAppSheet<_HomeAddAction>(
       context: context,
-      showDragHandle: true,
       builder: (sheetContext) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1270,17 +1270,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     );
     String? coverPath = book.coverPath;
 
-    await showModalBottomSheet<void>(
+    await showAppSheet<void>(
       context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      backgroundColor: context.appSurface,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setSheetState) {
             return SafeArea(
               top: false,
-              child: Padding(
+              child: SingleChildScrollView(
                 padding: EdgeInsets.fromLTRB(
                   24,
                   8,
