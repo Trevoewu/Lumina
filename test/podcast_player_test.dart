@@ -509,7 +509,16 @@ void main() {
       );
       await tester.tap(find.byKey(const ValueKey('podcast-shownotes-toggle')));
       await tester.pumpAndSettle();
-      expect(find.text('Show less'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('app-content-sheet-close')),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const ValueKey('app-content-sheet-close')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('podcast-shownotes-toggle')),
+        findsOneWidget,
+      );
       expect(tester.takeException(), isNull);
 
       await tester.pumpWidget(const SizedBox.shrink());

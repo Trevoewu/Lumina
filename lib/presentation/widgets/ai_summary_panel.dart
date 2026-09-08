@@ -14,6 +14,7 @@ import '../../core/app_localizations.dart';
 import '../../core/app_preferences.dart';
 import '../../core/providers.dart';
 import '../../data/database/app_database.dart';
+import 'app_sheet.dart';
 
 typedef AiCitationCallback = Future<void> Function(AiCitation citation);
 
@@ -50,7 +51,6 @@ class _AiSummaryPanelState extends ConsumerState<AiSummaryPanel> {
   bool _transcriptAvailable = false;
   bool _loading = true;
   bool _running = false;
-  bool _expanded = false;
   StreamSubscription<AiAgentUpdate>? _subscription;
 
   @override
@@ -73,7 +73,6 @@ class _AiSummaryPanelState extends ConsumerState<AiSummaryPanel> {
       _error = null;
       _loading = true;
       _running = false;
-      _expanded = false;
       _transcriptAvailable = _resolveTranscriptAvailability();
       unawaited(_load());
     } else if (oldWidget.transcriptAvailable != widget.transcriptAvailable) {
@@ -127,7 +126,6 @@ class _AiSummaryPanelState extends ConsumerState<AiSummaryPanel> {
     }
     setState(() {
       _running = true;
-      _expanded = false;
       _error = null;
       _status = context.tr(
         '正在读取 Transcript…',
@@ -156,7 +154,6 @@ class _AiSummaryPanelState extends ConsumerState<AiSummaryPanel> {
       case AiAgentUpdateType.completed:
         setState(() {
           _running = false;
-          _expanded = false;
           _status = null;
         });
         unawaited(_load());
@@ -239,25 +236,15 @@ class _AiSummaryPanelState extends ConsumerState<AiSummaryPanel> {
               ).textTheme.bodySmall?.copyWith(color: context.appTextSecondary),
             ),
         ] else if (hasSummary) ...[
-          AnimatedSize(
-            duration: const Duration(milliseconds: 240),
-            curve: Curves.easeOutCubic,
-            alignment: Alignment.topCenter,
-            child: _expanded
-                ? AiAnswerText(
-                    text: _summary!,
-                    onCitationTap: widget.onCitationTap,
-                  )
-                : Text(
-                    _summaryPreview(_summary!),
-                    key: const ValueKey('ai-summary-collapsed-preview'),
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: context.appTextSecondary,
-                      height: 1.45,
-                    ),
-                  ),
+          Text(
+            _summaryPreview(_summary!),
+            key: const ValueKey('ai-summary-collapsed-preview'),
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: context.appTextSecondary,
+              height: 1.45,
+            ),
           ),
           if (_error != null) ...[
             SizedBox(height: design.spaceMd),
@@ -272,18 +259,22 @@ class _AiSummaryPanelState extends ConsumerState<AiSummaryPanel> {
           SizedBox(height: design.spaceSm),
           TextButton.icon(
             key: const ValueKey('ai-summary-toggle'),
-            onPressed: () => setState(() => _expanded = !_expanded),
+            onPressed: () => showAppContentSheet(
+              context: context,
+              title: 'AI Summary',
+              builder: (sheetContext) => AiAnswerText(
+                text: _summary!,
+                onCitationTap: widget.onCitationTap == null
+                    ? null
+                    : (citation) {
+                        Navigator.of(sheetContext).pop();
+                        return widget.onCitationTap!(citation);
+                      },
+              ),
+            ),
             iconAlignment: IconAlignment.end,
-            icon: Icon(
-              _expanded
-                  ? Icons.keyboard_arrow_up_rounded
-                  : Icons.keyboard_arrow_down_rounded,
-            ),
-            label: Text(
-              _expanded
-                  ? context.tr('收起', 'Show less', '折りたたむ')
-                  : context.tr('查看完整摘要', 'Show full summary', '概要をすべて表示'),
-            ),
+            icon: const Icon(Icons.keyboard_arrow_down_rounded),
+            label: Text(context.tr('查看完整摘要', 'Show full summary', '概要をすべて表示')),
           ),
         ] else ...[
           Text(

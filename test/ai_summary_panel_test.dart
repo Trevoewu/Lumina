@@ -120,20 +120,24 @@ void main() {
 
       expect(find.text('**Summary**'), findsNothing);
       expect(find.textContaining('Summary', findRichText: true), findsWidgets);
+      expect(
+        find.byKey(const ValueKey('app-content-sheet-close')),
+        findsOneWidget,
+      );
+      await expectLater(
+        find.byType(Scaffold).last,
+        matchesGoldenFile('goldens/ai_summary_expanded_390.png'),
+      );
       final citationSpan = _findTextSpan(tester, 'P1');
       expect(citationSpan, isNotNull);
       expect(citationSpan!.recognizer, isA<TapGestureRecognizer>());
       (citationSpan.recognizer! as TapGestureRecognizer).onTap!();
-      await tester.pump();
-      expect(tappedCitation?.label, 'P1');
-      expect(find.byKey(const ValueKey('ai-summary-toggle')), findsOneWidget);
-      await expectLater(
-        find.byType(Scaffold).first,
-        matchesGoldenFile('goldens/ai_summary_expanded_390.png'),
-      );
-
-      await tester.tap(find.byKey(const ValueKey('ai-summary-toggle')));
       await tester.pumpAndSettle();
+      expect(tappedCitation?.label, 'P1');
+      expect(
+        find.byKey(const ValueKey('app-content-sheet-close')),
+        findsNothing,
+      );
       expect(
         find.byKey(const ValueKey('ai-summary-collapsed-preview')),
         findsOneWidget,

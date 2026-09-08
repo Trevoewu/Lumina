@@ -423,7 +423,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _pausingPodcastTranscription = false;
   PodcastTranscriptionProgress? _transcriptionProgress;
   bool _autoplayHandled = false;
-  bool _showFullPodcastNotes = false;
   double _readingScrollSpeed = 1.0;
   bool _lyricSweepEnabled = true;
   bool _transcriptPageActive = false;
@@ -2348,27 +2347,30 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             ),
           ),
         ),
-        SliverPadding(
-          padding: EdgeInsets.fromLTRB(
-            pageInset,
-            design.spaceLg,
-            pageInset,
-            design.spaceXxl,
-          ),
-          sliver: SliverToBoxAdapter(
-            child: Column(
-              children: [
-                RepaintBoundary(
-                  child: _buildAiSummaryCard(
-                    handler: handler,
-                    manifest: manifest,
+        DecoratedSliver(
+          decoration: BoxDecoration(color: context.appBackground),
+          sliver: SliverPadding(
+            padding: EdgeInsets.fromLTRB(
+              pageInset,
+              design.spaceLg,
+              pageInset,
+              design.spaceXxl,
+            ),
+            sliver: SliverToBoxAdapter(
+              child: Column(
+                children: [
+                  RepaintBoundary(
+                    child: _buildAiSummaryCard(
+                      handler: handler,
+                      manifest: manifest,
+                    ),
                   ),
-                ),
-                SizedBox(height: design.spaceMd),
-                RepaintBoundary(
-                  child: _buildTranscriptPointerCard(onTap: onTranscriptTap),
-                ),
-              ],
+                  SizedBox(height: design.spaceMd),
+                  RepaintBoundary(
+                    child: _buildTranscriptPointerCard(onTap: onTranscriptTap),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -2510,34 +2512,37 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             ),
           ),
         ),
-        SliverPadding(
-          padding: EdgeInsets.fromLTRB(
-            pageInset,
-            design.spaceLg,
-            pageInset,
-            design.spaceXxl,
-          ),
-          sliver: SliverToBoxAdapter(
-            child: Column(
-              children: [
-                RepaintBoundary(
-                  child: _buildPodcastShownotesCard(
-                    episode: episode,
-                    handler: handler,
+        DecoratedSliver(
+          decoration: BoxDecoration(color: context.appBackground),
+          sliver: SliverPadding(
+            padding: EdgeInsets.fromLTRB(
+              pageInset,
+              design.spaceLg,
+              pageInset,
+              design.spaceXxl,
+            ),
+            sliver: SliverToBoxAdapter(
+              child: Column(
+                children: [
+                  RepaintBoundary(
+                    child: _buildPodcastShownotesCard(
+                      episode: episode,
+                      handler: handler,
+                    ),
                   ),
-                ),
-                SizedBox(height: design.spaceMd),
-                RepaintBoundary(
-                  child: _buildAiSummaryCard(
-                    handler: handler,
-                    manifest: manifest,
+                  SizedBox(height: design.spaceMd),
+                  RepaintBoundary(
+                    child: _buildAiSummaryCard(
+                      handler: handler,
+                      manifest: manifest,
+                    ),
                   ),
-                ),
-                SizedBox(height: design.spaceMd),
-                RepaintBoundary(
-                  child: _buildTranscriptPointerCard(onTap: onTranscriptTap),
-                ),
-              ],
+                  SizedBox(height: design.spaceMd),
+                  RepaintBoundary(
+                    child: _buildTranscriptPointerCard(onTap: onTranscriptTap),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -3088,49 +3093,47 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             title: context.tr('节目笔记', 'Shownotes', '番組ノート'),
           ),
           SizedBox(height: context.appDesign.spaceMd),
-          AnimatedSize(
-            duration: const Duration(milliseconds: 240),
-            curve: Curves.easeOutCubic,
-            alignment: Alignment.topCenter,
-            child: PodcastLinkText(
-              notes.isEmpty
-                  ? context.tr(
-                      '该单集没有附带节目笔记。',
-                      'No shownotes provided.',
-                      '番組ノートはありません。',
-                    )
-                  : notes,
-              key: const ValueKey('podcast-episode-description'),
-              onSeekTimestamp: (position) =>
-                  _seekToPodcastShownoteTimestamp(handler, position),
-              maxLines: _showFullPodcastNotes ? null : 5,
-              overflow: _showFullPodcastNotes
-                  ? TextOverflow.visible
-                  : TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: context.appTextSecondary,
-                height: 1.5,
-              ),
+          PodcastLinkText(
+            notes.isEmpty
+                ? context.tr(
+                    '该单集没有附带节目笔记。',
+                    'No shownotes provided.',
+                    '番組ノートはありません。',
+                  )
+                : notes,
+            key: const ValueKey('podcast-episode-description'),
+            onSeekTimestamp: (position) =>
+                _seekToPodcastShownoteTimestamp(handler, position),
+            maxLines: 5,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: context.appTextSecondary,
+              height: 1.5,
             ),
           ),
           if (canExpand) ...[
             SizedBox(height: context.appDesign.spaceSm),
             TextButton.icon(
               key: const ValueKey('podcast-shownotes-toggle'),
-              onPressed: () {
-                setState(() => _showFullPodcastNotes = !_showFullPodcastNotes);
-                _refreshTranscriptPage();
-              },
-              iconAlignment: IconAlignment.end,
-              icon: Icon(
-                _showFullPodcastNotes
-                    ? Icons.keyboard_arrow_up_rounded
-                    : Icons.keyboard_arrow_down_rounded,
+              onPressed: () => showAppContentSheet(
+                context: context,
+                title: context.tr('节目笔记', 'Shownotes', '番組ノート'),
+                builder: (sheetContext) => PodcastLinkText(
+                  notes,
+                  onSeekTimestamp: (position) {
+                    Navigator.of(sheetContext).pop();
+                    return _seekToPodcastShownoteTimestamp(handler, position);
+                  },
+                  style: Theme.of(sheetContext).textTheme.bodyLarge?.copyWith(
+                    color: sheetContext.appTextSecondary,
+                    height: 1.5,
+                  ),
+                ),
               ),
+              iconAlignment: IconAlignment.end,
+              icon: const Icon(Icons.keyboard_arrow_down_rounded),
               label: Text(
-                _showFullPodcastNotes
-                    ? context.tr('收起', 'Show less', '折りたたむ')
-                    : context.tr('查看完整笔记', 'Show full notes', '番組ノートをすべて表示'),
+                context.tr('查看完整笔记', 'Show full notes', '番組ノートをすべて表示'),
               ),
             ),
           ],
