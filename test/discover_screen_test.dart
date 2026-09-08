@@ -13,6 +13,8 @@ import 'package:lumina/data/book_sources/gutendex_repository.dart';
 import 'package:lumina/data/book_sources/librivox_repository.dart';
 import 'package:lumina/data/database/app_database.dart';
 import 'package:lumina/presentation/screens/discover/discover_screen.dart';
+import 'package:lumina/presentation/screens/discover/discover_editorial_feed.dart';
+import 'package:lumina/presentation/widgets/book_list_card.dart';
 
 void main() {
   for (final audiobook in [false, true]) {
@@ -77,6 +79,145 @@ void main() {
       );
     }
   }
+
+  testWidgets(
+    'browse, search, clear, and author collection use the real query flow',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      final repository = _EditorialGutendexRepository();
+      addTearDown(database.close);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            appDatabaseProvider.overrideWithValue(database),
+            gutendexRepositoryProvider.overrideWithValue(repository),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightTheme(),
+            home: const DiscoverScreen(),
+          ),
+        ),
+      );
+      await _waitForSearch(tester, () => repository.queries.isNotEmpty);
+      await tester.pumpAndSettle();
+      expect(find.byType(DiscoverEditorialFeed), findsOneWidget);
+      final field = find.byKey(const ValueKey('discover-search-field'));
+      await tester.enterText(field, 'Alice');
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await _waitForSearch(tester, () => repository.queries.contains('Alice'));
+      await tester.pumpAndSettle();
+      expect(find.byType(DiscoverEditorialFeed), findsNothing);
+      expect(find.byType(BookListCard), findsWidgets);
+      await tester.tap(find.byKey(const ValueKey('discover-return-to-browse')));
+      await _waitForSearch(tester, () => repository.queries.length == 3);
+      await tester.pumpAndSettle();
+      expect(find.byType(DiscoverEditorialFeed), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('discover-author-feature')),
+        200,
+        scrollable: find
+            .descendant(
+              of: find.byType(DiscoverEditorialFeed),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('discover-author-feature')));
+      await _waitForSearch(
+        tester,
+        () => repository.queries.last == 'Jane Austen',
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(DiscoverEditorialFeed), findsNothing);
+      expect(
+        tester.widget<EditableText>(find.byType(EditableText)).controller.text,
+        'Jane Austen',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  for (final dark in [false, true]) {
+    testWidgets('discover editorial ${dark ? 'dark' : 'light'} golden', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      final repository = _EditorialGutendexRepository();
+      addTearDown(database.close);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            appDatabaseProvider.overrideWithValue(database),
+            gutendexRepositoryProvider.overrideWithValue(repository),
+          ],
+          child: MaterialApp(
+            theme: dark ? AppTheme.darkTheme() : AppTheme.lightTheme(),
+            home: const DiscoverScreen(),
+          ),
+        ),
+      );
+      await _waitForSearch(tester, () => repository.queries.isNotEmpty);
+      await tester.pumpAndSettle();
+      await expectLater(
+        find.byType(DiscoverScreen),
+        matchesGoldenFile(
+          'goldens/discover_editorial_${dark ? 'dark' : 'light'}_390.png',
+        ),
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('browse more appends books and keeps the cover story', (
+    tester,
+  ) async {
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final repository = _PagedEditorialRepository();
+    addTearDown(database.close);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          gutendexRepositoryProvider.overrideWithValue(repository),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.lightTheme(),
+          home: const DiscoverScreen(),
+        ),
+      ),
+    );
+    await _waitForSearch(tester, () => repository.pages.isNotEmpty);
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Browse more'),
+      200,
+      scrollable: find
+          .descendant(
+            of: find.byType(DiscoverEditorialFeed),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    await tester.tap(find.text('Browse more'));
+    await _waitForSearch(tester, () => repository.pages.length == 2);
+    await tester.pumpAndSettle();
+    final feed = tester.widget<DiscoverEditorialFeed>(
+      find.byType(DiscoverEditorialFeed),
+    );
+    expect(feed.books.map((book) => book.id), ['1', '2']);
+    expect(repository.pages, [1, 2]);
+    expect(feed.onNextPage, isNull);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('discover scope selector follows the active accent', (
     tester,
@@ -169,7 +310,8 @@ void main() {
     await tester.tap(find.text('Audiobooks'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Test Audiobook'), findsOneWidget);
+    // The missing-cover treatment also prints the book title.
+    expect(find.text('Test Audiobook'), findsNWidgets(2));
     expect(find.textContaining('Human narrated'), findsOneWidget);
   });
 }
@@ -268,5 +410,65 @@ class _ControlledLibrivoxRepository extends LibrivoxRepository {
     return calls == 1
         ? pending.future
         : Future.value(const LibrivoxSearchResult(books: [], hasMore: false));
+  }
+}
+
+class _EditorialGutendexRepository extends GutendexRepository {
+  final queries = <String>[];
+  @override
+  Future<GutendexSearchResult> search({
+    required String query,
+    int page = 1,
+  }) async {
+    queries.add(query);
+    return GutendexSearchResult(
+      count: 3,
+      books: [
+        for (final (id, title) in [
+          (1342, 'Pride and Prejudice'),
+          (11, "Alice’s Adventures in Wonderland"),
+          (84, 'Frankenstein'),
+        ])
+          GutendexBook.fromJson({
+            'id': id,
+            'title': title,
+            'authors': [
+              {'name': 'Jane Austen'},
+            ],
+            'languages': ['en'],
+            'summaries': [
+              'A classic story of first impressions, unexpected encounters, and finding a world beyond your own.',
+            ],
+            'copyright': false,
+            'formats': {'text/plain': 'https://example.com/book.txt'},
+          }),
+      ],
+    );
+  }
+}
+
+class _PagedEditorialRepository extends GutendexRepository {
+  final pages = <int>[];
+  @override
+  Future<GutendexSearchResult> search({
+    required String query,
+    int page = 1,
+  }) async {
+    pages.add(page);
+    return GutendexSearchResult(
+      count: 2,
+      next: page == 1 ? 'next' : null,
+      books: [
+        GutendexBook.fromJson({
+          'id': page,
+          'title': 'Book $page',
+          'authors': [
+            {'name': 'Author'},
+          ],
+          'languages': ['en'],
+          'formats': {},
+        }),
+      ],
+    );
   }
 }
