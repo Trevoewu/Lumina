@@ -426,6 +426,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   double _readingScrollSpeed = 1.0;
   bool _lyricSweepEnabled = true;
   bool _transcriptPageActive = false;
+  bool _landscapeTranscriptActive = true;
   String? _ambientArtworkUrl;
   Future<Color?>? _ambientSeed;
   drift_db.Chapter? _activeAudiobookChapter;
@@ -1986,6 +1987,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isPhoneLandscape =
+        MediaQuery.orientationOf(context) == Orientation.landscape &&
+        MediaQuery.sizeOf(context).shortestSide < 600;
     final preferences = ref.watch(appPreferencesProvider);
     _readingScrollSpeed = preferences.readingScrollSpeed;
     _lyricSweepEnabled = preferences.lyricSweepEnabled;
@@ -2034,7 +2038,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               body: SafeArea(
                 child: Column(
                   children: [
-                    _buildPlayerHeader(handlerAsync),
+                    if (!isPhoneLandscape) _buildPlayerHeader(handlerAsync),
                     Expanded(
                       child: handlerAsync.when(
                         loading: () => Center(
@@ -2073,6 +2077,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
                           return LayoutBuilder(
                             builder: (context, constraints) {
+                              if (isPhoneLandscape) {
+                                final episode = _isPodcast
+                                    ? _podcastEpisode ?? widget.podcast!.episode
+                                    : null;
+                                return _buildLandscapePlayerBody(
+                                  handler: handler,
+                                  duration: duration,
+                                  selectedLoaded: selectedLoaded,
+                                  manifest: manifest,
+                                  chapterId:
+                                      episode?.id ??
+                                      currentChapterId ??
+                                      widget.book.id,
+                                  chapterTitle: episode?.title ?? chapterTitle,
+                                );
+                              }
                               if (_isPodcast) {
                                 return _buildPodcastPlayerBody(
                                   constraints: constraints,
@@ -2103,6 +2123,99 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildLandscapePlayerBody({
+    required LuminaAudioHandler handler,
+    required Duration duration,
+    required bool selectedLoaded,
+    required ChapterManifest? manifest,
+    required String chapterId,
+    required String chapterTitle,
+  }) {
+    final design = context.appDesign;
+    return Row(
+      key: const ValueKey('player-landscape-layout'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          flex: 2,
+          child: Padding(
+            key: const ValueKey('player-landscape-cover'),
+            padding: EdgeInsets.symmetric(horizontal: design.spaceLg),
+            child: Column(
+              children: [
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) => Center(
+                      key: const ValueKey('player-landscape-artwork-viewport'),
+                      child: _buildArtwork(
+                        _pixelAlignedArtworkSize(
+                          constraints,
+                          // Reserve breathing room even when height is the
+                          // limiting dimension, so centering remains visible.
+                          math.min(
+                            320,
+                            constraints.biggest.shortestSide * 0.82,
+                          ),
+                        ),
+                        borderRadius: design.radiusLarge,
+                        showShadow: false,
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(height: design.spaceSm),
+                _buildChapterMetadata(chapterTitle),
+                Padding(
+                  key: const ValueKey('player-landscape-actions'),
+                  padding: EdgeInsets.symmetric(vertical: design.spaceSm),
+                  child: _buildSecondaryActions(
+                    context,
+                    handler: handler,
+                    transcriptModeActive: _landscapeTranscriptActive,
+                    onTranscriptToggle: () => setState(() {
+                      _landscapeTranscriptActive = !_landscapeTranscriptActive;
+                    }),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Expanded(
+          flex: 3,
+          child: !_landscapeTranscriptActive
+              ? Center(
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.symmetric(horizontal: design.spaceLg),
+                    child: _buildReactiveControls(
+                      handler: handler,
+                      fallbackDuration: duration,
+                      manifest: manifest,
+                      foregroundColor: context.appTextPrimary,
+                      transcriptModeActive: false,
+                      onTranscriptToggle: null,
+                    ),
+                  ),
+                )
+              : SizedBox.expand(
+                  key: const ValueKey('player-landscape-transcript'),
+                  child: _buildTranscriptEdgeFade(
+                    child: _buildSyncedLyrics(
+                      chapterId: chapterId,
+                      handler: handler,
+                      manifest: manifest,
+                      playbackEnabled: selectedLoaded,
+                      expanded: true,
+                      focusMode: true,
+                      listKey: ValueKey('transcript-focus:$chapterId'),
+                    ),
+                  ),
+                ),
+        ),
+      ],
     );
   }
 
@@ -3183,7 +3296,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
-  Widget _buildArtwork(double size, {required double borderRadius}) {
+  Widget _buildArtwork(
+    double size, {
+    required double borderRadius,
+    bool showShadow = true,
+  }) {
     final compactArtwork = size <= 96;
     return RepaintBoundary(
       key: const ValueKey('player-artwork-repaint-boundary'),
@@ -3193,14 +3310,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(borderRadius),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.46),
-                blurRadius: compactArtwork ? 16 : 32,
-                spreadRadius: compactArtwork ? 0 : 2,
-                offset: Offset(0, compactArtwork ? 6 : 16),
-              ),
-            ],
+            boxShadow: showShadow
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.46),
+                      blurRadius: compactArtwork ? 16 : 32,
+                      spreadRadius: compactArtwork ? 0 : 2,
+                      offset: Offset(0, compactArtwork ? 6 : 16),
+                    ),
+                  ]
+                : null,
           ),
           child: _isPodcast
               ? PodcastArtwork(
@@ -3922,37 +4041,49 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             // playback controls. This is on top of the page gutter the
             // controls already carry, landing them at the mock's inset.
             padding: EdgeInsets.symmetric(horizontal: design.spaceXxl),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildPodcastActionButton(
-                  context,
-                  key: const ValueKey('player-transcript-toggle'),
-                  icon: Icons.chat_bubble_outline_rounded,
-                  tooltip: transcriptModeActive
-                      ? context.tr('返回封面', 'Back to cover', '表紙に戻る')
-                      : context.tr('转录', 'Transcript', '文字起こし'),
-                  chip: true,
-                  active: transcriptModeActive,
-                  onPressed: onTranscriptToggle,
-                ),
-                _buildOutputRouteButton(context),
-                AppGlassSurface(
-                  child: _buildPodcastActionButton(
-                    context,
-                    key: const ValueKey('player-playlist-toggle'),
-                    icon: Icons.format_list_bulleted_rounded,
-                    tooltip: context.tr('列表', 'Playlist', '再生リスト'),
-                    onPressed: () => _showPlaylist(handler),
-                  ),
-                ),
-              ],
+            child: _buildSecondaryActions(
+              context,
+              handler: handler,
+              transcriptModeActive: transcriptModeActive,
+              onTranscriptToggle: onTranscriptToggle,
             ),
           ),
         ],
       ],
     );
   }
+
+  Widget _buildSecondaryActions(
+    BuildContext context, {
+    required LuminaAudioHandler handler,
+    required bool transcriptModeActive,
+    required VoidCallback? onTranscriptToggle,
+  }) => Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: [
+      _buildPodcastActionButton(
+        context,
+        key: const ValueKey('player-transcript-toggle'),
+        icon: Icons.chat_bubble_outline_rounded,
+        tooltip: transcriptModeActive
+            ? context.tr('返回封面', 'Back to cover', '表紙に戻る')
+            : context.tr('转录', 'Transcript', '文字起こし'),
+        chip: true,
+        active: transcriptModeActive,
+        onPressed: onTranscriptToggle,
+      ),
+      _buildOutputRouteButton(context),
+      AppGlassSurface(
+        child: _buildPodcastActionButton(
+          context,
+          key: const ValueKey('player-playlist-toggle'),
+          icon: Icons.format_list_bulleted_rounded,
+          tooltip: context.tr('列表', 'Playlist', '再生リスト'),
+          onPressed: () => _showPlaylist(handler),
+        ),
+      ),
+    ],
+  );
 
   /// The output button hands its slot to the system route picker where one
   /// exists. Elsewhere it keeps the affordance's place in the row, disabled,

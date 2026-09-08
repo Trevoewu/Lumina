@@ -508,6 +508,103 @@ void main() {
       await tester.pump();
 
       expect(find.text('Chapter One'), findsOneWidget);
+      // Rotation reveals the transcript alongside the cover without a tap,
+      // including on a small phone with safe-area insets.
+      for (final size in [const Size(844, 390), const Size(667, 375)]) {
+        tester.view.physicalSize = size;
+        tester.view.padding = FakeViewPadding(left: 44, right: 44, bottom: 21);
+        await tester.pumpAndSettle();
+        final cover = find.byKey(const ValueKey('player-landscape-cover'));
+        final transcript = find.byKey(
+          const ValueKey('player-landscape-transcript'),
+        );
+        expect(cover, findsOneWidget);
+        expect(transcript, findsOneWidget);
+        expect(
+          tester.getRect(cover).right,
+          lessThanOrEqualTo(tester.getRect(transcript).left),
+        );
+        expect(
+          find.text('This text is readable before any audio is cached.'),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('player-playback-controls')),
+          findsNothing,
+        );
+        expect(
+          find.byKey(const ValueKey('player-default-header')),
+          findsNothing,
+        );
+        expect(
+          find.byKey(const ValueKey('player-output-toggle')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('player-playlist-toggle')),
+          findsOneWidget,
+        );
+        final coverRect = tester.getRect(cover);
+        final actionsRect = tester.getRect(
+          find.byKey(const ValueKey('player-landscape-actions')),
+        );
+        final artworkRect = tester.getRect(
+          find.byKey(const ValueKey('player-artwork')),
+        );
+        expect(actionsRect.left, greaterThanOrEqualTo(coverRect.left));
+        expect(actionsRect.right, lessThanOrEqualTo(coverRect.right));
+        expect(actionsRect.bottom, closeTo(coverRect.bottom, 0.1));
+        expect(artworkRect.center.dx, closeTo(coverRect.center.dx, 0.1));
+        expect(artworkRect.width, closeTo(artworkRect.height, 0.1));
+        final artworkViewport = tester.getRect(
+          find.byKey(const ValueKey('player-landscape-artwork-viewport')),
+        );
+        expect(artworkRect.center.dy, closeTo(artworkViewport.center.dy, 0.1));
+        expect(
+          artworkRect.top - artworkViewport.top,
+          greaterThanOrEqualTo(artworkViewport.height * 0.09),
+        );
+        expect(
+          artworkViewport.bottom - artworkRect.bottom,
+          closeTo(artworkRect.top - artworkViewport.top, 0.1),
+        );
+        expect(artworkRect.bottom, lessThan(actionsRect.top));
+        expect(
+          tester.getRect(transcript).bottom,
+          closeTo(coverRect.bottom, 0.1),
+        );
+        final toggle = find.byKey(const ValueKey('player-transcript-toggle'));
+        await tester.tap(toggle);
+        await tester.pumpAndSettle();
+        expect(transcript, findsNothing);
+        expect(cover, findsOneWidget);
+        expect(
+          find
+              .byKey(const ValueKey('player-primary-audio-action'))
+              .hitTestable(),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+        await tester.tap(toggle);
+        await tester.pumpAndSettle();
+        expect(transcript, findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('player-playback-controls')),
+          findsNothing,
+        );
+        expect(tester.takeException(), isNull);
+      }
+      tester.view.resetPadding();
+      tester.view.physicalSize = const Size(390, 844);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('player-landscape-layout')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('player-playback-controls')),
+        findsOneWidget,
+      );
       // The chapter text now lives behind the reading toggle rather than in a
       // card on the cover face, but it must still be reachable with no audio
       // cached at all — reading is the whole point of an ungenerated chapter.
