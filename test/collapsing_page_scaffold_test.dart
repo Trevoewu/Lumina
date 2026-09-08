@@ -5,6 +5,51 @@ import 'package:lumina/core/theme.dart';
 import 'package:lumina/presentation/widgets/collapsing_page_scaffold.dart';
 
 void main() {
+  testWidgets('stationary header follows light and dark theme changes', (
+    tester,
+  ) async {
+    final mode = ValueNotifier(ThemeMode.light);
+    addTearDown(mode.dispose);
+    final page = CollapsingPageScaffold(
+      title: 'Settings',
+      showBackButton: true,
+      body: ListView(children: const [SizedBox(height: 2000)]),
+    );
+    await tester.pumpWidget(
+      ValueListenableBuilder<ThemeMode>(
+        valueListenable: mode,
+        builder: (_, value, child) => MaterialApp(
+          theme: AppTheme.lightTheme(),
+          darkTheme: AppTheme.darkTheme(),
+          themeMode: value,
+          home: child,
+        ),
+        child: page,
+      ),
+    );
+
+    final titleFinder = find.byKey(const ValueKey('collapsing-page-title'));
+    final initialPosition = tester.getTopLeft(titleFinder);
+    for (final value in [ThemeMode.dark, ThemeMode.light, ThemeMode.dark]) {
+      mode.value = value;
+      await tester.pumpAndSettle();
+      final scheme = value == ThemeMode.dark
+          ? AppColors.darkColorScheme
+          : AppColors.lightColorScheme;
+      expect(
+        tester
+            .widget<Material>(
+              find.byKey(const ValueKey('collapsing-page-header')),
+            )
+            .color,
+        scheme.surface,
+      );
+      expect(tester.widget<Text>(titleFinder).style?.color, scheme.onSurface);
+      expect(tester.getTopLeft(titleFinder), initialPosition);
+      expect(tester.takeException(), isNull);
+    }
+  });
+
   testWidgets('page header stays neutral and collapses its single title', (
     tester,
   ) async {

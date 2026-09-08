@@ -28,6 +28,7 @@ class CollapsingPageScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.paddingOf(context).top;
+    final theme = Theme.of(context);
     final design = context.appDesign;
     final pageInset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
     return Scaffold(
@@ -37,6 +38,7 @@ class CollapsingPageScaffold extends StatelessWidget {
           SliverPersistentHeader(
             pinned: true,
             delegate: _CollapsingPageHeaderDelegate(
+              theme: theme,
               title: title,
               actions: actions,
               showBackButton: showBackButton,
@@ -59,6 +61,7 @@ class CollapsingPageScaffold extends StatelessWidget {
 }
 
 class _CollapsingPageHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final ThemeData theme;
   final String title;
   final List<Widget> actions;
   final bool showBackButton;
@@ -73,6 +76,7 @@ class _CollapsingPageHeaderDelegate extends SliverPersistentHeaderDelegate {
   final double controlHeight;
 
   const _CollapsingPageHeaderDelegate({
+    required this.theme,
     required this.title,
     required this.actions,
     required this.showBackButton,
@@ -115,18 +119,18 @@ class _CollapsingPageHeaderDelegate extends SliverPersistentHeaderDelegate {
       topPadding + spaceXs,
       easedProgress,
     )!;
-    final textTheme = Theme.of(context).textTheme;
+    final textTheme = theme.textTheme;
     final titleStyle = TextStyle.lerp(
       textTheme.headlineLarge,
       textTheme.headlineSmall,
       easedProgress,
-    )?.copyWith(color: context.appTextPrimary);
+    )?.copyWith(color: theme.colorScheme.onSurface);
 
     return Material(
       key: const ValueKey('collapsing-page-header'),
       color: overlapsContent || shrinkOffset > 0
           ? Colors.transparent
-          : context.appBackground,
+          : theme.colorScheme.surface,
       child: Stack(
         fit: StackFit.expand,
         children: [
@@ -181,6 +185,8 @@ class _CollapsingPageHeaderDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   bool shouldRebuild(_CollapsingPageHeaderDelegate oldDelegate) =>
+      // A stationary sliver must also rebuild during theme transitions.
+      theme != oldDelegate.theme ||
       title != oldDelegate.title ||
       showBackButton != oldDelegate.showBackButton ||
       compact != oldDelegate.compact ||
