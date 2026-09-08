@@ -92,20 +92,38 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
   Future<_OnlineSearchData> _startOnlineSearch() {
     late final Future<_OnlineSearchData> future;
     future = _loadOnline();
-    future.whenComplete(() {
+    void finishSearch() {
       if (!mounted || !identical(_onlineFuture, future)) return;
       setState(() => _onlineSearching = false);
-    });
+    }
+
+    // Handle both outcomes on this observer; FutureBuilder receives the original
+    // future so it can still display failures without an unhandled error branch.
+    unawaited(
+      future.then<void>(
+        (_) => finishSearch(),
+        onError: (Object error, StackTrace stackTrace) => finishSearch(),
+      ),
+    );
     return future;
   }
 
   Future<_LibrivoxSearchData> _startLibrivoxSearch() {
     late final Future<_LibrivoxSearchData> future;
     future = _loadLibrivox();
-    future.whenComplete(() {
+    void finishSearch() {
       if (!mounted || !identical(_librivoxFuture, future)) return;
       setState(() => _librivoxSearching = false);
-    });
+    }
+
+    // Handle both outcomes on this observer; FutureBuilder receives the original
+    // future so it can still display failures without an unhandled error branch.
+    unawaited(
+      future.then<void>(
+        (_) => finishSearch(),
+        onError: (Object error, StackTrace stackTrace) => finishSearch(),
+      ),
+    );
     return future;
   }
 
@@ -127,10 +145,19 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
   Future<_SearchData> _startLocalSearch(String query) {
     late final Future<_SearchData> future;
     future = _load(query);
-    future.whenComplete(() {
+    void finishSearch() {
       if (!mounted || !identical(_future, future)) return;
       setState(() => _localSearching = false);
-    });
+    }
+
+    // Handle both outcomes on this observer; FutureBuilder receives the original
+    // future so it can still display failures without an unhandled error branch.
+    unawaited(
+      future.then<void>(
+        (_) => finishSearch(),
+        onError: (Object error, StackTrace stackTrace) => finishSearch(),
+      ),
+    );
     return future;
   }
 
