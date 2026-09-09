@@ -608,6 +608,27 @@ void main() {
         );
         expect(tester.takeException(), isNull);
       }
+
+      // iPad / macOS landscape layout (1024 x 768)
+      tester.view.physicalSize = const Size(1024, 768);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('player-landscape-layout')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('player-close-button')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('player-playback-controls')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('player-landscape-transcript')),
+        findsOneWidget,
+      );
+
       tester.view.resetPadding();
       tester.view.physicalSize = const Size(390, 844);
       await tester.pumpAndSettle();

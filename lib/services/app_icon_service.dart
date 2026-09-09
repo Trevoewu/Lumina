@@ -2,18 +2,18 @@ import 'package:flutter/services.dart';
 
 const appIconOptions = <AppIconOption>[
   AppIconOption(
-    id: 'default',
-    englishLabel: 'Original',
-    chineseLabel: '当前图标',
-    japaneseLabel: '現在のアイコン',
-    assetPath: 'assets/app_icon/lumina_app_icon_1024.png',
-  ),
-  AppIconOption(
     id: 'a1',
     englishLabel: 'Quiet A1',
     chineseLabel: '静听 A1',
     japaneseLabel: '静聴 A1',
     assetPath: 'assets/app_icon_concepts/lumina-a1.png',
+  ),
+  AppIconOption(
+    id: 'default',
+    englishLabel: 'Original',
+    chineseLabel: '当前图标',
+    japaneseLabel: '現在のアイコン',
+    assetPath: 'assets/app_icon/lumina_app_icon_1024.png',
   ),
   AppIconOption(
     id: 'a2',
@@ -94,9 +94,9 @@ class MethodChannelAppIconGateway implements AppIconGateway {
   Future<String> currentIconId() async {
     try {
       final id = await channel.invokeMethod<String>('getIcon');
-      return appIconOptions.any((option) => option.id == id) ? id! : 'default';
+      return appIconOptions.any((option) => option.id == id) ? id! : 'a1';
     } on MissingPluginException {
-      return 'default';
+      return 'a1';
     }
   }
 

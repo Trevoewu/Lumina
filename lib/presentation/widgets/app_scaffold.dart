@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:cupertino_native_better/cupertino_native.dart';
@@ -12,6 +13,7 @@ import '../screens/dictionary/dictionary_screen.dart';
 import '../screens/discover/discover_screen.dart';
 import '../screens/library/library_screen.dart';
 import '../screens/me/me_screen.dart';
+import '../screens/settings/settings_screen.dart';
 import 'mini_player.dart';
 
 /// 全局骨架，包含底部导航栏和迷你播放器。
@@ -131,7 +133,123 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     }
   }
 
+  bool get _isMacOS => defaultTargetPlatform == TargetPlatform.macOS;
+
   Widget _buildScaffold({required bool hasMiniPlayer}) {
+    final scaffold = _isMacOS
+        ? _buildMacOSScaffold(hasMiniPlayer: hasMiniPlayer)
+        : _buildMobileScaffold(hasMiniPlayer: hasMiniPlayer);
+
+    if (!_isMacOS) return scaffold;
+
+    // Cmd+, opens Settings (standard macOS convention).
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(
+          LogicalKeyboardKey.comma,
+          meta: true,
+        ): _openSettings,
+      },
+      child: Focus(autofocus: true, child: scaffold),
+    );
+  }
+
+  void _openSettings() {
+    Navigator.of(
+      context,
+      rootNavigator: true,
+    ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
+  }
+
+  // ── macOS: left NavigationRail + content ──────────────────────────────────
+
+  Widget _buildMacOSScaffold({required bool hasMiniPlayer}) {
+    final theme = Theme.of(context);
+    final accent = theme.colorScheme.primary;
+
+    return Scaffold(
+      body: Row(
+        children: [
+          // Left sidebar navigation rail
+          NavigationRail(
+            selectedIndex: _currentIndex,
+            onDestinationSelected: _onDestinationSelected,
+            labelType: NavigationRailLabelType.all,
+            backgroundColor: theme.colorScheme.surface,
+            indicatorColor: accent.withValues(alpha: 0.12),
+            selectedIconTheme: IconThemeData(color: accent),
+            unselectedIconTheme: IconThemeData(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            selectedLabelTextStyle: theme.textTheme.labelSmall?.copyWith(
+              color: accent,
+              fontWeight: FontWeight.w600,
+            ),
+            unselectedLabelTextStyle: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            leading: const SizedBox(height: 28), // room for traffic lights
+            destinations: [
+              NavigationRailDestination(
+                icon: const Icon(Icons.home_outlined),
+                selectedIcon: const Icon(Icons.home_rounded),
+                label: Text(context.tr('主页', 'Home', 'ホーム')),
+              ),
+              NavigationRailDestination(
+                icon: const Icon(Icons.search_rounded),
+                selectedIcon: const Icon(Icons.search_rounded),
+                label: Text(context.tr('发现', 'Discover', '発見')),
+              ),
+              NavigationRailDestination(
+                icon: const Icon(Icons.find_in_page_outlined),
+                selectedIcon: const Icon(Icons.find_in_page_rounded),
+                label: Text(context.tr('查词', 'Dictionary', '辞書')),
+              ),
+              NavigationRailDestination(
+                icon: const Icon(Icons.person_outline_rounded),
+                selectedIcon: const Icon(Icons.person_rounded),
+                label: Text(context.tr('我的', 'Me', 'マイページ')),
+              ),
+            ],
+          ),
+          // Thin divider between rail and content
+          VerticalDivider(
+            thickness: 1,
+            width: 1,
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
+          ),
+          // Main content area with mini player
+          Expanded(
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      bottom: hasMiniPlayer
+                          ? MiniPlayer.navigationGap + MiniPlayer.height
+                          : 0,
+                    ),
+                    child: _buildContent(),
+                  ),
+                ),
+                if (hasMiniPlayer)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: MiniPlayer.navigationGap,
+                    child: const MiniPlayer(),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── iOS / other: bottom CNTabBar (unchanged) ──────────────────────────────
+
+  Widget _buildMobileScaffold({required bool hasMiniPlayer}) {
     return Scaffold(
       extendBody: true,
       // The mini player floats inside the body rather than sitting in a Column
@@ -162,27 +280,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                           : barInset,
                     ),
                   ),
-                  child: IndexedStack(
-                    key: const ValueKey('app-content-layer'),
-                    index: _currentIndex,
-                    children: List.generate(
-                      _navigatorKeys.length,
-                      (index) => _initializedTabs.contains(index)
-                          ? NavigatorPopHandler<void>(
-                              enabled: index == _currentIndex,
-                              onPopWithResult: (_) {
-                                _navigatorKeys[index].currentState?.maybePop();
-                              },
-                              child: Navigator(
-                                key: _navigatorKeys[index],
-                                onGenerateRoute: (_) => MaterialPageRoute(
-                                  builder: (_) => _rootPageFor(index),
-                                ),
-                              ),
-                            )
-                          : const SizedBox.shrink(),
-                    ),
-                  ),
+                  child: _buildContent(),
                 ),
               ),
               if (hasMiniPlayer)
@@ -225,6 +323,32 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
             customIcon: Icons.person_rounded,
           ),
         ],
+      ),
+    );
+  }
+
+  // ── Shared: tab content (IndexedStack + per-tab navigators) ───────────────
+
+  Widget _buildContent() {
+    return IndexedStack(
+      key: const ValueKey('app-content-layer'),
+      index: _currentIndex,
+      children: List.generate(
+        _navigatorKeys.length,
+        (index) => _initializedTabs.contains(index)
+            ? NavigatorPopHandler<void>(
+                enabled: index == _currentIndex,
+                onPopWithResult: (_) {
+                  _navigatorKeys[index].currentState?.maybePop();
+                },
+                child: Navigator(
+                  key: _navigatorKeys[index],
+                  onGenerateRoute: (_) => MaterialPageRoute(
+                    builder: (_) => _rootPageFor(index),
+                  ),
+                ),
+              )
+            : const SizedBox.shrink(),
       ),
     );
   }

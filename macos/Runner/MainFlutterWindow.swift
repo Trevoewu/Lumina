@@ -18,9 +18,18 @@ class MainFlutterWindow: NSWindow {
     }
 
     let flutterViewController = FlutterViewController()
-    let windowFrame = self.frame
     self.contentViewController = flutterViewController
-    self.setFrame(windowFrame, display: true)
+
+    // Default to iPad-like dimensions (landscape iPad 10th gen).
+    let iPadSize = NSSize(width: 1024, height: 768)
+    self.setContentSize(iPadSize)
+    self.minSize = NSSize(width: 768, height: 600)
+    if let screen = self.screen {
+      let screenFrame = screen.visibleFrame
+      let x = screenFrame.midX - iPadSize.width / 2
+      let y = screenFrame.midY - iPadSize.height / 2
+      self.setFrameOrigin(NSPoint(x: x, y: y))
+    }
 
     RegisterGeneratedPlugins(registry: flutterViewController)
 

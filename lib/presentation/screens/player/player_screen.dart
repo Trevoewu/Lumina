@@ -1993,6 +1993,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final isPhoneLandscape =
         MediaQuery.orientationOf(context) == Orientation.landscape &&
         MediaQuery.sizeOf(context).shortestSide < 600;
+    final isSpaciousLandscape =
+        MediaQuery.orientationOf(context) == Orientation.landscape &&
+        MediaQuery.sizeOf(context).width >= 900;
+    final isWideLayout = isPhoneLandscape || isSpaciousLandscape;
     final preferences = ref.watch(appPreferencesProvider);
     _readingScrollSpeed = preferences.readingScrollSpeed;
     _lyricSweepEnabled = preferences.lyricSweepEnabled;
@@ -2079,7 +2083,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
                           return LayoutBuilder(
                             builder: (context, constraints) {
-                              if (isPhoneLandscape) {
+                              if (isWideLayout) {
                                 final episode = _isPodcast
                                     ? _podcastEpisode ?? widget.podcast!.episode
                                     : null;
@@ -2093,6 +2097,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                       currentChapterId ??
                                       widget.book.id,
                                   chapterTitle: episode?.title ?? chapterTitle,
+                                  isSpacious: !isPhoneLandscape,
                                 );
                               }
                               if (_isPodcast) {
@@ -2136,7 +2141,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const AppBackButton(),
+                        if (isWideLayout)
+                          IconButton(
+                            key: const ValueKey('player-close-button'),
+                            icon: const Icon(Icons.close, size: 22),
+                            tooltip: context.tr('关闭', 'Close', '閉じる'),
+                            style: IconButton.styleFrom(
+                              foregroundColor: context.appTextPrimary,
+                            ),
+                            onPressed: () => Navigator.of(context).maybePop(),
+                          )
+                        else
+                          const AppBackButton(),
                         Material(
                           type: MaterialType.transparency,
                           child: _buildPlaybackMoreMenu(),
@@ -2159,12 +2175,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     required ChapterManifest? manifest,
     required String chapterId,
     required String chapterTitle,
+    required bool isSpacious,
   }) {
     final design = context.appDesign;
     return Row(
       key: const ValueKey('player-landscape-layout'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // ── Left column: artwork + metadata + controls (in spacious) ───
         Expanded(
           flex: 2,
           child: Padding(
@@ -2172,6 +2190,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             padding: EdgeInsets.symmetric(horizontal: design.spaceLg),
             child: Column(
               children: [
+                // Artwork – takes available space above the controls
                 Expanded(
                   child: LayoutBuilder(
                     builder: (context, constraints) => Center(
@@ -2179,8 +2198,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       child: _buildArtwork(
                         _pixelAlignedArtworkSize(
                           constraints,
-                          // Reserve breathing room even when height is the
-                          // limiting dimension, so centering remains visible.
                           math.min(
                             320,
                             constraints.biggest.shortestSide * 0.82,
@@ -2193,7 +2210,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   ),
                 ),
                 SizedBox(height: design.spaceSm),
+                // Title / artist
                 _buildChapterMetadata(chapterTitle),
+                if (isSpacious) ...[
+                  SizedBox(height: design.spaceSm),
+                  // Progress bar + playback buttons (always visible on iPad / macOS)
+                  _buildReactiveControls(
+                    handler: handler,
+                    fallbackDuration: duration,
+                    manifest: manifest,
+                    foregroundColor: context.appTextPrimary,
+                    transcriptModeActive: false,
+                    onTranscriptToggle: null,
+                  ),
+                ],
+                // Secondary actions (output picker, chapter list, etc.)
                 Padding(
                   key: const ValueKey('player-landscape-actions'),
                   padding: EdgeInsets.symmetric(vertical: design.spaceSm),
@@ -2210,9 +2241,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             ),
           ),
         ),
+        // ── Right column: lyrics / transcript (or controls on phone) ───
         Expanded(
           flex: 3,
-          child: !_landscapeTranscriptActive
+          child: (!isSpacious && !_landscapeTranscriptActive)
               ? Center(
                   child: SingleChildScrollView(
                     padding: EdgeInsets.symmetric(horizontal: design.spaceLg),
