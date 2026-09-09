@@ -27,6 +27,9 @@ class AppColors {
   static const Color lyricsTextPrimary = Colors.white;
   static const Color lyricsTextSecondary = Color(0xFF8A948F);
 
+  /// 分割线与边界颜色
+  static const Color divider = Color(0xFFE3E3E1);
+
   /// 根据这些颜色生成 ColorScheme
   static const ColorScheme darkColorScheme = ColorScheme.dark(
     primary: defaultAccent,
@@ -65,4 +68,5 @@ extension AppColorContext on BuildContext {
       Theme.of(this).colorScheme.surfaceContainerHighest;
   Color get appTextPrimary => Theme.of(this).colorScheme.onSurface;
   Color get appTextSecondary => Theme.of(this).colorScheme.onSurfaceVariant;
+  Color get appDivider => AppColors.divider;
 }

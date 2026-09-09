@@ -110,8 +110,10 @@ class _CollapsingPageHeaderDelegate extends SliverPersistentHeaderDelegate {
         ? 1.0
         : (shrinkOffset / range).clamp(0.0, 1.0);
     final easedProgress = Curves.easeInOutCubic.transform(progress);
+    final isMac = theme.platform == TargetPlatform.macOS;
+    final renderBackButton = showBackButton && !isMac;
     final collapsedSide = math.max(
-      showBackButton ? toolbarHeight + spaceSm : pageInset,
+      renderBackButton ? toolbarHeight + spaceSm : pageInset,
       actions.isEmpty ? pageInset : toolbarHeight * actions.length + spaceMd,
     );
     final currentExtent = maxExtent - shrinkOffset;
@@ -164,7 +166,7 @@ class _CollapsingPageHeaderDelegate extends SliverPersistentHeaderDelegate {
               ),
             ),
           ),
-          if (showBackButton)
+          if (renderBackButton)
             Positioned(
               top: topPadding,
               left: spaceXs,

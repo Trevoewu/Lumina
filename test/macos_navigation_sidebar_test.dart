@@ -5,7 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lumina/core/providers.dart';
 import 'package:lumina/data/database/app_database.dart';
+import 'package:lumina/presentation/screens/player/player_screen.dart';
+import 'package:lumina/presentation/screens/reader/book_reader_screen.dart';
+import 'package:lumina/presentation/screens/settings/settings_screen.dart';
+import 'package:lumina/presentation/widgets/app_back_button.dart';
 import 'package:lumina/presentation/widgets/app_scaffold.dart';
+import 'package:lumina/presentation/widgets/collapsing_page_scaffold.dart';
 import 'package:lumina/presentation/widgets/design_system/macos_window_toolbar.dart';
 
 void main() {
@@ -99,7 +104,10 @@ void main() {
       database.close();
     });
 
-    Widget buildTestApp() {
+    Widget buildTestApp({
+      Widget? home,
+      TargetPlatform platform = TargetPlatform.macOS,
+    }) {
       return UncontrolledProviderScope(
         container: container,
         child: MaterialApp(
@@ -111,14 +119,30 @@ void main() {
             GlobalCupertinoLocalizations.delegate,
           ],
           theme: ThemeData(
-            platform: TargetPlatform.macOS,
+            platform: platform,
             colorScheme: const ColorScheme.light(
               surface: Colors.white,
               onSurface: Colors.black,
               primary: Colors.blue,
             ),
           ),
-          home: const AppScaffold(),
+          builder: (context, child) {
+            final media = MediaQuery.of(context);
+            final isMac = Theme.of(context).platform == TargetPlatform.macOS;
+            final mediaWithInsets = media.copyWith(
+              padding: isMac
+                  ? media.padding.copyWith(top: 36.0)
+                  : media.padding,
+              viewPadding: isMac
+                  ? media.viewPadding.copyWith(top: 36.0)
+                  : media.viewPadding,
+            );
+            return MediaQuery(
+              data: mediaWithInsets,
+              child: child ?? const SizedBox.shrink(),
+            );
+          },
+          home: home ?? const AppScaffold(),
         ),
       );
     }
@@ -313,6 +337,289 @@ void main() {
       },
     );
 
+    testWidgets(
+      'CollapsingPageScaffold suppresses redundant mobile AppBackButton on macOS and preserves on iOS',
+      (tester) async {
+        tester.view.physicalSize = const Size(1200, 800);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() => tester.view.resetPhysicalSize());
+
+        // On macOS: mobile AppBackButton is suppressed
+        await tester.pumpWidget(
+          buildTestApp(
+            platform: TargetPlatform.macOS,
+            home: const CollapsingPageScaffold(
+              title: '测试页面',
+              showBackButton: true,
+              body: SizedBox.expand(),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.byType(AppBackButton), findsNothing);
+
+        // On iOS: mobile AppBackButton is rendered
+        await tester.pumpWidget(
+          buildTestApp(
+            platform: TargetPlatform.iOS,
+            home: const CollapsingPageScaffold(
+              title: '测试页面',
+              showBackButton: true,
+              body: SizedBox.expand(),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.byType(AppBackButton), findsOneWidget);
+
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(seconds: 5));
+      },
+    );
+
+    testWidgets(
+      'Opening SettingsScreen on macOS keeps desktop frame and MacosWindowToolbar active',
+      (tester) async {
+        tester.view.physicalSize = const Size(1200, 800);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() => tester.view.resetPhysicalSize());
+
+        await tester.pumpWidget(buildTestApp());
+        await tester.pumpAndSettle();
+
+        // Navigate to Me tab (index 3)
+        final meProfileCard = find.byKey(
+          const ValueKey('sidebar-me-profile-card'),
+        );
+        expect(meProfileCard, findsOneWidget);
+        await tester.tap(meProfileCard);
+        await tester.pumpAndSettle();
+
+        // Find settings button in MeScreen header and tap it
+        final settingsIcon = find.byIcon(Icons.settings_outlined);
+        expect(settingsIcon, findsOneWidget);
+        await tester.tap(settingsIcon);
+        await tester.pumpAndSettle();
+
+        // SettingsScreen is displayed
+        expect(find.byType(SettingsScreen), findsOneWidget);
+        // MacosWindowToolbar is still present and persistent
+        expect(find.byType(MacosWindowToolbar), findsOneWidget);
+        // Mobile AppBackButton is not rendered in CollapsingPageScaffold
+        expect(find.byType(AppBackButton), findsNothing);
+
+        // The toolbar back button is enabled
+        final toolbarBack = find.byKey(const ValueKey('macos-back-button'));
+        expect(toolbarBack, findsOneWidget);
+        await tester.tap(toolbarBack);
+        await tester.pumpAndSettle();
+
+        // Popped back to Me screen
+        expect(find.byType(SettingsScreen), findsNothing);
+
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(seconds: 5));
+      },
+    );
+
+    testWidgets(
+      'BookReaderScreen renders MacosWindowToolbar with 196pt channel and back button on macOS',
+      (tester) async {
+        tester.view.physicalSize = const Size(1200, 800);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() => tester.view.resetPhysicalSize());
+
+        final testBook = Book(
+          id: 'test-mac-book-1',
+          title: 'Mac Reading Book',
+          author: 'Author',
+          language: 'english',
+          format: 'epub',
+          sourcePath: '/path/to/test.epub',
+          chapterCount: 1,
+          paragraphCount: 1,
+          currentChapterId: 'ch-mac-1',
+          currentParagraphIndex: 0,
+          playbackOffsetMs: 0,
+          importedAt: 1000,
+          lastReadAt: 1000,
+          isRead: false,
+          kind: 'book',
+          rightsStatus: 'public_domain',
+        );
+
+        const testChapter = Chapter(
+          id: 'ch-mac-1',
+          bookId: 'test-mac-book-1',
+          chapterIndex: 0,
+          title: 'Mac Chapter 1',
+          textOffset: 0,
+          isHidden: false,
+        );
+
+        await database.into(database.books).insert(testBook);
+        await database.into(database.chapters).insert(testChapter);
+        await database.into(database.paragraphs).insert(
+          const Paragraph(
+            id: 'p-mac-1',
+            chapterId: 'ch-mac-1',
+            paragraphIndex: 0,
+            content: 'Desktop navigation channel paragraph content.',
+            bookId: 'test-mac-book-1',
+          ),
+        );
+
+        final book = await database.getBook('test-mac-book-1');
+        final chapters = await database.getChapters('test-mac-book-1');
+
+        bool didPop = false;
+        await tester.pumpWidget(
+          buildTestApp(
+            home: Navigator(
+              onGenerateRoute: (settings) => MaterialPageRoute(
+                builder: (context) => Scaffold(
+                  body: Center(
+                    child: ElevatedButton(
+                      key: const ValueKey('open-reader-button'),
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => BookReaderScreen(
+                              book: book!,
+                              initialChapter: chapters.first,
+                            ),
+                          ),
+                        ).then((_) => didPop = true);
+                      },
+                      child: const Text('Open Reader'),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Open the reader
+        await tester.tap(find.byKey(const ValueKey('open-reader-button')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 700));
+        await tester.pumpAndSettle();
+
+        // Verify MacosWindowToolbar is rendered
+        expect(find.byType(MacosWindowToolbar), findsOneWidget);
+        // Verify redundant AppBackButton is NOT rendered
+        expect(find.byType(AppBackButton), findsNothing);
+
+        // Tap the toolbar back button
+        final toolbarBack = find.byKey(const ValueKey('macos-back-button'));
+        expect(toolbarBack, findsOneWidget);
+        await tester.tap(toolbarBack);
+        await tester.pumpAndSettle();
+
+        expect(didPop, isTrue);
+
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(seconds: 5));
+      },
+    );
+
+    testWidgets(
+      'PlayerScreen renders MacosWindowToolbar channel and suppresses colliding close button on macOS',
+      (tester) async {
+        tester.view.physicalSize = const Size(1200, 800);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() => tester.view.resetPhysicalSize());
+
+        final testBook = Book(
+          id: 'test-mac-player-book',
+          title: 'Mac Player Book',
+          author: 'Author',
+          language: 'english',
+          format: 'epub',
+          sourcePath: '/path/to/test.epub',
+          chapterCount: 1,
+          paragraphCount: 1,
+          currentChapterId: 'ch-mac-player-1',
+          currentParagraphIndex: 0,
+          playbackOffsetMs: 0,
+          importedAt: 1000,
+          lastReadAt: 1000,
+          isRead: false,
+          kind: 'book',
+          rightsStatus: 'public_domain',
+        );
+
+        const testChapter = Chapter(
+          id: 'ch-mac-player-1',
+          bookId: 'test-mac-player-book',
+          chapterIndex: 0,
+          title: 'Mac Chapter 1',
+          textOffset: 0,
+          isHidden: false,
+        );
+
+        await database.into(database.books).insert(testBook);
+        await database.into(database.chapters).insert(testChapter);
+
+        final book = await database.getBook('test-mac-player-book');
+        final chapters = await database.getChapters('test-mac-player-book');
+
+        bool didPop = false;
+        await tester.pumpWidget(
+          buildTestApp(
+            home: Navigator(
+              onGenerateRoute: (settings) => MaterialPageRoute(
+                builder: (context) => Scaffold(
+                  body: Center(
+                    child: ElevatedButton(
+                      key: const ValueKey('open-player-button'),
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => PlayerScreen(
+                              book: book!,
+                              initialChapter: chapters.first,
+                              autoplayOnOpen: false,
+                            ),
+                          ),
+                        ).then((_) => didPop = true);
+                      },
+                      child: const Text('Open Player'),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Open the player
+        await tester.tap(find.byKey(const ValueKey('open-player-button')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 700));
+
+        // Verify MacosWindowToolbar is rendered
+        expect(find.byType(MacosWindowToolbar), findsOneWidget);
+        // Verify colliding player-close-button and AppBackButton are NOT rendered
+        expect(find.byKey(const ValueKey('player-close-button')), findsNothing);
+        expect(find.byType(AppBackButton), findsNothing);
+
+        // Tap the toolbar back button to pop player
+        final toolbarBack = find.byKey(const ValueKey('macos-back-button'));
+        expect(toolbarBack, findsOneWidget);
+        await tester.tap(toolbarBack);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+
+        expect(didPop, isTrue);
+
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(seconds: 5));
+      },
+    );
   });
 }
 

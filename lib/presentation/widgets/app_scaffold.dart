@@ -6,6 +6,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:cupertino_native_better/cupertino_native.dart';
 import 'package:hugeicons/hugeicons.dart';
 
+import '../../core/app_colors.dart';
 import '../../core/app_localizations.dart';
 import '../../core/providers.dart';
 import '../../services/incoming_book_import_controller.dart';
@@ -242,10 +243,17 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
   }
 
   void _openSettings() {
-    Navigator.of(
-      context,
-      rootNavigator: true,
-    ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
+    final isMac = _isMacOS(context);
+    if (isMac) {
+      _navigatorKeys[_currentIndex].currentState?.push(
+        MaterialPageRoute(builder: (_) => const SettingsScreen()),
+      );
+    } else {
+      Navigator.of(
+        context,
+        rootNavigator: true,
+      ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
+    }
   }
 
   // ── macOS: top toolbar + resizable sidebar + content ─────────────────────
@@ -254,7 +262,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     final theme = Theme.of(context);
     final accent = theme.colorScheme.primary;
 
-    return Scaffold(
+    final scaffold = Scaffold(
       backgroundColor: theme.colorScheme.surface,
       body: Stack(
         children: [
@@ -331,7 +339,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                       child: Container(
                         width: 1.0,
                         color: _isSidebarVisible
-                            ? const Color(0xFFE3E3E1)
+                            ? AppColors.divider
                             : Colors.transparent,
                       ),
                     ),
@@ -382,6 +390,12 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         ],
       ),
     );
+
+    return MediaQuery.removePadding(
+      context: context,
+      removeTop: true,
+      child: scaffold,
+    );
   }
 
 
@@ -404,7 +418,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
           Divider(
             height: 1,
             thickness: 1,
-            color: const Color(0xFFE3E3E1),
+            color: AppColors.divider,
           ),
           _buildBottomMeCard(theme, accent, isExtended),
         ],

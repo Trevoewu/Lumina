@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -96,13 +97,23 @@ class _LuminaAppState extends ConsumerState<LuminaApp> {
       themeMode: preferences.themeMode,
       builder: (context, child) {
         final media = MediaQuery.of(context);
-        return MediaQuery(
-          data: media.copyWith(
-            textScaler: _RelativeTextScaler(
-              media.textScaler,
-              appearance.fontScale * appTextScaleBaseline,
-            ),
+        final isMac = Platform.isMacOS ||
+            Theme.of(context).platform == TargetPlatform.macOS ||
+            defaultTargetPlatform == TargetPlatform.macOS;
+        final mediaWithInsets = media.copyWith(
+          padding: isMac
+              ? media.padding.copyWith(top: 36.0)
+              : media.padding,
+          viewPadding: isMac
+              ? media.viewPadding.copyWith(top: 36.0)
+              : media.viewPadding,
+          textScaler: _RelativeTextScaler(
+            media.textScaler,
+            appearance.fontScale * appTextScaleBaseline,
           ),
+        );
+        return MediaQuery(
+          data: mediaWithInsets,
           child: _MacWindowInset(child: child ?? const SizedBox.shrink()),
         );
       },

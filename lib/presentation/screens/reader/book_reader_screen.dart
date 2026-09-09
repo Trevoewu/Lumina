@@ -8,6 +8,7 @@ import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart' as drift_db;
 import '../../widgets/app_back_button.dart';
+import '../../widgets/design_system/macos_window_toolbar.dart';
 import '../player/player_screen.dart';
 import 'widgets/reader_appearance_sheet.dart';
 import 'widgets/reader_audio_bar.dart';
@@ -176,6 +177,18 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
     );
   }
 
+  Future<void> _openTocSheet() async {
+    final chosen = await showReaderTocSheet(
+      context: context,
+      bookTitle: widget.book.title,
+      chapters: _chapters,
+      currentChapterId: _currentChapter?.id ?? '',
+    );
+    if (chosen != null && chosen.id != _currentChapter?.id) {
+      _loadChapter(chosen);
+    }
+  }
+
   void _goToPreviousChapter() {
     final current = _currentChapter;
     if (current == null) return;
@@ -198,6 +211,7 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
   Widget build(BuildContext context) {
     final design = context.appDesign;
     final scheme = Theme.of(context).colorScheme;
+    final isMac = Theme.of(context).platform == TargetPlatform.macOS;
     final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
 
     // Audio sync
@@ -354,17 +368,19 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
                   right: 0,
                   child: Container(
                     padding: EdgeInsets.fromLTRB(
-                      12,
-                      MediaQuery.paddingOf(context).top + 4,
-                      12,
-                      8,
+                      isMac ? 0 : 12,
+                      isMac ? 0 : MediaQuery.paddingOf(context).top + 4,
+                      isMac ? 12 : 12,
+                      isMac ? 0 : 8,
                     ),
                     decoration: BoxDecoration(
                       color: context.appBackground.withValues(alpha: 0.94),
                       border: Border(
                         bottom: BorderSide(
-                          color: scheme.onSurface.withValues(alpha: 0.08),
-                          width: 0.8,
+                          color: isMac
+                              ? AppColors.divider
+                              : scheme.onSurface.withValues(alpha: 0.08),
+                          width: 1.0,
                         ),
                       ),
                       boxShadow: [
@@ -375,70 +391,157 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
                         ),
                       ],
                     ),
-                    child: Row(
-                      children: [
-                        const AppBackButton(),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                _currentChapter?.title ?? widget.book.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                  color: context.appTextPrimary,
+                    child: isMac
+                        ? SizedBox(
+                            height: 48.0,
+                            child: Stack(
+                              alignment: Alignment.centerLeft,
+                              children: [
+                                Row(
+                                  children: [
+                                    const SizedBox(
+                                      width: macosTopControlsReservedWidth,
+                                    ),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            _currentChapter?.title ??
+                                                widget.book.title,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w700,
+                                              color: context.appTextPrimary,
+                                            ),
+                                          ),
+                                          if (_currentChapter != null)
+                                            Text(
+                                              '${_currentChapter!.chapterIndex + 1} / ${_chapters.length}',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                color: context.appTextSecondary,
+                                                fontFamily: 'monospace',
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.format_size_rounded,
+                                      ),
+                                      color: context.appTextPrimary,
+                                      tooltip: context.tr(
+                                        '阅读排版',
+                                        'Typography',
+                                        '読書設定',
+                                      ),
+                                      onPressed: () =>
+                                          showReaderAppearanceSheet(context),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.menu_book_rounded,
+                                      ),
+                                      color: context.appTextPrimary,
+                                      tooltip: context.tr(
+                                        '目录',
+                                        'Table of Contents',
+                                        '目次',
+                                      ),
+                                      onPressed: _openTocSheet,
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.headphones_outlined,
+                                      ),
+                                      color: context.appAccent,
+                                      tooltip: context.tr(
+                                        '听书播放器',
+                                        'Player',
+                                        '再生プレーヤー',
+                                      ),
+                                      onPressed: () => _openPlayer(
+                                        chapter: _currentChapter,
+                                        autoplay: false,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ),
-                              if (_currentChapter != null)
-                                Text(
-                                  '${_currentChapter!.chapterIndex + 1} / ${_chapters.length}',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: context.appTextSecondary,
-                                    fontFamily: 'monospace',
+                                Positioned(
+                                  top: 6.0,
+                                  left: 0,
+                                  child: MacosWindowToolbar(
+                                    isSidebarVisible: true,
+                                    onToggleSidebar: _openTocSheet,
+                                    canGoBack: true,
+                                    onBack: () =>
+                                        Navigator.of(context).maybePop(),
+                                    canGoForward: false,
                                   ),
                                 ),
+                              ],
+                            ),
+                          )
+                        : Row(
+                            children: [
+                              const AppBackButton(),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      _currentChapter?.title ?? widget.book.title,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w700,
+                                        color: context.appTextPrimary,
+                                      ),
+                                    ),
+                                    if (_currentChapter != null)
+                                      Text(
+                                        '${_currentChapter!.chapterIndex + 1} / ${_chapters.length}',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: context.appTextSecondary,
+                                          fontFamily: 'monospace',
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              // Aa Appearance settings
+                              IconButton(
+                                icon: const Icon(Icons.format_size_rounded),
+                                color: context.appTextPrimary,
+                                tooltip: context.tr('阅读排版', 'Typography', '読書設定'),
+                                onPressed: () => showReaderAppearanceSheet(context),
+                              ),
+                              // TOC Sheet
+                              IconButton(
+                                icon: const Icon(Icons.menu_book_rounded),
+                                color: context.appTextPrimary,
+                                tooltip: context.tr('目录', 'Table of Contents', '目次'),
+                                onPressed: _openTocSheet,
+                              ),
+                              // Listen in Full Player
+                              IconButton(
+                                icon: const Icon(Icons.headphones_outlined),
+                                color: context.appAccent,
+                                tooltip: context.tr('听书播放器', 'Player', '再生プレーヤー'),
+                                onPressed: () => _openPlayer(chapter: _currentChapter, autoplay: false),
+                              ),
                             ],
                           ),
-                        ),
-                        // Aa Appearance settings
-                        IconButton(
-                          icon: const Icon(Icons.format_size_rounded),
-                          color: context.appTextPrimary,
-                          tooltip: context.tr('阅读排版', 'Typography', '読書設定'),
-                          onPressed: () => showReaderAppearanceSheet(context),
-                        ),
-                        // TOC Sheet
-                        IconButton(
-                          icon: const Icon(Icons.menu_book_rounded),
-                          color: context.appTextPrimary,
-                          tooltip: context.tr('目录', 'Table of Contents', '目次'),
-                          onPressed: () async {
-                            final chosen = await showReaderTocSheet(
-                              context: context,
-                              bookTitle: widget.book.title,
-                              chapters: _chapters,
-                              currentChapterId: _currentChapter?.id ?? '',
-                            );
-                            if (chosen != null && chosen.id != _currentChapter?.id) {
-                              _loadChapter(chosen);
-                            }
-                          },
-                        ),
-                        // Listen in Full Player
-                        IconButton(
-                          icon: const Icon(Icons.headphones_outlined),
-                          color: context.appAccent,
-                          tooltip: context.tr('听书播放器', 'Player', '再生プレーヤー'),
-                          onPressed: () => _openPlayer(chapter: _currentChapter, autoplay: false),
-                        ),
-                      ],
-                    ),
                   ),
                 ),
 

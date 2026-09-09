@@ -264,6 +264,11 @@ class AppTheme {
         activeTrackColor: accentColor,
         thumbColor: accentColor,
       ),
+      dividerTheme: DividerThemeData(
+        color: AppColors.divider,
+        thickness: tokens.dividerThickness,
+        space: tokens.dividerThickness,
+      ),
       progressIndicatorTheme: ProgressIndicatorThemeData(color: accentColor),
     );
   }

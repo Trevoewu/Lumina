@@ -141,24 +141,33 @@ class _MacosToolbarButtonState extends State<MacosToolbarButton> {
   }
 }
 
+/// The standard height of the macOS top window toolbar.
+const double macosTopControlsReservedHeight = 36.0;
+
+/// Reserved clearance width on macOS desktop for traffic lights + navigation controls.
+/// Traffic lights (78pt) + Sidebar toggle (26pt) + Gap (14pt) + Back (26pt) + Gap (14pt) + Forward (26pt) + margin (12pt) = 196pt.
+const double macosTopControlsReservedWidth = 196.0;
+
 /// macOS window top toolbar with traffic lights reservation, sidebar toggle,
 /// and back/forward navigation buttons.
 class MacosWindowToolbar extends StatelessWidget {
   const MacosWindowToolbar({
     super.key,
-    required this.isSidebarVisible,
-    required this.onToggleSidebar,
-    required this.canGoBack,
-    required this.onBack,
-    required this.canGoForward,
-    required this.onForward,
-    this.height = 36.0,
+    this.isSidebarVisible = true,
+    this.onToggleSidebar,
+    this.canGoBack = false,
+    this.onBack,
+    this.canGoForward = false,
+    this.onForward,
+    this.height = macosTopControlsReservedHeight,
     this.trafficLightsLeftPadding = 78.0,
     this.buttonTopOffset = 2.0,
+    this.backgroundColor,
+    this.trailing,
   });
 
   final bool isSidebarVisible;
-  final VoidCallback onToggleSidebar;
+  final VoidCallback? onToggleSidebar;
   final bool canGoBack;
   final VoidCallback? onBack;
   final bool canGoForward;
@@ -166,20 +175,23 @@ class MacosWindowToolbar extends StatelessWidget {
   final double height;
   final double trafficLightsLeftPadding;
   final double buttonTopOffset;
+  final Color? backgroundColor;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    return Container(
       height: height,
-      child: Padding(
-        padding: EdgeInsets.only(
-          left: trafficLightsLeftPadding,
-          top: buttonTopOffset,
-          right: 16.0,
-        ),
-        child: Align(
-          alignment: Alignment.topLeft,
-          child: Row(
+      color: backgroundColor,
+      padding: EdgeInsets.only(
+        left: trafficLightsLeftPadding,
+        top: buttonTopOffset,
+        right: 16.0,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Row(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -217,7 +229,11 @@ class MacosWindowToolbar extends StatelessWidget {
               ),
             ],
           ),
-        ),
+          if (trailing != null) ...[
+            const Spacer(),
+            trailing!,
+          ],
+        ],
       ),
     );
   }

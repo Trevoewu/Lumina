@@ -131,16 +131,20 @@ ListView(
 
 ## 5. 圆角、尺寸与表面
 
-### 5.1 圆角
+### 5.1 圆角系统 (Border Radius)
 
-| Token | 值 | 用途 |
-| --- | ---: | --- |
-| `radiusSmall` | 8 | 书封、MiniPlayer、小型媒体元素 |
-| `radiusMedium` | 12 | 搜索框、列表项、普通卡片、例句 |
-| `radiusLarge` | 16 | Lyrics、Bottom Sheet、沉浸面板 |
-| `radiusPill` | 999 | CTA 和胶囊控件 |
+Lumina 建立严格的四层语义圆角尺度，禁止在业务代码中随意使用 `10`、`14`、`18`、`20` 等非标魔数：
 
-不新增 `10`、`14`、`20` 等独立圆角。需要视觉例外时，应先证明它属于新的语义层级。
+| Token | 值 | 语义层级 | 典型使用场景 |
+| --- | ---: | --- | --- |
+| `radiusSmall` | 8 | 紧凑元素、媒体微缩图 | 书封封面（Book Cover）、MiniPlayer 封面缩略图、小型多媒体元素、次级状态标签（Badge / Chip） |
+| `radiusMedium` | 12 | 基础容器、输入框、卡片 | 搜索框（`AppSearchField`）、标准列表项、通用卡片（`AppSurface.standard`）、例句块、选择器弹层容器 |
+| `radiusLarge` | 16 | 模态视窗、浮层、沉浸面板 | 歌词面板（Lyrics）、Bottom Sheet 顶部圆角、沉浸式卡片面板、对话详情容器 |
+| `radiusPill` | 999 | 强调胶囊、主动作按键 | 全局 CTA 操作按钮、胶囊筛选器、分段指示器胶囊、圆角开关滑块 |
+
+规则约束：
+- 严格遵循语义层级，不新增平行数值。如需视觉特例，必须证明其代表一种新的系统级容器层级。
+- 组合控件（如输入框内嵌按钮、卡片嵌套子元素）遵循内部圆角比外部圆角小一级的视觉嵌套韵律（Nested Radius Principle）。
 
 ### 5.2 控件尺寸
 
@@ -177,6 +181,74 @@ ListView(
 - 新卡片需要上下文操作时，应传入 `onLongPress`，不得在业务页面重新实现手势、动画或振动。
 
 页面工具栏的更多菜单不属于卡片交互，可以继续使用明确的菜单按钮。
+
+### 5.5 分割线与边界贯通 (Dividers & Full-Height Boundary Spanning)
+
+分割线用于定义应用架构边界与分组结构，统一规格与交互规范：
+
+1. **厚度与颜色规范**：
+   - 分割线宽度/厚度严格固定为 `1px`（逻辑像素 `1.0`，即 `tokens.dividerThickness`）。
+   - 标准中性分割线颜色统一采用 `#E3E3E1`（`AppColors.divider` / `Color(0xFFE3E3E1)`）。
+   - 全局 `ThemeData.dividerTheme` 默认注入该配置：`thickness: 1.0, space: 1.0, color: AppColors.divider`。
+
+2. **全高边界贯通（Full-Height Boundary Spanning）**：
+   - 桌面端结构分割线（如侧边栏与主工作区之间的竖向分割线/分栏拖拽手柄）必须**全高贯通**，从应用物理窗口的最顶部边缘（`y = 0`，与原生红绿灯控件所在水平线对齐）一直延展到物理窗口的最底部边缘，不得被外层 padding、SafeArea 或 Toolbar 截断。
+   - 侧边栏内部元素间（如底部 Me 个人资料卡片与上方导航 Rail）的横向分割线同样使用 `height: 1, thickness: 1, color: AppColors.divider` 紧贴侧边栏两侧边缘贯穿。
+
+3. **拖拽手柄热区与视觉呈现解耦**：
+   - 可拖拽分割线（如桌面侧边栏宽度调节 Splitter）承载交互时，交互热区必须足够宽（如外层 `width: 8.0` 并设置 `SystemMouseCursors.resizeColumn`），内部居中绘制 `1.0px` 细线。
+   - 保证鼠标与触控点击易用性的同时，视觉上保持极致克制、精致的 1px 分割线质感。
+
+### 5.6 图标系统：HugeIcons Stroke / Rounded 风格
+
+App 全局图标统一采用 **HugeIcons Stroke / Rounded** 视觉家族：
+
+1. **风格与线型特征**：
+   - 统一使用 Stroke（线性轮廓描边）搭配 Rounded（圆角/圆润端点），如 `HugeIcons.strokeRounded*` 系列。
+   - 避免 Sharp、Solid（除非明确的实心选中态）或直角生硬的图标风格，保持界面细腻、现代、具亲和力的视觉气质。
+
+2. **尺寸与触控区域分离**：
+   - 图标视觉尺寸通常为 `20–24pt`（桌面端导航图标基准为 `24pt`，行内辅助图标为 `20pt`）。
+   - **交互区域保证**：独立可点击图标的触控区域（Hit Target）严禁直接设为 24×24，必须遵循 `minimumTouchTarget`（`≥ 44×44pt`），通过外层 padding 或 `IconButton` 保证可触控性。
+
+3. **语义色彩映射**：
+   - 图标颜色严格随上下文继承环境主题，严禁硬编码颜色：
+      - 主要图标：`Theme.of(context).colorScheme.onSurface`
+      - 次级/未选中图标：`Theme.of(context).colorScheme.onSurfaceVariant`
+      - 激活/选中/强调图标：`Theme.of(context).colorScheme.primary`
+   - 桌面端导航项推荐使用共享组件 `AppNavigationIcon`（`lib/presentation/widgets/design_system/app_navigation_icon.dart`），通过 `AppNavigationSymbol` 统一定义与维护。
+
+### 5.7 macOS 顶部窗口栏与核心导航通道规范 (Top Window Toolbar & Navigation Channel)
+
+在 macOS 桌面端，窗口顶部左侧 `(0, 0)` 起始区域构建一体化水平导航通道，统筹系统操作与应用级导航：
+
+1. **通道定义与预留目的**：
+   - 顶部安全区域（`y = 0..36pt`，`x = 0..196pt`）的**核心目的，是为【原生红绿灯】、【显示/隐藏侧边栏】、【返回】、【前进】这一组桌面核心导航控件提供专属视觉与交互通道**。
+   - 通道尺寸由常量明确规定：`macosTopControlsReservedHeight = 36.0`，`macosTopControlsReservedWidth = 196.0`。
+   - 坐标排布基准：
+     - `x = 0..78pt`：系统原生红绿灯避让区（关闭/最小化/全屏）；
+     - `x = 78..104pt`：【显示/隐藏侧边栏】按钮（`HugeIcons.strokeRoundedSidebarLeft`，26×26pt）；
+     - `x = 104..118pt`：间距 14pt；
+     - `x = 118..144pt`：【返回】按钮（`HugeIcons.strokeRoundedArrowLeft01`，26×26pt）；
+     - `x = 144..158pt`：间距 14pt；
+     - `x = 158..184pt`：【前进】按钮（`HugeIcons.strokeRoundedArrowRight01`，26×26pt）；
+     - `x = 184..196pt`：右侧安全间隔 12pt。
+
+2. **全局架构与页面适配规则**：
+   - **设置页及其子页面（`SettingsScreen`, `AppearanceScreen` 等）**：
+     - 在 macOS 桌面端统一由当前 Tab Navigator 承载，严禁使用全屏覆盖的 `rootNavigator: true`。
+     - 主窗口桌面骨架（侧边栏、分割线、顶栏 `MacosWindowToolbar`）保持常驻；
+     - 顶栏的【返回】按键（及 `Cmd+[` 快捷键）对设置页及所有深层子页面生效，支持逐级返回；
+     - 顶栏的【显示/隐藏侧边栏】保持常驻可用；
+     - `CollapsingPageScaffold` 在 macOS 托管模式下隐藏局部多余的移动端 `AppBackButton`。
+   - **全屏沉浸式页面（EPUB 阅读器 `BookReaderScreen`、全屏播放器 `PlayerScreen`）**：
+     - 在页面顶部集成 `MacosWindowToolbar` 专属通道；
+     - 通道中的【返回】按键直接执行 `Navigator.of(context).maybePop()`，安全退回上一级；
+     - 阅读器中【显示/隐藏侧边栏】按键联动展开/关闭目录抽屉（TOC Sheet）；
+     - 原页面左上角的移动端返回键/关闭按键一律移除，杜绝与系统红绿灯重叠碰撞；
+     - 页面标题、章节状态与操作图标（字体 Aa、听书、阅读模式等）严格排布在 `x ≥ 196.0pt` 右侧或顶栏下方。
+   - **详情页与通用页面（`CollapsingPageScaffold`）**：
+     - 依托桌面骨架，通过顶栏统一接管返回，禁用局部双重返回按钮，标题对齐页面规范边距。
 
 ## 6. 色彩系统
 
@@ -317,33 +389,65 @@ context.appTextSecondary;
 
 ```dart
 final design = context.appDesign;
+final scheme = Theme.of(context).colorScheme;
 
+// 1. 表面、间距与圆角语义化
 AppSurface(
   padding: EdgeInsets.all(design.spaceLg),
   child: Text(
     title,
     style: Theme.of(context).textTheme.titleMedium,
   ),
-)
+);
+
+// 2. 图标使用 HugeIcons Stroke / Rounded，触控热区保证 >= 44
+IconButton(
+  icon: const HugeIcon(
+    icon: HugeIcons.strokeRoundedSettings01,
+    size: 24,
+    color: scheme.onSurface,
+  ),
+  onPressed: () => _openSettings(),
+);
+
+// 3. 结构分割线使用 1px #E3E3E1 语义 token
+Divider(
+  height: 1,
+  thickness: 1,
+  color: AppColors.divider, // #E3E3E1
+);
 ```
 
 ### Don’t
 
 ```dart
+// 1. 硬编码间距、随机灰色、非标圆角与排版字面量
 Container(
   padding: const EdgeInsets.all(20),
   decoration: BoxDecoration(
     color: const Color(0xFF292929),
-    borderRadius: BorderRadius.circular(10),
+    borderRadius: BorderRadius.circular(10), // 非标圆角
   ),
   child: const Text(
     'Title',
     style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
   ),
-)
+);
+
+// 2. 图标风格生硬或触控热区过小
+GestureDetector(
+  onTap: () => _openSettings(),
+  child: const Icon(Icons.settings, size: 16), // 热区不足 44，非 HugeIcons 风格
+);
+
+// 3. 随手写粗细不一或未经语义化的分割线
+Container(
+  height: 2, // 非 1px
+  color: Colors.grey.shade400,
+);
 ```
 
-后一种写法重新定义了间距、颜色、圆角和排版，无法通过主题统一演进。
+后一种写法重新定义了间距、颜色、圆角、图标与分割线，无法通过主题统一演进。
 
 ## 12. 新增或修改 UI 的流程
 
@@ -366,15 +470,16 @@ git diff --check
 提交 UI 变更前逐项检查：
 
 - [ ] UI chrome 使用系统字体，阅读字体没有泄漏到控件。
+- [ ] 图标统一使用 HugeIcons Stroke / Rounded 风格，触控热区 ≥ 44×44。
+- [ ] 结构分割线使用 1px `#E3E3E1`，桌面侧边栏分割线实现物理窗口全高边界贯通（y=0 贯穿到底）。
+- [ ] 圆角仅使用 8 / 12 / 16 / pill 语义 token，无非标魔数。
 - [ ] 页面标题使用正确的 root/detail/immersive 模板。
 - [ ] Large Title 全程保持 700 weight。
 - [ ] 页面 gutter 来自 `pageInsetFor()`。
 - [ ] 间距只使用 4/8/12/16/24/32 scale。
-- [ ] 圆角只使用 8/12/16/pill 语义值。
 - [ ] 没有新增页面级 literal color。
 - [ ] Card、TextField、Section header 没有绕开共享实现。
 - [ ] 表面没有无意义嵌套，正文没有被整块卡片包裹。
-- [ ] 图标触控区域至少 44。
 - [ ] Player 的 cover-derived color 没有替换 global primary。
 - [ ] Bottom Sheet 展开、滚动和键盘状态正常。
 - [ ] dark/light、窄屏、130% text scale 无溢出。
@@ -388,6 +493,9 @@ git diff --check
 - UI/阅读字体分离
 - Material component themes
 - `AppSurface`、`AppSearchField`、`AppSectionHeader`
+- HugeIcons Stroke / Rounded 图标体系与 `AppNavigationIcon`
+- 1px `#E3E3E1` 分割线规范与桌面端全高边界贯通（Full-Height Boundary Spanning）
+- 四层语义圆角尺度体系（8/12/16/pill）
 - Settings 的 `SettingsGroup`、`SettingValueRow`、`ServiceStatusCard`、`ReadinessBadge`、反馈与空错态组件
 - Large/compact header
 - Dictionary 全页与半屏内容复用

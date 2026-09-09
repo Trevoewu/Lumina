@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lumina/core/app_colors.dart';
 import 'package:lumina/core/app_design_tokens.dart';
 import 'package:lumina/core/appearance.dart';
 import 'package:lumina/core/theme.dart';
@@ -47,6 +48,9 @@ void main() {
         vertical: tokens.spaceMd,
       ),
     );
+    expect(tokens.dividerThickness, 1.0);
+    expect(theme.dividerTheme.color, AppColors.divider);
+    expect(theme.dividerTheme.thickness, 1.0);
   });
 
   test('reading font options use bundled font families', () {

@@ -13,6 +13,7 @@ import 'package:hugeicons/hugeicons.dart';
 
 import '../../widgets/app_sheet.dart';
 import '../../widgets/app_back_button.dart';
+import '../../widgets/design_system/macos_window_toolbar.dart';
 import '../../../ai/ai_models.dart';
 import '../../../ai/transcript_tool.dart';
 import '../../../core/app_colors.dart';
@@ -1998,6 +1999,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         MediaQuery.orientationOf(context) == Orientation.landscape &&
         MediaQuery.sizeOf(context).width >= 900;
     final isWideLayout = isPhoneLandscape || isSpaciousLandscape;
+    final isMac = Theme.of(context).platform == TargetPlatform.macOS;
     final preferences = ref.watch(appPreferencesProvider);
     _readingScrollSpeed = preferences.readingScrollSpeed;
     _lyricSweepEnabled = preferences.lyricSweepEnabled;
@@ -2133,59 +2135,120 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 top: 0,
                 left: 0,
                 right: 0,
-                child: SafeArea(
-                  bottom: false,
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: context.appDesign.spaceSm,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        if (isWideLayout)
-                          IconButton(
-                            key: const ValueKey('player-close-button'),
-                            icon: const Icon(Icons.close, size: 22),
-                            tooltip: context.tr('关闭', 'Close', '閉じる'),
-                            style: IconButton.styleFrom(
-                              foregroundColor: context.appTextPrimary,
-                            ),
-                            onPressed: () => Navigator.of(context).maybePop(),
-                          )
-                        else
-                          const AppBackButton(),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (!_isPodcast)
-                              IconButton(
-                                key: const ValueKey('player-reader-mode-button'),
-                                icon: const Icon(Icons.menu_book_rounded, size: 20),
-                                tooltip: context.tr('阅读模式', 'Reader Mode', '読書モード'),
-                                style: IconButton.styleFrom(
-                                  foregroundColor: context.appTextPrimary,
-                                ),
-                                onPressed: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute<void>(
-                                      builder: (_) => BookReaderScreen(
-                                        book: widget.book,
-                                        initialChapter: _activeAudiobookChapter,
+                child: isMac
+                    ? MacosWindowToolbar(
+                        isSidebarVisible: true,
+                        canGoBack: true,
+                        onBack: () => Navigator.of(context).maybePop(),
+                        canGoForward: false,
+                        trailing: Padding(
+                          padding: EdgeInsets.only(
+                            right: context.appDesign.spaceSm,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (!_isPodcast)
+                                IconButton(
+                                  key: const ValueKey(
+                                    'player-reader-mode-button',
+                                  ),
+                                  icon: const Icon(
+                                    Icons.menu_book_rounded,
+                                    size: 20,
+                                  ),
+                                  tooltip: context.tr(
+                                    '阅读模式',
+                                    'Reader Mode',
+                                    '読書モード',
+                                  ),
+                                  style: IconButton.styleFrom(
+                                    foregroundColor: context.appTextPrimary,
+                                  ),
+                                  onPressed: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute<void>(
+                                        builder: (_) => BookReaderScreen(
+                                          book: widget.book,
+                                          initialChapter:
+                                              _activeAudiobookChapter,
+                                        ),
                                       ),
-                                    ),
-                                  );
-                                },
+                                    );
+                                  },
+                                ),
+                              Material(
+                                type: MaterialType.transparency,
+                                child: _buildPlaybackMoreMenu(),
                               ),
-                            Material(
-                              type: MaterialType.transparency,
-                              child: _buildPlaybackMoreMenu(),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ],
-                    ),
-                  ),
-                ),
+                      )
+                    : SafeArea(
+                        bottom: false,
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: context.appDesign.spaceSm,
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              if (isWideLayout)
+                                IconButton(
+                                  key: const ValueKey('player-close-button'),
+                                  icon: const Icon(Icons.close, size: 22),
+                                  tooltip: context.tr('关闭', 'Close', '閉じる'),
+                                  style: IconButton.styleFrom(
+                                    foregroundColor: context.appTextPrimary,
+                                  ),
+                                  onPressed: () =>
+                                      Navigator.of(context).maybePop(),
+                                )
+                              else
+                                const AppBackButton(),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (!_isPodcast)
+                                    IconButton(
+                                      key: const ValueKey(
+                                        'player-reader-mode-button',
+                                      ),
+                                      icon: const Icon(
+                                        Icons.menu_book_rounded,
+                                        size: 20,
+                                      ),
+                                      tooltip: context.tr(
+                                        '阅读模式',
+                                        'Reader Mode',
+                                        '読書モード',
+                                      ),
+                                      style: IconButton.styleFrom(
+                                        foregroundColor: context.appTextPrimary,
+                                      ),
+                                      onPressed: () {
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute<void>(
+                                            builder: (_) => BookReaderScreen(
+                                              book: widget.book,
+                                              initialChapter:
+                                                  _activeAudiobookChapter,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  Material(
+                                    type: MaterialType.transparency,
+                                    child: _buildPlaybackMoreMenu(),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
               ),
           ],
         ),

@@ -228,9 +228,17 @@ class _MeScreenState extends ConsumerState<MeScreen> {
   }
 
   void _openSettings() {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
+    final isMac = Theme.of(context).platform == TargetPlatform.macOS;
+    if (isMac) {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const SettingsScreen()),
+      );
+    } else {
+      Navigator.of(
+        context,
+        rootNavigator: true,
+      ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
+    }
   }
 }
 
