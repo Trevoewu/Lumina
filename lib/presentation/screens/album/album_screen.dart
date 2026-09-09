@@ -18,7 +18,6 @@ import '../../../domain/models/chapter_manifest.dart';
 import '../../../services/app_log_service.dart';
 import '../../../services/book_introduction_service.dart';
 import '../../../services/book_parser.dart';
-import '../../../services/cover_palette_service.dart';
 import '../../../services/generation_orchestrator.dart';
 import '../../../services/generation_task_store.dart';
 import '../../../services/manifest_store.dart';
@@ -52,7 +51,6 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   bool _didScrollToInitialChapter = false;
   late Future<String?> _bookIntroductionFuture;
   late Future<_AlbumChapterData> _chapterDataFuture;
-  late Future<Color?> _coverSeedFuture;
   late Future<_BookVoiceData?> _bookVoiceFuture;
   VoicePreviewController? _voicePreview;
   String? _selectedBookVoiceId;
@@ -70,7 +68,6 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     super.initState();
     _bookIntroductionFuture = _loadBookIntroduction();
     _chapterDataFuture = _loadChapterData(ref.read(appDatabaseProvider));
-    _coverSeedFuture = CoverPaletteService.seedForPath(widget.book.coverPath);
     _bookVoiceFuture = _isStreamingAudiobook
         ? Future<_BookVoiceData?>.value(null)
         : _loadBookVoice();
@@ -130,9 +127,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
           ? Future<_BookVoiceData?>.value(null)
           : _loadBookVoice();
     }
-    if (oldWidget.book.coverPath != widget.book.coverPath) {
-      _coverSeedFuture = CoverPaletteService.seedForPath(widget.book.coverPath);
-    }
+
     if (oldWidget.book.id != widget.book.id ||
         oldWidget.book.currentChapterId != widget.book.currentChapterId ||
         oldWidget.book.currentParagraphIndex !=
@@ -192,8 +187,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
 
   Future<void> _openReader([drift_db.Chapter? chapter]) async {
     final database = ref.read(appDatabaseProvider);
-    final latestBook =
-        await database.getBook(widget.book.id) ?? widget.book;
+    final latestBook = await database.getBook(widget.book.id) ?? widget.book;
     final resolvedData = _chapterData ?? await _chapterDataFuture;
     final chapters = resolvedData.chapters;
     drift_db.Chapter? targetChapter = chapter;
@@ -992,108 +986,96 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
           final chapters = resolvedChapterData.chapters;
           final design = context.appDesign;
           final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
-          return FutureBuilder<Color?>(
-            future: _coverSeedFuture,
-            builder: (context, seedSnapshot) {
-              final coverSeed = seedSnapshot.data;
-              return Builder(
-                builder: (scrollContext) {
-                  _scrollToInitialChapter(chapters, scrollContext);
-                  return ListView.builder(
-                    key: const ValueKey('book-detail-scroll-view'),
-                    padding: EdgeInsets.fromLTRB(
-                      inset,
-                      design.spaceLg,
-                      inset,
-                      120,
-                    ),
-                    itemCount: chapters.length + 1,
-                    itemBuilder: (context, itemIndex) {
-                      if (itemIndex == 0) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildBookHeader(),
-                            SizedBox(height: design.spaceLg),
-                            _buildActionButtons(chapters),
-                            SizedBox(height: design.spaceLg),
-                            _buildBookIntroduction(),
-                            SizedBox(height: design.spaceXxl),
-                            Text(
-                              context.tr('所有章节', 'All chapters', 'すべての章'),
-                              style: Theme.of(context).textTheme.titleLarge
-                                  ?.copyWith(
-                                    color: context.appTextPrimary,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                            ),
-                            SizedBox(height: design.spaceSm),
-                            if (chapters.isEmpty)
-                              SizedBox(
-                                width: double.infinity,
-                                child: Padding(
-                                  padding: EdgeInsets.symmetric(
-                                    vertical: design.spaceXxl,
-                                  ),
-                                  child: Text(
-                                    context.tr(
-                                      '这本书没有可阅读章节',
-                                      'No readable chapters',
-                                      'この本には読める章がありません',
-                                    ),
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: context.appTextSecondary,
-                                    ),
-                                  ),
+          return Builder(
+            builder: (scrollContext) {
+              _scrollToInitialChapter(chapters, scrollContext);
+              return ListView.builder(
+                key: const ValueKey('book-detail-scroll-view'),
+                padding: EdgeInsets.fromLTRB(inset, design.spaceLg, inset, 120),
+                itemCount: chapters.length + 1,
+                itemBuilder: (context, itemIndex) {
+                  if (itemIndex == 0) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildBookHeader(),
+                        SizedBox(height: design.spaceLg),
+                        _buildActionButtons(chapters),
+                        SizedBox(height: design.spaceLg),
+                        _buildBookIntroduction(),
+                        SizedBox(height: design.spaceXxl),
+                        Text(
+                          context.tr('所有章节', 'All chapters', 'すべての章'),
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                color: context.appTextPrimary,
+                                fontWeight: FontWeight.w800,
+                              ),
+                        ),
+                        SizedBox(height: design.spaceSm),
+                        if (chapters.isEmpty)
+                          SizedBox(
+                            width: double.infinity,
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(
+                                vertical: design.spaceXxl,
+                              ),
+                              child: Text(
+                                context.tr(
+                                  '这本书没有可阅读章节',
+                                  'No readable chapters',
+                                  'この本には読める章がありません',
+                                ),
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: context.appTextSecondary,
                                 ),
                               ),
-                          ],
-                        );
-                      }
+                            ),
+                          ),
+                      ],
+                    );
+                  }
 
-                      final chapterIndex = itemIndex - 1;
-                      final chapter = chapters[chapterIndex];
-                      return _ChapterCard(
-                        title: chapter.title,
-                        chapterNumber: chapter.chapterIndex + 1,
-                        highlighted:
-                            chapter.id == widget.initialChapterId ||
-                            chapter.id == _currentChapterId,
-                        coverSeed: coverSeed,
-                        progress: _generationProgress[chapter.id],
-                        savedPlaybackPositionMs: resolvedChapterData
+                  final chapterIndex = itemIndex - 1;
+                  final chapter = chapters[chapterIndex];
+                  return _ChapterCard(
+                    title: chapter.title,
+                    chapterNumber: chapter.chapterIndex + 1,
+                    highlighted:
+                        chapter.id == widget.initialChapterId ||
+                        chapter.id == _currentChapterId,
+                    progress: _generationProgress[chapter.id],
+                    savedPlaybackPositionMs: resolvedChapterData
+                        .progressByChapterId[chapter.id]
+                        ?.positionMs,
+                    savedIsFinished:
+                        resolvedChapterData
                             .progressByChapterId[chapter.id]
-                            ?.positionMs,
-                        savedIsFinished:
-                            resolvedChapterData
-                                .progressByChapterId[chapter.id]
-                                ?.isFinished ??
-                            false,
-                        legacyParagraphIndex: chapter.id == _currentChapterId
-                            ? _currentParagraphIndex
-                            : null,
-                        legacyParagraphOffsetMs: chapter.id == _currentChapterId
-                            ? _playbackOffsetMs
-                            : 0,
-                        manifestStore: ref.read(manifestStoreProvider),
-                        bookId: widget.book.id,
-                        chapterId: chapter.id,
-                        streamingAudio: _isStreamingAudiobook,
-                        onPlay: () => _openChapter(chapter),
-                        onRead: () => _openReader(chapter),
-                        onDownload: () => _toggleChapterDownload(chapter),
-                        onCancelDownload: () => _cancelChapterDownload(chapter),
-                        paused: _pausedChapterIds.contains(chapter.id),
-                        onClearCache: () => _clearChapterCache(chapter),
-                        onRegenerate: () => _regenerateChapter(chapter),
-                        onSetFinished: (isFinished) =>
-                            _setChapterFinished(chapter, isFinished),
-                        onChangeNarrator: () => _changeChapterNarrator(chapter),
-                        onHideInBook: () => _hideChapter(chapter),
-                        onDelete: () => _confirmDeleteChapter(chapter),
-                      );
-                    },
+                            ?.isFinished ??
+                        false,
+                    legacyParagraphIndex: chapter.id == _currentChapterId
+                        ? _currentParagraphIndex
+                        : null,
+                    legacyParagraphOffsetMs: chapter.id == _currentChapterId
+                        ? _playbackOffsetMs
+                        : 0,
+                    manifestStore: ref.read(manifestStoreProvider),
+                    bookId: widget.book.id,
+                    chapterId: chapter.id,
+                    streamingAudio: _isStreamingAudiobook,
+                    onPlay: () => _openChapter(chapter),
+                    onRead: () => _openReader(chapter),
+                    onDownload: () => _toggleChapterDownload(chapter),
+                    onCancelDownload: () => _cancelChapterDownload(chapter),
+                    paused: _pausedChapterIds.contains(chapter.id),
+                    onClearCache: () => _clearChapterCache(chapter),
+                    onRegenerate: () => _regenerateChapter(chapter),
+                    onSetFinished: (isFinished) =>
+                        _setChapterFinished(chapter, isFinished),
+                    onChangeNarrator: () => _changeChapterNarrator(chapter),
+                    onHideInBook: () => _hideChapter(chapter),
+                    onDelete: () => _confirmDeleteChapter(chapter),
                   );
                 },
               );
@@ -1276,9 +1258,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
             style: OutlinedButton.styleFrom(
               foregroundColor: context.appTextPrimary,
               padding: const EdgeInsets.symmetric(vertical: 14),
-              side: BorderSide(
-                color: scheme.onSurface.withValues(alpha: 0.2),
-              ),
+              side: BorderSide(color: scheme.onSurface.withValues(alpha: 0.2)),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -1389,7 +1369,6 @@ class _ChapterCard extends StatelessWidget {
   final String title;
   final int chapterNumber;
   final bool highlighted;
-  final Color? coverSeed;
   final GenerationProgress? progress;
   final int? savedPlaybackPositionMs;
   final bool savedIsFinished;
@@ -1415,7 +1394,6 @@ class _ChapterCard extends StatelessWidget {
     required this.title,
     required this.chapterNumber,
     required this.highlighted,
-    required this.coverSeed,
     required this.savedPlaybackPositionMs,
     required this.savedIsFinished,
     required this.legacyParagraphIndex,
@@ -1451,10 +1429,7 @@ class _ChapterCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final brightness = Theme.of(context).brightness;
-    final accent = coverSeed != null
-        ? CoverPaletteService.accentForSeed(coverSeed!, brightness)
-        : Theme.of(context).colorScheme.primary;
+    final accent = Theme.of(context).colorScheme.primary;
     return FutureBuilder<ChapterManifest?>(
       future: manifestStore.load(bookId, chapterId),
       builder: (context, snapshot) {
@@ -1701,7 +1676,7 @@ class _ChapterBadge extends StatelessWidget {
           ? Icon(
               Icons.graphic_eq_rounded,
               size: 20,
-              color: CoverPaletteService.foregroundFor(accent),
+              color: Theme.of(context).colorScheme.onPrimary,
             )
           : Text(
               '$number',

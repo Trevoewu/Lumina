@@ -31,10 +31,8 @@ import '../../../services/app_log_service.dart';
 import '../../../services/audiobook_manifest_validator.dart';
 import '../../../services/audiobook_transcription_storage.dart';
 import '../../../services/book_playback_queue.dart';
-import '../../../services/cover_palette_service.dart';
 import '../../../services/generation_orchestrator.dart';
 import '../../../services/generation_task_store.dart';
-import '../../../services/image_disk_cache.dart';
 import '../../../services/lumina_audio_handler.dart';
 import '../../../services/podcast_transcription_service.dart';
 import '../../../services/sleep_timer_service.dart';
@@ -432,8 +430,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _lyricSweepEnabled = true;
   bool _transcriptPageActive = false;
   bool _landscapeTranscriptActive = true;
-  String? _ambientArtworkUrl;
-  Future<Color?>? _ambientSeed;
   drift_db.Chapter? _activeAudiobookChapter;
   int _audiobookSelectionRevision = 0;
 
@@ -2884,76 +2880,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     return _buildTranscriptChrome(fromTop: fromTop, child: child);
   }
 
-  /// Memoizes the artwork's dominant color per source. The future has to be
-  /// stable across rebuilds or the `FutureBuilder` below would refetch every
-  /// frame.
-  ///
-  /// A podcast cover is a URL that has to come through the image disk cache; a
-  /// book cover is already a local file. Both end at the same seed.
-  Future<Color?> _pageAmbientSeed() {
-    final source = _isPodcast
-        ? (_podcastEpisode?.imageUrl ?? widget.podcast?.show.imageUrl)
-        : widget.book.coverPath;
-    if (source != _ambientArtworkUrl || _ambientSeed == null) {
-      _ambientArtworkUrl = source;
-      _ambientSeed = source == null || source.isEmpty
-          ? Future<Color?>.value(null)
-          : _resolveAmbientSeed(source);
-    }
-    return _ambientSeed!;
-  }
-
-  Future<Color?> _resolveAmbientSeed(String source) async {
-    try {
-      if (!_isPodcast) return await CoverPaletteService.seedForPath(source);
-      final file = await appImageDiskCache.load(source);
-      return await CoverPaletteService.seedForPath(file.path);
-    } catch (_) {
-      // A cover that will not resolve is not worth reporting: the page simply
-      // keeps its plain background.
-      return null;
-    }
-  }
-
-  /// A very faint wash of the cover's own color across the whole player. The
-  /// design deliberately stops short of Apple's dark glass — this only has to
-  /// hint that the page belongs to this episode or book.
-  Widget _buildPageAmbience() {
-    return FutureBuilder<Color?>(
-      future: _pageAmbientSeed(),
-      builder: (context, snapshot) {
-        final seed = snapshot.data;
-        if (seed == null) return const SizedBox.shrink();
-        final brightness = Theme.of(context).brightness;
-        // The raw artwork color is usually far darker than the page, so laying
-        // it on at low alpha just greys the background out. Normalizing it to
-        // the page's own lightness first is what makes the wash read as the
-        // cover's color rather than as dirt.
-        final tint = CoverPaletteService.pageTopForSeed(seed, brightness);
-        // One hue only. An earlier pass paired the tint with a hue-rotated
-        // counterpart for depth, which turned the lower half olive against a
-        // red cover — over a whole page any second hue reads as dirt rather
-        // than as depth.
-        final strength = brightness == Brightness.dark ? 0.34 : 0.4;
-        return IgnorePointer(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  tint.withValues(alpha: strength),
-                  tint.withValues(alpha: strength * 0.42),
-                  tint.withValues(alpha: 0),
-                ],
-                stops: const [0, 0.42, 0.88],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
+  Widget _buildPageAmbience() => const SizedBox.shrink();
 
   /// Draws one of the fixed chrome bands and its scrim. Keeping the band in
   /// the layout at all times prevents the transcript from changing height or

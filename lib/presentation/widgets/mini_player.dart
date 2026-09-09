@@ -7,7 +7,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:audio_service/audio_service.dart';
 
 import '../../../core/providers.dart';
-import '../../../services/cover_palette_service.dart';
 import '../screens/podcast/podcast_episode_screen.dart';
 import '../screens/player/player_screen.dart';
 import 'book_cover.dart';
@@ -242,49 +241,41 @@ class _MiniPlayerSurface extends ConsumerStatefulWidget {
 }
 
 class _MiniPlayerSurfaceState extends ConsumerState<_MiniPlayerSurface> {
-  late Future<_MiniPlayerAppearance> _appearance;
+  late Future<String?> _coverPathFuture;
 
   @override
   void initState() {
     super.initState();
-    _appearance = _loadAppearance();
+    _coverPathFuture = _loadCoverPath();
   }
 
   @override
   void didUpdateWidget(covariant _MiniPlayerSurface oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.bookId != widget.bookId ||
-        oldWidget.imageUrl != widget.imageUrl) {
-      _appearance = _loadAppearance();
+    if (oldWidget.bookId != widget.bookId) {
+      _coverPathFuture = _loadCoverPath();
     }
   }
 
-  Future<_MiniPlayerAppearance> _loadAppearance() async {
+  Future<String?> _loadCoverPath() async {
     final id = widget.bookId;
-    final book = id == null
-        ? null
-        : await ref.read(appDatabaseProvider).getBook(id);
-    final seed = await CoverPaletteService.seedForPath(book?.coverPath);
-    return _MiniPlayerAppearance(coverPath: book?.coverPath, seed: seed);
+    if (id == null) return null;
+    final book = await ref.read(appDatabaseProvider).getBook(id);
+    return book?.coverPath;
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder(
-      future: _appearance,
+    return FutureBuilder<String?>(
+      future: _coverPathFuture,
       builder: (context, snapshot) {
-        final appearance = snapshot.data;
-        final seed = appearance?.seed;
+        final coverPath = snapshot.data;
         final theme = Theme.of(context);
         final isDark = theme.brightness == Brightness.dark;
-        final surface = Color.lerp(
-          theme.colorScheme.surface,
-          seed ?? theme.colorScheme.surface,
-          isDark ? 0.10 : 0.05,
-        )!;
+        final surface = theme.colorScheme.surfaceContainer;
         final content = SizedBox(
           height: MiniPlayer.height,
-          child: widget.child(context, appearance?.coverPath),
+          child: widget.child(context, coverPath),
         );
         final nativeGlass =
             (defaultTargetPlatform == TargetPlatform.iOS ||
@@ -300,9 +291,7 @@ class _MiniPlayerSurfaceState extends ConsumerState<_MiniPlayerSurface> {
                   config: LiquidGlassConfig(
                     effect: CNGlassEffect.regular,
                     shape: CNGlassEffectShape.capsule,
-                    tint: (seed ?? theme.colorScheme.surface).withValues(
-                      alpha: 0.06,
-                    ),
+                    tint: theme.colorScheme.surface.withValues(alpha: 0.06),
                   ),
                   child: content,
                 )
@@ -323,7 +312,9 @@ class _MiniPlayerSurfaceState extends ConsumerState<_MiniPlayerSurface> {
                       filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
                       child: DecoratedBox(
                         decoration: BoxDecoration(
-                          color: surface.withValues(alpha: 0.88),
+                          color: surface.withValues(
+                            alpha: isDark ? 0.88 : 0.92,
+                          ),
                           borderRadius: BorderRadius.circular(32),
                           border: Border.all(
                             color: theme.colorScheme.onSurface.withValues(
@@ -340,11 +331,4 @@ class _MiniPlayerSurfaceState extends ConsumerState<_MiniPlayerSurface> {
       },
     );
   }
-}
-
-class _MiniPlayerAppearance {
-  final String? coverPath;
-  final Color? seed;
-
-  const _MiniPlayerAppearance({required this.coverPath, required this.seed});
 }
