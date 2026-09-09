@@ -1,0 +1,1057 @@
+{
+  "title": "Zero to Hero",
+  "source_title": "一口气推荐100本英文原版书：向老师的Zero to Hero书单",
+  "source_url": "https://mp.weixin.qq.com/s/U6lMD2kIQSIZsMXcBB15gg?scene=1",
+  "source_attribution": "向老师（向杨）；据用户提供正文",
+  "ingested_at": "2026-09-08",
+  "verification": "Transcribed from user-provided article text; bibliographic metadata and resource availability not independently verified.",
+  "stage_system": "source_custom_18_stages_not_cefr",
+  "stages": [
+    {
+      "id": "beginner-01",
+      "band": "beginner",
+      "level": 1,
+      "source_vocabulary_guidance": "1500以上",
+      "app_goal": "从短篇儿童故事开始",
+      "items": [
+        {
+          "id": "beginner-01-01",
+          "source_title": "The Enormous Crocodile",
+          "resource_status": "unverified",
+          "edition_status": "unverified",
+          "source_page_count": 40,
+          "source_lexile": "410L",
+          "metadata_status": "source_reported_unverified"
+        },
+        {
+          "id": "beginner-01-02",
+          "source_title": "The Magic Finger",
+          "resource_status": "unverified",
+          "edition_status": "unverified",
+          "source_page_count": 40,
+          "source_lexile": "450L",
+          "metadata_status": "source_reported_unverified"
+        },
+        {
+          "id": "beginner-01-03",
+          "source_title": "Fantastic Mr. Fox",
+          "resource_status": "unverified",
+          "edition_status": "unverified",
+          "source_page_count": 96,
+          "source_lexile": "600L",
+          "metadata_status": "source_reported_unverified"
+        },
+        {
+          "id": "beginner-01-04",
+          "source_title": "The BFG",
+          "resource_status": "unverified",
+          "edition_status": "unverified",
+          "source_page_count": 201,
+          "source_lexile": "720L",
+          "metadata_status": "source_reported_unverified"
+        }
+      ]
+    },
+    {
+      "id": "beginner-02",
+      "band": "beginner",
+      "level": 2,
+      "source_vocabulary_guidance": "1800以上；一般1800–3000",
+      "app_goal": "巩固阅读兴趣",
+      "items": [
+        {
+          "id": "beginner-02-01",
+          "source_title": "The Happy Prince and Other Stories",
+          "resource_status": "unverified",
+          "edition_status": "unverified",
+          "source_page_count": 96,
+          "source_lexile": "650L",
+          "metadata_status": "source_reported_unverified"
+        },
+        {
+          "id": "beginner-02-02",
+          "source_title": "Esio Trot",
+          "resource_status": "unverified",
+          "edition_status": "unverified",
+          "source_page_count": 64,
+          "source_lexile": "840L",
+          "metadata_status": "source_reported_unverified"
+        },
+        {
+          "id": "beginner-02-03",
+          "source_title": "James and the Giant Peach",
+          "resource_status": "unverified",
+          "edition_status": "unverified",
+          "source_page_count": 144,
+          "source_lexile": "870L",
+          "metadata_status": "source_reported_unverified"
+        }
+      ]
+    },
+    {
+      "id": "beginner-03",
+      "band": "beginner",
+      "level": 3,
+      "source_vocabulary_guidance": "1800以上；一般1800–3500",
+      "app_goal": "建立持续阅读习惯",
+      "items": [
+        {
+          "id": "beginner-03-01",
+          "source_title": "Horrid Henry Reads A Book",
+          "resource_status": "unverified",
+          "edition_status": "unverified",
+          "source_page_count": 76,
+          "source_lexile": "480L",
+          "metadata_status": "source_reported_unverified"
+        },
+        {
+          "id": "beginner-03-02",
+          "source_title": "Horrid Henry and The Zombie Vampire",
+          "resource_status": "unverified",
+          "edition_status": "unverified",
+          "source_page_count": 95,
+          "source_lexile": "630L",
+          "metadata_status": "source_reported_unverified"
+        },
+        {
+          "id": "beginner-03-03",
+          "source_title": "The Little Prince",
+          "resource_status": "unverified",
+          "edition_status": "unverified",
+          "source_page_count": 118,
+          "source_lexile": "710L",
+          "metadata_status": "source_reported_unverified"
+        },
+        {
+          "id": "beginner-03-04",
+          "source_title": "Matilda",
+          "resource_status": "unverified",
+          "edition_status": "unverified",
+          "source_page_count": 240,
+          "source_lexile": "840L",
+          "metadata_status": "source_reported_unverified"
+        }
+      ]
+    },
+    {
+      "id": "beginner-04",
+      "band": "beginner",
+      "level": 4,
+      "source_vocabulary_guidance": "2000以上；一般2000–4000",
+      "app_goal": "增加篇幅与阅读信心",
+      "items": [
+        {
+          "id": "beginner-04-01",
+          "source_title": "Dirty Beasts",
+          "resource_status": "unverified",
+          "edition_status": "unverified",
+          "source_page_count": 32,
+          "source_lexile": "740L",
+          "metadata_status": "source_reported_unverified"
+        },
+        {
+          "id": "beginner-04-02",
+          "source_title": "Charlie and the Chocolate Factory",
+          "resource_status": "unverified",
+          "edition_status": "unverified",
+          "source_page_count": 181,
+          "source_lexile": "810L",
+          "metadata_status": "source_reported_unverified"
+        },
+        {
+          "id": "beginner-04-03",
+          "source_title": "Narnia: the Lion, the Witch and the Wardrobe",
+          "resource_status": "unverified",
+          "edition_status": "unverified",
+          "source_page_count": 208,
+          "source_lexile": "940L",
+          "metadata_status": "source_reported_unverified"
+        }
+      ]
+    },
+    {
+      "id": "beginner-05",
+      "band": "beginner",
+      "level": 5,
+      "source_vocabulary_guidance": "2500以上；一般2500–4500",
+      "app_goal": "从故事走向思考",
+      "items": [
+        {
+          "id": "beginner-05-01",
+          "source_title": "The Witches",
+          "resource_status": "unverified",
+          "edition_status": "unverified",
+          "source_page_count": 208,
+          "source_lexile": "740L",
+          "metadata_status": "source_reported_unverified"
+        },
+        {
+          "id": "beginner-05-02",
+          "source_title": "Animal Farm",
+          "resource_status": "unverified",
+          "edition_status": "unverified",
+          "source_page_count": 144,
+          "source_lexile": "1170L",
+          "metadata_status": "source_reported_unverified"
+        }
+      ]
+    },
+    {
+      "id": "beginner-06",
+      "band": "beginner",
+      "level": 6,
+      "source_vocabulary_guidance": "2800以上；一般3000–6000",
+      "app_goal": "接触思辨小说与剧本",
+      "items": [
+        {
+          "id": "beginner-06-01",
+          "source_title": "Revolting Rhymes",
+          "resource_status": "unverified",
+          "edition_status": "unverified",
+          "source_page_count": 50,
+          "source_lexile": "750L",
+          "metadata_status": "source_reported_unverified"
+        },
+        {
+          "id": "beginner-06-02",
+          "source_title": "The Giver",
+          "resource_status": "unverified",
+          "edition_status": "unverified",
+          "source_page_count": 240,
+          "source_lexile": "760L",
+          "metadata_status": "source_reported_unverified"
+        },
+        {
+          "id": "beginner-06-03",
+          "source_title": "Hamilton",
+          "resource_status": "unverified",
+          "edition_status": "unverified",
+          "source_page_count": 171,
+          "source_lexile": null,
+          "metadata_status": "source_reported_unverified",
+          "edition_note": "原文为剧本研读；不得自动匹配同名小说、传记或其他文本。"
+        }
+      ]
+    },
+    {
+      "id": "beginner-07",
+      "band": "beginner",
+      "level": 7,
+      "source_vocabulary_guidance": "2800以上；一般3000–6000",
+      "app_goal": "拓展冒险故事阅读",
+      "items": [
+        {
+          "id": "beginner-07-01",
+          "source_title": "The Twits",
+          "resource_status": "unverified",
+          "edition_status": "unverified",
+          "source_page_count": 96,
+          "source_lexile": "750L",
+          "metadata_status": "source_reported_unverified"
+        },
+        {
+          "id": "beginner-07-02",
+          "source_title": "The Adventures of Tom Sawyer",
+          "resource_status": "unverified",
+          "edition_status": "unverified",
+          "source_page_count": 122,
+          "source_lexile": "970L",
+          "metadata_status": "source_reported_unverified",
+          "edition_note": "原文页数122；原著、改写本及具体版本待核实。"
+        },
+        {
+          "id": "beginner-07-03",
+          "source_title": "The Call of the Wild",
+          "resource_status": "unverified",
+          "edition_status": "unverified",
+          "source_page_count": 96,
+          "source_lexile": "1120L",
+          "metadata_status": "source_reported_unverified"
+        }
+      ]
+    },
+    {
+      "id": "beginner-08",
+      "band": "beginner",
+      "level": 8,
+      "source_vocabulary_guidance": "3000以上；一般3000–6500",
+      "app_goal": "连接小说与非虚构",
+      "items": [
+        {
+          "id": "beginner-08-01",
+          "source_title": "Number the Stars",
+          "resource_status": "unverified",
+          "edition_status": "unverified",
+          "source_page_count": 160,
+          "source_lexile": null,
+          "metadata_status": "source_reported_unverified"
+        },
+        {
+          "id": "beginner-08-02",
+          "source_title": "The Old Man and the Sea",
+          "resource_status": "unverified",
+          "edition_status": "unverified",
+          "source_page_count": 154,
+          "source_lexile": null,
+          "metadata_status": "source_reported_unverified"
+        },
+        {
+          "id": "beginner-08-03",
+          "source_title": "The 7 Habits of Highly EffectivePeople",
+          "resource_status": "unverified",
+          "edition_status": "unverified",
+          "source_page_count": 432,
+          "source_lexile": null,
+          "metadata_status": "source_reported_unverified"
+        }
+      ]
+    },
+    {
+      "id": "intermediate-01",
+      "band": "intermediate",
+      "level": 1,
+      "source_vocabulary_guidance": "3500以上；一般3500–6500",
+      "app_goal": "结合历史背景阅读",
+      "items": [
+        {
+          "id": "intermediate-01-01",
+          "source_title": "Shooting an Elephant",
+          "resource_status": "unverified",
+          "edition_status": "unverified",
+          "source_page_count": null,
+          "source_lexile": null,
+          "metadata_status": "source_reported_unverified"
+        },
+        {
+          "id": "intermediate-01-02",
+          "source_title": "The Kite Runner",
+          "resource_status": "unverified",
+          "edition_status": "unverified",
+          "source_page_count": 400,
+          "source_lexile": null,
+          "metadata_status": "source_reported_unverified"
+        },
+        {
+          "id": "intermediate-01-03",
+          "source_title": "Les Miserables",
+          "resource_status": "unverified",
+          "edition_status": "unverified",
+          "source_page_count": 106,
+          "source_lexile": null,
+          "metadata_status": "source_reported_unverified",
+          "edition_note": "原文为剧本研读；不得自动匹配同名小说、传记或其他文本。"
+        }
+      ]
+    },
+    {
+      "id": "intermediate-02",
+      "band": "intermediate",
+      "level": 2,
+      "source_vocabulary_guidance": "3500以上；一般3500–6500",
+      "app_goal": "探索身份与社会议题",
+      "items": [
+        {
+          "id": "intermediate-02-01",
+          "source_title": "Dreams from My Father",
+          "resource_status": "unverified",
+          "edition_status": "unverified",
+          "source_page_count": 442,
+          "source_lexile": "950L",
+          "metadata_status": "source_reported_unverified"
+        },
+        {
+          "id": "intermediate-02-02",
+          "source_title": "The Time Machine",
+          "resource_status": "unverified",
+          "edition_status": "unverified",
+          "source_page_count": 128,
+          "source_lexile": "1010L",
+          "metadata_status": "source_reported_unverified"
+        }
+      ]
+    },
+    {
+      "id": "intermediate-03",
+      "band": "intermediate",
+      "level": 3,
+      "source_vocabulary_guidance": "4500以上",
+      "app_goal": "进入哲学与思辨阅读",
+      "items": [
+        {
+          "id": "intermediate-03-01",
+          "source_title": "Sophie's World",
+          "resource_status": "unverified",
+          "edition_status": "unverified",
+          "source_page_count": 544,
+          "source_lexile": "1000L",
+          "metadata_status": "source_reported_unverified"
+        },
+        {
+          "id": "intermediate-03-02",
+          "source_title": "Stories of Your Life",
+          "resource_status": "unverified",
+          "edition_status": "unverified",
+          "source_page_count": 53,
+          "source_lexile": null,
+          "metadata_status": "source_reported_unverified",
+          "edition_note": "原文为此拼写，53页；短篇与合集、规范题名待核实。"
+        },
+        {
+          "id": "intermediate-03-03",
+          "source_title": "The prophet",
+          "resource_status": "unverified",
+          "edition_status": "unverified",
+          "source_page_count": 96,
+          "source_lexile": "990L",
+          "metadata_status": "source_reported_unverified"
+        }
+      ]
+    },
+    {
+      "id": "intermediate-04",
+      "band": "intermediate",
+      "level": 4,
+      "source_vocabulary_guidance": "5000以上",
+      "app_goal": "按问题探索哲学主题",
+      "items": [],
+      "groups": [
+        {
+          "id": "philosophy-01",
+          "source_title": "哲学传统的旋风之旅",
+          "items": [
+            {
+              "id": "philosophy-01-01",
+              "source_title": "哲学的问题",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-01-02",
+              "source_title": "理想国",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-01-03",
+              "source_title": "尼各马可伦理学",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-01-04",
+              "source_title": "忏悔录",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-01-05",
+              "source_title": "第一哲学沉思录",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-01-06",
+              "source_title": "利维坦",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-01-07",
+              "source_title": "形而上学论说",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-01-08",
+              "source_title": "人类理解论",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-01-09",
+              "source_title": "人类知识原理",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-01-10",
+              "source_title": "人类理解研究",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-01-11",
+              "source_title": "纯粹理性批判",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-01-12",
+              "source_title": "逻辑学",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-01-13",
+              "source_title": "作为意志和表象的世界",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-01-14",
+              "source_title": "论自由",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-01-15",
+              "source_title": "〈数学原理〉及有关系统中的形式不可判定命题",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-01-16",
+              "source_title": "哲学研究",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            }
+          ]
+        },
+        {
+          "id": "philosophy-02",
+          "source_title": "疯狂哲学家：局外人与擅闯者",
+          "items": [
+            {
+              "id": "philosophy-02-01",
+              "source_title": "恐惧与颤栗",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-02-02",
+              "source_title": "卡拉马佐夫兄弟",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-02-03",
+              "source_title": "善恶的彼岸",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-02-04",
+              "source_title": "审判",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-02-05",
+              "source_title": "局外人",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-02-06",
+              "source_title": "源泉",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-02-07",
+              "source_title": "小说",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-02-08",
+              "source_title": "知觉之门：天堂与地狱",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-02-09",
+              "source_title": "仿生人会梦见电子羊吗？ / 银翼杀手",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            }
+          ]
+        },
+        {
+          "id": "philosophy-03",
+          "source_title": "哲学作为一种沉思",
+          "items": [
+            {
+              "id": "philosophy-03-01",
+              "source_title": "天堂与地狱的婚姻",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-03-02",
+              "source_title": "先知",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-03-03",
+              "source_title": "小王子",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-03-04",
+              "source_title": "如果这是一个人",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-03-05",
+              "source_title": "木民爸爸海上探险记",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-03-06",
+              "source_title": "海鸥乔纳森",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-03-07",
+              "source_title": "万里任禅游",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-03-08",
+              "source_title": "小熊维尼讲“道”",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-03-09",
+              "source_title": "精神生活小手册",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            }
+          ]
+        },
+        {
+          "id": "philosophy-04",
+          "source_title": "心理剧：如何用哲学生活",
+          "items": [
+            {
+              "id": "philosophy-04-01",
+              "source_title": "孙子兵法",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-04-02",
+              "source_title": "道德箴言录",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-04-03",
+              "source_title": "论性别",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-04-04",
+              "source_title": "荣格自传：回忆·梦·思考",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-04-05",
+              "source_title": "爱的艺术",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-04-06",
+              "source_title": "个人形成论——我的心理治疗观",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-04-07",
+              "source_title": "哲学的慰藉",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            }
+          ]
+        },
+        {
+          "id": "philosophy-05",
+          "source_title": "20世纪的主义：政治与个人",
+          "items": [
+            {
+              "id": "philosophy-05-01",
+              "source_title": "共产党宣言",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-05-02",
+              "source_title": "无政府主义及其它",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-05-03",
+              "source_title": "存在与虚无",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-05-04",
+              "source_title": "日常生活的革命",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-05-05",
+              "source_title": "实践伦理学",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-05-06",
+              "source_title": "盖亚假说：对地球上生命的新认识",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-05-07",
+              "source_title": "美貌的神话",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            }
+          ]
+        },
+        {
+          "id": "philosophy-06",
+          "source_title": "哲学前沿：活标本",
+          "items": [
+            {
+              "id": "philosophy-06-01",
+              "source_title": "启蒙的辩证法",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-06-02",
+              "source_title": "正义论",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-06-03",
+              "source_title": "命名与必然性",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-06-04",
+              "source_title": "论世界的多元性",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-06-05",
+              "source_title": "达尔文的危险观念：进化和生命的意义",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-06-06",
+              "source_title": "小块松散组合",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-06-07",
+              "source_title": "恐怖之后",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            }
+          ]
+        },
+        {
+          "id": "philosophy-07",
+          "source_title": "欧陆哲学风影：福柯的脑洞",
+          "items": [
+            {
+              "id": "philosophy-07-01",
+              "source_title": "狱中札记",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-07-02",
+              "source_title": "神话学",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-07-03",
+              "source_title": "拉康选集",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-07-04",
+              "source_title": "被诅咒的部分",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-07-05",
+              "source_title": "意识形态论集",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-07-06",
+              "source_title": "论文字学",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-07-07",
+              "source_title": "此性非一",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-07-08",
+              "source_title": "后现代状况——关于知识的报告",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-07-09",
+              "source_title": "性经验史",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-07-10",
+              "source_title": "恐怖的权力－论卑贱随笔",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            },
+            {
+              "id": "philosophy-07-11",
+              "source_title": "象征交换与死亡",
+              "resource_status": "unverified",
+              "edition_status": "unverified"
+            }
+          ]
+        }
+      ],
+      "completion_policy": "user_defined_selection_not_entire_pool"
+    },
+    {
+      "id": "intermediate-05",
+      "band": "intermediate",
+      "level": 5,
+      "source_vocabulary_guidance": "5000以上；一般5000–10000",
+      "app_goal": "阅读行为、历史与国际关系",
+      "items": [
+        {
+          "id": "intermediate-05-01",
+          "source_title": "The Art of Thinking Clearly",
+          "resource_status": "unverified",
+          "edition_status": "unverified"
+        },
+        {
+          "id": "intermediate-05-02",
+          "source_title": "Guns, Germs and Steel",
+          "resource_status": "unverified",
+          "edition_status": "unverified"
+        },
+        {
+          "id": "intermediate-05-03",
+          "source_title": "Destined for War",
+          "resource_status": "unverified",
+          "edition_status": "unverified"
+        }
+      ]
+    },
+    {
+      "id": "intermediate-06",
+      "band": "intermediate",
+      "level": 6,
+      "source_vocabulary_guidance": "5500以上；一般5500–11000",
+      "app_goal": "建立政经史阅读视角",
+      "items": [
+        {
+          "id": "intermediate-06-01",
+          "source_title": "Sapiens: A Brief History of Humankind",
+          "resource_status": "unverified",
+          "edition_status": "unverified"
+        },
+        {
+          "id": "intermediate-06-02",
+          "source_title": "Why Nations Fail",
+          "resource_status": "unverified",
+          "edition_status": "unverified"
+        },
+        {
+          "id": "intermediate-06-03",
+          "source_title": "1984",
+          "resource_status": "unverified",
+          "edition_status": "unverified"
+        }
+      ]
+    },
+    {
+      "id": "advanced-01",
+      "band": "advanced",
+      "level": 1,
+      "source_vocabulary_guidance": "至少8000以上",
+      "app_goal": "走向学术性阅读",
+      "items": [
+        {
+          "id": "advanced-01-01",
+          "source_title": "The Story of Philosophy",
+          "resource_status": "unverified",
+          "edition_status": "unverified"
+        },
+        {
+          "id": "advanced-01-02",
+          "source_title": "Political Order and Political Decay",
+          "resource_status": "unverified",
+          "edition_status": "unverified"
+        }
+      ]
+    },
+    {
+      "id": "advanced-02",
+      "band": "advanced",
+      "level": 2,
+      "source_vocabulary_guidance": "至少8000以上",
+      "app_goal": "探索未来与经济思考",
+      "items": [
+        {
+          "id": "advanced-02-01",
+          "source_title": "Homo Deus: A Brief History of Tomorrow",
+          "resource_status": "unverified",
+          "edition_status": "unverified"
+        },
+        {
+          "id": "advanced-02-02",
+          "source_title": "Uncommon Sense",
+          "resource_status": "unverified",
+          "edition_status": "unverified"
+        }
+      ]
+    },
+    {
+      "id": "advanced-03",
+      "band": "advanced",
+      "level": 3,
+      "source_vocabulary_guidance": "至少8000以上",
+      "app_goal": "开展跨学科阅读",
+      "items": [
+        {
+          "id": "advanced-03-01",
+          "source_title": "Nudge",
+          "resource_status": "unverified",
+          "edition_status": "unverified"
+        },
+        {
+          "id": "advanced-03-02",
+          "source_title": "Tragedy of Great Power Politics",
+          "resource_status": "unverified",
+          "edition_status": "unverified"
+        },
+        {
+          "id": "advanced-03-03",
+          "source_title": "Deep Play: Notes on the Balinese Cockfight",
+          "resource_status": "unverified",
+          "edition_status": "unverified"
+        },
+        {
+          "id": "advanced-03-04",
+          "source_title": "Uncommon Sense",
+          "resource_status": "unverified",
+          "edition_status": "unverified"
+        }
+      ]
+    },
+    {
+      "id": "advanced-04",
+      "band": "advanced",
+      "level": 4,
+      "source_vocabulary_guidance": "至少8000以上",
+      "app_goal": "形成主题阅读方法",
+      "items": [
+        {
+          "id": "advanced-04-01",
+          "source_title": "如何阅读一本书",
+          "resource_status": "unverified",
+          "edition_status": "unverified"
+        },
+        {
+          "id": "advanced-04-02",
+          "source_title": "高效能人士的七个习惯",
+          "resource_status": "unverified",
+          "edition_status": "unverified"
+        },
+        {
+          "id": "advanced-04-03",
+          "source_title": "On the Genealogy of Morals",
+          "resource_status": "unverified",
+          "edition_status": "unverified"
+        },
+        {
+          "id": "advanced-04-04",
+          "source_title": "必然：未来科技发展的12种必然趋势",
+          "resource_status": "unverified",
+          "edition_status": "unverified"
+        },
+        {
+          "id": "advanced-04-05",
+          "source_title": "Hamilton",
+          "resource_status": "unverified",
+          "edition_status": "unverified",
+          "edition_note": "原文为剧本研读；不得自动匹配同名小说、传记或其他文本。"
+        }
+      ]
+    }
+  ],
+  "auxiliary": {
+    "source_group": "高中词汇3500-原版导读班",
+    "source_vocabulary_guidance": "1800–5000",
+    "items": [
+      {
+        "source_title": "Baron on the Tree",
+        "resource_status": "unverified",
+        "edition_status": "unverified"
+      },
+      {
+        "source_title": "Becoming",
+        "resource_status": "unverified",
+        "edition_status": "unverified"
+      },
+      {
+        "source_title": "The Lessons from History",
+        "resource_status": "unverified",
+        "edition_status": "unverified"
+      }
+    ]
+  },
+  "notes": [
+    "原文声称中阶四级主题精读37位思想家，实际粘贴书目包含7组66条；不将人数与书籍数混用。",
+    "原文标题的100本不作为精确目录计数。",
+    "保留来源顺序和重复条目；跨语种别名与作品去重待书目核实。",
+    "原文课程目标、演讲/辩论训练、教师反馈、报名信息不代表App提供相应服务。",
+    "源书目多为英语阅读材料，但含译作，不统一标注为英语原创作品。"
+  ]
+}

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:audio_service/audio_service.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lumina/core/providers.dart';
@@ -22,6 +23,19 @@ import 'package:lumina/tts/provider_registry.dart';
 import 'package:lumina/tts/providers/fish_audio_api_tts_provider.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(() {
+    // Native view pixels require a device; widget tests verify layout/actions.
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          SystemChannels.platform_views,
+          (_) async => null,
+        );
+  });
+  tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform_views, null);
+  });
   TestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets(
@@ -695,8 +709,11 @@ void main() {
         findsOneWidget,
       );
       expect(find.byKey(const ValueKey('book-information-card')), findsNothing);
-      expect(find.byIcon(Icons.more_horiz_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.timer_outlined), findsOneWidget);
+      expect(find.byKey(const ValueKey('player-more-menu')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('player-sleep-timer-toggle')),
+        findsOneWidget,
+      );
 
       final background = tester.widget<Container>(
         find.byKey(const ValueKey('player-immersive-background')),
@@ -776,9 +793,11 @@ void main() {
         lightOnSurface,
       );
 
-      await tester.ensureVisible(find.byIcon(Icons.timer_outlined));
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('player-sleep-timer-toggle')),
+      );
       await tester.pumpAndSettle();
-      await tester.tap(find.byIcon(Icons.timer_outlined));
+      await tester.tap(find.byKey(const ValueKey('player-sleep-timer-toggle')));
       await tester.pumpAndSettle();
       expect(find.text('15 minutes'), findsOneWidget);
       expect(find.byType(BottomSheet), findsNothing);
@@ -884,10 +903,7 @@ void main() {
         findsNothing,
         reason: 'the mini player must wait for the full player stage to exit',
       );
-      expect(
-        find.byKey(const ValueKey('player-default-header')),
-        findsOneWidget,
-      );
+      expect(find.byKey(const ValueKey('player-default-header')), findsNothing);
       expect(
         find.byKey(const ValueKey('ai-summary-card')).hitTestable(),
         findsWidgets,
@@ -905,10 +921,7 @@ void main() {
         find.byKey(const ValueKey('player-sticky-mini-player')),
         findsNothing,
       );
-      expect(
-        find.byKey(const ValueKey('player-default-header')),
-        findsOneWidget,
-      );
+      expect(find.byKey(const ValueKey('player-default-header')), findsNothing);
 
       await tester.tap(
         find.byKey(const ValueKey('player-primary-audio-action')),

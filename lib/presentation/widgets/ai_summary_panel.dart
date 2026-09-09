@@ -7,6 +7,7 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'app_back_button.dart';
 import '../../ai/ai_models.dart';
 import '../../core/app_colors.dart';
 import '../../core/app_design_tokens.dart';
@@ -494,11 +495,13 @@ String _linkifyCitations(String markdown) {
 
 class AiConversationSheet extends ConsumerStatefulWidget {
   final AiContentScope scope;
+  final ScrollController? scrollController;
   final AiCitationCallback? onCitationTap;
 
   const AiConversationSheet({
     super.key,
     required this.scope,
+    this.scrollController,
     this.onCitationTap,
   });
 
@@ -717,10 +720,10 @@ class _AiConversationSheetState extends ConsumerState<AiConversationSheet> {
       appBar: AppBar(
         backgroundColor: context.appBackground,
         foregroundColor: context.appTextPrimary,
-        title: const Text('AI Summary'),
-        leading: IconButton(
-          icon: const Icon(Icons.keyboard_arrow_down_rounded),
-          onPressed: () => Navigator.of(context).pop(),
+        title: const Text('AI Chatbot'),
+        leading: const Padding(
+          padding: EdgeInsets.all(6),
+          child: AppBackButton(),
         ),
       ),
       body: _loading
@@ -736,6 +739,7 @@ class _AiConversationSheetState extends ConsumerState<AiConversationSheet> {
                 chatAnimatedListBuilder: (context, itemBuilder) =>
                     chat_ui.ChatAnimatedList(
                       key: const ValueKey('ai-conversation-messages'),
+                      scrollController: widget.scrollController,
                       itemBuilder: itemBuilder,
                       topPadding: design.spaceMd,
                       bottomPadding: design.spaceLg,

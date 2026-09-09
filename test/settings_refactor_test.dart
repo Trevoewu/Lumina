@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/app_back_button.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -164,7 +165,7 @@ void main() {
     expect(await database.getSetting('ai_service_language'), 'japanese');
 
     // Theme is a segmented pill control at the top of the page, not a menu.
-    await tester.tap(find.byType(BackButton));
+    await tester.tap(find.byType(AppBackButton));
     await tester.pumpAndSettle();
     await tester.drag(find.byType(Scrollable).last, const Offset(0, 2000));
     await tester.pumpAndSettle();

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
 import '../player/player_screen.dart';
+import '../../widgets/app_back_button.dart';
 
 /// Opens Podcast playback above the tab navigator so every entry point uses
 /// the same immersive player surface as the global mini player.
@@ -79,7 +80,7 @@ class _PodcastEpisodeScreenState extends ConsumerState<PodcastEpisodeScreen> {
         }
         if (snapshot.hasError) {
           return Scaffold(
-            appBar: AppBar(),
+            appBar: AppBar(leading: const Center(child: AppBackButton())),
             body: Center(
               child: Text(
                 context.tr(
@@ -94,7 +95,7 @@ class _PodcastEpisodeScreenState extends ConsumerState<PodcastEpisodeScreen> {
         final data = snapshot.data;
         if (data == null) {
           return Scaffold(
-            appBar: AppBar(),
+            appBar: AppBar(leading: const Center(child: AppBackButton())),
             body: Center(
               child: Text(
                 context.tr('单集不存在', 'Episode not found', 'エピソードが見つかりません'),

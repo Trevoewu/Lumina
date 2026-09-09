@@ -18,6 +18,14 @@ import 'app_log_service.dart';
 import 'generation_task_store.dart';
 import 'transcription_storage.dart';
 
+typedef PodcastAudioExtractor =
+    Future<bool> Function({
+      required String sourcePath,
+      required String targetPath,
+      required int startMs,
+      required int durationMs,
+    });
+
 enum PodcastTranscriptionStage {
   preparing,
   downloadingModel,
@@ -258,17 +266,56 @@ class PodcastTranscriptionService {
   late final GenerationTaskStore taskStore = GenerationTaskStore(database);
   final Dio _dio;
   final WhisperController _controller;
-  final Map<String, Future<String>> _audioDownloads = {};
+  final Future<int> Function(String)? audioProbe;
+  final PodcastAudioExtractor? audioExtractor;
+  final Map<({String id, String directory, String source}), Future<String>>
+  _audioDownloads = {};
   final StreamController<PodcastTranscriptionProgress> _progressController =
       StreamController<PodcastTranscriptionProgress>.broadcast();
   _ActiveTranscription? _active;
   Future<List<AudioTextTiming>>? _activeFuture;
   WhisperModel? _installingModel;
+  final Map<String, Future<void>> _episodeMutations = {};
+
+  /// Block new work, settle the current writer/download, then mutate its cache.
+  Future<T> runEpisodeExclusive<T>(
+    String id,
+    Future<T> Function() action,
+  ) async {
+    final previous = _episodeMutations[id];
+    final finished = Completer<void>();
+    _episodeMutations[id] = finished.future;
+    try {
+      if (previous != null) await previous;
+      // A newly started transcribe() claims _active after its first await.
+      await Future<void>.value();
+      if (_active?.episodeId == id) await pause();
+      final downloads = _audioDownloads.entries
+          .where((entry) => entry.key.id == id)
+          .map((entry) => entry.value)
+          .toList();
+      for (final download in downloads) {
+        try {
+          await download;
+        } catch (_) {
+          /* Failed downloads are settled. */
+        }
+      }
+      return await action();
+    } finally {
+      if (identical(_episodeMutations[id], finished.future)) {
+        _episodeMutations.remove(id);
+      }
+      finished.complete();
+    }
+  }
 
   PodcastTranscriptionService(
     this.database, {
     Dio? dio,
     WhisperController? controller,
+    this.audioProbe,
+    this.audioExtractor,
   }) : _dio =
            dio ??
            Dio(
@@ -415,6 +462,17 @@ class PodcastTranscriptionService {
     String? languageHint,
     void Function(PodcastTranscriptionProgress progress)? onProgress,
   }) {
+    final mutation = _episodeMutations[episode.id];
+    if (mutation != null) {
+      return mutation.then(
+        (_) => transcribe(
+          episode,
+          storage: storage,
+          languageHint: languageHint,
+          onProgress: onProgress,
+        ),
+      );
+    }
     final running = _activeFuture;
     if (running != null) {
       // A repeated tap, a player reopen, and a recovery trigger may all race
@@ -488,12 +546,53 @@ class PodcastTranscriptionService {
     }
 
     try {
-      final storedBeforeRun = await storage.read(episode.id) ?? episode;
+      episode = await storage.read(episode.id) ?? episode;
+      storage = SourceBoundTranscriptionStorage(storage, episode);
+      var savedTimings = decodeTranscript(episode.transcriptJson);
+      var savedProgressMs = episode.transcriptProgressMs;
+      // Subtitles are a durable user result, not a disposable model cache.
+      // Reopening must work offline, without audio, weights, or task metadata.
+      // Source replacement and explicit regeneration clear them at their entry points.
+      if (episode.transcriptStatus == 'complete' && savedTimings.isNotEmpty) {
+        emit(PodcastTranscriptionStage.complete, '本地转写完成', progress: 1);
+        return savedTimings;
+      }
+      // Recover a chunk committed just before the episode snapshot was saved.
+      // A cleared/replaced source has status 'none' and must not adopt old work.
+      if (episode.transcriptStatus != 'none') {
+        final previousTask = await database.getLatestGenerationTask(
+          kind: GenerationTaskKind.whisper.name,
+          parentId: episode.showId,
+          scopeId: episode.id,
+        );
+        if (previousTask != null) {
+          final previousPrefix = _completedWhisperPrefix(
+            await taskStore.chunks(previousTask.id),
+          );
+          if (previousPrefix.endMs > savedProgressMs) {
+            savedTimings = previousPrefix.segments;
+            savedProgressMs = previousPrefix.endMs;
+          }
+          if (previousTask.status == GenerationChunkStatus.complete.name &&
+              previousPrefix.segments.isNotEmpty) {
+            await storage.update(
+              episode.id,
+              status: 'complete',
+              transcriptJson: jsonEncode([
+                for (final timing in savedTimings) timing.toJson(),
+              ]),
+              progressMs: savedProgressMs,
+            );
+            emit(PodcastTranscriptionStage.complete, '本地转写完成', progress: 1);
+            return savedTimings;
+          }
+        }
+      }
+      final activeModel = await selectedModel();
       await storage.update(episode.id, status: 'running', error: null);
       emit(PodcastTranscriptionStage.preparing, '正在准备本地转写');
-      await _ensureModel(onProgress: emit);
 
-      final cachedAudioPath = await downloadEpisodeAudio(
+      final cachedAudioPath = await _downloadEpisodeAudio(
         episode,
         storage: storage,
         onProgress: (received, total) {
@@ -527,25 +626,19 @@ class PodcastTranscriptionService {
       // Overlap has to stay small relative to the slice, or a short slice
       // spends most of its time re-transcribing the previous one.
       final overlapMs = math.min(10000, (chunkSeconds * 1000) ~/ 4);
-      final activeModel = await selectedModel();
-      final stored = storedBeforeRun;
-      final sourceEpisode = await storage.read(episode.id) ?? episode;
-      final audioFile = File(cachedAudioPath);
-      final audioLength = await audioFile.exists()
-          ? await audioFile.length()
-          : 0;
-      final audioModified = await audioFile.exists()
-          ? (await audioFile.lastModified()).millisecondsSinceEpoch
-          : 0;
+      // File identity survives a redownload or a sandbox-directory move.
+      // Stream the digest so large episodes never need to fit in memory.
+      final audioDigest = await sha256
+          .bind(File(cachedAudioPath).openRead())
+          .first;
       final sourceFingerprint = generationFingerprint([
+        'whisper-audio-v2',
         episode.id,
-        sourceEpisode.audioUrl,
-        sourceEpisode.localAudioPath ?? '',
-        durationMs.toString(),
-        audioLength.toString(),
-        audioModified.toString(),
+        audioDigest.toString(),
       ]);
       final configFingerprint = generationFingerprint([
+        // v1 labelled every model's results even though it always ran base.
+        'whisper-config-v2',
         activeModel.name,
         language,
         chunkSeconds.toString(),
@@ -581,28 +674,9 @@ class PodcastTranscriptionService {
             ]),
           ),
       ];
-      final latestTask = await database.getLatestGenerationTask(
-        kind: GenerationTaskKind.whisper.name,
-        parentId: episode.showId,
-        scopeId: episode.id,
-      );
-
-      // A completed transcript is a cache hit. Do not redownload the model or
-      // submit the same Whisper work merely because the player was reopened.
-      if (stored.transcriptStatus == 'complete' &&
-          (latestTask == null ||
-              (latestTask.id == taskId &&
-                  latestTask.status != GenerationChunkStatus.failed.name))) {
-        await storage.update(episode.id, status: 'complete');
-        emit(PodcastTranscriptionStage.complete, '本地转写完成', progress: 1);
-        return decodeTranscript(stored.transcriptJson);
-      }
-      if (latestTask != null && latestTask.id != taskId) {
-        // Feed/audio or language configuration changed. Never merge results
-        // from the previous version into the new source.
-        await storage.clear(episode.id);
-      }
-
+      // Changing models, chunk size, or cache schema must not discard words
+      // already shown to the user. Only the missing suffix uses this config.
+      await _ensureModel(model: activeModel, onProgress: emit);
       await taskStore.ensureTask(
         spec: GenerationTaskSpec(
           id: taskId,
@@ -623,27 +697,28 @@ class PodcastTranscriptionService {
       await taskStore.startTask(taskId);
       final taskChunks = await taskStore.chunks(taskId);
 
-      // Prefer durable chunk results. The episode watermark remains a legacy
-      // fallback for databases created before the task tables existed.
+      // The episode watermark also survives old cache schemas and a changed
+      // chunk plan. Task results can be ahead of it after an interrupted write.
       final prefix = _completedWhisperPrefix(taskChunks);
-      final resumeFromMs = prefix.endMs > 0
-          ? prefix.endMs
-          : latestTask != null && latestTask.id != taskId
-          ? 0
-          : stored.transcriptProgressMs
-                .clamp(0, math.max(0, durationMs))
-                .toInt();
-      final cached = prefix.segments.isNotEmpty
-          ? prefix.segments
-          : resumeFromMs > 0
-          ? decodeTranscript(stored.transcriptJson)
-          : const <AudioTextTiming>[];
+      final savedEndMs = savedProgressMs > 0
+          ? savedProgressMs
+          : savedTimings.fold<int>(
+              0,
+              (end, timing) => math.max(end, timing.endMs),
+            );
+      final storedEndMs = durationMs > 0
+          ? savedEndMs.clamp(0, durationMs).toInt()
+          : math.max(0, savedEndMs);
+      final useTaskPrefix = prefix.endMs > storedEndMs;
+      final resumeFromMs = math.max(prefix.endMs, storedEndMs);
+      final cached = useTaskPrefix ? prefix.segments : savedTimings;
 
       final run = await _transcribeInChunks(
         active: active,
         episode: episode,
         storage: storage,
         audioPath: cachedAudioPath,
+        model: activeModel,
         language: language,
         durationMs: durationMs,
         startFromMs: resumeFromMs,
@@ -716,11 +791,15 @@ class PodcastTranscriptionService {
           latestTask.status == GenerationChunkStatus.running.name) {
         await taskStore.failTask(latestTask.id, error);
       }
-      await storage.update(
-        episode.id,
-        status: 'failed',
-        error: error.toString(),
-      );
+      try {
+        await storage.update(
+          episode.id,
+          status: 'failed',
+          error: error.toString(),
+        );
+      } on TranscriptionSourceChanged {
+        // The feed replaced this source; its new state belongs to the new run.
+      }
       AppLogger.error(
         'Podcast',
         'Whisper 本地转写失败 episode=${episode.id}',
@@ -739,20 +818,61 @@ class PodcastTranscriptionService {
     TranscriptionStorage? storage,
     void Function(int received, int total)? onProgress,
   }) async {
-    final activeDownload = _audioDownloads[episode.id];
-    if (activeDownload != null) return activeDownload;
+    final mutation = _episodeMutations[episode.id];
+    if (mutation != null) {
+      await mutation;
+      return downloadEpisodeAudio(
+        episode,
+        storage: storage,
+        onProgress: onProgress,
+      );
+    }
+    final targetStorage = storage ?? TranscriptionStorage(database);
+    final current = await targetStorage.read(episode.id) ?? episode;
+    if (_episodeMutations.containsKey(episode.id)) {
+      return downloadEpisodeAudio(
+        episode,
+        storage: storage,
+        onProgress: onProgress,
+      );
+    }
+    return _downloadEpisodeAudio(
+      current,
+      storage: SourceBoundTranscriptionStorage(targetStorage, current),
+      onProgress: onProgress,
+    );
+  }
+
+  Future<String> _downloadEpisodeAudio(
+    PodcastEpisode episode, {
+    required TranscriptionStorage storage,
+    void Function(int received, int total)? onProgress,
+  }) async {
+    final key = (
+      id: episode.id,
+      directory: storage.audioDirectory,
+      source: episode.audioUrl,
+    );
+    final activeDownload = _audioDownloads[key];
+    if (activeDownload != null) {
+      final path = await activeDownload;
+      await storage.read(episode.id);
+      return path;
+    }
 
     final download = _ensureEpisodeAudio(
       episode,
-      storage: storage ?? TranscriptionStorage(database),
+      storage: storage,
       onProgress: onProgress ?? (_, _) {},
     );
-    _audioDownloads[episode.id] = download;
+    _audioDownloads[key] = download;
     try {
-      return await download;
+      final path = await download;
+      await storage.read(episode.id);
+      return path;
     } finally {
-      if (identical(_audioDownloads[episode.id], download)) {
-        _audioDownloads.remove(episode.id);
+      if (identical(_audioDownloads[key], download)) {
+        _audioDownloads.remove(key);
       }
     }
   }
@@ -762,6 +882,7 @@ class PodcastTranscriptionService {
     required PodcastEpisode episode,
     required TranscriptionStorage storage,
     required String audioPath,
+    required WhisperModel model,
     required String language,
     required int durationMs,
     required int startFromMs,
@@ -862,7 +983,7 @@ class PodcastTranscriptionService {
       try {
         if (taskChunk != null) await taskStore.startChunk(taskChunk.id);
         final result = await _controller.transcribe(
-          model: defaultModel,
+          model: model,
           audioPath: chunkPath,
           lang: language,
           withSegments: true,
@@ -986,6 +1107,15 @@ class PodcastTranscriptionService {
     required int startMs,
     required int durationMs,
   }) async {
+    if (audioExtractor != null) {
+      return audioExtractor!(
+        sourcePath: sourcePath,
+        targetPath: targetPath,
+        startMs: startMs,
+        durationMs: durationMs,
+      );
+    }
+
     final target = File(targetPath);
     if (await target.exists()) await target.delete();
     final arguments = <String>[
@@ -1033,6 +1163,7 @@ class PodcastTranscriptionService {
   }
 
   Future<int> _probeDurationMs(String audioPath) async {
+    if (audioProbe != null) return audioProbe!(audioPath);
     try {
       if (Platform.isAndroid || Platform.isIOS || Platform.isMacOS) {
         final session = await FFprobeKit.getMediaInformation(audioPath);
@@ -1076,27 +1207,12 @@ class PodcastTranscriptionService {
     }
 
     final support = await getApplicationSupportDirectory();
-    final uri = Uri.tryParse(episode.audioUrl);
-    final sourceExtension = p.extension(uri?.path ?? '').toLowerCase();
-    const supportedExtensions = {
-      '.mp3',
-      '.m4a',
-      '.aac',
-      '.wav',
-      '.ogg',
-      '.opus',
-      '.mp4',
-      '.flac',
-    };
-    final extension = supportedExtensions.contains(sourceExtension)
-        ? sourceExtension
-        : '.audio';
     final target = File(
       p.join(
         support.path,
         storage.audioDirectory,
         'audio',
-        '${episode.id}$extension',
+        transcriptionAudioFileName(episode),
       ),
     );
     await target.parent.create(recursive: true);

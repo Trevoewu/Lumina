@@ -42,35 +42,7 @@ class AppGlassSurface extends StatelessWidget {
   }
 }
 
-class AppGlassIconButton extends StatelessWidget {
-  const AppGlassIconButton({
-    super.key,
-    required this.icon,
-    required this.onPressed,
-    this.tooltip,
-    this.color,
-    this.visualDensity,
-  });
-  final Widget icon;
-  final VoidCallback? onPressed;
-  final String? tooltip;
-  final Color? color;
-  final VisualDensity? visualDensity;
-
-  @override
-  Widget build(BuildContext context) => AppGlassSurface(
-    child: IconButton(
-      icon: icon,
-      onPressed: onPressed,
-      tooltip: tooltip,
-      color: color,
-      constraints: const BoxConstraints.tightFor(width: 44, height: 44),
-      visualDensity: VisualDensity.standard,
-    ),
-  );
-}
-
-class AppGlassMenuButton<T> extends StatelessWidget {
+class AppGlassMenuButton<T> extends StatefulWidget {
   const AppGlassMenuButton({
     super.key,
     required this.itemBuilder,
@@ -82,25 +54,42 @@ class AppGlassMenuButton<T> extends StatelessWidget {
   final String? tooltip;
 
   @override
-  Widget build(BuildContext context) => AppGlassSurface(
-    child: PopupMenuButton<T>(
-      tooltip: tooltip,
-      icon: Icon(
-        Icons.more_horiz_rounded,
-        color: Theme.of(context).colorScheme.onSurface,
+  State<AppGlassMenuButton<T>> createState() => _AppGlassMenuButtonState<T>();
+}
+
+class _AppGlassMenuButtonState<T> extends State<AppGlassMenuButton<T>> {
+  final _menuKey = GlobalKey<PopupMenuButtonState<T>>();
+
+  @override
+  Widget build(BuildContext context) => PopupMenuButton<T>(
+    key: _menuKey,
+    tooltip: widget.tooltip,
+    padding: EdgeInsets.zero,
+    constraints: const BoxConstraints(minWidth: 220, maxWidth: 300),
+    menuPadding: EdgeInsets.zero,
+    color: Colors.transparent,
+    surfaceTintColor: Colors.transparent,
+    shadowColor: Colors.transparent,
+    elevation: 0,
+    position: PopupMenuPosition.under,
+    onSelected: widget.onSelected,
+    itemBuilder: (context) => [
+      _GlassMenuEntries<T>(entries: widget.itemBuilder(context)),
+    ],
+    child: Semantics(
+      label:
+          widget.tooltip ?? MaterialLocalizations.of(context).showMenuTooltip,
+      button: true,
+      child: CNButton.icon(
+        icon: const CNSymbol('ellipsis', size: 22),
+        config: const CNButtonConfig(
+          style: CNButtonStyle.glass,
+          width: 44,
+          minHeight: 44,
+          padding: EdgeInsets.zero,
+        ),
+        onPressed: () => _menuKey.currentState?.showButtonMenu(),
       ),
-      padding: EdgeInsets.zero,
-      constraints: const BoxConstraints(minWidth: 220, maxWidth: 300),
-      menuPadding: EdgeInsets.zero,
-      color: Colors.transparent,
-      surfaceTintColor: Colors.transparent,
-      shadowColor: Colors.transparent,
-      elevation: 0,
-      position: PopupMenuPosition.under,
-      onSelected: onSelected,
-      itemBuilder: (context) => [
-        _GlassMenuEntries<T>(entries: itemBuilder(context)),
-      ],
     ),
   );
 }

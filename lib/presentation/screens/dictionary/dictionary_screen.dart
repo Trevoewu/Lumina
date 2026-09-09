@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../widgets/app_back_button.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 
@@ -659,22 +661,11 @@ class _DictionaryWordScreenState extends ConsumerState<DictionaryWordScreen> {
                   child: Row(
                     children: [
                       if (widget.showBackButton)
-                        GestureDetector(
-                          key: const ValueKey('dictionary-word-back'),
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () => Navigator.maybePop(context),
-                          child: SizedBox(
-                            width: 34,
-                            height: 34,
-                            child: Icon(
-                              Icons.arrow_back_ios_new,
-                              size: 19,
-                              color: ink,
-                            ),
-                          ),
+                        const AppBackButton(
+                          key: ValueKey('dictionary-word-back'),
                         )
                       else
-                        const SizedBox(width: 34),
+                        const SizedBox(width: 44),
                       Expanded(
                         child: AnimatedOpacity(
                           duration: const Duration(milliseconds: 300),
@@ -706,8 +697,8 @@ class _DictionaryWordScreenState extends ConsumerState<DictionaryWordScreen> {
                                   )
                                 : context.tr('收藏', 'Save word', '単語を保存'),
                             child: SizedBox(
-                              width: 34,
-                              height: 34,
+                              width: 44,
+                              height: 44,
                               child: Icon(
                                 _favorite
                                     ? Icons.bookmark
@@ -721,7 +712,7 @@ class _DictionaryWordScreenState extends ConsumerState<DictionaryWordScreen> {
                           ),
                         )
                       else
-                        const SizedBox(width: 34),
+                        const SizedBox(width: 44),
                     ],
                   ),
                 ),

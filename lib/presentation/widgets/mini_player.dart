@@ -11,6 +11,8 @@ import '../../../services/cover_palette_service.dart';
 import '../screens/podcast/podcast_episode_screen.dart';
 import '../screens/player/player_screen.dart';
 import 'book_cover.dart';
+import 'app_control_buttons.dart';
+import '../../core/app_localizations.dart';
 import 'podcast_artwork.dart';
 
 /// 全局迷你播放器
@@ -154,38 +156,22 @@ class MiniPlayer extends ConsumerWidget {
                               ),
 
                               // 控制按钮
-                              IconButton(
-                                visualDensity: VisualDensity.compact,
-                                constraints: const BoxConstraints.tightFor(
-                                  width: 44,
-                                  height: 44,
-                                ),
-                                icon: Icon(
-                                  buffering
-                                      ? Icons.hourglass_top_rounded
-                                      : playing
-                                      ? Icons.pause
-                                      : Icons.play_arrow,
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurface,
-                                ),
+                              AppControlIconButton(
+                                icon: buffering
+                                    ? Icons.hourglass_top_rounded
+                                    : playing
+                                    ? Icons.pause
+                                    : Icons.play_arrow,
+                                tooltip: playing
+                                    ? context.tr('暂停', 'Pause', '一時停止')
+                                    : context.tr('播放', 'Play', '再生'),
                                 onPressed: playing
                                     ? handler.pause
                                     : handler.play,
                               ),
-                              IconButton(
-                                visualDensity: VisualDensity.compact,
-                                constraints: const BoxConstraints.tightFor(
-                                  width: 44,
-                                  height: 44,
-                                ),
-                                icon: Icon(
-                                  Icons.skip_next,
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurface,
-                                ),
+                              AppControlIconButton(
+                                icon: Icons.skip_next,
+                                tooltip: context.tr('下一首', 'Next', '次へ'),
                                 onPressed: handler.skipToNext,
                               ),
                             ],

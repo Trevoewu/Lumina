@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/cupertino.dart' show showCupertinoSheet;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/scheduler.dart';
@@ -11,6 +12,7 @@ import 'package:flutter/services.dart';
 import 'package:hugeicons/hugeicons.dart';
 
 import '../../widgets/app_sheet.dart';
+import '../../widgets/app_back_button.dart';
 import '../../../ai/ai_models.dart';
 import '../../../ai/transcript_tool.dart';
 import '../../../core/app_colors.dart';
@@ -40,6 +42,7 @@ import '../../../tts/provider_registry.dart';
 import '../../../tts/tts_provider.dart';
 import '../../widgets/ai_summary_panel.dart';
 import '../../widgets/app_glass_controls.dart';
+import '../../widgets/app_control_buttons.dart';
 import '../../widgets/airplay_route_picker_button.dart';
 import '../../widgets/book_cover.dart';
 import '../../widgets/podcast_artwork.dart';
@@ -1492,14 +1495,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Future<void> _resumeInterruptedPodcastTranscription() async {
-    final episode = _podcastEpisode;
+    final selected = _podcastEpisode;
     final data = widget.podcast;
-    if (episode == null ||
-        data == null ||
+    if (selected == null || data == null) return;
+    final database = ref.read(appDatabaseProvider);
+    // The navigation argument can predate the final persisted ASR chunk.
+    final episode = await database.getPodcastEpisode(selected.id) ?? selected;
+    if (!mounted ||
+        _podcastEpisode?.id != episode.id ||
         episode.transcriptStatus == 'complete') {
       return;
     }
-    final database = ref.read(appDatabaseProvider);
     final task = await database.getLatestGenerationTask(
       kind: GenerationTaskKind.whisper.name,
       parentId: episode.showId,
@@ -2035,7 +2041,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               body: SafeArea(
                 child: Column(
                   children: [
-                    if (!isPhoneLandscape) _buildPlayerHeader(handlerAsync),
                     Expanded(
                       child: handlerAsync.when(
                         loading: () => Center(
@@ -2117,6 +2122,30 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 ),
               ),
             ),
+            if (!isPhoneLandscape)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: context.appDesign.spaceSm,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const AppBackButton(),
+                        Material(
+                          type: MaterialType.transparency,
+                          child: _buildPlaybackMoreMenu(),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -2360,9 +2389,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               child: Column(
                 children: [
                   RepaintBoundary(
-                    child: _buildAiSummaryCard(
+                    child: _buildAiCard(handler: handler, manifest: manifest),
+                  ),
+                  SizedBox(height: design.spaceMd),
+                  RepaintBoundary(
+                    child: _buildAiCard(
                       handler: handler,
                       manifest: manifest,
+                      chatbot: true,
                     ),
                   ),
                   SizedBox(height: design.spaceMd),
@@ -2532,9 +2566,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   ),
                   SizedBox(height: design.spaceMd),
                   RepaintBoundary(
-                    child: _buildAiSummaryCard(
+                    child: _buildAiCard(handler: handler, manifest: manifest),
+                  ),
+                  SizedBox(height: design.spaceMd),
+                  RepaintBoundary(
+                    child: _buildAiCard(
                       handler: handler,
                       manifest: manifest,
+                      chatbot: true,
                     ),
                   ),
                   SizedBox(height: design.spaceMd),
@@ -2871,12 +2910,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     ];
   }
 
-  /// The collapsed identity strip at the top of transcript mode. [trailing]
-  /// carries whatever actions belong to the source — a podcast adds its
-  /// transcription controls, a book has none.
-  Widget _buildAiSummaryCard({
+  /// Summary and chat share the currently selected content and prerequisites.
+  Widget _buildAiCard({
     required LuminaAudioHandler handler,
     required ChapterManifest? manifest,
+    bool chatbot = false,
   }) {
     final llmState = ref.watch(llmSettingsControllerProvider);
     final aiServiceReady =
@@ -2908,23 +2946,99 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             language: widget.book.language,
             contentRevision: chapter?.textOffset,
           );
+    final transcriptAvailable = _isRecordedBook
+        ? (_selectedManifest?.segments.firstOrNull?.timings.isNotEmpty ?? false)
+        : podcast == null
+        ? true
+        : (_podcastTranscript?.timingCount ?? 0) > 0;
+    final VoidCallback? onTranscriptRequired = _isRecordedBook
+        ? _startBookTranscription
+        : _isPodcast
+        ? _startPodcastTranscription
+        : null;
+    if (chatbot) {
+      return _buildPlayerSectionCard(
+        key: const ValueKey('ai-chatbot-card'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildPlayerCardTitle(
+              icon: Icons.chat_bubble_outline_rounded,
+              title: 'AI Chatbot',
+            ),
+            SizedBox(height: context.appDesign.spaceMd),
+            Text(
+              !transcriptAvailable
+                  ? context.tr(
+                      '生成文字稿后，即可围绕当前内容提问。',
+                      'Generate a transcript to ask about this content.',
+                      '文字起こしを生成すると、この内容について質問できます。',
+                    )
+                  : !aiServiceReady
+                  ? context.tr(
+                      '配置 AI 服务后，即可开始对话。',
+                      'Set up an AI service to start chatting.',
+                      'AI サービスを設定すると会話を開始できます。',
+                    )
+                  : context.tr(
+                      '围绕当前内容提问、解释难点，并通过引用回到原文。',
+                      'Ask about this content, explore ideas, and follow references back to the transcript.',
+                      'この内容について質問し、理解を深め、参照から原文を確認できます。',
+                    ),
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: context.appTextSecondary,
+                height: 1.5,
+              ),
+            ),
+            SizedBox(height: context.appDesign.spaceLg),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                key: const ValueKey('ai-chatbot-open'),
+                onPressed: !transcriptAvailable
+                    ? onTranscriptRequired
+                    : !aiServiceReady
+                    ? _openAiServiceSettings
+                    : () => showCupertinoSheet<void>(
+                        context: context,
+                        scrollableBuilder: (sheetContext, scrollController) =>
+                            AiConversationSheet(
+                              scope: scope,
+                              scrollController: scrollController,
+                              onCitationTap: (citation) => _handleAiCitation(
+                                citation,
+                                scope,
+                                handler,
+                                manifest,
+                              ),
+                            ),
+                      ),
+                icon: const Icon(Icons.chat_bubble_outline_rounded),
+                label: Text(
+                  !transcriptAvailable
+                      ? context.tr('生成文字稿', 'Generate transcript', '文字起こしを生成')
+                      : !aiServiceReady
+                      ? context.tr(
+                          '配置 AI 服务',
+                          'Set up AI service',
+                          'AI サービスを設定',
+                        )
+                      : context.tr('开始对话', 'Start chatting', '会話を開始'),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     return _buildPlayerSectionCard(
       key: const ValueKey('ai-summary-card'),
       child: AiSummaryPanel(
         scope: scope,
-        transcriptAvailable: _isRecordedBook
-            ? (_selectedManifest?.segments.firstOrNull?.timings.isNotEmpty ??
-                  false)
-            : podcast == null
-            ? null
-            : (_podcastTranscript?.timingCount ?? 0) > 0,
+        transcriptAvailable: transcriptAvailable,
         onCitationTap: (citation) =>
             _handleAiCitation(citation, scope, handler, manifest),
-        onTranscriptRequired: _isRecordedBook
-            ? _startBookTranscription
-            : _isPodcast
-            ? _startPodcastTranscription
-            : null,
+        onTranscriptRequired: onTranscriptRequired,
         aiServiceReady: aiServiceReady,
         onAiServiceRequired: _openAiServiceSettings,
       ),
@@ -3201,12 +3315,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
-  Widget _buildPlayerHeader(AsyncValue<LuminaAudioHandler> handlerAsync) =>
-      SizedBox(
-        height: context.appDesign.toolbarHeight,
-        child: _buildDefaultPlayerHeader(),
-      );
-
   Widget _buildPlaybackMoreMenu() => Builder(
     builder: (anchorContext) => AppGlassMenuButton<String>(
       key: const ValueKey('player-more-menu'),
@@ -3257,40 +3365,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       },
     ),
   );
-
-  Widget _buildDefaultPlayerHeader() {
-    final design = context.appDesign;
-    return Padding(
-      key: const ValueKey('player-default-header'),
-      padding: EdgeInsets.symmetric(horizontal: design.spaceSm),
-      child: Row(
-        children: [
-          AppGlassIconButton(
-            tooltip: context.tr('收起播放器', 'Close player', 'プレーヤーを閉じる'),
-            icon: Icon(
-              Icons.keyboard_arrow_down_rounded,
-              size: 32,
-              color: context.appTextPrimary,
-            ),
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-          Expanded(
-            child: Text(
-              widget.book.title,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: context.appTextPrimary,
-                letterSpacing: 0.4,
-              ),
-            ),
-          ),
-          _buildPlaybackMoreMenu(),
-        ],
-      ),
-    );
-  }
 
   Widget _buildArtwork(
     double size, {
@@ -3891,16 +3965,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Builder(
-              builder: (anchorContext) => AppGlassIconButton(
+              builder: (anchorContext) => AppControlTextButton(
+                key: const ValueKey('player-speed-toggle'),
                 tooltip: context.tr('播放倍速', 'Playback speed', '再生速度'),
-                icon: Text(
-                  '${_speed.toStringAsFixed(1)}x',
-                  style: TextStyle(
-                    color: speedIsCustomized ? accent : secondaryColor,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
+                label: '${_speed.toStringAsFixed(1)}x',
                 color: speedIsCustomized ? accent : secondaryColor,
                 onPressed: () => _showSpeedMenu(anchorContext),
               ),
@@ -3993,7 +4061,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 final timerState =
                     timerSnapshot.data ?? const SleepTimerState.off();
                 return Builder(
-                  builder: (anchorContext) => AppGlassIconButton(
+                  builder: (anchorContext) => AppControlIconButton(
+                    key: const ValueKey('player-sleep-timer-toggle'),
                     tooltip: timerState.active
                         ? context.tr(
                             '定时关闭：${_sleepTimerLabel(timerState)}',
@@ -4001,11 +4070,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             'スリープタイマー：${_sleepTimerLabel(timerState)}',
                           )
                         : context.tr('定时关闭', 'Sleep timer', 'スリープタイマー'),
-                    icon: Icon(
-                      timerState.active
-                          ? Icons.timer_rounded
-                          : Icons.timer_outlined,
-                    ),
+                    icon: timerState.active
+                        ? Icons.timer_rounded
+                        : Icons.timer_outlined,
                     color: timerState.active ? accent : secondaryColor,
                     onPressed: () =>
                         _showSleepTimerMenu(handler, anchorContext),
@@ -4032,10 +4099,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         if (showSecondaryActions) ...[
           SizedBox(height: design.spaceXl),
           Padding(
-            // The three actions sit further in than the transport row above
-            // them, so they read as a secondary tier rather than as more
-            // playback controls. This is on top of the page gutter the
-            // controls already carry, landing them at the mock's inset.
             padding: EdgeInsets.symmetric(horizontal: design.spaceXxl),
             child: _buildSecondaryActions(
               context,
@@ -4069,14 +4132,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         onPressed: onTranscriptToggle,
       ),
       _buildOutputRouteButton(context),
-      AppGlassSurface(
-        child: _buildPodcastActionButton(
-          context,
-          key: const ValueKey('player-playlist-toggle'),
-          icon: Icons.format_list_bulleted_rounded,
-          tooltip: context.tr('列表', 'Playlist', '再生リスト'),
-          onPressed: () => _showPlaylist(handler),
-        ),
+      _buildPodcastActionButton(
+        context,
+        key: const ValueKey('player-playlist-toggle'),
+        icon: Icons.format_list_bulleted_rounded,
+        tooltip: context.tr('列表', 'Playlist', '再生リスト'),
+        onPressed: () => _showPlaylist(handler),
       ),
     ],
   );
@@ -4112,10 +4173,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
-  /// An icon-only secondary action. [chip] gives the button a standing pill so
-  /// the transcript toggle reads as a switch rather than a one-shot action;
-  /// [active] deepens that pill while transcript mode is on. A null
-  /// [onPressed] renders the icon as unavailable.
+  /// Plain secondary controls preserve selection and disabled semantics.
   Widget _buildPodcastActionButton(
     BuildContext context, {
     required Key key,
@@ -4124,45 +4182,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     required VoidCallback? onPressed,
     bool chip = false,
     bool active = false,
-  }) {
-    final design = context.appDesign;
-    final enabled = onPressed != null;
-    final radius = BorderRadius.circular(design.radiusMedium);
-    final foreground = !enabled
-        ? context.appTextSecondary.withValues(alpha: 0.4)
-        : active
-        ? context.appTextPrimary
-        : context.appTextSecondary;
-    return Tooltip(
-      message: tooltip,
-      child: Semantics(
-        button: true,
-        enabled: enabled,
-        label: tooltip,
-        child: InkWell(
-          key: key,
-          onTap: onPressed,
-          borderRadius: radius,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOutCubic,
-            width: 46,
-            height: 34,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: chip
-                  ? context.appTextPrimary.withValues(
-                      alpha: active ? 0.09 : 0.06,
-                    )
-                  : Colors.transparent,
-              borderRadius: radius,
-            ),
-            child: Icon(icon, size: 21, color: foreground),
-          ),
-        ),
-      ),
-    );
-  }
+  }) => AppControlIconButton(
+    key: key,
+    icon: icon,
+    tooltip: tooltip,
+    onPressed: onPressed,
+    selected: chip ? active : null,
+    color: active ? context.appAccent : context.appTextSecondary,
+  );
 
   Future<void> _showPlaylist(LuminaAudioHandler handler) async {
     if (!mounted) return;
@@ -4261,23 +4288,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Padding(
-                  padding: EdgeInsets.only(
-                    top: design.spaceMd,
-                    bottom: design.spaceSm,
-                  ),
-                  child: Container(
-                    width: 38,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      color: context.appTextPrimary.withValues(alpha: 0.18),
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                  ),
-                ),
-                Padding(
                   padding: EdgeInsets.fromLTRB(
                     design.spaceLg,
-                    design.spaceSm,
+                    0,
                     design.spaceLg,
                     design.spaceMd,
                   ),
@@ -4308,12 +4321,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             ),
                           ],
                         ),
-                      ),
-                      IconButton(
-                        tooltip: context.tr('关闭', 'Close', '閉じる'),
-                        icon: const Icon(Icons.close_rounded),
-                        color: context.appTextSecondary,
-                        onPressed: () => Navigator.of(sheetContext).pop(),
                       ),
                     ],
                   ),

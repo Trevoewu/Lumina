@@ -1,5 +1,6 @@
 import 'package:drift/native.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_chat_ui/flutter_chat_ui.dart' as chat_ui;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,6 +22,18 @@ void main() {
   testWidgets(
     'summary collapses, renders markdown, and exposes inline citations',
     (tester) async {
+      // Platform views cannot render in widget goldens; verify their visuals
+      // on a device, while testing the surrounding sheet and navigation here.
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform_views,
+        (call) async => null,
+      );
+      addTearDown(() {
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform_views,
+          null,
+        );
+      });
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
@@ -153,6 +166,7 @@ void main() {
   ) async {
     final database = AppDatabase.forTesting(NativeDatabase.memory());
     addTearDown(database.close);
+    final assistantService = _LanguageCapturingAiAssistantService(database);
     const scope = AiContentScope(
       type: AiScopeType.chapter,
       id: 'chapter-chat',
@@ -163,7 +177,10 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [appDatabaseProvider.overrideWithValue(database)],
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          aiAssistantServiceProvider.overrideWithValue(assistantService),
+        ],
         child: MaterialApp(
           theme: AppTheme.darkTheme(),
           home: const AiConversationSheet(scope: scope),
@@ -179,6 +196,16 @@ void main() {
     );
     expect(composer.textColor, AppColors.textPrimary);
     expect(composer.keyboardAppearance, Brightness.dark);
+    await tester.enterText(find.byType(TextField), 'Explain this chapter');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('ai-follow-up-send')));
+    await tester.pumpAndSettle();
+    expect(assistantService.question, 'Explain this chapter');
+    expect(assistantService.questionScope?.id, scope.id);
+    expect(
+      find.textContaining('Grounded chat answer', findRichText: true),
+      findsWidgets,
+    );
   });
 
   testWidgets('AI setup is requested only after transcript is available', (
@@ -337,6 +364,8 @@ class _CountingTranscriptTools extends AiTranscriptTools {
 
 class _LanguageCapturingAiAssistantService extends AiAssistantService {
   String? summaryLanguageCode;
+  String? question;
+  AiContentScope? questionScope;
 
   _LanguageCapturingAiAssistantService(AppDatabase database)
     : super(
@@ -348,6 +377,19 @@ class _LanguageCapturingAiAssistantService extends AiAssistantService {
           modelId: 'test-model',
         ),
       );
+
+  @override
+  Stream<AiAgentUpdate> ask(
+    AiContentScope scope,
+    String question, {
+    required String languageCode,
+  }) {
+    this.question = question;
+    questionScope = scope;
+    return Stream<AiAgentUpdate>.value(
+      const AiAgentUpdate.textDelta('Grounded chat answer. [P1]'),
+    );
+  }
 
   @override
   Stream<AiAgentUpdate> summarize(

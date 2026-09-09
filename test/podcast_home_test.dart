@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/app_back_button.dart';
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
@@ -223,9 +224,7 @@ void main() {
     expect(isSelected('books'), isTrue);
   });
 
-  testWidgets('podcast library previews five episodes', (
-    tester,
-  ) async {
+  testWidgets('podcast library previews five episodes', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -294,7 +293,7 @@ void main() {
           .every((tile) => !tile.enableSwipeActions),
       isTrue,
     );
-    await tester.tap(find.byType(BackButton));
+    await tester.tap(find.byType(AppBackButton));
     await tester.pumpAndSettle();
     expect(
       find.byKey(const ValueKey('podcast-discover-section')),
@@ -547,7 +546,7 @@ void main() {
     );
     expect(find.text('Follow'), findsOneWidget);
 
-    await tester.tap(find.byType(BackButton));
+    await tester.tap(find.byType(AppBackButton));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('discover-search-field')), findsOneWidget);
   });

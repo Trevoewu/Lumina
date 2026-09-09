@@ -174,6 +174,7 @@ final cacheManagerProvider = Provider<CacheManager>((ref) {
     ref.watch(manifestStoreProvider),
     ref.watch(generationOrchestratorProvider),
     ref.watch(appDatabaseProvider),
+    transcriptionService: ref.watch(podcastTranscriptionServiceProvider),
   );
 });
 

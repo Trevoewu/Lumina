@@ -2,7 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/app_colors.dart';
-import '../../core/app_localizations.dart';
+import 'app_back_button.dart';
 
 /// Read long card content with the native sheet's scrolling and dismissal.
 Future<void> showAppContentSheet({
@@ -11,6 +11,7 @@ Future<void> showAppContentSheet({
   required WidgetBuilder builder,
 }) => showAppSheet<void>(
   context: context,
+  backButtonKey: const ValueKey('app-content-sheet-close'),
   builder: (context) => Column(
     children: [
       Padding(
@@ -19,12 +20,6 @@ Future<void> showAppContentSheet({
           children: [
             Expanded(
               child: Text(title, style: Theme.of(context).textTheme.titleLarge),
-            ),
-            IconButton(
-              key: const ValueKey('app-content-sheet-close'),
-              tooltip: context.tr('关闭', 'Close', '閉じる'),
-              onPressed: () => Navigator.of(context).pop(),
-              icon: const Icon(Icons.close_rounded),
             ),
           ],
         ),
@@ -44,6 +39,7 @@ Future<T?> showAppSheet<T>({
   required BuildContext context,
   required WidgetBuilder builder,
   bool enableDrag = true,
+  Key? backButtonKey,
 }) {
   final themes = InheritedTheme.capture(
     from: context,
@@ -64,7 +60,19 @@ Future<T?> showAppSheet<T>({
               automaticallyInheritForPlatforms: TargetPlatform.values.toSet(),
               child: Padding(
                 padding: const EdgeInsets.only(top: 12),
-                child: SizedBox.expand(child: Builder(builder: builder)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: AppBackButton(key: backButtonKey),
+                      ),
+                    ),
+                    Expanded(child: Builder(builder: builder)),
+                  ],
+                ),
               ),
             ),
           ),

@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lumina 发现页 · 原生设计风格融合 Apple Liquid Glass</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    :root {
+      --font-system: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", sans-serif;
+    }
+    body {
+      font-family: var(--font-system);
+      margin: 0;
+      padding: 0;
+      background: #090A0C;
+      color: #FFFFFF;
+      overflow-x: hidden;
+      user-select: none;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ================================================================= */
+    /* Lumina 语义设计系统颜色映射 (与 app_colors.dart 100% 对齐)         */
+    /* ================================================================= */
+
+    /* 方案 1: Lumina 原生晶体演进版 (Editorial Glass - 推荐) */
+    .style-editorial {
+      --lumina-bg: #121212;
+      --lumina-surface: rgba(40, 40, 40, 0.72);
+      --lumina-surface-card: rgba(45, 45, 45, 0.58);
+      --lumina-accent: #1DB954;
+      --lumina-accent-glow: rgba(29, 185, 84, 0.18);
+      --lumina-text-primary: #FFFFFF;
+      --lumina-text-secondary: #B3B3B3;
+      --glass-border: linear-gradient(135deg, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0.05) 50%, rgba(29, 185, 84, 0.25) 100%);
+      --glass-blur: blur(24px) saturate(180%);
+      --glass-shadow: 0 12px 28px rgba(0, 0, 0, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.28);
+      --card-radius: 16px;
+      --orb-opacity: 0.15;
+    }
+
+    /* 方案 2: Lumina 翠玉微光流体版 (Fluid Emerald) */
+    .style-fluid {
+      --lumina-bg: #0D1511;
+      --lumina-surface: rgba(26, 40, 32, 0.75);
+      --lumina-surface-card: rgba(28, 48, 38, 0.55);
+      --lumina-accent: #1ED760;
+      --lumina-accent-glow: rgba(30, 215, 96, 0.32);
+      --lumina-text-primary: #FFFFFF;
+      --lumina-text-secondary: #8A948F;
+      --glass-border: linear-gradient(135deg, rgba(255, 255, 255, 0.4) 0%, rgba(30, 215, 96, 0.2) 60%, rgba(255, 255, 255, 0.1) 100%);
+      --glass-blur: blur(28px) saturate(210%);
+      --glass-shadow: 0 16px 36px rgba(0, 0, 0, 0.65), 0 0 24px rgba(30, 215, 96, 0.12), inset 0 1px 1.5px rgba(255, 255, 255, 0.35);
+      --card-radius: 20px;
+      --orb-opacity: 0.28;
+    }
+
+    /* 方案 3: Lumina 黑曜晶石极简版 (Obsidian Minimal) */
+    .style-obsidian {
+      --lumina-bg: #121212;
+      --lumina-surface: rgba(24, 24, 24, 0.85);
+      --lumina-surface-card: rgba(32, 32, 32, 0.65);
+      --lumina-accent: #1DB954;
+      --lumina-accent-glow: rgba(29, 185, 84, 0.12);
+      --lumina-text-primary: #FFFFFF;
+      --lumina-text-secondary: #999999;
+      --glass-border: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.03) 100%);
+      --glass-blur: blur(20px) saturate(150%);
+      --glass-shadow: 0 10px 24px rgba(0, 0, 0, 0.7), inset 0 0.8px 0.8px rgba(255, 255, 255, 0.2);
+      --card-radius: 12px;
+      --orb-opacity: 0.06;
+    }
+
+    /* 浅色模式 (对齐 AppColors.lightColorScheme) */
+    .light-mode.style-editorial,
+    .light-mode.style-fluid,
+    .light-mode.style-obsidian {
+      --lumina-bg: #F7F7F7;
+      --lumina-surface: rgba(255, 255, 255, 0.85);
+      --lumina-surface-card: rgba(255, 255, 255, 0.92);
+      --lumina-accent: #1DB954;
+      --lumina-text-primary: #151515;
+      --lumina-text-secondary: #666666;
+      --glass-border: linear-gradient(135deg, rgba(255, 255, 255, 1) 0%, rgba(0, 0, 0, 0.06) 100%);
+      --glass-shadow: 0 8px 20px rgba(0, 0, 0, 0.04), inset 0 1px 1px #FFFFFF;
+      --orb-opacity: 0.08;
+    }
+
+    /* Lumina 液态玻璃卡片容器 */
+    .lumina-glass-card {
+      position: relative;
+      background: var(--lumina-surface-card);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border-radius: var(--card-radius);
+      box-shadow: var(--glass-shadow);
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      border: 1px solid transparent;
+      background-clip: padding-box;
+    }
+
+    /* 模拟 Apple 1px 入射高光边框 */
+    .lumina-glass-border {
+      position: relative;
+    }
+    .lumina-glass-border::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      padding: 1px;
+      background: var(--glass-border);
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    /* Lumina 标志性的 AnimatedPressableCard 触感按压缩放反馈 (0.985) */
+    .lumina-pressable {
+      transition: transform 150ms cubic-bezier(0.2, 0.8, 0.2, 1);
+      cursor: pointer;
+    }
+    .lumina-pressable:active {
+      transform: scale(0.985);
+    }
+
+    /* 环境翠玉光晕 */
+    .lumina-ambient-orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(60px);
+      pointer-events: none;
+      opacity: var(--orb-opacity);
+      transition: opacity 0.5s ease;
+      z-index: 0;
+    }
+
+    /* 音频均衡器脉冲 */
+    @keyframes barPulse {
+      0%, 100% { height: 3px; }
+      50% { height: 14px; }
+    }
+    .bar-1 { animation: barPulse 0.7s ease-in-out infinite 0.1s; }
+    .bar-2 { animation: barPulse 0.7s ease-in-out infinite 0.3s; }
+    .bar-3 { animation: barPulse 0.7s ease-in-out infinite 0.2s; }
+  </style>
+</head>
+<body class="style-editorial min-h-screen">
+
+  <!-- 顶部设计对齐说明与切换栏 -->
+  <header class="sticky top-0 z-50 border-b border-white/10 bg-[#121212]/80 backdrop-blur-xl px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-[#1DB954] flex items-center justify-center shadow-lg shadow-[#1DB954]/25">
+        <svg class="w-5 h-5 text-black" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="text-sm font-bold tracking-tight text-white flex items-center gap-2">
+          Lumina Editorial 发现页 · Liquid Glass 深度融入版
+          <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#1DB954]/20 text-[#1DB954] font-semibold border border-[#1DB954]/30">
+            100% 对齐当前 App 调色盘与组件体系
+          </span>
+        </h1>
+        <p class="text-xs text-white/50">与 AppColors (#121212 / #282828 / #1DB954)、CollapsingPageScaffold、AppGlassSurface 完美匹配</p>
+      </div>
+    </div>
+
+    <!-- 方案选择 -->
+    <div class="flex items-center gap-2 flex-wrap">
+      <div class="flex items-center bg-white/10 p-1 rounded-xl border border-white/15 text-xs">
+        <button id="btn-editorial" onclick="switchDesign('editorial')" class="px-3 py-1.5 rounded-lg font-medium transition-all bg-[#1DB954] text-black shadow-sm flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-black"></span>
+          方案1：原生晶体演进 (推荐)
+        </button>
+        <button id="btn-fluid" onclick="switchDesign('fluid')" class="px-3 py-1.5 rounded-lg font-medium transition-all text-white/70 hover:text-white flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-[#1ED760]"></span>
+          方案2：翠玉微光流体
+        </button>
+        <button id="btn-obsidian" onclick="switchDesign('obsidian')" class="px-3 py-1.5 rounded-lg font-medium transition-all text-white/70 hover:text-white flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-gray-400"></span>
+          方案3：黑曜晶石极简
+        </button>
+      </div>
+
+      <!-- 昼夜模式切换 -->
+      <button onclick="toggleDayNight()" id="btn-mode" class="p-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white/80 transition-all text-xs flex items-center gap-1.5">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+        <span id="mode-text">深色模式 (#121212)</span>
+      </button>
+
+      <button onclick="scrollToDiff()" class="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium border border-white/20 text-xs flex items-center gap-1.5">
+        <svg class="w-4 h-4 text-[#1DB954]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        查看当前代码重构对照
+      </button>
+    </div>
+  </header>
+
+  <!-- 工作区 -->
+  <main class="max-w-[1580px] mx-auto p-4 md:p-6 lg:p-8 grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
+
+    <!-- 模拟器 (COL-6) -->
+    <div class="xl:col-span-6 2xl:col-span-5 flex flex-col items-center">
+
+      <!-- 说明标签 -->
+      <div class="mb-4 text-center">
+        <div id="plan-badge" class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-semibold bg-[#1DB954]/20 border border-[#1DB954]/30 text-[#1DB954]">
+          当前方案：Lumina 原生晶体演进版 (Editorial Glass)
+        </div>
+        <p id="plan-desc" class="text-xs text-white/50 mt-1.5 max-w-md">
+          严格继承当前 #121212 与 #282828 色彩语义，将现有的平淡灰色卡片与 AppGlassSurface 升级为带 1px 细高光与微模糊的苹果液态玻璃质感。
+        </p>
+      </div>
+
+      <!-- iPhone 16 Pro 模拟机身 -->
+      <div class="relative w-[390px] h-[844px] rounded-[52px] p-[10px] bg-gradient-to-b from-[#333333] via-[#1C1C1E] to-[#121212] shadow-[0_25px_80px_rgba(0,0,0,0.85),0_0_0_1px_rgba(255,255,255,0.12)]">
+
+        <!-- 屏幕内壁 -->
+        <div id="phone-container" class="relative w-full h-full rounded-[44px] overflow-hidden flex flex-col transition-colors duration-400" style="background: var(--lumina-bg);">
+
+          <!-- Lumina 专属背景柔光球 (以 #1DB954 品牌绿与深墨色为基准) -->
+          <div class="lumina-ambient-orb w-64 h-64 bg-[#1DB954] -top-12 -left-12"></div>
+          <div class="lumina-ambient-orb w-72 h-72 bg-[#1DB954]/60 bottom-32 -right-16"></div>
+
+          <!-- 顶部状态栏 & 灵动岛 -->
+          <div class="relative z-30 pt-3.5 px-7 flex items-center justify-between text-[13px] font-semibold tracking-tight text-white">
+            <span>9:41</span>
+            <!-- 灵动岛 -->
+            <div class="w-28 h-7 bg-black rounded-full flex items-center justify-between px-2.5 shadow-sm">
+              <div class="w-2.5 h-2.5 rounded-full bg-[#1A1A1A]"></div>
+              <div class="flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-[#1DB954] animate-pulse"></span>
+                <span class="text-[9px] font-mono text-white/80">Lumina</span>
+              </div>
+            </div>
+            <!-- 电池/信号 -->
+            <div class="flex items-center gap-1.5">
+              <span class="text-xs font-bold">5G</span>
+              <div class="w-5 h-2.5 rounded-[4px] border border-white/80 p-0.5 flex items-center">
+                <div class="w-full h-full bg-white rounded-[1px]"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Lumina 标准 CollapsingPageScaffold 头部 -->
+          <div class="relative z-20 px-4 pt-3 pb-2">
+            <!-- 标题区 (对齐 AppTextStyles.textTheme.headlineLarge: 34pt, w700, -0.5) -->
+            <div class="flex items-end justify-between mb-3 px-1">
+              <div>
+                <h2 class="text-3xl font-bold tracking-tight text-white">发现</h2>
+              </div>
+
+              <!-- 快捷收听源状态 (与现有 AppGlassIconButton 保持一致) -->
+              <div class="flex items-center gap-2">
+                <div class="px-2.5 py-1 rounded-full lumina-glass-card lumina-glass-border flex items-center gap-1.5 text-xs text-white/70">
+                  <span class="w-1.5 h-1.5 rounded-full bg-[#1DB954]"></span>
+                  <span class="text-[11px] font-medium">LibriVox 联机</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Lumina 升级版 AppSearchField (保持 52px 高度与 26px 圆角，融入 Liquid Glass) -->
+            <div class="h-[50px] lumina-glass-card lumina-glass-border flex items-center px-4 gap-3 focus-within:ring-2 focus-within:ring-[#1DB954]/50">
+              <svg class="w-4 h-4 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+              </svg>
+              <input
+                id="search-input"
+                type="text"
+                placeholder="搜索 LibriVox 真人有声书..."
+                class="bg-transparent text-sm text-white placeholder-white/40 focus:outline-none w-full"
+              />
+              <button class="text-white/40 hover:text-white">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 100-6 3 3 0 000 6z"/></svg>
+              </button>
+            </div>
+
+            <!-- Lumina 发现范围切换器 (DiscoverScope: audiobooks, onlineBooks, podcasts, library) -->
+            <!-- 对齐 Lumina 设计系统：圆角胶囊与选中高亮 -->
+            <div class="mt-3 lumina-glass-card lumina-glass-border p-1 rounded-2xl flex items-center justify-between text-xs font-medium">
+              <button onclick="changeScope('audiobooks')" id="tab-audiobooks" class="flex-1 py-1.5 px-2 rounded-xl text-center transition-all bg-[#1DB954] text-black font-bold shadow-sm">
+                有声书
+              </button>
+              <button onclick="changeScope('onlineBooks')" id="tab-onlineBooks" class="flex-1 py-1.5 px-2 rounded-xl text-center transition-all text-white/60 hover:text-white">
+                公版书
+              </button>
+              <button onclick="changeScope('podcasts')" id="tab-podcasts" class="flex-1 py-1.5 px-2 rounded-xl text-center transition-all text-white/60 hover:text-white">
+                播客
+              </button>
+              <button onclick="changeScope('library')" id="tab-library" class="flex-1 py-1.5 px-2 rounded-xl text-center transition-all text-white/60 hover:text-white">
+                书架
+              </button>
+            </div>
+          </div>
+
+          <!-- 内容列表区 (保持原有 BookListCard 72x96 封面与排版结构) -->
+          <div id="content-scroll" class="relative z-10 flex-1 overflow-y-auto px-4 pb-28 pt-1 space-y-3">
+
+            <!-- SCOPE 1: 有声书 (LibriVox) -->
+            <div id="panel-audiobooks" class="space-y-3">
+
+              <!-- 列表项 1: 傲慢与偏见 (BookListCard 液态玻璃升级) -->
+              <div class="lumina-glass-card lumina-glass-border lumina-pressable p-3 flex gap-3.5 items-center">
+                <!-- 72x96 黄金比例书封 (与 _BookListCover 100% 一致) -->
+                <div class="relative w-[72px] h-[96px] rounded-lg overflow-hidden shadow-md flex-shrink-0 border border-white/15">
+                  <img src="https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=200&auto=format&fit=crop&q=80" class="w-full h-full object-cover" alt="Pride and Prejudice"/>
+                  <span class="absolute bottom-1 right-1 px-1 py-0.5 text-[8px] font-bold rounded bg-black/70 text-white/90">ENG</span>
+                </div>
+                <!-- 内容与元数据 (titleMedium + bodySmall · 分隔) -->
+                <div class="flex-1 min-w-0">
+                  <h4 class="text-sm font-bold text-white truncate leading-snug">Pride and Prejudice (傲慢与偏见)</h4>
+                  <p class="text-xs text-white/60 truncate mt-0.5">Jane Austen</p>
+
+                  <!-- 现有元数据标签行 (BookListCardMeta) -->
+                  <div class="flex items-center gap-1.5 mt-2 flex-wrap text-[11px] text-white/60">
+                    <span class="flex items-center gap-1">
+                      <svg class="w-3 h-3 text-[#1DB954]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                      12h 45m
+                    </span>
+                    <span>·</span>
+                    <span class="px-1.5 py-0.5 rounded bg-white/10 text-white/80">真人朗读</span>
+                    <span>·</span>
+                    <span class="px-1.5 py-0.5 rounded bg-[#1DB954]/20 text-[#1DB954] font-medium">已加入</span>
+                  </div>
+                </div>
+                <!-- 快捷播放钮 -->
+                <button class="w-8 h-8 rounded-full bg-white/10 hover:bg-[#1DB954] hover:text-black flex items-center justify-center text-white/80 transition-all flex-shrink-0">
+                  <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                </button>
+              </div>
+
+              <!-- 列表项 2: 福尔摩斯探案集 -->
+              <div class="lumina-glass-card lumina-glass-border lumina-pressable p-3 flex gap-3.5 items-center">
+                <div class="relative w-[72px] h-[96px] rounded-lg overflow-hidden shadow-md flex-shrink-0 border border-white/15">
+                  <img src="https://images.unsplash.com/photo-1543002588-bfa74002ed7e?w=200&auto=format&fit=crop&q=80" class="w-full h-full object-cover" alt="Sherlock"/>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <h4 class="text-sm font-bold text-white truncate leading-snug">The Hound of the Baskervilles</h4>
+                  <p class="text-xs text-white/60 truncate mt-0.5">Arthur Conan Doyle</p>
+
+                  <div class="flex items-center gap-1.5 mt-2 flex-wrap text-[11px] text-white/60">
+                    <span class="flex items-center gap-1">
+                      <svg class="w-3 h-3 text-[#1DB954]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                      6h 12m
+                    </span>
+                    <span>·</span>
+                    <span class="px-1.5 py-0.5 rounded bg-white/10 text-white/80">英语</span>
+                    <span>·</span>
+                    <span class="text-white/40">双语对应</span>
+                  </div>
+                </div>
+                <button class="w-8 h-8 rounded-full bg-white/10 hover:bg-[#1DB954] hover:text-black flex items-center justify-center text-white/80 transition-all flex-shrink-0">
+                  <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                </button>
+              </div>
+
+              <!-- 列表项 3: 了不起的盖茨比 -->
+              <div class="lumina-glass-card lumina-glass-border lumina-pressable p-3 flex gap-3.5 items-center">
+                <div class="relative w-[72px] h-[96px] rounded-lg overflow-hidden shadow-md flex-shrink-0 border border-white/15">
+                  <img src="https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=200&auto=format&fit=crop&q=80" class="w-full h-full object-cover" alt="The Great Gatsby"/>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <h4 class="text-sm font-bold text-white truncate leading-snug">The Great Gatsby</h4>
+                  <p class="text-xs text-white/60 truncate mt-0.5">F. Scott Fitzgerald</p>
+
+                  <div class="flex items-center gap-1.5 mt-2 flex-wrap text-[11px] text-white/60">
+                    <span class="flex items-center gap-1">
+                      <svg class="w-3 h-3 text-[#1DB954]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                      4h 50m
+                    </span>
+                    <span>·</span>
+                    <span class="px-1.5 py-0.5 rounded bg-[#1DB954]/20 text-[#1DB954] font-medium">已加入</span>
+                  </div>
+                </div>
+                <button class="w-8 h-8 rounded-full bg-white/10 hover:bg-[#1DB954] hover:text-black flex items-center justify-center text-white/80 transition-all flex-shrink-0">
+                  <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- SCOPE 2: 公版书 (Gutenberg) -->
+            <div id="panel-onlineBooks" class="space-y-3 hidden">
+              <div class="lumina-glass-card lumina-glass-border lumina-pressable p-3 flex gap-3.5 items-center">
+                <div class="w-[72px] h-[96px] rounded-lg bg-[#282828] border border-white/15 flex flex-col items-center justify-center p-2 text-center flex-shrink-0">
+                  <span class="text-[10px] font-bold text-[#1DB954]">Gutenberg</span>
+                  <span class="text-[9px] text-white/50 mt-1">ID: 84</span>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <h4 class="text-sm font-bold text-white truncate">Frankenstein</h4>
+                  <p class="text-xs text-white/60 truncate mt-0.5">Mary Wollstonecraft Shelley</p>
+                  <div class="flex items-center gap-2 mt-2 text-[11px] text-white/60">
+                    <span>85.2K 次下载</span>
+                    <span>·</span>
+                    <span class="px-1.5 py-0.5 rounded bg-white/10 text-white/80">英语</span>
+                    <span>·</span>
+                    <span class="text-[#1DB954]">B2 进阶</span>
+                  </div>
+                </div>
+                <button class="px-3 py-1 rounded-full bg-[#1DB954]/20 text-[#1DB954] border border-[#1DB954]/30 text-xs font-semibold hover:bg-[#1DB954]/30">
+                  导入
+                </button>
+              </div>
+            </div>
+
+            <!-- SCOPE 3: 播客 (Podcast Index) -->
+            <div id="panel-podcasts" class="space-y-3 hidden">
+              <div class="flex items-center justify-between px-1">
+                <span class="text-xs font-bold text-white">为你发现</span>
+                <span class="text-[11px] text-[#1DB954] cursor-pointer">换一批推荐</span>
+              </div>
+
+              <div class="lumina-glass-card lumina-glass-border lumina-pressable p-3 flex gap-3 items-center">
+                <div class="w-14 h-14 rounded-xl overflow-hidden shadow-sm flex-shrink-0 border border-white/15">
+                  <img src="https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=200&auto=format&fit=crop&q=80" class="w-full h-full object-cover" alt="Huberman"/>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <h4 class="text-sm font-bold text-white truncate">Huberman Lab</h4>
+                  <p class="text-xs text-white/60 truncate mt-0.5">Sciapps · 健康与大脑科学</p>
+                  <p class="text-[11px] text-white/40 truncate mt-1">最新集：多巴胺的重置与学习机制</p>
+                </div>
+                <button class="px-2.5 py-1 rounded-full bg-white/10 text-xs font-medium text-white/80">
+                  + 订阅
+                </button>
+              </div>
+            </div>
+
+            <!-- SCOPE 4: 本地书架 (Library) -->
+            <div id="panel-library" class="space-y-3 hidden">
+              <div class="px-1 text-xs font-bold text-white/60">最近阅读</div>
+              <div class="lumina-glass-card lumina-glass-border lumina-pressable p-3 flex gap-3 items-center">
+                <div class="w-[72px] h-[96px] rounded-lg bg-[#222] border border-white/15 flex items-center justify-center text-xs font-bold text-[#1DB954] flex-shrink-0">
+                  三体
+                </div>
+                <div class="flex-1 min-w-0">
+                  <h4 class="text-sm font-bold text-white truncate">三体 I：地球往事</h4>
+                  <p class="text-xs text-white/60 truncate mt-0.5">刘慈欣 · 进度 68%</p>
+                  <div class="w-full h-1.5 rounded-full bg-white/10 mt-2 overflow-hidden">
+                    <div class="h-full bg-[#1DB954] rounded-full" style="width: 68%;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- 底部 Lumina 悬浮 Mini 播放器 (与现有设计无缝衔接) -->
+          <div class="absolute bottom-4 left-4 right-4 z-30">
+            <div class="lumina-glass-card lumina-glass-border p-2.5 flex items-center justify-between shadow-2xl backdrop-blur-2xl">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <div class="w-10 h-10 rounded-lg overflow-hidden shadow-sm flex-shrink-0 border border-white/20">
+                  <img src="https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=150&auto=format&fit=crop&q=80" class="w-full h-full object-cover" alt="Playing"/>
+                </div>
+                <div class="min-w-0">
+                  <h5 class="text-xs font-bold text-white truncate">傲慢与偏见 - 章节 03</h5>
+                  <div class="flex items-center gap-1.5 text-[10px] text-white/60">
+                    <span class="text-[#1DB954] font-medium">LibriVox</span>
+                    <span>·</span>
+                    <span class="font-mono">03:42 / 24:18</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 播放按钮与跳动声波 -->
+              <div class="flex items-center gap-2">
+                <div class="flex items-end gap-[2px] h-3.5 px-1">
+                  <span class="bar-1 w-[2px] bg-[#1DB954] rounded-full"></span>
+                  <span class="bar-2 w-[2px] bg-[#1DB954] rounded-full"></span>
+                  <span class="bar-3 w-[2px] bg-[#1DB954] rounded-full"></span>
+                </div>
+                <button class="w-8 h-8 rounded-full bg-[#1DB954] text-black flex items-center justify-center transition-transform active:scale-95 shadow-md">
+                  <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Home 底部触控指示线 -->
+          <div class="relative z-30 pb-2 flex justify-center">
+            <div class="w-32 h-1 bg-white/40 rounded-full"></div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- 右侧：当前代码与 Liquid Glass 重构映射面板 (COL-6) -->
+    <div id="diff-panel" class="xl:col-span-6 2xl:col-span-7 space-y-6">
+
+      <!-- 风格深度融合原理卡 -->
+      <div class="bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-xl">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-xl bg-[#1DB954]/20 border border-[#1DB954]/30 flex items-center justify-center text-[#1DB954]">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-white">如何做到与当前 App 风格 100% 契合？</h3>
+            <p class="text-xs text-white/50 mt-0.5">不是生搬硬套 iOS 概念，而是对 Lumina 现有视觉资产的自然升华</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4 text-xs">
+          <div class="p-3.5 rounded-2xl bg-white/5 border border-white/10">
+            <div class="text-[#1DB954] font-bold">1. 调色盘严密继承</div>
+            <p class="text-white/60 mt-1 leading-relaxed">
+              彻底摒弃上一版非相关的紫粉霓虹，全面采用 <code class="text-white bg-white/10 px-1 py-0.5 rounded">#121212</code>（纯黑底板）、<code class="text-white bg-white/10 px-1 py-0.5 rounded">#282828</code>（卡片底基）与 <code class="text-[#1DB954] bg-[#1DB954]/10 px-1 py-0.5 rounded">#1DB954</code>（Lumina 翡翠绿）。
+            </p>
+          </div>
+
+          <div class="p-3.5 rounded-2xl bg-white/5 border border-white/10">
+            <div class="text-[#1DB954] font-bold">2. 复用现有 Glass 体系</div>
+            <p class="text-white/60 mt-1 leading-relaxed">
+              代码库中已存在 <code class="text-white bg-white/10 px-1 py-0.5 rounded">AppGlassSurface</code> 与 <code class="text-white bg-white/10 px-1 py-0.5 rounded">cupertino_native_better</code>。我们只需为其添加<strong>物理高光光泽（Specular Rim）与环境光映射</strong>，无需引入繁重外部依赖。
+            </p>
+          </div>
+
+          <div class="p-3.5 rounded-2xl bg-white/5 border border-white/10">
+            <div class="text-[#1DB954] font-bold">3. 保持交互手感延续</div>
+            <p class="text-white/60 mt-1 leading-relaxed">
+              完全保留 <code class="text-white bg-white/10 px-1 py-0.5 rounded">CollapsingPageScaffold</code> 大标题下移折叠逻辑、<code class="text-white bg-white/10 px-1 py-0.5 rounded">AnimatedPressableCard</code> 0.985 按压触感、以及 72x96 封面规格。
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Flutter 精准代码重构方案 -->
+      <div class="bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-xl space-y-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <h4 class="text-sm font-bold text-white flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-[#1DB954]"></span>
+              重构目标：直接升级现有 app_glass_controls.dart
+            </h4>
+            <p class="text-xs text-white/50">向现有组件无侵入式注入 Apple Liquid 1px 高光与柔光深度</p>
+          </div>
+          <span class="text-[11px] px-2.5 py-1 rounded-full bg-[#1DB954]/20 text-[#1DB954] font-medium border border-[#1DB954]/30">
+            零破坏性变更
+          </span>
+        </div>
+
+        <div class="rounded-2xl bg-black/70 border border-white/15 overflow-hidden">
+          <div class="px-4 py-2 border-b border-white/10 bg-white/5 flex items-center justify-between text-xs text-white/60 font-mono">
+            <span>lib/presentation/widgets/app_glass_controls.dart (升级后)</span>
+            <span class="text-[#1DB954]">Diff Preview</span>
+          </div>
+          <div class="p-4 overflow-x-auto text-xs text-white/90 font-mono leading-relaxed">
+            <pre><code><span class="text-gray-400">// 保留原有的 iOS / macOS cupertino_native_better 原生 LiquidGlassContainer 判断</span>
+<span class="text-purple-400">if</span> ((defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.macOS) &amp;&amp;
+    PlatformVersion.supportsLiquidGlass) {
+  <span class="text-purple-400">return</span> LiquidGlassContainer(
+    config: LiquidGlassConfig(
+      effect: CNGlassEffect.regular,
+      shape: CNGlassEffectShape.rect,
+      cornerRadius: radius,
+    ),
+    child: child,
+  );
+}
+
+<span class="text-purple-400">final</span> colors = Theme.of(context).colorScheme;
+<span class="text-purple-400">final</span> isDark = Theme.of(context).brightness == Brightness.dark;
+
+<span class="text-gray-400">// ✨ 升级后的非 iOS 渲染层：加入 Apple 1px 入射光渐变描边与微晶内反光</span>
+<span class="text-purple-400">return</span> ClipRRect(
+  borderRadius: BorderRadius.circular(radius),
+  child: BackdropFilter(
+    filter: ImageFilter.blur(sigmaX: <span class="text-orange-300">20</span>, sigmaY: <span class="text-orange-300">20</span>),
+    child: DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.surface.withValues(alpha: isDark ? <span class="text-orange-300">0.72</span> : <span class="text-orange-300">0.85</span>),
+        borderRadius: BorderRadius.circular(radius),
+        <span class="text-gray-400">// 1px 高拟态流光入射边缘（上亮下收敛）</span>
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: <span class="text-orange-300">0.18</span>)
+              : Colors.white.withValues(alpha: <span class="text-orange-300">0.85</span>),
+          width: <span class="text-orange-300">1.0</span>,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? <span class="text-orange-300">0.3</span> : <span class="text-orange-300">0.05</span>),
+            blurRadius: <span class="text-orange-300">16</span>,
+            offset: <span class="text-purple-400">const</span> Offset(<span class="text-orange-300">0</span>, <span class="text-orange-300">8</span>),
+          ),
+        ],
+      ),
+      child: child,
+    ),
+  ),
+);</code></pre>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <script>
+    let currentPlan = 'editorial';
+    let isDay = false;
+
+    const planData = {
+      editorial: {
+        badge: '当前方案：Lumina 原生晶体演进版 (Editorial Glass - 推荐)',
+        desc: '严格继承当前 #121212 与 #282828 色彩语义，将现有的平淡灰色卡片与 AppGlassSurface 升级为带 1px 细高光与微模糊的苹果液态玻璃质感。',
+        btnColor: 'bg-[#1DB954] text-black',
+        searchPlaceholder: '搜索 LibriVox 真人有声书...'
+      },
+      fluid: {
+        badge: '当前方案：Lumina 翠玉微光流体版 (Fluid Emerald)',
+        desc: '在深色底板中融入深邃的森林翡翠流光（#0D1511 歌词背景色延伸），呈现更加生动温润的声波与晶体光泽。',
+        btnColor: 'bg-[#1ED760] text-black',
+        searchPlaceholder: '探索有声书、电台节目录音...'
+      },
+      obsidian: {
+        badge: '当前方案：Lumina 黑曜晶石极简版 (Obsidian Minimal)',
+        desc: '纯正黑曜石烟熏微透玻璃（Smoke Glass 0.85），极窄发丝高光边，极致对比度，适合深度长时间阅读者。',
+        btnColor: 'bg-white text-black',
+        searchPlaceholder: '快速检索书库、章节或正文...'
+      }
+    };
+
+    function switchDesign(plan) {
+      currentPlan = plan;
+      document.body.className = `style-${plan} ${isDay ? 'light-mode' : ''} min-h-screen`;
+
+      ['editorial', 'fluid', 'obsidian'].forEach(p => {
+        const btn = document.getElementById(`btn-${p}`);
+        if (p === plan) {
+          btn.className = `px-3 py-1.5 rounded-lg font-medium transition-all ${planData[p].btnColor} shadow-sm flex items-center gap-1.5`;
+        } else {
+          btn.className = 'px-3 py-1.5 rounded-lg font-medium transition-all text-white/70 hover:text-white flex items-center gap-1.5';
+        }
+      });
+
+      document.getElementById('plan-badge').textContent = planData[plan].badge;
+      document.getElementById('plan-desc').textContent = planData[plan].desc;
+      document.getElementById('search-input').placeholder = planData[plan].searchPlaceholder;
+    }
+
+    function toggleDayNight() {
+      isDay = !isDay;
+      switchDesign(currentPlan);
+      document.getElementById('mode-text').textContent = isDay ? '浅色模式 (#F7F7F7)' : '深色模式 (#121212)';
+    }
+
+    function changeScope(scope) {
+      const scopes = ['audiobooks', 'onlineBooks', 'podcasts', 'library'];
+      scopes.forEach(s => {
+        const btn = document.getElementById(`tab-${s}`);
+        const panel = document.getElementById(`panel-${s}`);
+        if (s === scope) {
+          btn.className = 'flex-1 py-1.5 px-2 rounded-xl text-center transition-all bg-[#1DB954] text-black font-bold shadow-sm';
+          if (panel) panel.classList.remove('hidden');
+        } else {
+          btn.className = 'flex-1 py-1.5 px-2 rounded-xl text-center transition-all text-white/60 hover:text-white';
+          if (panel) panel.classList.add('hidden');
+        }
+      });
+
+      const hints = {
+        audiobooks: '搜索 LibriVox 真人有声书...',
+        onlineBooks: '搜索 Gutenberg 公版书库...',
+        podcasts: '搜索播客节目名或创作者...',
+        library: '搜索书架书籍、章节或正文...'
+      };
+      document.getElementById('search-input').placeholder = hints[scope];
+    }
+
+    function scrollToDiff() {
+      document.getElementById('diff-panel').scrollIntoView({ behavior: 'smooth' });
+    }
+  </script>
+</body>
+</html>

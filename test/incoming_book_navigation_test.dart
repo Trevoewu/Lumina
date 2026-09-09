@@ -1,5 +1,5 @@
+import 'package:lumina/presentation/widgets/app_back_button.dart';
 import 'package:drift/native.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lumina/core/providers.dart';
@@ -73,7 +73,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
 
     expect(find.text('Shared Book'), findsWidgets);
-    expect(find.byType(BackButton), findsOneWidget);
+    expect(find.byType(AppBackButton), findsOneWidget);
 
     await tester.binding.handlePopRoute();
     await tester.pump(const Duration(milliseconds: 500));

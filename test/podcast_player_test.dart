@@ -4,10 +4,12 @@ import 'package:audio_service/audio_service.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/cupertino.dart' show CupertinoSheetRoute;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lumina/core/providers.dart';
+import 'package:lumina/core/service_settings_controllers.dart';
 import 'package:lumina/core/theme.dart';
 import 'package:lumina/data/database/app_database.dart';
 import 'package:lumina/domain/models/audio_text_timing.dart';
@@ -15,6 +17,7 @@ import 'package:lumina/domain/models/chapter_manifest.dart';
 import 'package:lumina/presentation/screens/player/player_screen.dart';
 import 'package:lumina/presentation/screens/podcast/podcast_episode_screen.dart';
 import 'package:lumina/presentation/widgets/podcast_link_text.dart';
+import 'package:lumina/presentation/widgets/ai_summary_panel.dart';
 import 'package:lumina/presentation/widgets/synced_lyrics_list.dart';
 import 'package:lumina/services/lumina_audio_handler.dart';
 import 'package:lumina/services/podcast_transcription_service.dart';
@@ -368,6 +371,9 @@ void main() {
         ProviderScope(
           overrides: [
             appDatabaseProvider.overrideWithValue(database),
+            llmSettingsControllerProvider.overrideWith(
+              _ReadyChatLlmController.new,
+            ),
             luminaAudioHandlerProvider.overrideWith((ref) async => handler),
             sleepTimerServiceProvider.overrideWithValue(sleepTimer),
           ],
@@ -438,6 +444,26 @@ void main() {
       final transcriptToggle = find.byKey(
         const ValueKey('player-transcript-toggle'),
       );
+      await tester.ensureVisible(find.byKey(const ValueKey('ai-chatbot-open')));
+      await tester.tap(find.byKey(const ValueKey('ai-chatbot-open')));
+      await tester.pumpAndSettle();
+      final conversation = find.byType(AiConversationSheet);
+      expect(conversation, findsOneWidget);
+      expect(
+        tester.widget<AiConversationSheet>(conversation).scope.id,
+        episode.id,
+      );
+      expect(
+        ModalRoute.of(tester.element(conversation)),
+        isA<CupertinoSheetRoute<void>>(),
+      );
+      Navigator.of(tester.element(conversation)).pop();
+      await tester.pumpAndSettle();
+      await tester.drag(
+        find.byKey(const ValueKey('podcast-player-scroll-view')),
+        const Offset(0, 2000),
+      );
+      await tester.pumpAndSettle();
       expect(transcriptToggle, findsOneWidget);
       await tester.ensureVisible(transcriptToggle);
       await tester.tap(transcriptToggle);
@@ -501,6 +527,10 @@ void main() {
       await tester.drag(
         find.byKey(const ValueKey('podcast-player-scroll-view')),
         const Offset(0, -1000),
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('podcast-shownotes-card')),
       );
       await tester.pumpAndSettle();
       expect(
@@ -1597,6 +1627,60 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
     await tester.pump(const Duration(milliseconds: 1));
   });
+  testWidgets(
+    'reopening automatically loads persisted subtitles without ASR setup',
+    (tester) async {
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      final handler = _PodcastTestAudioHandler();
+      final sleepTimer = SleepTimerService();
+      final service = _FakeTranscriptionService(database, null);
+      addTearDown(database.close);
+      addTearDown(handler.dispose);
+      addTearDown(sleepTimer.dispose);
+      addTearDown(service.dispose);
+      await _insertPodcast(
+        database,
+        episodeId: 'saved-reopen',
+        transcriptStatus: 'complete',
+        transcriptProgressMs: 3600000,
+        transcriptJson:
+            '[{"text":"Saved across opens.","startMs":0,"endMs":1200}]',
+      );
+      for (var open = 0; open < 2; open++) {
+        await tester.pumpWidget(
+          _podcastApp(
+            database: database,
+            handler: handler,
+            sleepTimer: sleepTimer,
+            service: service,
+            episodeId: 'saved-reopen',
+          ),
+        );
+        await tester.pumpAndSettle();
+        final toggle = find.byKey(const ValueKey('player-transcript-toggle'));
+        await tester.ensureVisible(toggle);
+        await tester.tap(toggle);
+        await tester.pumpAndSettle();
+        expect(find.text('Saved across opens.'), findsOneWidget);
+        expect(service.modelChecks, 0);
+        expect(find.byType(SnackBar), findsNothing);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpAndSettle();
+      }
+    },
+  );
+}
+
+class _ReadyChatLlmController extends LlmSettingsController {
+  @override
+  Future<LlmSettingsState> build() async => const LlmSettingsState(
+    providerId: 'test',
+    providerName: 'Test AI',
+    modelId: 'test-model',
+    readiness: ServiceReadiness.ready,
+    providers: [],
+    configurations: [],
+  );
 }
 
 Future<void> _insertPodcast(
@@ -1667,6 +1751,13 @@ class _FakeTranscriptionService extends PodcastTranscriptionService {
       StreamController<PodcastTranscriptionProgress>.broadcast();
   String? _activeEpisodeId;
   int pauseCalls = 0;
+  int modelChecks = 0;
+
+  @override
+  Future<bool> isModelInstalled() async {
+    modelChecks++;
+    return false;
+  }
 
   _FakeTranscriptionService(super.database, this._activeEpisodeId);
 

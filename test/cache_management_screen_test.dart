@@ -236,6 +236,7 @@ class _FakeCacheManager extends CacheManager {
           manifestStore: manifestStore,
         ),
         database,
+        transcriptionService: PodcastTranscriptionService(database),
       );
 
   @override

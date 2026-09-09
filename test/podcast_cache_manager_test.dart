@@ -19,6 +19,8 @@ void main() {
       manifestStore,
       GenerationOrchestrator(database: database, manifestStore: manifestStore),
       database,
+      transcriptionService: PodcastTranscriptionService(database),
+      supportDirectory: () async => tempDir,
     );
     addTearDown(() async {
       await database.close();

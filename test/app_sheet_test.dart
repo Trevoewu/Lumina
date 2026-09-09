@@ -1,3 +1,5 @@
+import 'package:cupertino_native_better/cupertino_native.dart';
+import 'package:lumina/presentation/widgets/app_back_button.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -42,6 +44,17 @@ void main() {
       await tester.tap(find.text('Choose'));
       await tester.pumpAndSettle();
       expect(result, 42);
+      expect(find.text('Choose'), findsNothing);
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AppBackButton), findsOneWidget);
+      expect(
+        tester.widget<CNButton>(find.byType(CNButton)).icon?.name,
+        'chevron.left',
+      );
+      await tester.tap(find.byType(AppBackButton));
+      await tester.pumpAndSettle();
+      expect(result, isNull);
       expect(find.text('Choose'), findsNothing);
       expect(tester.takeException(), isNull);
     });

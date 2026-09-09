@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../../widgets/app_back_button.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/app_colors.dart';
@@ -341,15 +342,21 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
               alignment: Alignment.centerLeft,
               child: Padding(
                 padding: EdgeInsets.symmetric(horizontal: inset),
-                child: TextButton.icon(
-                  key: const ValueKey('discover-return-to-browse'),
-                  icon: const Icon(Icons.arrow_back_rounded),
-                  label: Text(context.tr('返回发现', 'Back to discovery', '発見に戻る')),
-                  onPressed: () {
-                    _controller.clear();
-                    FocusManager.instance.primaryFocus?.unfocus();
-                    _runSearch();
-                  },
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AppBackButton(
+                      key: const ValueKey('discover-return-to-browse'),
+                      tooltip: context.tr('返回发现', 'Back to discovery', '発見に戻る'),
+                      onPressed: _returnToBrowse,
+                    ),
+                    TextButton(
+                      onPressed: _returnToBrowse,
+                      child: Text(
+                        context.tr('返回发现', 'Back to discovery', '発見に戻る'),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -573,6 +580,12 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
     ].join(' · '),
     onTap: () => _openOnlineBook(book, imported),
   );
+
+  void _returnToBrowse() {
+    _controller.clear();
+    FocusManager.instance.primaryFocus?.unfocus();
+    _runSearch();
+  }
 
   Future<void> _openOnlineBook(
     GutendexBook book,

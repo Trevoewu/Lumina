@@ -158,6 +158,7 @@ class PodcastRepository {
       await database.upsertPodcastShow(show);
       for (final item in parsed.episodes) {
         final old = await database.getPodcastEpisodeByGuid(showId, item.guid);
+        final sourceChanged = old != null && old.audioUrl != item.audioUrl;
         final episode = PodcastEpisode(
           id: old?.id ?? _stableId('episode:$showId:${item.guid}'),
           showId: showId,
@@ -171,16 +172,30 @@ class PodcastRepository {
           playbackPositionMs: old?.playbackPositionMs ?? 0,
           lastPlayedAt: old?.lastPlayedAt ?? 0,
           isPlayed: old?.isPlayed ?? false,
-          localAudioPath: old?.localAudioPath,
-          transcriptJson: old?.transcriptJson,
-          transcriptLanguage: old?.transcriptLanguage,
-          transcriptStatus: old?.transcriptStatus ?? 'none',
-          transcriptError: old?.transcriptError,
-          transcriptProgressMs: old?.transcriptProgressMs ?? 0,
+          localAudioPath: sourceChanged ? null : old?.localAudioPath,
+          transcriptJson: sourceChanged ? null : old?.transcriptJson,
+          transcriptLanguage: sourceChanged ? null : old?.transcriptLanguage,
+          transcriptStatus: sourceChanged
+              ? 'none'
+              : old?.transcriptStatus ?? 'none',
+          transcriptError: sourceChanged ? null : old?.transcriptError,
+          transcriptProgressMs: sourceChanged
+              ? 0
+              : old?.transcriptProgressMs ?? 0,
           sourceTranscriptUrl:
               item.sourceTranscriptUrl ?? old?.sourceTranscriptUrl,
         );
         await database.upsertPodcastEpisode(episode);
+        if (sourceChanged) {
+          // Drift's data-class upsert omits nulls; explicitly clear nullable
+          // fields in the same transaction as the new enclosure URL.
+          await database.updatePodcastLocalAudioPath(episode.id, null);
+          await database.clearPodcastTranscript(episode.id);
+          await database.deleteGenerationTasks(
+            kind: 'whisper',
+            scopeId: episode.id,
+          );
+        }
       }
     });
 

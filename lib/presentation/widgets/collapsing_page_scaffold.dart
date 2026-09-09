@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/app_colors.dart';
 import 'app_glass_controls.dart';
+import 'app_back_button.dart';
 import '../../core/app_design_tokens.dart';
 
 class CollapsingPageScaffold extends StatelessWidget {
@@ -169,7 +170,7 @@ class _CollapsingPageHeaderDelegate extends SliverPersistentHeaderDelegate {
               left: spaceXs,
               width: controlHeight,
               height: toolbarHeight,
-              child: BackButton(onPressed: () => Navigator.maybePop(context)),
+              child: const Center(child: AppBackButton()),
             ),
           if (actions.isNotEmpty)
             Positioned(

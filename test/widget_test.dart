@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/app_back_button.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
@@ -189,7 +190,7 @@ void main() {
 
     await tester.tap(bookCard);
     await tester.pumpAndSettle();
-    expect(find.byType(BackButton), findsOneWidget);
+    expect(find.byType(AppBackButton), findsOneWidget);
     await database.markChapterFinished(
       'book-cache-test',
       'book-cache-test_ch_2',
@@ -379,7 +380,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('English'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(BackButton));
+    await tester.tap(find.byType(AppBackButton));
     await tester.pumpAndSettle();
 
     await tester.drag(find.byType(Scrollable).last, const Offset(0, 2000));
