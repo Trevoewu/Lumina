@@ -98,6 +98,15 @@ Large Title 展开和折叠过程只改变字号、位置和对齐，不改变�
 
 ## 4. 间距与布局
 
+### 顶部固定控制栏
+
+- macOS 主显示区顶部与窗口按钮栏共用 36 pt 高度，使用 `MacosPageToolbar`，上方不再添加留白。侧边栏收起或缩窄时，由 `MacosPageToolbarScope` 统一预留窗口按钮的横向空间。
+- 页面级视图切换统一使用 `PageControlTabs<T>`，Home 和 Discover 共用同一实现；新页面不得另写胶囊或填色 Chip 作为顶部视图切换。
+- 样式以 Home 为标准：16 pt 系统字体，选中为主文字色、800 字重，未选中为主文字色 35% 透明度、600 字重；选中项下方显示 2 pt 圆角下划线，与文字间隔 7 pt，项目间距 22 pt。这是顶部切换控件的专用排版角色。
+- 切换项左对齐，左边距为页面 inset + 6 pt；窄窗口可横向滚动。文字状态过渡 250 ms，下划线缩放过渡 300 ms。组件提供选中状态语义。
+- 顶部栏固定，标题和列表等放入下方内容区。页面搜索使用 `PageToolbarSearch` 放在切换项右侧：空间充足时显示 28 pt 高的长条圆角搜索框，输入框可用宽度不足 200 pt 时仅显示放大镜；点击后在同一顶部栏展开输入，关闭后恢复切换项，保留查询内容。新增操作放在控制栏尾部。移动端复用切换样式，自然高度为 44 pt，保留平台安全区。
+
+
 间距 scale：
 
 | Token | 值 |
@@ -202,6 +211,12 @@ Lumina 建立严格的四层语义圆角尺度，禁止在业务代码中随意�
 ### 5.6 图标系统：HugeIcons Stroke / Rounded 风格
 
 App 全局图标统一采用 **HugeIcons Stroke / Rounded** 视觉家族：
+
+- 页面使用 `AppIcon(AppIcons.search01)` 等共享语义图标，参数类型为 `AppIconData`，不再使用 Material `Icons` / `IconData` 或 SF Symbols。大小、颜色和禁用透明度由 `IconTheme` 继承。
+- 原生底部导航和返回按钮使用 `assets/ui_icons/` 中从同一 HugeIcons 矢量数据生成的透明图标，保留原生交互。更新方式：`flutter test tool/generate_native_icons_test.dart`，同时生成 1x/2x/3x 资源。
+- 更多菜单按钮使用 `AppGlassSurface` 加 `AppIcon(AppIcons.moreHorizontal)` 直接渲染，避免原生图片加载导致图标空白。播放器主播放／暂停按钮使用透明背景，图标随主题取前景色，保留原有点击区域。
+- 服务商品牌 Logo、应用图标、书籍封面不是界面操作图标，保留原始资源。系统 AirPlay 路由选择器的图标与活动状态由 iOS 管理，保留系统实现。
+
 
 1. **风格与线型特征**：
    - 统一使用 Stroke（线性轮廓描边）搭配 Rounded（圆角/圆润端点），如 `HugeIcons.strokeRounded*` 系列。

@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:lumina/presentation/widgets/app_back_button.dart';
 import 'dart:async';
 
@@ -104,7 +105,12 @@ void main() {
     );
     expect(header, findsOneWidget);
     expect(allList, findsOneWidget);
-    expect(find.byIcon(Icons.play_circle_fill_rounded), findsNothing);
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is AppIcon && widget.icon == AppIcons.playCircle,
+      ),
+      findsNothing,
+    );
     expect(find.byType(NestedScrollView), findsNothing);
     expect(find.byKey(const ValueKey('collapsing-page-title')), findsNothing);
     expect(find.byKey(const ValueKey('home-overview-hero')), findsOneWidget);

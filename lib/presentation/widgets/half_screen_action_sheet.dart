@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:flutter/material.dart';
 
 import 'app_sheet.dart';
@@ -7,7 +8,7 @@ import '../../core/app_design_tokens.dart';
 /// An action that can be displayed in [showHalfScreenActionSheet].
 class HalfScreenActionSheetItem {
   final String label;
-  final IconData icon;
+  final AppIconData icon;
   final VoidCallback? onPressed;
   final bool destructive;
 
@@ -81,8 +82,8 @@ class _HalfScreenActionSheet extends StatelessWidget {
                           context,
                         ).closeButtonTooltip,
                         onPressed: () => Navigator.of(context).pop(),
-                        icon: Icon(
-                          Icons.close_rounded,
+                        icon: AppIcon(
+                          AppIcons.cancel01,
                           color: context.appTextPrimary,
                         ),
                       ),
@@ -130,7 +131,7 @@ class _HalfScreenActionSheet extends StatelessWidget {
                             ),
                             child: Row(
                               children: [
-                                Icon(
+                                AppIcon(
                                   action.icon,
                                   color: enabled
                                       ? color

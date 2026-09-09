@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import '../../widgets/app_sheet.dart';
 import '../../widgets/app_glass_controls.dart';
 import 'dart:async';
@@ -768,10 +769,10 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                   shrinkWrap: true,
                   children: [
                     ListTile(
-                      leading: Icon(
+                      leading: AppIcon(
                         chapter.voiceId == null
-                            ? Icons.radio_button_checked
-                            : Icons.radio_button_off,
+                            ? AppIcons.radioButton
+                            : AppIcons.circle,
                       ),
                       title: Text(
                         context.tr(
@@ -785,10 +786,10 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                     ),
                     for (final voice in voices)
                       ListTile(
-                        leading: Icon(
+                        leading: AppIcon(
                           chapter.voiceId == voice.id
-                              ? Icons.radio_button_checked
-                              : Icons.radio_button_off,
+                              ? AppIcons.radioButton
+                              : AppIcons.circle,
                         ),
                         title: Text(voice.name),
                         subtitle: Text(provider.displayName),
@@ -947,10 +948,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
               value: 'toggle_read',
               child: Row(
                 children: [
-                  Icon(
-                    _isRead
-                        ? Icons.remove_done_outlined
-                        : Icons.done_all_rounded,
+                  AppIcon(
+                    _isRead ? AppIcons.cancel02 : AppIcons.tickDouble02,
                     size: 20,
                   ),
                   const SizedBox(width: 12),
@@ -966,7 +965,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
               value: 'hidden_chapters',
               child: Row(
                 children: [
-                  const Icon(Icons.visibility_off_outlined, size: 20),
+                  const AppIcon(AppIcons.viewOff, size: 20),
                   const SizedBox(width: 12),
                   Text(context.tr('隐藏章节', 'Hidden chapters', '非表示の章')),
                 ],
@@ -1127,8 +1126,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                 SizedBox(height: design.spaceLg),
                 Row(
                   children: [
-                    Icon(
-                      Icons.record_voice_over_outlined,
+                    AppIcon(
+                      AppIcons.aiVoice,
                       size: 18,
                       color: context.appTextSecondary,
                     ),
@@ -1167,8 +1166,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                             snapshot.connectionState == ConnectionState.waiting
                             ? Align(
                                 alignment: Alignment.centerLeft,
-                                child: Icon(
-                                  Icons.record_voice_over_outlined,
+                                child: AppIcon(
+                                  AppIcons.aiVoice,
                                   size: 22,
                                   color: context.appTextSecondary,
                                 ),
@@ -1564,8 +1563,8 @@ class _ChapterCard extends StatelessWidget {
                     ),
                     if (finished) ...[
                       const SizedBox(width: 8),
-                      Icon(
-                        Icons.check_circle_rounded,
+                      AppIcon(
+                        AppIcons.checkmarkCircle02,
                         size: 18,
                         color: context.appTextSecondary.withValues(alpha: 0.65),
                       ),
@@ -1595,60 +1594,60 @@ class _ChapterCard extends StatelessWidget {
         if (onRead != null)
           HalfScreenActionSheetItem(
             label: context.tr('阅读此章', 'Read chapter', 'この章を読む'),
-            icon: Icons.menu_book_rounded,
+            icon: AppIcons.bookOpen01,
             onPressed: onRead!,
           ),
         if (!streamingAudio && isGenerating)
           HalfScreenActionSheetItem(
             label: paused ? '继续缓存' : '暂停缓存',
-            icon: paused ? Icons.play_arrow_rounded : Icons.pause_rounded,
+            icon: paused ? AppIcons.play : AppIcons.pause,
             onPressed: onDownload,
           )
         else if (!streamingAudio && !isFullyCached)
           HalfScreenActionSheetItem(
             label: hasCache ? '继续缓存音频' : '缓存音频',
-            icon: Icons.download_for_offline_outlined,
+            icon: AppIcons.downloadCircle01,
             onPressed: onDownload,
           ),
         if (!streamingAudio && isGenerating)
           HalfScreenActionSheetItem(
             label: '取消缓存',
-            icon: Icons.cancel_outlined,
+            icon: AppIcons.cancelCircle,
             onPressed: onCancelDownload,
           ),
         if (!streamingAudio && !isGenerating && hasCache)
           HalfScreenActionSheetItem(
             label: '清除音频',
-            icon: Icons.cleaning_services_outlined,
+            icon: AppIcons.clean,
             onPressed: onClearCache,
           ),
         if (!streamingAudio && !isGenerating && hasCache)
           HalfScreenActionSheetItem(
             label: '重新生成',
-            icon: Icons.refresh_rounded,
+            icon: AppIcons.refresh,
             onPressed: onRegenerate,
           ),
         HalfScreenActionSheetItem(
           label: finished
               ? context.tr('标记为未读', 'Mark as unread', '未読にする')
               : context.tr('标记为已读', 'Mark as read', '既読にする'),
-          icon: finished ? Icons.remove_done_outlined : Icons.done_all_rounded,
+          icon: finished ? AppIcons.cancel02 : AppIcons.tickDouble02,
           onPressed: () => onSetFinished(!finished),
         ),
         if (!streamingAudio)
           HalfScreenActionSheetItem(
             label: context.tr('修改旁白', 'Change narrator', 'ナレーターを変更'),
-            icon: Icons.record_voice_over_outlined,
+            icon: AppIcons.aiVoice,
             onPressed: onChangeNarrator,
           ),
         HalfScreenActionSheetItem(
           label: context.tr('在本书中隐藏', 'Hide in this book', 'この本で非表示にする'),
-          icon: Icons.visibility_off_outlined,
+          icon: AppIcons.viewOff,
           onPressed: onHideInBook,
         ),
         HalfScreenActionSheetItem(
           label: context.tr('删除章节', 'Delete chapter', '章を削除'),
-          icon: Icons.delete_outline,
+          icon: AppIcons.delete02,
           destructive: true,
           onPressed: onDelete,
         ),
@@ -1682,8 +1681,8 @@ class _ChapterBadge extends StatelessWidget {
       ),
       alignment: Alignment.center,
       child: current
-          ? Icon(
-              Icons.graphic_eq_rounded,
+          ? AppIcon(
+              AppIcons.audioWave01,
               size: 20,
               color: Theme.of(context).colorScheme.onPrimary,
             )

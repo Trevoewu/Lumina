@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
@@ -170,16 +171,16 @@ class _GutendexBookDetailScreenState
                       runSpacing: 8,
                       children: [
                         _MetaChip(
-                          icon: Icons.language,
+                          icon: AppIcons.globe02,
                           label: book.languageLabel,
                         ),
                         _MetaChip(
-                          icon: Icons.download_outlined,
+                          icon: AppIcons.download01,
                           label: _formatDownloads(book.downloadCount),
                         ),
                         if (book.isPublicDomain)
                           _MetaChip(
-                            icon: Icons.public,
+                            icon: AppIcons.globe02,
                             label: context.tr(
                               '公版',
                               'Public domain',
@@ -254,8 +255,8 @@ class _RemoteCover extends StatelessWidget {
 
   Widget _placeholder(BuildContext context) {
     return Center(
-      child: Icon(
-        Icons.auto_stories_outlined,
+      child: AppIcon(
+        AppIcons.bookOpen02,
         color: context.appTextSecondary,
         size: 42,
       ),
@@ -285,7 +286,7 @@ class _ImportProgressButton extends StatelessWidget {
         : imported
         ? context.tr('打开书籍', 'Open Book', '本を開く')
         : context.tr('导入书籍', 'Import Book', '本をインポート');
-    final icon = Icon(imported ? Icons.menu_book_outlined : Icons.add);
+    final icon = AppIcon(imported ? AppIcons.bookOpen01 : AppIcons.add01);
 
     return SizedBox(
       height: 54,
@@ -359,7 +360,7 @@ class _ImportProgressButton extends StatelessWidget {
 }
 
 class _MetaChip extends StatelessWidget {
-  final IconData icon;
+  final AppIconData icon;
   final String label;
 
   const _MetaChip({required this.icon, required this.label});
@@ -375,7 +376,7 @@ class _MetaChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 15, color: context.appTextSecondary),
+          AppIcon(icon, size: 15, color: context.appTextSecondary),
           const SizedBox(width: 5),
           Text(
             label,

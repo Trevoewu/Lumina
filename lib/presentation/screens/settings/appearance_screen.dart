@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -27,7 +28,7 @@ class AppearanceScreen extends ConsumerWidget {
       actions: [
         IconButton(
           tooltip: context.tr('恢复默认', 'Restore Defaults', 'デフォルトに戻す'),
-          icon: const Icon(Icons.restart_alt),
+          icon: const AppIcon(AppIcons.reload),
           onPressed: controller.reset,
         ),
       ],
@@ -44,12 +45,14 @@ class AppearanceScreen extends ConsumerWidget {
                 Text(
                   context.tr('主题', 'Theme', 'テーマ'),
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 _ThemeSegmentedSwitch(
                   selected: preferences.theme,
-                  onSelected: ref.read(appPreferencesProvider.notifier).setTheme,
+                  onSelected: ref
+                      .read(appPreferencesProvider.notifier)
+                      .setTheme,
                 ),
               ],
             ),
@@ -64,10 +67,10 @@ class AppearanceScreen extends ConsumerWidget {
             onResetPreset: controller.resetLightPalette,
             onUpdateColor: ({background, foreground, accent}) =>
                 controller.setLightColor(
-              background: background,
-              foreground: foreground,
-              accent: accent,
-            ),
+                  background: background,
+                  foreground: foreground,
+                  accent: accent,
+                ),
           ),
 
           // ── Dark Theme ─────────────────────────────────────────────────
@@ -79,10 +82,10 @@ class AppearanceScreen extends ConsumerWidget {
             onResetPreset: controller.resetDarkPalette,
             onUpdateColor: ({background, foreground, accent}) =>
                 controller.setDarkColor(
-              background: background,
-              foreground: foreground,
-              accent: accent,
-            ),
+                  background: background,
+                  foreground: foreground,
+                  accent: accent,
+                ),
           ),
 
           // ── Typography & Reading ───────────────────────────────────────
@@ -337,9 +340,9 @@ class _SectionTitle extends StatelessWidget {
       child: Text(
         title,
         style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
+          fontWeight: FontWeight.w700,
+          color: Theme.of(context).colorScheme.onSurface,
+        ),
       ),
     );
   }
@@ -368,19 +371,19 @@ class _ThemeSegmentedSwitch extends StatelessWidget {
         children: [
           _segment(
             context,
-            icon: Icons.laptop_mac_rounded,
+            icon: AppIcons.laptop,
             preference: AppThemePreference.system,
             tooltip: context.tr('跟随系统', 'System', 'システム'),
           ),
           _segment(
             context,
-            icon: Icons.wb_sunny_outlined,
+            icon: AppIcons.sun03,
             preference: AppThemePreference.light,
             tooltip: context.tr('浅色模式', 'Light', 'ライト'),
           ),
           _segment(
             context,
-            icon: Icons.nightlight_outlined,
+            icon: AppIcons.moon02,
             preference: AppThemePreference.dark,
             tooltip: context.tr('深色模式', 'Dark', 'ダーク'),
           ),
@@ -391,7 +394,7 @@ class _ThemeSegmentedSwitch extends StatelessWidget {
 
   Widget _segment(
     BuildContext context, {
-    required IconData icon,
+    required AppIconData icon,
     required AppThemePreference preference,
     required String tooltip,
   }) {
@@ -409,8 +412,9 @@ class _ThemeSegmentedSwitch extends StatelessWidget {
           width: 38,
           height: 30,
           decoration: BoxDecoration(
-            color:
-                isSelected ? scheme.surfaceContainerHighest : Colors.transparent,
+            color: isSelected
+                ? scheme.surfaceContainerHighest
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(7),
             boxShadow: isSelected
                 ? [
@@ -422,7 +426,7 @@ class _ThemeSegmentedSwitch extends StatelessWidget {
                   ]
                 : null,
           ),
-          child: Icon(
+          child: AppIcon(
             icon,
             size: 17,
             color: isSelected ? scheme.onSurface : scheme.onSurfaceVariant,
@@ -439,7 +443,7 @@ class _ThemePaletteCard extends StatelessWidget {
   final ValueChanged<String> onSelectPreset;
   final VoidCallback onResetPreset;
   final void Function({Color? background, Color? foreground, Color? accent})
-      onUpdateColor;
+  onUpdateColor;
 
   const _ThemePaletteCard({
     required this.palette,
@@ -470,7 +474,7 @@ class _ThemePaletteCard extends StatelessWidget {
               children: [
                 if (isModified) ...[
                   IconButton(
-                    icon: const Icon(Icons.undo_rounded, size: 18),
+                    icon: const AppIcon(AppIcons.arrowTurnBackward, size: 18),
                     tooltip: context.tr('还原预设', 'Restore Preset', 'プリセットに戻す'),
                     style: IconButton.styleFrom(
                       foregroundColor: scheme.onSurfaceVariant,
@@ -501,7 +505,9 @@ class _ThemePaletteCard extends StatelessWidget {
                                 color: preset.background,
                                 shape: BoxShape.circle,
                                 border: Border.all(
-                                  color: scheme.onSurface.withValues(alpha: 0.2),
+                                  color: scheme.onSurface.withValues(
+                                    alpha: 0.2,
+                                  ),
                                   width: 1,
                                 ),
                               ),
@@ -509,8 +515,8 @@ class _ThemePaletteCard extends StatelessWidget {
                             const SizedBox(width: 10),
                             Expanded(child: Text(preset.label)),
                             if (preset.id == palette.presetId)
-                              Icon(
-                                Icons.check,
+                              AppIcon(
+                                AppIcons.tick02,
                                 size: 16,
                                 color: scheme.primary,
                               ),
@@ -536,8 +542,8 @@ class _ThemePaletteCard extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 4),
-                        Icon(
-                          Icons.keyboard_arrow_down_rounded,
+                        AppIcon(
+                          AppIcons.arrowDown01,
                           size: 16,
                           color: scheme.onSurfaceVariant,
                         ),
@@ -765,7 +771,9 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
   void initState() {
     super.initState();
     _previewColor = widget.initialColor;
-    _hexController = TextEditingController(text: widget.initialColor.toHexRgb());
+    _hexController = TextEditingController(
+      text: widget.initialColor.toHexRgb(),
+    );
   }
 
   @override
@@ -862,9 +870,9 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
             Text(
               context.tr('预设推荐', 'Suggested Colors', 'おすすめカラー'),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: scheme.onSurfaceVariant,
-                  ),
+                fontWeight: FontWeight.w600,
+                color: scheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 10),
             Wrap(

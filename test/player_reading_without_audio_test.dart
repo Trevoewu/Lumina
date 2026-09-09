@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -24,15 +25,31 @@ import 'package:lumina/tts/providers/fish_audio_api_tts_provider.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  final nativeIconChannels = <MethodChannel>[];
   setUp(() {
     // Native view pixels require a device; widget tests verify layout/actions.
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(
-          SystemChannels.platform_views,
-          (_) async => null,
-        );
+        .setMockMethodCallHandler(SystemChannels.platform_views, (call) async {
+          if (call.method == 'create') {
+            final args = call.arguments as Map;
+            if (args['viewType'] == 'CupertinoNativeIcon') {
+              final channel = MethodChannel(
+                'CupertinoNativeIcon_${args['id']}',
+              );
+              nativeIconChannels.add(channel);
+              TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+                  .setMockMethodCallHandler(channel, (_) async => null);
+            }
+          }
+          return null;
+        });
   });
   tearDown(() {
+    for (final channel in nativeIconChannels) {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    }
+    nativeIconChannels.clear();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(SystemChannels.platform_views, null);
   });
@@ -616,10 +633,7 @@ void main() {
         find.byKey(const ValueKey('player-landscape-layout')),
         findsOneWidget,
       );
-      expect(
-        find.byKey(const ValueKey('player-close-button')),
-        findsOneWidget,
-      );
+      expect(find.byKey(const ValueKey('player-close-button')), findsOneWidget);
       expect(
         find.byKey(const ValueKey('player-playback-controls')),
         findsOneWidget,
@@ -675,8 +689,18 @@ void main() {
       await tester.tap(readingToggle);
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.play_arrow), findsOneWidget);
-      expect(find.byIcon(Icons.download_rounded), findsNothing);
+      expect(
+        find.byWidgetPredicate(
+          (widget) => widget is AppIcon && widget.icon == AppIcons.play,
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byWidgetPredicate(
+          (widget) => widget is AppIcon && widget.icon == AppIcons.download01,
+        ),
+        findsNothing,
+      );
       expect(find.byIcon(Icons.downloading_rounded), findsNothing);
       expect(find.text('Cached 0%'), findsNothing);
       expect(
@@ -767,10 +791,7 @@ void main() {
             )
             .first,
       );
-      expect(
-        primaryButtonMaterial.color,
-        AppTheme.lightTheme().colorScheme.onSurface,
-      );
+      expect(primaryButtonMaterial.color, Colors.transparent);
 
       // Inline mode preserves scroll position; normalize only the screenshot.
       tester
@@ -948,7 +969,12 @@ void main() {
         find.byKey(const ValueKey('player-primary-audio-action')),
       );
       await tester.pumpAndSettle();
-      expect(find.byIcon(Icons.play_arrow), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (widget) => widget is AppIcon && widget.icon == AppIcons.play,
+        ),
+        findsOneWidget,
+      );
       expect(
         find.byKey(const ValueKey('player-live-lyrics-stage')),
         findsNothing,
@@ -1629,9 +1655,20 @@ void main() {
     );
     expect(chapterProgress.value, 0.5);
     expect(find.byIcon(Icons.arrow_circle_down_outlined), findsNothing);
-    expect(find.byIcon(Icons.download_done_rounded), findsNothing);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is AppIcon && widget.icon == AppIcons.checkmarkCircle02,
+      ),
+      findsNothing,
+    );
     expect(find.byKey(const ValueKey('book-detail-more-menu')), findsOneWidget);
-    expect(find.byIcon(Icons.visibility_off_outlined), findsNothing);
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is AppIcon && widget.icon == AppIcons.viewOff,
+      ),
+      findsNothing,
+    );
     await expectLater(
       find.byType(AlbumScreen),
       matchesGoldenFile('goldens/book_detail_podcast_style_430.png'),
@@ -1639,7 +1676,12 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('book-detail-more-menu')));
     await tester.pumpAndSettle();
     expect(find.text('Hidden chapters'), findsOneWidget);
-    expect(find.byIcon(Icons.visibility_off_outlined), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is AppIcon && widget.icon == AppIcons.viewOff,
+      ),
+      findsOneWidget,
+    );
     await tester.tapAt(const Offset(20, 700));
     await tester.pumpAndSettle();
     expect(find.text('Hidden chapters'), findsNothing);
@@ -1650,7 +1692,12 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('清除音频'), findsOneWidget);
-    expect(find.byIcon(Icons.cleaning_services_outlined), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is AppIcon && widget.icon == AppIcons.clean,
+      ),
+      findsOneWidget,
+    );
     final markAsRead = find.text('Mark as read');
     expect(markAsRead, findsWidgets);
     await tester.tap(markAsRead.last);

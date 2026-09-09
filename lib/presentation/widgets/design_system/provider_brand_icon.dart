@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
@@ -87,7 +88,11 @@ class ProviderBrandIcon extends StatelessWidget {
                   shape: BoxShape.circle,
                   border: Border.all(color: scheme.surface, width: 2),
                 ),
-                child: Icon(Icons.check, size: 13, color: scheme.onPrimary),
+                child: AppIcon(
+                  AppIcons.tick02,
+                  size: 13,
+                  color: scheme.onPrimary,
+                ),
               ),
             ),
         ],

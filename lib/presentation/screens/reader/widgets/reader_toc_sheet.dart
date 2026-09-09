@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/app_colors.dart';
@@ -108,16 +109,16 @@ class _ReaderTocSheetState extends State<_ReaderTocSheet> {
                       Text(
                         context.tr('目录', 'Table of Contents', '目次'),
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              color: context.appTextPrimary,
-                            ),
+                          fontWeight: FontWeight.w700,
+                          color: context.appTextPrimary,
+                        ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         '${widget.bookTitle} · ${context.tr('共 ${widget.chapters.length} 章', '${widget.chapters.length} chapters', '全 ${widget.chapters.length} 章')}',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: context.appTextSecondary,
-                            ),
+                          color: context.appTextSecondary,
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -125,7 +126,7 @@ class _ReaderTocSheetState extends State<_ReaderTocSheet> {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close),
+                  icon: const AppIcon(AppIcons.cancel01),
                   color: context.appTextSecondary,
                   onPressed: () => Navigator.of(context).pop(),
                 ),
@@ -162,7 +163,9 @@ class _ReaderTocSheetState extends State<_ReaderTocSheet> {
                           style: TextStyle(
                             fontFamily: 'monospace',
                             fontSize: 13,
-                            fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w500,
+                            fontWeight: isCurrent
+                                ? FontWeight.w800
+                                : FontWeight.w500,
                             color: isCurrent
                                 ? context.appAccent
                                 : context.appTextSecondary,
@@ -176,7 +179,9 @@ class _ReaderTocSheetState extends State<_ReaderTocSheet> {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 15,
-                              fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w400,
+                              fontWeight: isCurrent
+                                  ? FontWeight.w700
+                                  : FontWeight.w400,
                               color: isCurrent
                                   ? context.appAccent
                                   : context.appTextPrimary,
@@ -185,8 +190,8 @@ class _ReaderTocSheetState extends State<_ReaderTocSheet> {
                         ),
                         if (isCurrent) ...[
                           const SizedBox(width: 8),
-                          Icon(
-                            Icons.bookmark_added_rounded,
+                          AppIcon(
+                            AppIcons.bookmarkCheck01,
                             size: 18,
                             color: context.appAccent,
                           ),

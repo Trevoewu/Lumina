@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'dart:async';
 import 'package:audio_service/audio_service.dart';
 import 'package:drift/native.dart';
@@ -14,17 +15,15 @@ import 'package:lumina/presentation/screens/reader/book_reader_screen.dart';
 import 'package:lumina/presentation/screens/reader/widgets/reader_paragraph_view.dart';
 import 'package:lumina/services/lumina_audio_handler.dart';
 
-class _FakeLuminaAudioHandler extends BaseAudioHandler implements LuminaAudioHandler {
+class _FakeLuminaAudioHandler extends BaseAudioHandler
+    implements LuminaAudioHandler {
   final _positionController = StreamController<Duration>.broadcast();
   final _playbackStateController = StreamController<PlaybackState>.broadcast();
   bool _disposed = false;
 
   _FakeLuminaAudioHandler() {
     playbackState.add(
-      PlaybackState(
-        playing: false,
-        processingState: AudioProcessingState.idle,
-      ),
+      PlaybackState(playing: false, processingState: AudioProcessingState.idle),
     );
   }
 
@@ -55,10 +54,7 @@ class _FakeLuminaAudioHandler extends BaseAudioHandler implements LuminaAudioHan
   @override
   Future<void> play() async {
     playbackState.add(
-      PlaybackState(
-        playing: true,
-        processingState: AudioProcessingState.ready,
-      ),
+      PlaybackState(playing: true, processingState: AudioProcessingState.ready),
     );
   }
 
@@ -170,52 +166,60 @@ void main() {
     await database.close();
   });
 
-  testWidgets('BookReaderScreen renders chapter title, paragraphs, and nav bars', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(800, 1000);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+  testWidgets(
+    'BookReaderScreen renders chapter title, paragraphs, and nav bars',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          appDatabaseProvider.overrideWithValue(database),
-          luminaAudioHandlerProvider.overrideWith((ref) async => fakeAudioHandler),
-        ],
-        child: MaterialApp(
-          theme: AppTheme.lightTheme(),
-          home: BookReaderScreen(
-            book: testBook,
-            initialChapter: testChapters.first,
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            appDatabaseProvider.overrideWithValue(database),
+            luminaAudioHandlerProvider.overrideWith(
+              (ref) async => fakeAudioHandler,
+            ),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightTheme(),
+            home: BookReaderScreen(
+              book: testBook,
+              initialChapter: testChapters.first,
+            ),
           ),
         ),
-      ),
-    );
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 700));
-    await tester.pumpAndSettle();
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pumpAndSettle();
 
-    // Verify Chapter 1 Title is displayed
-    expect(find.text('Chapter 1: The Beginning'), findsWidgets);
-    expect(
-      find.text('It was the best of times, it was the worst of times.'),
-      findsOneWidget,
-    );
-    expect(
-      find.text('We had everything before us, we had nothing before us.'),
-      findsOneWidget,
-    );
+      // Verify Chapter 1 Title is displayed
+      expect(find.text('Chapter 1: The Beginning'), findsWidgets);
+      expect(
+        find.text('It was the best of times, it was the worst of times.'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('We had everything before us, we had nothing before us.'),
+        findsOneWidget,
+      );
 
-    // Verify Top Action Icons (Aa format_size, menu_book TOC, player headphones)
-    expect(find.byIcon(Icons.format_size_rounded), findsOneWidget);
-    expect(find.byIcon(Icons.menu_book_rounded), findsOneWidget);
-    expect(find.byIcon(Icons.headphones_outlined), findsOneWidget);
+      // Verify Top Action Icons (Aa format_size, menu_book TOC, player headphones)
+      expect(
+        find.byWidgetPredicate(
+          (widget) => widget is AppIcon && widget.icon == AppIcons.textFont,
+        ),
+        findsOneWidget,
+      );
+      expect(find.byTooltip('Table of Contents'), findsOneWidget);
+      expect(find.byTooltip('Player'), findsOneWidget);
 
-    // Verify Next Chapter button exists at bottom
-    expect(find.text('Next Chapter'), findsOneWidget);
-  });
+      // Verify Next Chapter button exists at bottom
+      expect(find.text('Next Chapter'), findsOneWidget);
+    },
+  );
 
   testWidgets('ReaderTocSheet displays chapters and allows navigation', (
     tester,
@@ -229,7 +233,9 @@ void main() {
       ProviderScope(
         overrides: [
           appDatabaseProvider.overrideWithValue(database),
-          luminaAudioHandlerProvider.overrideWith((ref) async => fakeAudioHandler),
+          luminaAudioHandlerProvider.overrideWith(
+            (ref) async => fakeAudioHandler,
+          ),
         ],
         child: MaterialApp(
           theme: AppTheme.lightTheme(),
@@ -243,7 +249,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Open TOC sheet
-    await tester.tap(find.byIcon(Icons.menu_book_rounded));
+    await tester.tap(find.byTooltip('Table of Contents'));
     await tester.pumpAndSettle();
 
     // Check sheet content
@@ -263,56 +269,70 @@ void main() {
     );
   });
 
-  testWidgets('ReaderAppearanceSheet opens and allows changing font and scale', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(800, 1000);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+  testWidgets(
+    'ReaderAppearanceSheet opens and allows changing font and scale',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-    final container = ProviderContainer(
-      overrides: [
-        appDatabaseProvider.overrideWithValue(database),
-        luminaAudioHandlerProvider.overrideWith((ref) async => fakeAudioHandler),
-      ],
-    );
-    addTearDown(container.dispose);
+      final container = ProviderContainer(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          luminaAudioHandlerProvider.overrideWith(
+            (ref) async => fakeAudioHandler,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          theme: AppTheme.lightTheme(),
-          home: BookReaderScreen(
-            book: testBook,
-            initialChapter: testChapters.first,
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: AppTheme.lightTheme(),
+            home: BookReaderScreen(
+              book: testBook,
+              initialChapter: testChapters.first,
+            ),
           ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    // Tap typography settings button
-    await tester.tap(find.byIcon(Icons.format_size_rounded));
-    await tester.pumpAndSettle();
+      // Tap typography settings button
+      await tester.tap(
+        find.byWidgetPredicate(
+          (widget) => widget is AppIcon && widget.icon == AppIcons.textFont,
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.text('Typography & Theme'), findsOneWidget);
-    expect(find.text('Georgia'), findsOneWidget);
-    expect(find.text('Menlo'), findsOneWidget);
+      expect(find.text('Typography & Theme'), findsOneWidget);
+      expect(find.text('Georgia'), findsOneWidget);
+      expect(find.text('Menlo'), findsOneWidget);
 
-    // Tap Georgia
-    await tester.tap(find.text('Georgia'));
-    await tester.pumpAndSettle();
+      // Tap Georgia
+      await tester.tap(find.text('Georgia'));
+      await tester.pumpAndSettle();
 
-    expect(container.read(appearanceControllerProvider).fontId, 'serif');
+      expect(container.read(appearanceControllerProvider).fontId, 'serif');
 
-    // Tap add font size (+)
-    await tester.tap(find.byIcon(Icons.add_circle_outline));
-    await tester.pumpAndSettle();
+      // Tap add font size (+)
+      await tester.tap(
+        find.byWidgetPredicate(
+          (widget) => widget is AppIcon && widget.icon == AppIcons.addCircle,
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    expect(container.read(appearanceControllerProvider).fontScale, closeTo(1.05, 0.01));
-  });
+      expect(
+        container.read(appearanceControllerProvider).fontScale,
+        closeTo(1.05, 0.01),
+      );
+    },
+  );
 
   testWidgets('ReaderParagraphView highlights when playing', (tester) async {
     const p = Paragraph(
@@ -327,10 +347,7 @@ void main() {
       const ProviderScope(
         child: MaterialApp(
           home: Scaffold(
-            body: ReaderParagraphView(
-              paragraph: p,
-              isPlaying: true,
-            ),
+            body: ReaderParagraphView(paragraph: p, isPlaying: true),
           ),
         ),
       ),
@@ -338,6 +355,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Reading aloud'), findsOneWidget);
-    expect(find.byIcon(Icons.graphic_eq_rounded), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is AppIcon && widget.icon == AppIcons.audioWave01,
+      ),
+      findsOneWidget,
+    );
   });
 }

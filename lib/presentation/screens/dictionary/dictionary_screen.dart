@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:flutter/material.dart';
 
 import '../../widgets/app_back_button.dart';
@@ -315,8 +316,8 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
       padding: const EdgeInsets.only(top: 100),
       child: Column(
         children: [
-          Icon(
-            Icons.menu_book_outlined,
+          AppIcon(
+            AppIcons.bookOpen01,
             size: 72,
             color: context.appTextPrimary.withValues(alpha: 0.10),
           ),
@@ -445,8 +446,8 @@ class _DictionaryCollectionScreenState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              favorites ? Icons.bookmark_border : Icons.history,
+            AppIcon(
+              favorites ? AppIcons.bookmark02 : AppIcons.clockArrowDown,
               size: 56,
               color: context.appSurfaceHighlight,
             ),
@@ -699,10 +700,10 @@ class _DictionaryWordScreenState extends ConsumerState<DictionaryWordScreen> {
                             child: SizedBox(
                               width: 44,
                               height: 44,
-                              child: Icon(
+                              child: AppIcon(
                                 _favorite
-                                    ? Icons.bookmark
-                                    : Icons.bookmark_border,
+                                    ? AppIcons.bookmark01
+                                    : AppIcons.bookmark02,
                                 size: 20,
                                 color: _favorite
                                     ? ink
@@ -760,8 +761,8 @@ class _DictionaryWordScreenState extends ConsumerState<DictionaryWordScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              notFound ? Icons.search_off : Icons.cloud_off_outlined,
+            AppIcon(
+              notFound ? AppIcons.searchRemove : AppIcons.cloudOff,
               size: 64,
               color: context.appTextSecondary,
             ),
@@ -827,8 +828,8 @@ class _SectionHeaderRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 2),
-              Icon(
-                Icons.chevron_right,
+              AppIcon(
+                AppIcons.arrowRight01,
                 size: 16,
                 color: ink.withValues(alpha: 0.35),
               ),
@@ -948,10 +949,7 @@ class _FavoriteWordCard extends StatelessWidget {
                           _MetaChip(label: partOfSpeech),
                         if (cefr != null) _MetaChip(label: cefr),
                         if (source != null && source.isNotEmpty)
-                          _MetaChip(
-                            label: source,
-                            icon: Icons.menu_book_outlined,
-                          ),
+                          _MetaChip(label: source, icon: AppIcons.bookOpen01),
                       ],
                     ),
                   ),
@@ -1098,8 +1096,8 @@ class _SuggestionRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 13),
         child: Row(
           children: [
-            Icon(
-              entry == null ? Icons.travel_explore : Icons.search,
+            AppIcon(
+              entry == null ? AppIcons.compass : AppIcons.search01,
               size: 17,
               color: ink.withValues(alpha: 0.3),
             ),
@@ -1168,8 +1166,8 @@ class _BookmarkButton extends StatelessWidget {
       child: SizedBox(
         width: 44,
         height: 44,
-        child: Icon(
-          favorite ? Icons.bookmark : Icons.bookmark_border,
+        child: AppIcon(
+          favorite ? AppIcons.bookmark01 : AppIcons.bookmark02,
           size: 19,
           color: favorite ? ink : ink.withValues(alpha: 0.28),
         ),
@@ -1180,7 +1178,7 @@ class _BookmarkButton extends StatelessWidget {
 
 class _MetaChip extends StatelessWidget {
   final String label;
-  final IconData? icon;
+  final AppIconData? icon;
 
   const _MetaChip({required this.label, this.icon});
 
@@ -1199,7 +1197,7 @@ class _MetaChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 13, color: ink.withValues(alpha: 0.4)),
+            AppIcon(icon, size: 13, color: ink.withValues(alpha: 0.4)),
             const SizedBox(width: 6),
           ],
           Flexible(

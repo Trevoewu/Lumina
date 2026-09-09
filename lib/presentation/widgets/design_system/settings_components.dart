@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/app_design_tokens.dart';
@@ -34,10 +35,7 @@ class SettingsCard extends StatelessWidget {
         color: scheme.surfaceContainer,
         borderRadius: radius,
         clipBehavior: Clip.antiAlias,
-        child: Padding(
-          padding: padding ?? EdgeInsets.zero,
-          child: child,
-        ),
+        child: Padding(padding: padding ?? EdgeInsets.zero, child: child),
       ),
     );
   }
@@ -108,7 +106,7 @@ class SegmentedChoiceRow<T> extends StatelessWidget {
   final T selected;
   final ValueChanged<T> onSelected;
   final String Function(T) labelBuilder;
-  final IconData Function(T) iconBuilder;
+  final AppIconData Function(T) iconBuilder;
 
   const SegmentedChoiceRow({
     super.key,
@@ -147,7 +145,7 @@ class SegmentedChoiceRow<T> extends StatelessWidget {
 class _SegmentButton extends StatelessWidget {
   final bool selected;
   final String label;
-  final IconData icon;
+  final AppIconData icon;
   final VoidCallback onTap;
   final ColorScheme scheme;
 
@@ -162,7 +160,9 @@ class _SegmentButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? scheme.onSurface : scheme.onSurface.withValues(alpha: 0.06),
+      color: selected
+          ? scheme.onSurface
+          : scheme.onSurface.withValues(alpha: 0.06),
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
@@ -176,7 +176,7 @@ class _SegmentButton extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
+                AppIcon(
                   icon,
                   size: 15,
                   color: selected
@@ -364,8 +364,8 @@ class SetupProgressHeader extends StatelessWidget {
                         ),
                         alignment: Alignment.center,
                         child: index < currentStep
-                            ? Icon(
-                                Icons.check,
+                            ? AppIcon(
+                                AppIcons.tick02,
                                 size: 17,
                                 color: scheme.onPrimary,
                               )
@@ -421,7 +421,7 @@ class SetupProgressHeader extends StatelessWidget {
 }
 
 class SetupActionCard extends StatelessWidget {
-  final IconData icon;
+  final AppIconData icon;
   final String title;
   final String description;
   final String actionLabel;
@@ -456,7 +456,7 @@ class SetupActionCard extends StatelessWidget {
               ),
               child: Padding(
                 padding: EdgeInsets.all(design.spaceSm),
-                child: Icon(icon, color: scheme.onPrimaryContainer),
+                child: AppIcon(icon, color: scheme.onPrimaryContainer),
               ),
             ),
           ),
@@ -473,7 +473,7 @@ class SetupActionCard extends StatelessWidget {
           FilledButton.icon(
             key: actionKey,
             onPressed: onPressed,
-            icon: const Icon(Icons.arrow_forward),
+            icon: const AppIcon(AppIcons.arrowRight02),
             label: Text(actionLabel),
           ),
         ],
@@ -507,7 +507,7 @@ class SetupNavigationBar extends StatelessWidget {
           child: OutlinedButton.icon(
             key: const ValueKey('setup-previous'),
             onPressed: busy ? null : onPrevious,
-            icon: const Icon(Icons.arrow_back),
+            icon: const AppIcon(AppIcons.arrowLeft02),
             label: Text(previousLabel),
           ),
         ),
@@ -521,7 +521,7 @@ class SetupNavigationBar extends StatelessWidget {
                     dimension: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Icon(Icons.arrow_forward),
+                : const AppIcon(AppIcons.arrowRight02),
             label: Text(nextLabel),
           ),
         ),
@@ -575,7 +575,7 @@ class SetupStepTransition extends StatelessWidget {
 
 class SettingValueRow extends StatelessWidget {
   final Key? rowKey;
-  final IconData icon;
+  final AppIconData icon;
   final String title;
   final String? subtitle;
   final String? value;
@@ -620,7 +620,7 @@ class SettingValueRow extends StatelessWidget {
                 child: SizedBox(
                   width: 38,
                   height: 38,
-                  child: Icon(icon, size: 19, color: scheme.onSurface),
+                  child: AppIcon(icon, size: 19, color: scheme.onSurface),
                 ),
               ),
               const SizedBox(width: 13),
@@ -676,8 +676,8 @@ class SettingValueRow extends StatelessWidget {
                 trailing!,
               ] else if (onTap != null) ...[
                 const SizedBox(width: 6),
-                Icon(
-                  Icons.chevron_right,
+                AppIcon(
+                  AppIcons.arrowRight01,
                   size: 20,
                   color: scheme.onSurface.withValues(alpha: 0.28),
                 ),
@@ -749,26 +749,26 @@ class ReadinessBadge extends StatelessWidget {
       ServiceReadiness.loading => (
         'Checking',
         scheme.onSurfaceVariant,
-        Icons.sync,
+        AppIcons.arrowDataTransferHorizontal,
       ),
       ServiceReadiness.setupRequired => (
         'Setup required',
         scheme.tertiary,
-        Icons.settings_outlined,
+        AppIcons.settings02,
       ),
       ServiceReadiness.ready => (
         'Ready',
         scheme.primary,
-        Icons.check_circle_outline,
+        AppIcons.checkmarkCircle02,
       ),
       ServiceReadiness.error => (
         'Needs attention',
         scheme.error,
-        Icons.error_outline,
+        AppIcons.alertCircle,
       ),
     };
     return Chip(
-      avatar: Icon(icon, size: 16, color: color),
+      avatar: AppIcon(icon, size: 16, color: color),
       label: Text(label, style: TextStyle(color: color)),
       visualDensity: VisualDensity.compact,
     );
@@ -777,7 +777,7 @@ class ReadinessBadge extends StatelessWidget {
 
 class ServiceStatusCard extends StatelessWidget {
   final Key? cardKey;
-  final IconData icon;
+  final AppIconData icon;
   final String title;
   final String provider;
   final String selection;
@@ -809,7 +809,7 @@ class ServiceStatusCard extends StatelessWidget {
           CircleAvatar(
             backgroundColor: scheme.primary.withValues(alpha: 0.14),
             foregroundColor: scheme.primary,
-            child: Icon(icon),
+            child: AppIcon(icon),
           ),
           SizedBox(width: design.spaceMd),
           Expanded(
@@ -835,7 +835,7 @@ class ServiceStatusCard extends StatelessWidget {
               ],
             ),
           ),
-          if (onTap != null) const Icon(Icons.chevron_right),
+          if (onTap != null) const AppIcon(AppIcons.arrowRight01),
         ],
       ),
     );
@@ -861,9 +861,7 @@ class ProviderOptionTile extends StatelessWidget {
     key: ValueKey('provider-${provider.id}'),
     leading:
         leading ??
-        Icon(
-          provider.active ? Icons.radio_button_checked : Icons.radio_button_off,
-        ),
+        AppIcon(provider.active ? AppIcons.radioButton : AppIcons.circle),
     title: Text(provider.name),
     subtitle: Text(
       provider.subtitle,
@@ -871,11 +869,11 @@ class ProviderOptionTile extends StatelessWidget {
       overflow: TextOverflow.ellipsis,
     ),
     trailing: onEdit == null
-        ? (provider.active ? const Icon(Icons.check) : null)
+        ? (provider.active ? const AppIcon(AppIcons.tick02) : null)
         : IconButton(
             tooltip: 'Edit provider',
             onPressed: onEdit,
-            icon: const Icon(Icons.edit_outlined),
+            icon: const AppIcon(AppIcons.pencilEdit02),
           ),
     onTap: onTap,
   );
@@ -899,7 +897,7 @@ class SettingsFeedbackBanner extends StatelessWidget {
       padding: EdgeInsets.all(context.appDesign.spaceMd),
       child: Row(
         children: [
-          Icon(error ? Icons.error_outline : Icons.info_outline),
+          AppIcon(error ? AppIcons.alertCircle : AppIcons.informationCircle),
           SizedBox(width: context.appDesign.spaceSm),
           Expanded(child: Text(message)),
         ],
@@ -909,7 +907,7 @@ class SettingsFeedbackBanner extends StatelessWidget {
 }
 
 class SettingsEmptyState extends StatelessWidget {
-  final IconData icon;
+  final AppIconData icon;
   final String message;
   final String actionLabel;
   final VoidCallback onAction;
@@ -929,7 +927,7 @@ class SettingsEmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: context.appDesign.toolbarHeight),
+          AppIcon(icon, size: context.appDesign.toolbarHeight),
           SizedBox(height: context.appDesign.spaceMd),
           Text(message, textAlign: TextAlign.center),
           SizedBox(height: context.appDesign.spaceLg),
@@ -952,7 +950,7 @@ class SettingsErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SettingsEmptyState(
-    icon: Icons.error_outline,
+    icon: AppIcons.alertCircle,
     message: '$error',
     actionLabel: 'Retry',
     onAction: onRetry,

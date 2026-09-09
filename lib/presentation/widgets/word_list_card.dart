@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/app_colors.dart';
@@ -98,12 +99,12 @@ class WordListCard extends StatelessWidget {
                         _WordMetaChip(label: partOfSpeech),
                       if (readingLevel != null)
                         _WordMetaChip(
-                          icon: Icons.school_outlined,
+                          icon: AppIcons.mortarboard01,
                           label: readingLevel,
                         ),
                       if (contextLabel != null)
                         _WordMetaChip(
-                          icon: Icons.menu_book_outlined,
+                          icon: AppIcons.bookOpen01,
                           label: contextLabel!,
                         ),
                     ],
@@ -113,8 +114,8 @@ class WordListCard extends StatelessWidget {
             ),
           ),
           SizedBox(width: design.spaceSm),
-          Icon(
-            favorite ? Icons.bookmark : Icons.chevron_right,
+          AppIcon(
+            favorite ? AppIcons.bookmark01 : AppIcons.arrowRight01,
             color: accent,
             size: favorite ? 22 : 24,
           ),
@@ -172,7 +173,7 @@ class _WordInitialBadge extends StatelessWidget {
 }
 
 class _WordMetaChip extends StatelessWidget {
-  final IconData? icon;
+  final AppIconData? icon;
   final String label;
 
   const _WordMetaChip({required this.label, this.icon});
@@ -190,7 +191,7 @@ class _WordMetaChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 14, color: context.appTextSecondary),
+            AppIcon(icon, size: 14, color: context.appTextSecondary),
             const SizedBox(width: 4),
           ],
           Flexible(

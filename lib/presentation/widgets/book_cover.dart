@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -6,14 +7,14 @@ import '../../core/app_colors.dart';
 
 class BookCover extends StatelessWidget {
   final String? coverPath;
-  final IconData placeholderIcon;
+  final AppIconData placeholderIcon;
   final double iconSize;
   final double borderRadius;
 
   const BookCover({
     super.key,
     this.coverPath,
-    this.placeholderIcon = Icons.album,
+    this.placeholderIcon = AppIcons.album01,
     this.iconSize = 72,
     this.borderRadius = 8,
   });
@@ -62,7 +63,7 @@ class BookCover extends StatelessWidget {
         ),
       ),
       child: Center(
-        child: Icon(
+        child: AppIcon(
           placeholderIcon,
           size: iconSize,
           color: context.appTextSecondary,

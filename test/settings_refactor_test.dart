@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:lumina/presentation/widgets/app_back_button.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
@@ -147,7 +148,12 @@ void main() {
       greaterThan(tester.getCenter(uiLanguageRow).dx),
     );
     expect(
-      find.descendant(of: languageItems, matching: find.byIcon(Icons.check)),
+      find.descendant(
+        of: languageItems,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is AppIcon && widget.icon == AppIcons.tick02,
+        ),
+      ),
       findsOneWidget,
     );
     await tester.tap(find.text('English'));
@@ -167,7 +173,11 @@ void main() {
     await tester.ensureVisible(appearanceRow);
     await tester.tap(appearanceRow);
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.nightlight_outlined));
+    await tester.tap(
+      find.byWidgetPredicate(
+        (widget) => widget is AppIcon && widget.icon == AppIcons.moon02,
+      ),
+    );
     await tester.pumpAndSettle();
     expect(await database.getSetting('general_theme_mode'), 'dark');
   });

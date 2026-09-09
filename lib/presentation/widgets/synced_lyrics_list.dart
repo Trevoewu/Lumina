@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -2636,7 +2637,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
               visualDensity: VisualDensity.compact,
               tooltip: context.tr('取消', 'Cancel', 'キャンセル'),
               onPressed: _exitWordSelection,
-              icon: const Icon(Icons.close),
+              icon: const AppIcon(AppIcons.cancel01),
             ),
             Expanded(
               child: Text(

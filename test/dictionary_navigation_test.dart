@@ -1,3 +1,5 @@
+import 'package:cupertino_native_better/cupertino_native.dart';
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:dio/dio.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
@@ -121,7 +123,13 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 500));
 
-    await tester.tap(find.byIcon(Icons.find_in_page_rounded));
+    await tester.tap(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is CNIcon &&
+            widget.imageAsset?.assetPath == 'assets/ui_icons/dictionary.png',
+      ),
+    );
     await _pumpReady(tester);
     await tester.tap(find.text('mulberry'));
     await _pumpReady(tester);
@@ -130,7 +138,13 @@ void main() {
       findsOneWidget,
     );
 
-    await tester.tap(find.byIcon(Icons.find_in_page_rounded));
+    await tester.tap(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is CNIcon &&
+            widget.imageAsset?.assetPath == 'assets/ui_icons/dictionary.png',
+      ),
+    );
     await _pumpReady(tester);
 
     expect(
@@ -299,12 +313,19 @@ void main() {
     await _pumpReady(tester);
 
     expect(find.text('SAVED · 1'), findsNothing);
-    expect(find.byIcon(Icons.bookmark), findsNothing);
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is AppIcon && widget.icon == AppIcons.bookmark01,
+      ),
+      findsNothing,
+    );
 
     await tester.tap(
       find.descendant(
         of: find.byKey(ValueKey('dictionary-history-${result.cacheId}')),
-        matching: find.byIcon(Icons.bookmark_border),
+        matching: find.byWidgetPredicate(
+          (widget) => widget is AppIcon && widget.icon == AppIcons.bookmark02,
+        ),
       ),
     );
     await _pumpReady(tester);

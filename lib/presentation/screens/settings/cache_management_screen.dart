@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -778,8 +779,8 @@ class _EntryRow extends StatelessWidget {
                           dimension: 16,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : Icon(
-                          expanded ? Icons.expand_less : Icons.expand_more,
+                      : AppIcon(
+                          expanded ? AppIcons.arrowUp01 : AppIcons.arrowDown01,
                           size: 20,
                           color: scheme.onSurfaceVariant,
                         ),
@@ -815,7 +816,7 @@ class _Checkbox extends StatelessWidget {
               ),
       ),
       child: selected
-          ? Icon(Icons.check, size: 14, color: scheme.onPrimary)
+          ? AppIcon(AppIcons.tick02, size: 14, color: scheme.onPrimary)
           : null,
     );
   }
@@ -870,8 +871,8 @@ class _DeleteBar extends StatelessWidget {
                     child: SizedBox(
                       width: 46,
                       height: 46,
-                      child: Icon(
-                        Icons.close,
+                      child: AppIcon(
+                        AppIcons.cancel01,
                         size: 18,
                         color: scheme.onSurfaceVariant,
                       ),

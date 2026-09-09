@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -40,15 +41,12 @@ class ReaderParagraphView extends ConsumerWidget {
         duration: const Duration(milliseconds: 250),
         curve: Curves.easeOutCubic,
         decoration: BoxDecoration(
-          color: isPlaying ? accent.withValues(alpha: 0.10) : Colors.transparent,
+          color: isPlaying
+              ? accent.withValues(alpha: 0.10)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
           border: isPlaying
-              ? Border(
-                  left: BorderSide(
-                    color: accent,
-                    width: 3.5,
-                  ),
-                )
+              ? Border(left: BorderSide(color: accent, width: 3.5))
               : null,
         ),
         padding: EdgeInsets.symmetric(
@@ -72,9 +70,10 @@ class ReaderParagraphView extends ConsumerWidget {
                 fontWeight: isPlaying ? FontWeight.w500 : FontWeight.w400,
               ),
               contextMenuBuilder: (context, editableTextState) {
-                final selectedText = editableTextState.textEditingValue.selection.textInside(
-                  editableTextState.textEditingValue.text,
-                );
+                final selectedText = editableTextState
+                    .textEditingValue
+                    .selection
+                    .textInside(editableTextState.textEditingValue.text);
                 final items = editableTextState.contextMenuButtonItems;
 
                 if (selectedText.trim().isNotEmpty) {
@@ -116,11 +115,7 @@ class ReaderParagraphView extends ConsumerWidget {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    Icons.graphic_eq_rounded,
-                    size: 14,
-                    color: accent,
-                  ),
+                  AppIcon(AppIcons.audioWave01, size: 14, color: accent),
                   const SizedBox(width: 4),
                   Text(
                     context.tr('正在朗读', 'Reading aloud', '朗読中'),

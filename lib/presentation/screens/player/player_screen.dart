@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -1038,7 +1039,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final openSettings = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        icon: const Icon(Icons.cloud_outlined),
+        icon: const AppIcon(AppIcons.cloud),
         title: Text(
           setupIncomplete
               ? context.tr('完成语音设置', 'Complete voice setup', '音声設定を完了')
@@ -2194,7 +2195,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                               if (isWideLayout)
                                 IconButton(
                                   key: const ValueKey('player-close-button'),
-                                  icon: const Icon(Icons.close, size: 22),
+                                  icon: const AppIcon(
+                                    AppIcons.cancel01,
+                                    size: 22,
+                                  ),
                                   tooltip: context.tr('关闭', 'Close', '閉じる'),
                                   style: IconButton.styleFrom(
                                     foregroundColor: context.appTextPrimary,
@@ -2731,8 +2735,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             ),
             child: Row(
               children: [
-                Icon(
-                  Icons.chat_bubble_outline_rounded,
+                AppIcon(
+                  AppIcons.bubbleChat,
                   size: 20,
                   color: context.appTextSecondary,
                 ),
@@ -2780,8 +2784,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     ],
                   ),
                 ),
-                Icon(
-                  Icons.chevron_right_rounded,
+                AppIcon(
+                  AppIcons.arrowRight01,
                   size: 20,
                   color: context.appTextSecondary,
                 ),
@@ -3012,7 +3016,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildPlayerCardTitle(
-              icon: Icons.chat_bubble_outline_rounded,
+              icon: AppIcons.bubbleChat,
               title: 'AI Chatbot',
             ),
             SizedBox(height: context.appDesign.spaceMd),
@@ -3062,7 +3066,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                               ),
                             ),
                       ),
-                icon: const Icon(Icons.chat_bubble_outline_rounded),
+                icon: const AppIcon(AppIcons.bubbleChat),
                 label: Text(
                   !transcriptAvailable
                       ? context.tr('生成文字稿', 'Generate transcript', '文字起こしを生成')
@@ -3146,8 +3150,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           children: [
             Row(
               children: [
-                Icon(
-                  Icons.format_quote_rounded,
+                AppIcon(
+                  AppIcons.quoteDown,
                   color: Theme.of(sheetContext).colorScheme.primary,
                 ),
                 SizedBox(width: sheetContext.appDesign.spaceSm),
@@ -3193,7 +3197,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   Expanded(
                     child: FilledButton.icon(
                       onPressed: () => Navigator.of(sheetContext).pop(true),
-                      icon: const Icon(Icons.play_arrow_rounded),
+                      icon: const AppIcon(AppIcons.play),
                       label: Text(
                         context.tr('从这里播放', 'Play from here', 'ここから再生'),
                       ),
@@ -3252,7 +3256,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildPlayerCardTitle(
-            icon: Icons.notes_rounded,
+            icon: AppIcons.note01,
             title: context.tr('节目笔记', 'Shownotes', '番組ノート'),
           ),
           SizedBox(height: context.appDesign.spaceMd),
@@ -3294,7 +3298,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 ),
               ),
               iconAlignment: IconAlignment.end,
-              icon: const Icon(Icons.keyboard_arrow_down_rounded),
+              icon: const AppIcon(AppIcons.arrowDown01),
               label: Text(
                 context.tr('查看完整笔记', 'Show full notes', '番組ノートをすべて表示'),
               ),
@@ -3341,13 +3345,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Widget _buildPlayerCardTitle({
-    required IconData icon,
+    required AppIconData icon,
     required String title,
   }) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 20, color: context.appTextSecondary),
+        AppIcon(icon, size: 20, color: context.appTextSecondary),
         SizedBox(width: context.appDesign.spaceSm),
         Flexible(
           child: Text(
@@ -3501,7 +3505,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         SizedBox(width: design.spaceMd),
         IconButton(
           tooltip: context.tr('收藏', 'Save', '保存'),
-          icon: const Icon(Icons.favorite_border_rounded),
+          icon: const AppIcon(AppIcons.favourite),
           color: context.appTextPrimary,
           onPressed: () {},
         ),
@@ -3533,10 +3537,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
+                AppIcon(
                   _transcribingPodcast
-                      ? Icons.graphic_eq_rounded
-                      : Icons.subtitles_outlined,
+                      ? AppIcons.audioWave01
+                      : AppIcons.subtitle,
                   color: context.appTextSecondary,
                   size: 34,
                 ),
@@ -3576,10 +3580,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   const SizedBox(height: 12),
                   FilledButton.icon(
                     onPressed: _startPodcastTranscription,
-                    icon: Icon(
-                      paused
-                          ? Icons.play_arrow_rounded
-                          : Icons.auto_awesome_rounded,
+                    icon: AppIcon(
+                      paused ? AppIcons.play : AppIcons.aiMagic,
                       size: 18,
                     ),
                     label: Text(
@@ -3636,7 +3638,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.subtitles_outlined, size: 34),
+                          const AppIcon(AppIcons.subtitle, size: 34),
                           const SizedBox(height: 12),
                           Text(
                             running
@@ -3663,7 +3665,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             FilledButton.icon(
                               key: const ValueKey('book-transcript-start'),
                               onPressed: _startBookTranscription,
-                              icon: const Icon(Icons.subtitles_outlined),
+                              icon: const AppIcon(AppIcons.subtitle),
                               label: Text(
                                 context.tr(
                                   '在本地生成字幕',
@@ -4048,7 +4050,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 button: true,
                 label: primaryTooltip,
                 child: Material(
-                  color: context.appTextPrimary,
+                  color: Colors.transparent,
                   shape: const CircleBorder(),
                   child: InkWell(
                     key: const ValueKey('player-primary-audio-action'),
@@ -4076,7 +4078,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           },
                           child: _buildPrimaryAudioGlyph(
                             action: primaryAction,
-                            color: context.appBackground,
+                            color: primaryActionEnabled
+                                ? foregroundColor
+                                : secondaryColor.withValues(alpha: 0.42),
                           ),
                         ),
                       ),
@@ -4120,8 +4124,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           )
                         : context.tr('定时关闭', 'Sleep timer', 'スリープタイマー'),
                     icon: timerState.active
-                        ? Icons.timer_rounded
-                        : Icons.timer_outlined,
+                        ? AppIcons.timer01
+                        : AppIcons.timer01,
                     color: timerState.active ? accent : secondaryColor,
                     onPressed: () =>
                         _showSleepTimerMenu(handler, anchorContext),
@@ -4172,7 +4176,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _buildPodcastActionButton(
         context,
         key: const ValueKey('player-transcript-toggle'),
-        icon: Icons.chat_bubble_outline_rounded,
+        icon: AppIcons.bubbleChat,
         tooltip: transcriptModeActive
             ? context.tr('返回封面', 'Back to cover', '表紙に戻る')
             : context.tr('转录', 'Transcript', '文字起こし'),
@@ -4184,7 +4188,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _buildPodcastActionButton(
         context,
         key: const ValueKey('player-playlist-toggle'),
-        icon: Icons.format_list_bulleted_rounded,
+        icon: AppIcons.leftToRightListBullet,
         tooltip: context.tr('列表', 'Playlist', '再生リスト'),
         onPressed: () => _showPlaylist(handler),
       ),
@@ -4200,7 +4204,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       return _buildPodcastActionButton(
         context,
         key: const ValueKey('player-output-toggle'),
-        icon: Icons.airplay_rounded,
+        icon: AppIcons.airplayLine,
         tooltip: label,
         onPressed: null,
       );
@@ -4226,7 +4230,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Widget _buildPodcastActionButton(
     BuildContext context, {
     required Key key,
-    required IconData icon,
+    required AppIconData icon,
     required String tooltip,
     required VoidCallback? onPressed,
     bool chip = false,
@@ -4516,14 +4520,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     required Color color,
   }) {
     return switch (action) {
-      PlayerPrimaryAudioAction.play => Icon(
-        Icons.play_arrow,
+      PlayerPrimaryAudioAction.play => AppIcon(
+        AppIcons.play,
         key: const ValueKey(PlayerPrimaryAudioAction.play),
         size: 32,
         color: color,
       ),
-      PlayerPrimaryAudioAction.pause => Icon(
-        Icons.pause,
+      PlayerPrimaryAudioAction.pause => AppIcon(
+        AppIcons.pause,
         key: const ValueKey(PlayerPrimaryAudioAction.pause),
         size: 32,
         color: color,
@@ -4762,7 +4766,7 @@ class _WhisperModelSetupSheetState extends State<_WhisperModelSetupSheet> {
                 CircleAvatar(
                   backgroundColor: scheme.primaryContainer,
                   foregroundColor: scheme.onPrimaryContainer,
-                  child: const Icon(Icons.subtitles_rounded),
+                  child: const AppIcon(AppIcons.subtitle),
                 ),
                 SizedBox(width: design.spaceMd),
                 Expanded(
@@ -4847,7 +4851,7 @@ class _WhisperModelSetupSheetState extends State<_WhisperModelSetupSheet> {
               child: FilledButton.icon(
                 key: const ValueKey('download-whisper-and-transcribe'),
                 onPressed: _downloading ? null : _download,
-                icon: const Icon(Icons.download_rounded),
+                icon: const AppIcon(AppIcons.download01),
                 label: Text(
                   context.tr(
                     '下载并生成字幕',

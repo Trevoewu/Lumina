@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hugeicons/hugeicons.dart';
@@ -149,9 +150,9 @@ class _LibrivoxBookDetailScreenState
                       spacing: 8,
                       runSpacing: 8,
                       children: [
-                        _MetaChip(icon: Icons.language, label: book.language),
+                        _MetaChip(icon: AppIcons.globe02, label: book.language),
                         _MetaChip(
-                          icon: Icons.queue_music_outlined,
+                          icon: AppIcons.playList,
                           label: context.tr(
                             '${book.sections.length} 章',
                             '${book.sections.length} chapters',
@@ -159,11 +160,11 @@ class _LibrivoxBookDetailScreenState
                           ),
                         ),
                         _MetaChip(
-                          icon: Icons.schedule,
+                          icon: AppIcons.clock01,
                           label: _formatDuration(book.totalTimeSeconds),
                         ),
                         _MetaChip(
-                          icon: Icons.record_voice_over_outlined,
+                          icon: AppIcons.aiVoice,
                           label: context.tr(
                             '真人朗读',
                             'Human narrated',
@@ -189,11 +190,7 @@ class _LibrivoxBookDetailScreenState
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : Icon(
-                      imported
-                          ? Icons.play_arrow_rounded
-                          : Icons.library_add_outlined,
-                    ),
+                  : AppIcon(imported ? AppIcons.play : AppIcons.bookPlus),
               label: Text(
                 imported
                     ? context.tr('打开并收听', 'Open and listen', '開いて聴く')
@@ -204,7 +201,11 @@ class _LibrivoxBookDetailScreenState
           SizedBox(height: design.spaceLg),
           Row(
             children: [
-              Icon(Icons.public, size: 18, color: context.appTextSecondary),
+              AppIcon(
+                AppIcons.globe02,
+                size: 18,
+                color: context.appTextSecondary,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -252,7 +253,7 @@ class _LibrivoxBookDetailScreenState
 }
 
 class _MetaChip extends StatelessWidget {
-  final IconData icon;
+  final AppIconData icon;
   final String label;
 
   const _MetaChip({required this.icon, required this.label});
@@ -267,7 +268,7 @@ class _MetaChip extends StatelessWidget {
     child: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 14, color: context.appTextSecondary),
+        AppIcon(icon, size: 14, color: context.appTextSecondary),
         const SizedBox(width: 5),
         Text(
           label,

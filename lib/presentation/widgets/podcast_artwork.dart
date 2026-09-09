@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:flutter/material.dart';
 
 import 'disk_cached_network_image.dart';
@@ -6,14 +7,14 @@ class PodcastArtwork extends StatelessWidget {
   final String? imageUrl;
   final double size;
   final double borderRadius;
-  final IconData fallbackIcon;
+  final AppIconData fallbackIcon;
 
   const PodcastArtwork({
     super.key,
     required this.imageUrl,
     required this.size,
     this.borderRadius = 10,
-    this.fallbackIcon = Icons.podcasts,
+    this.fallbackIcon = AppIcons.podcast,
   });
 
   @override
@@ -21,7 +22,7 @@ class PodcastArtwork extends StatelessWidget {
     final fallback = ColoredBox(
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
       child: Center(
-        child: Icon(
+        child: AppIcon(
           fallbackIcon,
           size: size * 0.42,
           color: Theme.of(context).colorScheme.onSurfaceVariant,

@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:flutter/material.dart';
 
 /// Plain playback controls, with no glass surface or native glass button.
@@ -11,7 +12,7 @@ class AppControlIconButton extends StatelessWidget {
     this.selected,
   });
 
-  final IconData icon;
+  final AppIconData icon;
   final VoidCallback? onPressed;
   final String tooltip;
   final Color? color;
@@ -21,7 +22,7 @@ class AppControlIconButton extends StatelessWidget {
   Widget build(BuildContext context) => Semantics(
     selected: selected,
     child: IconButton(
-      icon: Icon(icon),
+      icon: AppIcon(icon),
       iconSize: 22,
       style: const ButtonStyle(
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,

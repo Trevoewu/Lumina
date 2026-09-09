@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -86,7 +87,7 @@ class BookListCard extends StatelessWidget {
 }
 
 class BookListCardMeta {
-  final IconData icon;
+  final AppIconData icon;
   final String label;
 
   const BookListCardMeta({required this.icon, required this.label});
@@ -146,8 +147,8 @@ class _BookListCover extends StatelessWidget {
 
   Widget _placeholder(BuildContext context) {
     return Center(
-      child: Icon(
-        Icons.auto_stories_outlined,
+      child: AppIcon(
+        AppIcons.bookOpen02,
         color: context.appTextSecondary,
         size: 34,
       ),

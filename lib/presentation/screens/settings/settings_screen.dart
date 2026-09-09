@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -70,7 +71,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       body: ListView(
         padding: EdgeInsets.fromLTRB(inset, 0, inset, 120),
         children: [
-
           SettingsSectionLabel(
             title: context.tr('模型与服务', 'Models & Services', 'モデルとサービス'),
           ),
@@ -79,13 +79,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               asr.when(
                 loading: () => _serviceRow(
                   key: const ValueKey('asr-service-settings'),
-                  icon: Icons.mic_none_rounded,
+                  icon: AppIcons.mic01,
                   title: _asrTitle,
                   readiness: ServiceReadiness.loading,
                 ),
                 error: (error, _) => _serviceRow(
                   key: const ValueKey('asr-service-settings'),
-                  icon: Icons.mic_none_rounded,
+                  icon: AppIcons.mic01,
                   title: _asrTitle,
                   subtitle: _retryHint,
                   readiness: ServiceReadiness.error,
@@ -93,7 +93,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 data: (state) => _serviceRow(
                   key: const ValueKey('asr-service-settings'),
-                  icon: Icons.mic_none_rounded,
+                  icon: AppIcons.mic01,
                   title: _asrTitle,
                   subtitle:
                       '${context.tr('播客转录', 'Podcast transcripts', 'Podcast文字起こし')} · ${state.modelName}',
@@ -104,13 +104,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               llm.when(
                 loading: () => _serviceRow(
                   key: const ValueKey('llm-provider-settings'),
-                  icon: Icons.science_outlined,
+                  icon: AppIcons.chemistry01,
                   title: _aiTitle,
                   readiness: ServiceReadiness.loading,
                 ),
                 error: (error, _) => _serviceRow(
                   key: const ValueKey('llm-provider-settings'),
-                  icon: Icons.science_outlined,
+                  icon: AppIcons.chemistry01,
                   title: _aiTitle,
                   subtitle: _retryHint,
                   readiness: ServiceReadiness.error,
@@ -118,7 +118,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 data: (state) => _serviceRow(
                   key: const ValueKey('llm-provider-settings'),
-                  icon: Icons.science_outlined,
+                  icon: AppIcons.chemistry01,
                   title: _aiTitle,
                   subtitle: _joinDetail([state.providerName, state.modelId]),
                   readiness: state.readiness,
@@ -129,13 +129,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               tts.when(
                 loading: () => _serviceRow(
                   key: const ValueKey('tts-service-settings'),
-                  icon: Icons.graphic_eq_rounded,
+                  icon: AppIcons.audioWave01,
                   title: _ttsTitle,
                   readiness: ServiceReadiness.loading,
                 ),
                 error: (error, _) => _serviceRow(
                   key: const ValueKey('tts-service-settings'),
-                  icon: Icons.graphic_eq_rounded,
+                  icon: AppIcons.audioWave01,
                   title: _ttsTitle,
                   subtitle: _retryHint,
                   readiness: ServiceReadiness.error,
@@ -143,7 +143,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 data: (state) => _serviceRow(
                   key: const ValueKey('tts-service-settings'),
-                  icon: Icons.graphic_eq_rounded,
+                  icon: AppIcons.audioWave01,
                   title: _ttsTitle,
                   subtitle: _joinDetail([
                     state.providerName,
@@ -163,7 +163,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             children: [
               SettingValueRow(
                 rowKey: const ValueKey('cache-settings'),
-                icon: Icons.storage_rounded,
+                icon: AppIcons.database02,
                 title: context.tr('缓存管理', 'Cache Management', 'キャッシュ管理'),
                 subtitle: context.tr(
                   '按书籍与播客分别清理',
@@ -183,7 +183,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
               SettingValueRow(
                 rowKey: const ValueKey('logs-settings'),
-                icon: Icons.article_outlined,
+                icon: AppIcons.file02,
                 title: context.tr('日志', 'Logs', 'ログ'),
                 subtitle: context.tr(
                   '转录、合成与请求记录',
@@ -200,14 +200,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             children: [
               SettingValueRow(
                 rowKey: const ValueKey('appearance-settings'),
-                icon: Icons.palette_outlined,
+                icon: AppIcons.paintBoard,
                 title: context.tr('外观细节', 'Appearance', '外観の詳細'),
                 subtitle: _appearanceSummary(),
                 onTap: () => _push(const AppearanceScreen()),
               ),
               SettingValueRow(
                 rowKey: const ValueKey('language-selector'),
-                icon: Icons.language,
+                icon: AppIcons.globe02,
                 title: context.tr('语言', 'Language', '言語'),
                 subtitle: context.tr(
                   '分别设置 UI 与 AI 服务语言',
@@ -273,7 +273,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Widget _serviceRow({
     required Key key,
-    required IconData icon,
+    required AppIconData icon,
     required String title,
     String? subtitle,
     required ServiceReadiness readiness,

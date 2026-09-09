@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -525,7 +526,7 @@ class _FeedRow extends StatelessWidget {
                 shape: BoxShape.circle,
                 color: ink.withValues(alpha: 0.06),
               ),
-              child: Icon(Icons.play_arrow_rounded, size: 18, color: ink),
+              child: AppIcon(AppIcons.play, size: 18, color: ink),
             ),
           ],
         ),
@@ -572,7 +573,7 @@ class _EntryArtwork extends StatelessWidget {
               coverPath: entry.localCoverPath,
               borderRadius: borderRadius,
               iconSize: size * 0.34,
-              placeholderIcon: Icons.auto_stories_outlined,
+              placeholderIcon: AppIcons.bookOpen02,
             ),
     );
   }
@@ -605,11 +606,7 @@ class _PlayButton extends StatelessWidget {
             ),
           ],
         ),
-        child: Icon(
-          Icons.play_arrow_rounded,
-          size: 30,
-          color: context.appBackground,
-        ),
+        child: AppIcon(AppIcons.play, size: 30, color: context.appBackground),
       ),
     );
   }
@@ -698,7 +695,7 @@ class _EmptyHome extends StatelessWidget {
         ),
         const SizedBox(height: 14),
         _StartRow(
-          icon: Icons.auto_stories_outlined,
+          icon: AppIcons.bookOpen02,
           title: context.tr('导入一本书', 'Import a book', '本をインポート'),
           subtitle: context.tr(
             '支持 EPUB 和 TXT',
@@ -708,7 +705,7 @@ class _EmptyHome extends StatelessWidget {
           onTap: onImportBook,
         ),
         _StartRow(
-          icon: Icons.rss_feed,
+          icon: AppIcons.rss,
           title: context.tr('通过 RSS 添加', 'Add with RSS', 'RSSから追加'),
           subtitle: context.tr(
             '粘贴已知的节目 Feed 地址',
@@ -723,7 +720,7 @@ class _EmptyHome extends StatelessWidget {
 }
 
 class _StartRow extends StatelessWidget {
-  final IconData icon;
+  final AppIconData icon;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
@@ -753,7 +750,7 @@ class _StartRow extends StatelessWidget {
                 borderRadius: BorderRadius.circular(13),
                 color: ink.withValues(alpha: 0.06),
               ),
-              child: Icon(icon, size: 22, color: ink),
+              child: AppIcon(icon, size: 22, color: ink),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -781,8 +778,8 @@ class _StartRow extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(
-              Icons.chevron_right,
+            AppIcon(
+              AppIcons.arrowRight01,
               color: ink.withValues(alpha: 0.32),
               size: 22,
             ),

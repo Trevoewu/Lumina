@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -60,7 +61,7 @@ class _LanguageSettingsScreenState
               _languageRow(
                 rowKey: const ValueKey('ui-language-selector'),
                 menuKey: _uiLanguageMenuKey,
-                icon: Icons.translate_rounded,
+                icon: AppIcons.translation,
                 title: context.tr('UI 语言', 'UI Language', 'UI言語'),
                 subtitle: context.tr(
                   '仅影响应用菜单、按钮与提示文字',
@@ -82,7 +83,7 @@ class _LanguageSettingsScreenState
               _languageRow(
                 rowKey: const ValueKey('ai-language-selector'),
                 menuKey: _aiLanguageMenuKey,
-                icon: Icons.auto_awesome_rounded,
+                icon: AppIcons.aiMagic,
                 title: context.tr('AI 服务语言', 'AI Service Language', 'AIサービス言語'),
                 subtitle: context.tr(
                   '用于 AI Summary、Ask AI 与 AI 释义的回复',
@@ -118,7 +119,7 @@ class _LanguageSettingsScreenState
   Widget _languageRow({
     required Key rowKey,
     required GlobalKey<PopupMenuButtonState<AppLanguage>> menuKey,
-    required IconData icon,
+    required AppIconData icon,
     required String title,
     required String subtitle,
     required AppLanguage selected,
@@ -170,7 +171,11 @@ class _LanguageSettingsScreenState
             ).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
           ),
           SizedBox(width: context.appDesign.spaceXs),
-          Icon(Icons.unfold_more, color: scheme.onSurfaceVariant, size: 18),
+          AppIcon(
+            AppIcons.arrowUpDown,
+            color: scheme.onSurfaceVariant,
+            size: 18,
+          ),
         ],
       ),
     );
@@ -183,7 +188,7 @@ class _LanguageSettingsScreenState
         SizedBox(
           width: context.appDesign.spaceXl,
           child: selected
-              ? Icon(Icons.check, color: scheme.primary)
+              ? AppIcon(AppIcons.tick02, color: scheme.primary)
               : const SizedBox.shrink(),
         ),
         SizedBox(width: context.appDesign.spaceSm),

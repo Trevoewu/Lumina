@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import '../../widgets/app_glass_controls.dart';
 import 'dart:async';
 import 'dart:io';
@@ -82,7 +83,7 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
                             dimension: 20,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Icon(Icons.refresh),
+                        : const AppIcon(AppIcons.refresh),
                   ),
                   AppGlassMenuButton<String>(
                     tooltip: context.tr('更多', 'More', 'その他'),
@@ -156,7 +157,7 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
                         onPressed: episodes.isEmpty
                             ? null
                             : () => _openEpisode(episodes.first.id),
-                        icon: const Icon(Icons.play_arrow_rounded),
+                        icon: const AppIcon(AppIcons.play),
                         label: Text(context.tr('播放最新', 'Play latest', '最新を再生')),
                       ),
                     ],

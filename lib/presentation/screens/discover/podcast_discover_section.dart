@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -120,7 +121,7 @@ class PodcastDiscoverSectionState
                 'おすすめを更新',
               ),
               onPressed: _refresh,
-              icon: const Icon(Icons.refresh_rounded),
+              icon: const AppIcon(AppIcons.refresh),
             ),
           ],
         ),
@@ -140,7 +141,7 @@ class PodcastDiscoverSectionState
               return Card(
                 margin: EdgeInsets.zero,
                 child: ListTile(
-                  leading: const Icon(Icons.travel_explore_rounded),
+                  leading: const AppIcon(AppIcons.compass),
                   title: Text(
                     context.tr(
                       '浏览 Podcast Index',
@@ -236,8 +237,8 @@ class PodcastDiscoverSectionState
                                         ),
                                       ),
                                       const SizedBox(width: 4),
-                                      Icon(
-                                        Icons.chevron_right_rounded,
+                                      AppIcon(
+                                        AppIcons.arrowRight01,
                                         size: 18,
                                         color: context.appTextSecondary,
                                       ),

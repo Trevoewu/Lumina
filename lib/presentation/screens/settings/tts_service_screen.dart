@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -310,7 +311,7 @@ class _TtsProviderCard extends StatelessWidget {
                     const SizedBox(width: 8),
                     _SquareButton(
                       key: ValueKey('tts-edit-${card.id}'),
-                      icon: Icons.edit_outlined,
+                      icon: AppIcons.pencilEdit02,
                       onTap: onEdit,
                       semanticLabel: context.tr('编辑', 'Edit', '編集'),
                     ),
@@ -453,7 +454,7 @@ class _Tag extends StatelessWidget {
 }
 
 class _SquareButton extends StatelessWidget {
-  final IconData icon;
+  final AppIconData icon;
   final VoidCallback onTap;
   final String semanticLabel;
 
@@ -479,7 +480,7 @@ class _SquareButton extends StatelessWidget {
           child: SizedBox(
             width: 34,
             height: 34,
-            child: Icon(icon, size: 16, color: scheme.onSurfaceVariant),
+            child: AppIcon(icon, size: 16, color: scheme.onSurfaceVariant),
           ),
         ),
       ),

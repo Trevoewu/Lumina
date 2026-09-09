@@ -18,6 +18,7 @@ import '../screens/me/me_screen.dart';
 import '../screens/settings/settings_screen.dart';
 import 'design_system/app_navigation_icon.dart';
 import 'design_system/macos_window_toolbar.dart';
+import 'design_system/macos_page_toolbar.dart';
 import 'mini_player.dart';
 
 /// 全局骨架，包含底部导航栏和迷你播放器。
@@ -99,8 +100,9 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         _isSidebarVisible = false;
       } else {
         _isSidebarVisible = true;
-        _sidebarWidth =
-            _lastExpandedWidth >= 160.0 ? _lastExpandedWidth : 210.0;
+        _sidebarWidth = _lastExpandedWidth >= 160.0
+            ? _lastExpandedWidth
+            : 210.0;
       }
     });
   }
@@ -221,20 +223,12 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     // Cmd+, opens Settings; Cmd+[ and Cmd+] navigate back/forward.
     return CallbackShortcuts(
       bindings: {
-        const SingleActivator(
-          LogicalKeyboardKey.comma,
-          meta: true,
-        ): _openSettings,
-        const SingleActivator(
-          LogicalKeyboardKey.bracketLeft,
-          meta: true,
-        ): () {
+        const SingleActivator(LogicalKeyboardKey.comma, meta: true):
+            _openSettings,
+        const SingleActivator(LogicalKeyboardKey.bracketLeft, meta: true): () {
           if (_canGoBack) _handleBack();
         },
-        const SingleActivator(
-          LogicalKeyboardKey.bracketRight,
-          meta: true,
-        ): () {
+        const SingleActivator(LogicalKeyboardKey.bracketRight, meta: true): () {
           if (_canGoForward) _handleForward();
         },
       },
@@ -345,19 +339,38 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                     ),
                   ),
                 ),
-                // Main content area with top clearance for the window toolbar
+                // Page controls share the window toolbar row above the content.
                 Expanded(
                   child: Stack(
                     children: [
                       Positioned.fill(
                         child: Padding(
                           padding: EdgeInsets.only(
-                            top: 36.0,
+                            top: 0,
                             bottom: hasMiniPlayer
                                 ? MiniPlayer.navigationGap + MiniPlayer.height
                                 : 0,
                           ),
-                          child: _buildContent(),
+                          child: LayoutBuilder(
+                            builder: (context, constraints) =>
+                                MacosPageToolbarScope(
+                                  leadingInset:
+                                      (macosTopControlsReservedWidth +
+                                              16 -
+                                              (MediaQuery.sizeOf(
+                                                    context,
+                                                  ).width -
+                                                  constraints.maxWidth))
+                                          .clamp(
+                                            0.0,
+                                            macosTopControlsReservedWidth + 16,
+                                          ),
+                                  child: Builder(
+                                    builder: (context) =>
+                                        _buildContent(context),
+                                  ),
+                                ),
+                          ),
                         ),
                       ),
                       if (hasMiniPlayer)
@@ -377,7 +390,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
           Positioned(
             top: 0,
             left: 0,
-            right: 0,
+            width: macosTopControlsReservedWidth + 16,
             child: MacosWindowToolbar(
               isSidebarVisible: _isSidebarVisible,
               onToggleSidebar: _toggleSidebar,
@@ -398,7 +411,6 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     );
   }
 
-
   Widget _buildSidebarColumn(ThemeData theme, Color accent) {
     final isExtended = _sidebarWidth >= 160.0;
 
@@ -415,11 +427,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
               child: _buildNavigationRail(theme, accent),
             ),
           ),
-          Divider(
-            height: 1,
-            thickness: 1,
-            color: AppColors.divider,
-          ),
+          Divider(height: 1, thickness: 1, color: AppColors.divider),
           _buildBottomMeCard(theme, accent, isExtended),
         ],
       ),
@@ -496,8 +504,6 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     );
   }
 
-
-
   // ── iOS / other: bottom CNTabBar (unchanged) ──────────────────────────────
 
   Widget _buildMobileScaffold({required bool hasMiniPlayer}) {
@@ -546,8 +552,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         },
       ),
       // CNTabBar embeds a UIKit tab bar on iOS 26 and falls back to a Flutter
-      // CupertinoTabBar elsewhere. Each item carries both an SF Symbol (used
-      // natively) and a customIcon (used by the fallback).
+      // CupertinoTabBar elsewhere. Both paths use the same HugeIcons assets.
       bottomNavigationBar: CNTabBar(
         currentIndex: _currentIndex,
         onTap: _onDestinationSelected,
@@ -555,23 +560,28 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         items: [
           CNTabBarItem(
             label: context.tr('主页', 'Home', 'ホーム'),
-            icon: const CNSymbol('house.fill'),
-            customIcon: Icons.home_rounded,
+            imageAsset: const CNImageAsset(
+              'assets/ui_icons/home.png',
+              size: 25,
+            ),
           ),
           CNTabBarItem(
             label: context.tr('发现', 'Discover', '発見'),
-            icon: const CNSymbol('magnifyingglass'),
-            customIcon: Icons.search_rounded,
+            imageAsset: const CNImageAsset(
+              'assets/ui_icons/discover.png',
+              size: 25,
+            ),
           ),
           CNTabBarItem(
             label: context.tr('查词', 'Dictionary', '辞書'),
-            icon: const CNSymbol('character.book.closed.fill'),
-            customIcon: Icons.find_in_page_rounded,
+            imageAsset: const CNImageAsset(
+              'assets/ui_icons/dictionary.png',
+              size: 25,
+            ),
           ),
           CNTabBarItem(
             label: context.tr('我的', 'Me', 'マイページ'),
-            icon: const CNSymbol('person.fill'),
-            customIcon: Icons.person_rounded,
+            imageAsset: const CNImageAsset('assets/ui_icons/me.png', size: 25),
           ),
         ],
       ),
@@ -580,7 +590,8 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
 
   // ── Shared: tab content (IndexedStack + per-tab navigators) ───────────────
 
-  Widget _buildContent() {
+  Widget _buildContent([BuildContext? contentContext]) {
+    final context = contentContext ?? this.context;
     return IndexedStack(
       key: const ValueKey('app-content-layer'),
       index: _currentIndex,
@@ -592,11 +603,21 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                 onPopWithResult: (_) {
                   _navigatorKeys[index].currentState?.maybePop();
                 },
-                child: Navigator(
-                  key: _navigatorKeys[index],
-                  observers: [_navigatorObservers[index]],
-                  onGenerateRoute: (_) => MaterialPageRoute(
-                    builder: (_) => _rootPageFor(index),
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    top:
+                        MacosPageToolbarScope.maybeOf(context) != null &&
+                            (index > 1 ||
+                                (_navigatorKeys[index].currentState?.canPop() ??
+                                    false))
+                        ? macosTopControlsReservedHeight
+                        : 0,
+                  ),
+                  child: Navigator(
+                    key: _navigatorKeys[index],
+                    observers: [_navigatorObservers[index]],
+                    onGenerateRoute: (_) =>
+                        MaterialPageRoute(builder: (_) => _rootPageFor(index)),
                   ),
                 ),
               )
@@ -818,4 +839,3 @@ class _MacosProfileTileState extends State<_MacosProfileTile> {
     );
   }
 }
-

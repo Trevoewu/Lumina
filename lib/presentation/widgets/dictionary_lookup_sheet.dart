@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
@@ -188,7 +189,7 @@ class _DictionaryLookupSheetState
                               FocusScope.of(context).unfocus();
                               setState(() => _searchExpanded = false);
                             },
-                            icon: const Icon(Icons.close),
+                            icon: const AppIcon(AppIcons.cancel01),
                           ),
                         ],
                       )
@@ -203,7 +204,7 @@ class _DictionaryLookupSheetState
                             ),
                             onPressed: () =>
                                 setState(() => _searchExpanded = true),
-                            icon: const Icon(Icons.search),
+                            icon: const AppIcon(AppIcons.search01),
                           ),
                           const Spacer(),
                           IconButton(
@@ -211,7 +212,7 @@ class _DictionaryLookupSheetState
                               context,
                             ).closeButtonTooltip,
                             onPressed: () => Navigator.of(context).pop(),
-                            icon: const Icon(Icons.close),
+                            icon: const AppIcon(AppIcons.cancel01),
                           ),
                         ],
                       ),
@@ -255,8 +256,8 @@ class _SheetError extends StatelessWidget {
       padding: EdgeInsets.symmetric(vertical: context.appDesign.spaceXxl),
       child: Column(
         children: [
-          Icon(
-            notFound ? Icons.search_off : Icons.cloud_off_outlined,
+          AppIcon(
+            notFound ? AppIcons.searchRemove : AppIcons.cloudOff,
             size: 48,
             color: context.appTextSecondary,
           ),

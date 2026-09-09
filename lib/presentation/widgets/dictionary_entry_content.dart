@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -70,8 +71,8 @@ class _DictionaryEntryContentState extends State<DictionaryEntryContent> {
                     ? context.tr('取消收藏', 'Remove favorite', 'お気に入りから削除')
                     : context.tr('收藏', 'Save word', '単語を保存'),
                 onPressed: widget.onFavorite,
-                icon: Icon(
-                  widget.favorite ? Icons.bookmark : Icons.bookmark_border,
+                icon: AppIcon(
+                  widget.favorite ? AppIcons.bookmark01 : AppIcons.bookmark02,
                   color: widget.favorite ? ink : ink.withValues(alpha: 0.28),
                 ),
               ),
@@ -115,7 +116,7 @@ class _DictionaryEntryContentState extends State<DictionaryEntryContent> {
         if (_hasText(entry.shortExplanation)) ...[
           const SizedBox(height: 15),
           _EntryCard(
-            icon: Icons.lightbulb_outline,
+            icon: AppIcons.bulb,
             title: context.tr('一句话理解', 'In one sentence', '一言で言うと'),
             child: Text(entry.shortExplanation!, style: _proseStyle(context)),
           ),
@@ -123,7 +124,7 @@ class _DictionaryEntryContentState extends State<DictionaryEntryContent> {
         if (_hasText(entry.longExplanation)) ...[
           const SizedBox(height: 22),
           _EntryCard(
-            icon: Icons.menu_book_outlined,
+            icon: AppIcons.bookOpen01,
             title: context.tr('词源与用法', 'Origin & usage', '語源と用法'),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -176,8 +177,8 @@ class _DictionaryEntryContentState extends State<DictionaryEntryContent> {
                       AnimatedRotation(
                         duration: const Duration(milliseconds: 300),
                         turns: _longExpanded ? 0.5 : 0,
-                        child: Icon(
-                          Icons.keyboard_arrow_down,
+                        child: AppIcon(
+                          AppIcons.arrowDown01,
                           size: 17,
                           color: ink.withValues(alpha: 0.45),
                         ),
@@ -297,7 +298,7 @@ class _SenseRow extends StatelessWidget {
 }
 
 class _EntryCard extends StatelessWidget {
-  final IconData icon;
+  final AppIconData icon;
   final String title;
   final Widget child;
 
@@ -330,7 +331,7 @@ class _EntryCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, size: 17, color: ink),
+              AppIcon(icon, size: 17, color: ink),
               const SizedBox(width: 9),
               Text(
                 title,
@@ -401,8 +402,8 @@ class _ContextCard extends StatelessWidget {
                   color: ink.withValues(alpha: 0.06),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(
-                  Icons.auto_stories_outlined,
+                child: AppIcon(
+                  AppIcons.bookOpen02,
                   size: 18,
                   color: ink.withValues(alpha: 0.45),
                 ),
@@ -459,7 +460,7 @@ class _ContextCard extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.play_arrow_rounded, size: 18, color: accent),
+                  AppIcon(AppIcons.play, size: 18, color: accent),
                   const SizedBox(width: 6),
                   Text(
                     timestamp == null
@@ -559,7 +560,7 @@ class _PronunciationGroup extends StatelessWidget {
                 color: ink.withValues(alpha: 0.06),
                 borderRadius: BorderRadius.circular(11),
               ),
-              child: Icon(Icons.volume_up_outlined, size: 17, color: ink),
+              child: AppIcon(AppIcons.volumeHigh, size: 17, color: ink),
             ),
           ),
         ),
@@ -629,8 +630,8 @@ class _SourceFooter extends StatelessWidget {
               ),
             ),
           ),
-          Icon(
-            Icons.open_in_new,
+          AppIcon(
+            AppIcons.linkSquare02,
             size: 15,
             color: context.appTextPrimary.withValues(alpha: 0.35),
           ),

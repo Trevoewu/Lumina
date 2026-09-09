@@ -4,6 +4,8 @@ import 'package:cupertino_native_better/cupertino_native.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'design_system/app_icon.dart';
+
 /// Shared material for floating controls and their menus.
 class AppGlassSurface extends StatelessWidget {
   const AppGlassSurface({super.key, required this.child, this.radius = 24});
@@ -80,15 +82,14 @@ class _AppGlassMenuButtonState<T> extends State<AppGlassMenuButton<T>> {
       label:
           widget.tooltip ?? MaterialLocalizations.of(context).showMenuTooltip,
       button: true,
-      child: CNButton.icon(
-        icon: const CNSymbol('ellipsis', size: 22),
-        config: const CNButtonConfig(
-          style: CNButtonStyle.glass,
-          width: 44,
-          minHeight: 44,
+      child: AppGlassSurface(
+        child: IconButton(
+          icon: const AppIcon(AppIcons.moreHorizontal, size: 22),
+          color: Theme.of(context).colorScheme.onSurface,
           padding: EdgeInsets.zero,
+          constraints: const BoxConstraints.tightFor(width: 44, height: 44),
+          onPressed: () => _menuKey.currentState?.showButtonMenu(),
         ),
-        onPressed: () => _menuKey.currentState?.showButtonMenu(),
       ),
     ),
   );

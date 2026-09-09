@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/app_design_tokens.dart';
@@ -166,7 +167,7 @@ class DiscoverEditorialFeed extends StatelessWidget {
                                 style: type.labelLarge,
                               ),
                             ),
-                            const Icon(Icons.arrow_forward_rounded),
+                            const AppIcon(AppIcons.arrowRight02),
                           ],
                         ),
                       ],
@@ -197,7 +198,7 @@ class DiscoverEditorialFeed extends StatelessWidget {
                   remoteCoverUrl: book.coverUrl,
                   metadata: [
                     BookListCardMeta(
-                      icon: Icons.menu_book_outlined,
+                      icon: AppIcons.bookOpen01,
                       label: book.metadata,
                     ),
                   ],
@@ -214,7 +215,7 @@ class DiscoverEditorialFeed extends StatelessWidget {
               child: Center(
                 child: OutlinedButton.icon(
                   onPressed: onNextPage,
-                  icon: const Icon(Icons.arrow_forward_rounded),
+                  icon: const AppIcon(AppIcons.arrowRight02),
                   label: Text(context.tr('浏览更多', 'Browse more', 'もっと見る')),
                 ),
               ),
@@ -322,7 +323,7 @@ class _CoverStory extends StatelessWidget {
                         ),
                       ),
                       SizedBox(width: design.spaceSm),
-                      const Icon(Icons.arrow_forward_rounded),
+                      const AppIcon(AppIcons.arrowRight02),
                     ],
                   ),
                 ],
@@ -399,7 +400,7 @@ class _EditorialCover extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.menu_book_outlined, color: colors.onSurfaceVariant),
+            AppIcon(AppIcons.bookOpen01, color: colors.onSurfaceVariant),
             SizedBox(height: design.spaceMd),
             Expanded(
               child: Text(

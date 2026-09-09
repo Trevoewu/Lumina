@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -8,6 +9,8 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../../widgets/app_sheet.dart';
+import '../../widgets/design_system/macos_page_toolbar.dart';
+import '../../widgets/design_system/page_control_tabs.dart';
 import '../../../core/app_colors.dart';
 import '../../../core/app_design_tokens.dart';
 import '../../../core/app_localizations.dart';
@@ -44,97 +47,16 @@ class _HomeSectionSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final design = context.appDesign;
-    final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
-    final labels = <_HomeSection, String>{
-      _HomeSection.all: context.tr('全部', 'All', 'すべて'),
-      _HomeSection.books: context.tr('书籍', 'Books', '本'),
-      _HomeSection.podcasts: 'Podcast',
-    };
-    return SizedBox(
-      height: 44,
-      child: ListView.separated(
-        key: const ValueKey('home-section-selector'),
-        padding: EdgeInsets.fromLTRB(inset + 6, 0, design.spaceXs, 0),
-        scrollDirection: Axis.horizontal,
-        primary: false,
-        itemCount: _HomeSection.values.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 22),
-        itemBuilder: (context, index) {
-          final section = _HomeSection.values[index];
-          return _HomeSectionTab(
-            key: ValueKey('home-section-${section.name}'),
-            label: labels[section]!,
-            selected: selected == section,
-            onTap: () => onSelected(section),
-          );
-        },
-      ),
-    );
-  }
-}
-
-/// Underline tab from the Lumina home design: weight, opacity and a 2px rule
-/// carry the selected state instead of a filled chip.
-class _HomeSectionTab extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _HomeSectionTab({
-    super.key,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final ink = context.appTextPrimary;
-
-    return Semantics(
-      button: true,
+    return PageControlTabs<_HomeSection>(
+      key: const ValueKey('home-section-selector'),
+      labels: {
+        _HomeSection.all: context.tr('全部', 'All', 'すべて'),
+        _HomeSection.books: context.tr('书籍', 'Books', '本'),
+        _HomeSection.podcasts: 'Podcast',
+      },
       selected: selected,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: IntrinsicWidth(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.end,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              AnimatedDefaultTextStyle(
-                duration: const Duration(milliseconds: 250),
-                curve: Curves.easeOut,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                  color: selected ? ink : ink.withValues(alpha: 0.35),
-                ),
-                child: Text(label),
-              ),
-              const SizedBox(height: 7),
-              AnimatedScale(
-                duration: const Duration(milliseconds: 300),
-                curve: const Cubic(0.2, 0.7, 0.2, 1),
-                alignment: Alignment.centerLeft,
-                scale: selected ? 1 : 0.3,
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 250),
-                  opacity: selected ? 1 : 0,
-                  child: Container(
-                    height: 2,
-                    decoration: BoxDecoration(
-                      color: ink,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      onSelected: onSelected,
+      itemKey: (section) => ValueKey('home-section-${section.name}'),
     );
   }
 }
@@ -184,62 +106,59 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final design = context.appDesign;
     final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
 
+    final desktopToolbar = MacosPageToolbarScope.maybeOf(context) != null;
+    final header = Material(
+      key: const ValueKey('home-fixed-header'),
+      color: context.appBackground,
+      child: Padding(
+        padding: EdgeInsets.only(
+          top: desktopToolbar ? 0 : 8,
+          bottom: desktopToolbar ? 0 : 2,
+          right: design.spaceXs,
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: _HomeSectionSelector(
+                selected: _section,
+                onSelected: _selectSection,
+              ),
+            ),
+            IconButton(
+              key: const ValueKey('home-add-action'),
+              tooltip: _section == _HomeSection.podcasts
+                  ? context.tr('添加 Podcast', 'Add podcast', 'ポッドキャストを追加')
+                  : _section == _HomeSection.books
+                  ? context.tr('导入书籍', 'Import book', '本をインポート')
+                  : context.tr('添加内容', 'Add content', 'コンテンツを追加'),
+              onPressed: _importing || _addingPodcast ? null : _handleAddAction,
+              icon: _importing || _addingPodcast
+                  ? SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: accent,
+                      ),
+                    )
+                  : HugeIcon(
+                      icon: HugeIcons.strokeRoundedAdd01,
+                      size: 22,
+                      color: context.appTextPrimary,
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+
     return Scaffold(
       backgroundColor: context.appBackground,
       body: SafeArea(
         bottom: false,
         child: Column(
           children: [
-            Material(
-              key: const ValueKey('home-fixed-header'),
-              color: context.appBackground,
-              child: Padding(
-                padding: EdgeInsets.only(
-                  top: 8,
-                  bottom: 2,
-                  right: design.spaceXs,
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: _HomeSectionSelector(
-                        selected: _section,
-                        onSelected: _selectSection,
-                      ),
-                    ),
-                    IconButton(
-                      key: const ValueKey('home-add-action'),
-                      tooltip: _section == _HomeSection.podcasts
-                          ? context.tr(
-                              '添加 Podcast',
-                              'Add podcast',
-                              'ポッドキャストを追加',
-                            )
-                          : _section == _HomeSection.books
-                          ? context.tr('导入书籍', 'Import book', '本をインポート')
-                          : context.tr('添加内容', 'Add content', 'コンテンツを追加'),
-                      onPressed: _importing || _addingPodcast
-                          ? null
-                          : _handleAddAction,
-                      icon: _importing || _addingPodcast
-                          ? SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
-                                color: accent,
-                              ),
-                            )
-                          : HugeIcon(
-                              icon: HugeIcons.strokeRoundedAdd01,
-                              size: 22,
-                              color: context.appTextPrimary,
-                            ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            if (desktopToolbar) MacosPageToolbar(child: header) else header,
             Expanded(
               child: PageView(
                 key: const ValueKey('home-section-pages'),
@@ -395,19 +314,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           label: book.isRead
               ? context.tr('标记为未读', 'Mark as unread', '未読にする')
               : context.tr('标记为已读', 'Mark as read', '既読にする'),
-          icon: book.isRead
-              ? Icons.remove_done_outlined
-              : Icons.done_all_rounded,
+          icon: book.isRead ? AppIcons.cancel02 : AppIcons.tickDouble02,
           onPressed: () => _setBookReadStatus(book, !book.isRead),
         ),
         HalfScreenActionSheetItem(
           label: context.tr('编辑', 'Edit', '編集'),
-          icon: Icons.edit_outlined,
+          icon: AppIcons.pencilEdit02,
           onPressed: () => _showEditBookSheet(book),
         ),
         HalfScreenActionSheetItem(
           label: context.tr('重新解析', 'Reparse', '再解析'),
-          icon: Icons.auto_fix_high_outlined,
+          icon: AppIcons.magicWand01,
           onPressed: () => _confirmReparseBook(book),
         ),
         HalfScreenActionSheetItem(
@@ -418,17 +335,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   'Caching ${(cacheProgress.percent * 100).round()}%',
                   'キャッシュ中 ${(cacheProgress.percent * 100).round()}%',
                 ),
-          icon: Icons.download_for_offline_outlined,
+          icon: AppIcons.downloadCircle01,
           onPressed: cacheProgress == null ? () => _cacheWholeBook(book) : null,
         ),
         HalfScreenActionSheetItem(
           label: context.tr('清除音频', 'Clear Audio', '音声を消去'),
-          icon: Icons.cleaning_services_outlined,
+          icon: AppIcons.clean,
           onPressed: () => _confirmClearBookCache(book),
         ),
         HalfScreenActionSheetItem(
           label: context.tr('删除', 'Delete', '削除'),
-          icon: Icons.delete_outline,
+          icon: AppIcons.delete02,
           onPressed: () => _confirmDeleteBook(book),
           destructive: true,
         ),
@@ -467,14 +384,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.auto_stories_rounded),
+              leading: const AppIcon(AppIcons.bookOpen02),
               title: Text(context.tr('导入书籍', 'Import book', '本をインポート')),
               subtitle: const Text('EPUB / TXT'),
               onTap: () =>
                   Navigator.pop(sheetContext, _HomeAddAction.importBook),
             ),
             ListTile(
-              leading: const Icon(Icons.rss_feed),
+              leading: const AppIcon(AppIcons.rss),
               title: Text(context.tr('通过 RSS 添加', 'Add with RSS', 'RSSから追加')),
               subtitle: Text(
                 context.tr('粘贴 Feed 地址', 'Paste a feed URL', 'フィードURLを貼り付け'),
@@ -513,7 +430,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           decoration: InputDecoration(
             labelText: 'RSS URL',
             hintText: 'https://example.com/feed.xml',
-            prefixIcon: const Icon(Icons.rss_feed),
+            prefixIcon: const AppIcon(AppIcons.rss),
           ),
           onSubmitted: (value) => Navigator.pop(dialogContext, value.trim()),
         ),
@@ -613,8 +530,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.auto_stories_rounded,
+              AppIcon(
+                AppIcons.bookOpen02,
                 size: 120,
                 color: context.appSurfaceHighlight,
               ),
@@ -660,7 +577,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                           color: Colors.black,
                         ),
                       )
-                    : Icon(Icons.upload_file),
+                    : AppIcon(AppIcons.fileUpload),
                 label: Text(
                   _importing ? '导入中...' : '导入书籍',
                   style: TextStyle(fontWeight: FontWeight.bold),
@@ -856,7 +773,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             ),
             FilledButton.icon(
               onPressed: () => Navigator.of(dialogContext).pop(true),
-              icon: const Icon(Icons.download_for_offline_outlined),
+              icon: const AppIcon(AppIcons.downloadCircle01),
               label: Text(context.tr('开始缓存', 'Start caching', 'キャッシュ開始')),
             ),
           ],
@@ -1302,25 +1219,25 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                               _darkTextField(
                                 controller: titleController,
                                 hint: '书名',
-                                icon: Icons.title,
+                                icon: AppIcons.text,
                               ),
                               const SizedBox(height: 10),
                               _darkTextField(
                                 controller: authorController,
                                 hint: '作者',
-                                icon: Icons.person_outline,
+                                icon: AppIcons.user,
                               ),
                               const SizedBox(height: 10),
                               _darkTextField(
                                 controller: languageController,
                                 hint: '语言代码（如 zh / en）',
-                                icon: Icons.language,
+                                icon: AppIcons.globe02,
                               ),
                               const SizedBox(height: 10),
                               _darkTextField(
                                 controller: readingLevelController,
                                 hint: '阅读难度（如 A2 / B1）',
-                                icon: Icons.school_outlined,
+                                icon: AppIcons.mortarboard01,
                               ),
                             ],
                           ),
@@ -1333,7 +1250,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                       runSpacing: 10,
                       children: [
                         ActionChip(
-                          avatar: Icon(Icons.image_outlined, size: 18),
+                          avatar: AppIcon(AppIcons.image01, size: 18),
                           label: Text('更换封面'),
                           onPressed: () async {
                             final picked = await FilePicker.platform.pickFiles(
@@ -1358,7 +1275,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                         ),
                         if (coverPath != null)
                           ActionChip(
-                            avatar: Icon(Icons.hide_image_outlined, size: 18),
+                            avatar: AppIcon(AppIcons.imageNotFound01, size: 18),
                             label: Text('移除封面'),
                             onPressed: () =>
                                 setSheetState(() => coverPath = null),
@@ -1369,7 +1286,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton.icon(
-                        icon: Icon(Icons.check),
+                        icon: AppIcon(AppIcons.tick02),
                         label: Text('保存'),
                         onPressed: () async {
                           final title = titleController.text.trim();
@@ -1427,7 +1344,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   Widget _darkTextField({
     required TextEditingController controller,
     required String hint,
-    required IconData icon,
+    required AppIconData icon,
   }) {
     return TextField(
       controller: controller,
@@ -1437,7 +1354,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         fillColor: context.appBackground,
         hintText: hint,
         hintStyle: TextStyle(color: context.appTextSecondary),
-        prefixIcon: Icon(icon, color: context.appTextSecondary),
+        prefixIcon: AppIcon(icon, color: context.appTextSecondary),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide.none,
@@ -1538,11 +1455,11 @@ class _BookCard extends StatelessWidget {
       localCoverPath: book.coverPath,
       metadata: [
         BookListCardMeta(
-          icon: Icons.language,
+          icon: AppIcons.globe02,
           label: bookLanguageLabel(context, book),
         ),
         BookListCardMeta(
-          icon: Icons.trending_up_outlined,
+          icon: AppIcons.chartIncrease,
           label: bookReadingProgressLabel(
             context,
             book,
@@ -1550,10 +1467,10 @@ class _BookCard extends StatelessWidget {
           ),
         ),
         if (bookReadingLevelLabel(context, book) case final level?)
-          BookListCardMeta(icon: Icons.school_outlined, label: level),
+          BookListCardMeta(icon: AppIcons.mortarboard01, label: level),
         if (cacheProgress != null)
           BookListCardMeta(
-            icon: Icons.downloading_outlined,
+            icon: AppIcons.download01,
             label: '${(cacheProgress!.percent * 100).round()}%',
           ),
       ],

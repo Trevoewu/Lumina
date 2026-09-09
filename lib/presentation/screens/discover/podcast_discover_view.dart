@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -103,7 +104,7 @@ class _PodcastDiscoverViewState extends ConsumerState<PodcastDiscoverView> {
                 Uri.parse('https://podcastindex.org/'),
                 mode: LaunchMode.externalApplication,
               ),
-              icon: const Icon(Icons.public, size: 15),
+              icon: const AppIcon(AppIcons.globe02, size: 15),
               label: const Text('Powered by Podcast Index'),
             ),
           ),
@@ -204,8 +205,8 @@ class _PodcastIndexIntro extends StatelessWidget {
       child: Center(
         child: Column(
           children: [
-            Icon(
-              Icons.travel_explore_rounded,
+            AppIcon(
+              AppIcons.compass,
               size: 88,
               color: context.appSurfaceHighlight,
             ),
@@ -253,7 +254,7 @@ class _PodcastIndexError extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.cloud_off_outlined, size: 48),
+            const AppIcon(AppIcons.cloudOff, size: 48),
             const SizedBox(height: 12),
             Text(
               context.tr(
@@ -274,7 +275,7 @@ class _PodcastIndexError extends StatelessWidget {
             const SizedBox(height: 16),
             OutlinedButton.icon(
               onPressed: onRetry,
-              icon: const Icon(Icons.refresh),
+              icon: const AppIcon(AppIcons.refresh),
               label: Text(context.tr('重试', 'Retry', '再試行')),
             ),
           ],
@@ -347,14 +348,14 @@ class _PodcastIndexResultTile extends StatelessWidget {
               if (subscribed)
                 Tooltip(
                   message: context.tr('已订阅', 'Subscribed', '購読済み'),
-                  child: Icon(
-                    Icons.check_circle,
+                  child: AppIcon(
+                    AppIcons.checkmarkCircle02,
                     color: Theme.of(context).colorScheme.primary,
                     size: 30,
                   ),
                 )
               else
-                const Icon(Icons.chevron_right_rounded),
+                const AppIcon(AppIcons.arrowRight01),
             ],
           ),
         ),

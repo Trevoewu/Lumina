@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -150,8 +151,8 @@ class _PodcastEpisodeTileState extends ConsumerState<PodcastEpisodeTile> {
                 ),
                 if (resolvedEpisode.isPlayed) ...[
                   const SizedBox(width: 6),
-                  Icon(
-                    Icons.check_circle_rounded,
+                  AppIcon(
+                    AppIcons.checkmarkCircle02,
                     color: context.appTextSecondary,
                     size: 32,
                   ),
@@ -280,7 +281,7 @@ class _PodcastEpisodeTileState extends ConsumerState<PodcastEpisodeTile> {
       actions: [
         HalfScreenActionSheetItem(
           label: context.tr('标记为已听完', 'Mark as finished', '聴き終わりにする'),
-          icon: Icons.check_circle_outline_rounded,
+          icon: AppIcons.checkmarkCircle02,
           onPressed: resolvedEpisode.isPlayed
               ? null
               : () => _markAsFinished(resolvedEpisode),
@@ -302,8 +303,8 @@ class _PodcastEpisodeTileState extends ConsumerState<PodcastEpisodeTile> {
                       )
               : context.tr('下载单集', 'Download episode', 'エピソードをダウンロード'),
           icon: downloaded
-              ? Icons.download_done_rounded
-              : Icons.download_for_offline_outlined,
+              ? AppIcons.checkmarkCircle02
+              : AppIcons.downloadCircle01,
           onPressed: downloaded || _downloading
               ? null
               : () => _downloadEpisode(resolvedEpisode),
@@ -311,7 +312,7 @@ class _PodcastEpisodeTileState extends ConsumerState<PodcastEpisodeTile> {
         if (hasTranscript)
           HalfScreenActionSheetItem(
             label: context.tr('删除字幕', 'Delete transcript', '文字起こしを削除'),
-            icon: Icons.delete_outline_rounded,
+            icon: AppIcons.delete02,
             destructive: true,
             onPressed: () => _deleteTranscript(resolvedEpisode),
           ),

@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
@@ -157,10 +158,10 @@ class MiniPlayer extends ConsumerWidget {
                               // 控制按钮
                               AppControlIconButton(
                                 icon: buffering
-                                    ? Icons.hourglass_top_rounded
+                                    ? AppIcons.hourglass
                                     : playing
-                                    ? Icons.pause
-                                    : Icons.play_arrow,
+                                    ? AppIcons.pause
+                                    : AppIcons.play,
                                 tooltip: playing
                                     ? context.tr('暂停', 'Pause', '一時停止')
                                     : context.tr('播放', 'Play', '再生'),
@@ -169,7 +170,7 @@ class MiniPlayer extends ConsumerWidget {
                                     : handler.play,
                               ),
                               AppControlIconButton(
-                                icon: Icons.skip_next,
+                                icon: AppIcons.next,
                                 tooltip: context.tr('下一首', 'Next', '次へ'),
                                 onPressed: handler.skipToNext,
                               ),

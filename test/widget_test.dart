@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:lumina/presentation/widgets/app_back_button.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -78,12 +79,31 @@ void main() {
       findsNothing,
     );
     expect(find.byType(MiniPlayer), findsNothing);
-    expect(find.byIcon(Icons.home_rounded), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is CNIcon &&
+            widget.imageAsset?.assetPath == 'assets/ui_icons/home.png',
+      ),
+      findsOneWidget,
+    );
     expect(find.byIcon(Icons.home), findsNothing);
     expect(find.byIcon(Icons.home_outlined), findsNothing);
-    expect(find.byIcon(Icons.find_in_page_rounded), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is CNIcon &&
+            widget.imageAsset?.assetPath == 'assets/ui_icons/dictionary.png',
+      ),
+      findsOneWidget,
+    );
     expect(find.byIcon(Icons.menu_book), findsNothing);
-    expect(find.byIcon(Icons.menu_book_outlined), findsNothing);
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is AppIcon && widget.icon == AppIcons.bookOpen01,
+      ),
+      findsNothing,
+    );
     await tester.pumpWidget(const SizedBox.shrink());
     // CNTabBar leaves a 200ms Future.delayed running past dispose; pump past
     // it so the binding does not report a pending timer.
@@ -185,7 +205,11 @@ void main() {
     await tester.longPress(bookCard);
     await tester.pumpAndSettle();
     expect(find.text('Cache Entire Book'), findsOneWidget);
-    await tester.tap(find.byIcon(Icons.close_rounded));
+    await tester.tap(
+      find.byWidgetPredicate(
+        (widget) => widget is AppIcon && widget.icon == AppIcons.cancel01,
+      ),
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(bookCard);
@@ -244,7 +268,13 @@ void main() {
     expect(navigationBar.items, hasLength(4));
     expect(navigationBar.currentIndex, 0);
 
-    await tester.tap(find.byIcon(Icons.person_rounded));
+    await tester.tap(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is CNIcon &&
+            widget.imageAsset?.assetPath == 'assets/ui_icons/me.png',
+      ),
+    );
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('Me'), findsWidgets);
     expect(find.text('TODAY'), findsOneWidget);
@@ -290,7 +320,13 @@ void main() {
       ),
     );
     await tester.pump(const Duration(milliseconds: 400));
-    await tester.tap(find.byIcon(Icons.person_rounded));
+    await tester.tap(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is CNIcon &&
+            widget.imageAsset?.assetPath == 'assets/ui_icons/me.png',
+      ),
+    );
     await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
@@ -334,7 +370,13 @@ void main() {
       ),
     );
     await tester.pump(const Duration(milliseconds: 500));
-    await tester.tap(find.byIcon(Icons.person_rounded));
+    await tester.tap(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is CNIcon &&
+            widget.imageAsset?.assetPath == 'assets/ui_icons/me.png',
+      ),
+    );
     await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();

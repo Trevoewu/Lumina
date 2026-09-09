@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -70,7 +71,8 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
         handler.currentChapterId == _currentChapter?.id) {
       final playingIndex = handler.currentParagraphIndex;
       if (playingIndex != null && _lastScrolledPlayingIndex != null) {
-        if (!_userScrolledAway && _scrollController.position.isScrollingNotifier.value) {
+        if (!_userScrolledAway &&
+            _scrollController.position.isScrollingNotifier.value) {
           setState(() => _userScrolledAway = true);
         }
       }
@@ -81,10 +83,13 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
     final chapter = _currentChapter;
     if (chapter == null) return;
     try {
-      await ref.read(appDatabaseProvider).updateReadingProgress(
+      await ref
+          .read(appDatabaseProvider)
+          .updateReadingProgress(
             widget.book.id,
             chapterId: chapter.id,
-            paragraphIndex: _lastScrolledPlayingIndex ?? widget.initialParagraphIndex,
+            paragraphIndex:
+                _lastScrolledPlayingIndex ?? widget.initialParagraphIndex,
           );
     } catch (_) {}
   }
@@ -104,10 +109,16 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
     }
 
     _chapters = chapters;
-    await _loadChapter(targetChapter ?? chapters.firstOrNull, initialIndex: widget.initialParagraphIndex);
+    await _loadChapter(
+      targetChapter ?? chapters.firstOrNull,
+      initialIndex: widget.initialParagraphIndex,
+    );
   }
 
-  Future<void> _loadChapter(drift_db.Chapter? chapter, {int initialIndex = 0}) async {
+  Future<void> _loadChapter(
+    drift_db.Chapter? chapter, {
+    int initialIndex = 0,
+  }) async {
     if (chapter == null) {
       if (mounted) setState(() => _loading = false);
       return;
@@ -146,7 +157,11 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
     _saveProgress();
   }
 
-  void _scrollToParagraph(int index, {bool smooth = true, double alignment = 0.32}) {
+  void _scrollToParagraph(
+    int index, {
+    bool smooth = true,
+    double alignment = 0.32,
+  }) {
     final key = _paragraphKeys[index];
     final targetContext = key?.currentContext;
     if (targetContext != null && targetContext.mounted) {
@@ -218,8 +233,11 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
     // Audio sync
     final handler = ref.watch(luminaAudioHandlerProvider).asData?.value;
     final isThisBook = handler?.currentBookId == widget.book.id;
-    final isThisChapter = isThisBook && handler?.currentChapterId == _currentChapter?.id;
-    final playingParagraphIndex = isThisChapter ? handler?.currentParagraphIndex : null;
+    final isThisChapter =
+        isThisBook && handler?.currentChapterId == _currentChapter?.id;
+    final playingParagraphIndex = isThisChapter
+        ? handler?.currentParagraphIndex
+        : null;
 
     // Follow audio progression if user hasn't explicitly scrolled away
     if (playingParagraphIndex != null &&
@@ -235,14 +253,13 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
         ? _chapters.indexWhere((c) => c.id == _currentChapter!.id)
         : -1;
     final hasPrevChapter = currentIndex > 0;
-    final hasNextChapter = currentIndex >= 0 && currentIndex < _chapters.length - 1;
+    final hasNextChapter =
+        currentIndex >= 0 && currentIndex < _chapters.length - 1;
 
     return Scaffold(
       backgroundColor: context.appBackground,
       body: _loading
-          ? Center(
-              child: CircularProgressIndicator(color: context.appAccent),
-            )
+          ? Center(child: CircularProgressIndicator(color: context.appAccent))
           : Stack(
               children: [
                 // ── Reader Body (Continuous vertical scroll) ───────────────────
@@ -257,7 +274,9 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
                       inset,
                       MediaQuery.paddingOf(context).bottom + 120,
                     ),
-                    itemCount: _paragraphs.length + 2, // Header + paragraphs + Chapter footer
+                    itemCount:
+                        _paragraphs.length +
+                        2, // Header + paragraphs + Chapter footer
                     itemBuilder: (context, index) {
                       // 0: Chapter Title Header
                       if (index == 0) {
@@ -279,7 +298,10 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
                               const SizedBox(height: 6),
                               Text(
                                 _currentChapter?.title ?? widget.book.title,
-                                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .headlineMedium
+                                    ?.copyWith(
                                       fontWeight: FontWeight.w800,
                                       color: context.appTextPrimary,
                                       height: 1.25,
@@ -305,12 +327,19 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
                               if (hasPrevChapter)
                                 OutlinedButton.icon(
                                   onPressed: _goToPreviousChapter,
-                                  icon: const Icon(Icons.arrow_back_rounded, size: 16),
-                                  label: Text(context.tr('上一章', 'Previous', '前へ')),
+                                  icon: const AppIcon(
+                                    AppIcons.arrowLeft02,
+                                    size: 16,
+                                  ),
+                                  label: Text(
+                                    context.tr('上一章', 'Previous', '前へ'),
+                                  ),
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: context.appTextPrimary,
                                     side: BorderSide(
-                                      color: scheme.onSurface.withValues(alpha: 0.2),
+                                      color: scheme.onSurface.withValues(
+                                        alpha: 0.2,
+                                      ),
                                     ),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),
@@ -322,8 +351,13 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
                               if (hasNextChapter)
                                 FilledButton.icon(
                                   onPressed: _goToNextChapter,
-                                  icon: const Icon(Icons.arrow_forward_rounded, size: 16),
-                                  label: Text(context.tr('下一章', 'Next Chapter', '次へ')),
+                                  icon: const AppIcon(
+                                    AppIcons.arrowRight02,
+                                    size: 16,
+                                  ),
+                                  label: Text(
+                                    context.tr('下一章', 'Next Chapter', '次へ'),
+                                  ),
                                   style: FilledButton.styleFrom(
                                     backgroundColor: context.appAccent,
                                     foregroundColor: Colors.white,
@@ -341,7 +375,8 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
 
                       final paragraphIndex = index - 1;
                       final paragraph = _paragraphs[paragraphIndex];
-                      final isPlayingThis = playingParagraphIndex == paragraphIndex;
+                      final isPlayingThis =
+                          playingParagraphIndex == paragraphIndex;
 
                       return KeyedSubtree(
                         key: _paragraphKeys[paragraphIndex],
@@ -433,9 +468,7 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
                                       ),
                                     ),
                                     IconButton(
-                                      icon: const Icon(
-                                        Icons.format_size_rounded,
-                                      ),
+                                      icon: const AppIcon(AppIcons.textFont),
                                       color: context.appTextPrimary,
                                       tooltip: context.tr(
                                         '阅读排版',
@@ -446,9 +479,7 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
                                           showReaderAppearanceSheet(context),
                                     ),
                                     IconButton(
-                                      icon: const Icon(
-                                        Icons.menu_book_rounded,
-                                      ),
+                                      icon: const AppIcon(AppIcons.bookOpen01),
                                       color: context.appTextPrimary,
                                       tooltip: context.tr(
                                         '目录',
@@ -500,7 +531,8 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Text(
-                                      _currentChapter?.title ?? widget.book.title,
+                                      _currentChapter?.title ??
+                                          widget.book.title,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
@@ -523,10 +555,15 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
                               ),
                               // Aa Appearance settings
                               IconButton(
-                                icon: const Icon(Icons.format_size_rounded),
+                                icon: const AppIcon(AppIcons.textFont),
                                 color: context.appTextPrimary,
-                                tooltip: context.tr('阅读排版', 'Typography', '読書設定'),
-                                onPressed: () => showReaderAppearanceSheet(context),
+                                tooltip: context.tr(
+                                  '阅读排版',
+                                  'Typography',
+                                  '読書設定',
+                                ),
+                                onPressed: () =>
+                                    showReaderAppearanceSheet(context),
                               ),
                               // TOC Sheet
                               IconButton(
@@ -535,7 +572,11 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
                                   color: context.appTextPrimary,
                                   size: 20,
                                 ),
-                                tooltip: context.tr('目录', 'Table of Contents', '目次'),
+                                tooltip: context.tr(
+                                  '目录',
+                                  'Table of Contents',
+                                  '目次',
+                                ),
                                 onPressed: _openTocSheet,
                               ),
                               // Listen in Full Player
@@ -545,8 +586,15 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
                                   color: context.appAccent,
                                   size: 20,
                                 ),
-                                tooltip: context.tr('听书播放器', 'Player', '再生プレーヤー'),
-                                onPressed: () => _openPlayer(chapter: _currentChapter, autoplay: false),
+                                tooltip: context.tr(
+                                  '听书播放器',
+                                  'Player',
+                                  '再生プレーヤー',
+                                ),
+                                onPressed: () => _openPlayer(
+                                  chapter: _currentChapter,
+                                  autoplay: false,
+                                ),
                               ),
                             ],
                           ),
@@ -565,7 +613,7 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
                         backgroundColor: context.appAccent,
                         foregroundColor: Colors.white,
                         elevation: 4,
-                        icon: const Icon(Icons.my_location_rounded, size: 18),
+                        icon: const AppIcon(AppIcons.target02, size: 18),
                         label: Text(
                           context.tr('回到朗读处', 'Back to audio', '朗読位置へ'),
                           style: const TextStyle(fontWeight: FontWeight.w600),
@@ -582,13 +630,16 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
                 AnimatedPositioned(
                   duration: const Duration(milliseconds: 220),
                   curve: Curves.easeInOutCubic,
-                  bottom: _barsVisible ? MediaQuery.paddingOf(context).bottom : -100,
+                  bottom: _barsVisible
+                      ? MediaQuery.paddingOf(context).bottom
+                      : -100,
                   left: 0,
                   right: 0,
                   child: ReaderAudioBar(
                     book: widget.book,
                     currentChapter: _currentChapter,
-                    onStartListening: () => _openPlayer(chapter: _currentChapter, autoplay: true),
+                    onStartListening: () =>
+                        _openPlayer(chapter: _currentChapter, autoplay: true),
                   ),
                 ),
               ],

@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -165,7 +166,13 @@ void main() {
     final updated = await database.getPodcastEpisode(episode.id);
     expect(updated?.isPlayed, isTrue);
     expect(updated?.playbackPositionMs, episode.durationMs);
-    expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is AppIcon && widget.icon == AppIcons.checkmarkCircle02,
+      ),
+      findsOneWidget,
+    );
     expect(find.byType(LinearProgressIndicator), findsNothing);
   });
 

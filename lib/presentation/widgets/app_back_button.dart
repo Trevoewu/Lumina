@@ -18,7 +18,7 @@ class AppBackButton extends StatelessWidget {
       child: Tooltip(
         message: label,
         child: CNButton.icon(
-          icon: const CNSymbol('chevron.left', size: 22),
+          imageAsset: const CNImageAsset('assets/ui_icons/back.png', size: 22),
           config: const CNButtonConfig(
             style: CNButtonStyle.glass,
             width: 44,

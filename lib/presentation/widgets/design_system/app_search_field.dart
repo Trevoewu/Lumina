@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/app_colors.dart';
@@ -12,6 +13,7 @@ class AppSearchField extends StatelessWidget {
   final ValueChanged<String>? onSubmitted;
   final ValueChanged<String>? onChanged;
   final VoidCallback? onSearch;
+  final bool compact;
   final bool loading;
   final bool autofocus;
   final bool autocorrect;
@@ -25,6 +27,7 @@ class AppSearchField extends StatelessWidget {
     this.onSubmitted,
     this.onChanged,
     this.onSearch,
+    this.compact = false,
     this.loading = false,
     this.autofocus = false,
     this.autocorrect = true,
@@ -36,23 +39,29 @@ class AppSearchField extends StatelessWidget {
     final ink = context.appTextPrimary;
 
     return Container(
-      height: 52,
-      padding: const EdgeInsets.only(left: 18, right: 7),
+      height: compact ? 28 : 52,
+      padding: EdgeInsets.only(left: compact ? 10 : 18, right: compact ? 3 : 7),
       decoration: BoxDecoration(
         color: context.appSurface,
         borderRadius: BorderRadius.circular(26),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        boxShadow: compact
+            ? []
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
       ),
       child: Row(
         children: [
-          Icon(Icons.search, size: 19, color: ink.withValues(alpha: 0.45)),
-          const SizedBox(width: 11),
+          AppIcon(
+            AppIcons.search01,
+            size: compact ? 16 : 19,
+            color: ink.withValues(alpha: 0.45),
+          ),
+          SizedBox(width: compact ? 7 : 11),
           Expanded(
             child: TextField(
               key: fieldKey,
@@ -63,7 +72,7 @@ class AppSearchField extends StatelessWidget {
               textInputAction: TextInputAction.search,
               onChanged: onChanged,
               onSubmitted: loading ? null : onSubmitted,
-              style: TextStyle(fontSize: 16, color: ink),
+              style: TextStyle(fontSize: compact ? 13 : 16, color: ink),
               decoration: InputDecoration(
                 isCollapsed: true,
                 filled: false,
@@ -73,7 +82,7 @@ class AppSearchField extends StatelessWidget {
                 contentPadding: EdgeInsets.zero,
                 hintText: hintText,
                 hintStyle: TextStyle(
-                  fontSize: 16,
+                  fontSize: compact ? 13 : 16,
                   color: ink.withValues(alpha: 0.32),
                 ),
               ),
@@ -81,6 +90,7 @@ class AppSearchField extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           _SubmitButton(
+            compact: compact,
             controller: controller,
             loading: loading,
             onSearch: onSearch,
@@ -92,11 +102,13 @@ class AppSearchField extends StatelessWidget {
 }
 
 class _SubmitButton extends StatelessWidget {
+  final bool compact;
   final TextEditingController controller;
   final bool loading;
   final VoidCallback? onSearch;
 
   const _SubmitButton({
+    required this.compact,
     required this.controller,
     required this.loading,
     required this.onSearch,
@@ -109,10 +121,10 @@ class _SubmitButton extends StatelessWidget {
 
     if (loading) {
       return SizedBox.square(
-        dimension: 38,
+        dimension: compact ? 22 : 38,
         child: Center(
           child: SizedBox.square(
-            dimension: 18,
+            dimension: compact ? 14 : 18,
             child: CircularProgressIndicator(strokeWidth: 2, color: accent),
           ),
         ),
@@ -132,15 +144,15 @@ class _SubmitButton extends StatelessWidget {
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 250),
               curve: Curves.easeOut,
-              width: 38,
-              height: 38,
+              width: compact ? 22 : 38,
+              height: compact ? 22 : 38,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: ready ? accent : ink.withValues(alpha: 0.06),
               ),
-              child: Icon(
-                Icons.arrow_forward,
-                size: 18,
+              child: AppIcon(
+                AppIcons.arrowRight02,
+                size: compact ? 14 : 18,
                 color: ready
                     ? Theme.of(context).colorScheme.onPrimary
                     : ink.withValues(alpha: 0.35),

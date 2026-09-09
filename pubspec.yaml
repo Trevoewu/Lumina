@@ -105,6 +105,7 @@ flutter:
   assets:
     - assets/reading_levels/cefrj-vocabulary-profile-1.5.csv
     - assets/provider_icons/
+    - assets/ui_icons/
     - assets/app_icon/lumina_app_icon_1024.png
     - assets/app_icon_concepts/lumina-a1.png
     - assets/app_icon_concepts/lumina-a2.png

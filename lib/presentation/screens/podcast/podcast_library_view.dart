@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -110,7 +111,7 @@ class _PodcastLibraryViewState extends ConsumerState<PodcastLibraryView> {
                             dimension: 20,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Icon(Icons.refresh),
+                        : const AppIcon(AppIcons.refresh),
                   ),
                 ],
               ),
@@ -264,8 +265,8 @@ class _PodcastEmptyState extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.podcasts_rounded,
+            AppIcon(
+              AppIcons.podcast,
               size: 112,
               color: context.appSurfaceHighlight,
             ),
@@ -295,7 +296,7 @@ class _PodcastEmptyState extends StatelessWidget {
             const SizedBox(height: 28),
             FilledButton.icon(
               onPressed: onAddPodcast,
-              icon: const Icon(Icons.add_link),
+              icon: const AppIcon(AppIcons.link01),
               label: Text(
                 context.tr(
                   '粘贴 RSS 地址',

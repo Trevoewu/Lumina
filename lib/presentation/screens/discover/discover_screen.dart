@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -19,6 +20,9 @@ import '../../widgets/book_card_metadata.dart';
 import '../../widgets/book_list_card.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
 import '../../widgets/design_system/app_search_field.dart';
+import '../../widgets/design_system/macos_page_toolbar.dart';
+import '../../widgets/design_system/page_control_tabs.dart';
+import '../../widgets/design_system/page_toolbar_search.dart';
 import '../album/album_screen.dart';
 import '../library/gutendex_book_detail_screen.dart';
 import '../library/librivox_book_detail_screen.dart';
@@ -283,60 +287,62 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
       DiscoverScope.library => _localSearching,
     };
 
-    return CollapsingPageScaffold(
+    final desktopToolbar = MacosPageToolbarScope.maybeOf(context) != null;
+    final selector = PageControlTabs<DiscoverScope>(
+      key: const ValueKey('discover-scope-selector'),
+      labels: {
+        for (final scope in [
+          DiscoverScope.onlineBooks,
+          DiscoverScope.audiobooks,
+          DiscoverScope.podcasts,
+          DiscoverScope.library,
+        ])
+          scope: scope.label(context),
+      },
+      selected: _scope,
+      itemKey: (scope) => ValueKey('discover-scope-${scope.name}'),
+      onSelected: (scope) {
+        if (scope == _scope) return;
+        _debounce?.cancel();
+        FocusManager.instance.primaryFocus?.unfocus();
+        setState(() {
+          _scope = scope;
+          _loadForScope();
+        });
+      },
+    );
+    Widget searchField(bool autofocus) => AppSearchField(
+      fieldKey: const ValueKey('discover-search-field'),
+      controller: _controller,
+      onChanged: _onQueryChanged,
+      autofocus: autofocus,
+      compact: desktopToolbar,
+      autocorrect: _scope != DiscoverScope.podcasts,
+      enableSuggestions: _scope != DiscoverScope.podcasts,
+      loading: searching,
+      onSubmitted: (_) => _runSearch(),
+      onSearch: _runSearch,
+      hintText: _scope.hintText(context),
+    );
+    final page = CollapsingPageScaffold(
       title: context.tr('发现', 'Discover', '発見'),
       body: Column(
         children: [
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-              inset,
-              design.spaceSm,
-              inset,
-              design.spaceSm,
+          if (!desktopToolbar)
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                inset,
+                design.spaceSm,
+                inset,
+                design.spaceSm,
+              ),
+              child: searchField(false),
             ),
-            child: AppSearchField(
-              fieldKey: const ValueKey('discover-search-field'),
-              controller: _controller,
-              onChanged: _onQueryChanged,
-              autofocus: false,
-              autocorrect: _scope != DiscoverScope.podcasts,
-              enableSuggestions: _scope != DiscoverScope.podcasts,
-              loading: searching,
-              onSubmitted: (_) => _runSearch(),
-              onSearch: _runSearch,
-              hintText: _scope.hintText(context),
+          if (!desktopToolbar)
+            Padding(
+              padding: EdgeInsets.only(bottom: design.spaceMd),
+              child: selector,
             ),
-          ),
-          SingleChildScrollView(
-            key: const ValueKey('discover-scope-selector'),
-            scrollDirection: Axis.horizontal,
-            padding: EdgeInsets.fromLTRB(inset, 0, inset, design.spaceMd),
-            child: Row(
-              spacing: design.spaceSm,
-              children: [
-                for (final scope in [
-                  DiscoverScope.onlineBooks,
-                  DiscoverScope.audiobooks,
-                  DiscoverScope.podcasts,
-                  DiscoverScope.library,
-                ])
-                  ChoiceChip(
-                    label: Text(scope.label(context)),
-                    selected: _scope == scope,
-                    showCheckmark: false,
-                    onSelected: (_) {
-                      if (scope == _scope) return;
-                      _debounce?.cancel();
-                      FocusManager.instance.primaryFocus?.unfocus();
-                      setState(() {
-                        _scope = scope;
-                        _loadForScope();
-                      });
-                    },
-                  ),
-              ],
-            ),
-          ),
           if (_controller.text.trim().isNotEmpty)
             Align(
               alignment: Alignment.centerLeft,
@@ -374,6 +380,15 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
           ),
         ],
       ),
+    );
+    if (!desktopToolbar) return page;
+    return Column(
+      children: [
+        MacosPageToolbar(
+          child: PageToolbarSearch(tabs: selector, searchBuilder: searchField),
+        ),
+        Expanded(child: page),
+      ],
     );
   }
 
@@ -519,7 +534,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
         if (index == books.length) {
           return Center(
             child: OutlinedButton.icon(
-              icon: const Icon(Icons.expand_more),
+              icon: const AppIcon(AppIcons.arrowDown01),
               label: Text(context.tr('加载更多', 'Load More', 'さらに読み込む')),
               onPressed: data.result.next == null || _onlineSearching
                   ? null
@@ -541,19 +556,19 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
           subtitle: book.authorLabel,
           remoteCoverUrl: book.coverUrl,
           metadata: [
-            BookListCardMeta(icon: Icons.language, label: book.languageLabel),
+            BookListCardMeta(icon: AppIcons.globe02, label: book.languageLabel),
             BookListCardMeta(
-              icon: Icons.download_outlined,
+              icon: AppIcons.download01,
               label: _formatDownloads(book.downloadCount),
             ),
             if (imported != null)
               BookListCardMeta(
-                icon: Icons.check_circle_outline,
+                icon: AppIcons.checkmarkCircle02,
                 label: context.tr('已导入', 'Imported', 'インポート済み'),
               ),
             if (importedReadingLevel != null)
               BookListCardMeta(
-                icon: Icons.school_outlined,
+                icon: AppIcons.mortarboard01,
                 label: importedReadingLevel,
               ),
           ],
@@ -647,7 +662,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
         if (index == books.length) {
           return Center(
             child: OutlinedButton.icon(
-              icon: const Icon(Icons.expand_more),
+              icon: const AppIcon(AppIcons.arrowDown01),
               label: Text(context.tr('加载更多', 'Load More', 'さらに読み込む')),
               onPressed: _librivoxSearching
                   ? null
@@ -666,18 +681,18 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
           subtitle: book.authorLabel,
           remoteCoverUrl: book.coverUrl,
           metadata: [
-            BookListCardMeta(icon: Icons.language, label: book.language),
+            BookListCardMeta(icon: AppIcons.globe02, label: book.language),
             BookListCardMeta(
-              icon: Icons.schedule,
+              icon: AppIcons.clock01,
               label: _formatAudiobookDuration(book.totalTimeSeconds),
             ),
             BookListCardMeta(
-              icon: Icons.record_voice_over_outlined,
+              icon: AppIcons.aiVoice,
               label: context.tr('真人朗读', 'Human narrated', '人間による朗読'),
             ),
             if (imported != null)
               BookListCardMeta(
-                icon: Icons.check_circle_outline,
+                icon: AppIcons.checkmarkCircle02,
                 label: context.tr('已加入', 'Added', '追加済み'),
               ),
           ],
@@ -777,7 +792,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
           _section(context.tr('章节', 'Chapters', '章')),
           for (final hit in data.chapterHits)
             _ResultTile(
-              icon: Icons.queue_music_outlined,
+              icon: AppIcons.playList,
               title: hit.chapter.title,
               subtitle: hit.book!.title,
               onTap: () => _openChapter(hit.book!, hit.chapter),
@@ -787,7 +802,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
           _section(context.tr('正文', 'Text', '本文')),
           for (final hit in data.paragraphHits)
             _ResultTile(
-              icon: Icons.notes_outlined,
+              icon: AppIcons.note01,
               title: hit.paragraph.content,
               subtitle: '${hit.book!.title} · ${hit.chapter!.title}',
               maxTitleLines: 2,
@@ -967,7 +982,7 @@ class _OnlineErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.cloud_off_outlined, color: context.appTextSecondary),
+            AppIcon(AppIcons.cloudOff, color: context.appTextSecondary),
             const SizedBox(height: 12),
             Text(
               message,
@@ -977,7 +992,7 @@ class _OnlineErrorState extends StatelessWidget {
             const SizedBox(height: 16),
             OutlinedButton.icon(
               onPressed: onRetry,
-              icon: const Icon(Icons.refresh),
+              icon: const AppIcon(AppIcons.refresh),
               label: Text(context.tr('重试', 'Retry', '再試行')),
             ),
           ],
@@ -1027,11 +1042,11 @@ class _BookResultTile extends StatelessWidget {
       localCoverPath: book.coverPath,
       metadata: [
         BookListCardMeta(
-          icon: Icons.language,
+          icon: AppIcons.globe02,
           label: bookLanguageLabel(context, book),
         ),
         BookListCardMeta(
-          icon: Icons.trending_up_outlined,
+          icon: AppIcons.chartIncrease,
           label: bookReadingProgressLabel(
             context,
             book,
@@ -1039,7 +1054,7 @@ class _BookResultTile extends StatelessWidget {
           ),
         ),
         if (bookReadingLevelLabel(context, book) case final level?)
-          BookListCardMeta(icon: Icons.school_outlined, label: level),
+          BookListCardMeta(icon: AppIcons.mortarboard01, label: level),
       ],
       onTap: onTap,
     );
@@ -1047,7 +1062,7 @@ class _BookResultTile extends StatelessWidget {
 }
 
 class _ResultTile extends StatelessWidget {
-  final IconData icon;
+  final AppIconData icon;
   final String title;
   final String subtitle;
   final int maxTitleLines;
@@ -1067,7 +1082,7 @@ class _ResultTile extends StatelessWidget {
       color: context.appSurface,
       borderRadius: BorderRadius.circular(8),
       child: ListTile(
-        leading: Icon(icon, color: context.appTextSecondary),
+        leading: AppIcon(icon, color: context.appTextSecondary),
         title: Text(
           title,
           maxLines: maxTitleLines,
@@ -1083,7 +1098,7 @@ class _ResultTile extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: TextStyle(color: context.appTextSecondary),
         ),
-        trailing: Icon(Icons.chevron_right),
+        trailing: AppIcon(AppIcons.arrowRight01),
         onTap: onTap,
       ),
     );

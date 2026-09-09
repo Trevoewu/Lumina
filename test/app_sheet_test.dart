@@ -49,8 +49,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(AppBackButton), findsOneWidget);
       expect(
-        tester.widget<CNButton>(find.byType(CNButton)).icon?.name,
-        'chevron.left',
+        tester.widget<CNButton>(find.byType(CNButton)).imageAsset?.assetPath,
+        'assets/ui_icons/back.png',
       );
       await tester.tap(find.byType(AppBackButton));
       await tester.pumpAndSettle();

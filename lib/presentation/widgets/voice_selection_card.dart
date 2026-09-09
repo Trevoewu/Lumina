@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/app_localizations.dart';
@@ -78,8 +79,8 @@ class VoiceSelectionCard extends StatelessWidget {
                     child: SizedBox(
                       width: 32,
                       height: 32,
-                      child: Icon(
-                        playing ? Icons.stop_rounded : Icons.play_arrow_rounded,
+                      child: AppIcon(
+                        playing ? AppIcons.stop : AppIcons.play,
                         size: 18,
                         color: scheme.onSurface,
                       ),

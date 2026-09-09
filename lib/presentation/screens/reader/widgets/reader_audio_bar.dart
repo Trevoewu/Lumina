@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -36,7 +37,8 @@ class ReaderAudioBar extends ConsumerWidget {
             final state = playbackSnapshot.data;
             final isPlaying = state?.playing ?? false;
             final isThisBook = handler.currentBookId == book.id;
-            final isBuffering = state?.processingState == AudioProcessingState.loading ||
+            final isBuffering =
+                state?.processingState == AudioProcessingState.loading ||
                 state?.processingState == AudioProcessingState.buffering;
 
             return Container(
@@ -122,8 +124,17 @@ class ReaderAudioBar extends ConsumerWidget {
                           const SizedBox(height: 2),
                           Text(
                             isThisBook && isPlaying
-                                ? context.tr('正在朗读...', 'Reading aloud...', '朗読中...')
-                                : (book.author ?? context.tr('有声阅读', 'Audio reading', 'オーディオ読書')),
+                                ? context.tr(
+                                    '正在朗读...',
+                                    'Reading aloud...',
+                                    '朗読中...',
+                                  )
+                                : (book.author ??
+                                      context.tr(
+                                        '有声阅读',
+                                        'Audio reading',
+                                        'オーディオ読書',
+                                      )),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
@@ -144,7 +155,7 @@ class ReaderAudioBar extends ConsumerWidget {
                   // Controls
                   if (isThisBook) ...[
                     IconButton(
-                      icon: const Icon(Icons.replay_10_rounded),
+                      icon: const AppIcon(AppIcons.goBackward10Sec),
                       iconSize: 22,
                       color: context.appTextSecondary,
                       tooltip: context.tr('快退 10 秒', 'Rewind 10s', '10秒戻る'),
@@ -160,10 +171,10 @@ class ReaderAudioBar extends ConsumerWidget {
                                 color: accent,
                               ),
                             )
-                          : Icon(
+                          : AppIcon(
                               isPlaying
-                                  ? Icons.pause_circle_filled_rounded
-                                  : Icons.play_circle_filled_rounded,
+                                  ? AppIcons.pauseCircle
+                                  : AppIcons.playCircle,
                               size: 34,
                               color: accent,
                             ),
@@ -176,7 +187,7 @@ class ReaderAudioBar extends ConsumerWidget {
                       },
                     ),
                     IconButton(
-                      icon: const Icon(Icons.forward_10_rounded),
+                      icon: const AppIcon(AppIcons.goForward10Sec),
                       iconSize: 22,
                       color: context.appTextSecondary,
                       tooltip: context.tr('快进 10 秒', 'Forward 10s', '10秒進む'),

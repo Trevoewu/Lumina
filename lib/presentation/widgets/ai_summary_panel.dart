@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -192,8 +193,8 @@ class _AiSummaryPanelState extends ConsumerState<AiSummaryPanel> {
       children: [
         Row(
           children: [
-            Icon(
-              Icons.auto_awesome_rounded,
+            AppIcon(
+              AppIcons.aiMagic,
               size: 20,
               color: context.appTextSecondary,
             ),
@@ -212,7 +213,7 @@ class _AiSummaryPanelState extends ConsumerState<AiSummaryPanel> {
                 key: const ValueKey('ai-summary-regenerate'),
                 tooltip: context.tr('重新生成', 'Generate again', '再生成'),
                 onPressed: _generate,
-                icon: const Icon(Icons.refresh_rounded, size: 20),
+                icon: const AppIcon(AppIcons.refresh, size: 20),
               ),
           ],
         ),
@@ -274,7 +275,7 @@ class _AiSummaryPanelState extends ConsumerState<AiSummaryPanel> {
               ),
             ),
             iconAlignment: IconAlignment.end,
-            icon: const Icon(Icons.keyboard_arrow_down_rounded),
+            icon: const AppIcon(AppIcons.arrowDown01),
             label: Text(context.tr('查看完整摘要', 'Show full summary', '概要をすべて表示')),
           ),
         ] else ...[
@@ -305,7 +306,7 @@ class _AiSummaryPanelState extends ConsumerState<AiSummaryPanel> {
             child: FilledButton.icon(
               key: const ValueKey('ai-summary-generate'),
               onPressed: _generate,
-              icon: const Icon(Icons.auto_awesome_rounded, size: 18),
+              icon: const AppIcon(AppIcons.aiMagic, size: 18),
               label: Text(context.tr('生成摘要', 'Generate summary', '概要を生成')),
             ),
           ),
@@ -352,7 +353,7 @@ class _AiServiceRequiredState extends StatelessWidget {
             child: FilledButton.icon(
               key: const ValueKey('ai-summary-configure-service'),
               onPressed: onPressed,
-              icon: const Icon(Icons.hub_outlined, size: 18),
+              icon: const AppIcon(AppIcons.aiNetwork, size: 18),
               label: Text(
                 context.tr('连接 AI 服务', 'Connect AI service', 'AIサービスに接続'),
               ),
@@ -392,7 +393,7 @@ class _TranscriptRequiredState extends StatelessWidget {
             child: FilledButton.icon(
               key: const ValueKey('ai-summary-transcribe'),
               onPressed: onPressed,
-              icon: const Icon(Icons.subtitles_rounded, size: 18),
+              icon: const AppIcon(AppIcons.subtitle, size: 18),
               label: Text(
                 context.tr(
                   '先生成 Transcript',
@@ -792,8 +793,8 @@ class _AiConversationSheetState extends ConsumerState<AiConversationSheet> {
                       chat_ui.SendButtonVisibilityMode.disabled,
                   sendIconColor: context.appAccent,
                   emptyFieldSendIconColor: context.appTextSecondary,
-                  sendIcon: const Icon(
-                    Icons.arrow_upward_rounded,
+                  sendIcon: const AppIcon(
+                    AppIcons.arrowUp02,
                     key: ValueKey('ai-follow-up-send'),
                   ),
                 ),
@@ -821,8 +822,8 @@ class _ConversationEmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.forum_outlined,
+          AppIcon(
+            AppIcons.bubbleChat,
             size: 28,
             color: context.appTextSecondary.withValues(alpha: 0.8),
           ),

@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -230,9 +231,9 @@ class _MeScreenState extends ConsumerState<MeScreen> {
   void _openSettings() {
     final isMac = Theme.of(context).platform == TargetPlatform.macOS;
     if (isMac) {
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const SettingsScreen()),
-      );
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
     } else {
       Navigator.of(
         context,
@@ -287,7 +288,7 @@ class _Header extends StatelessWidget {
         ),
         _SquareIconButton(
           key: const ValueKey('me-settings-action'),
-          icon: Icons.settings_outlined,
+          icon: AppIcons.settings02,
           tooltip: context.tr('设置', 'Settings', '設定'),
           onTap: onSettings,
         ),
@@ -297,7 +298,7 @@ class _Header extends StatelessWidget {
 }
 
 class _SquareIconButton extends StatelessWidget {
-  final IconData icon;
+  final AppIconData icon;
   final String tooltip;
   final VoidCallback onTap;
 
@@ -324,7 +325,7 @@ class _SquareIconButton extends StatelessWidget {
             color: ink.withValues(alpha: 0.06),
             borderRadius: BorderRadius.circular(13),
           ),
-          child: Icon(icon, size: 19, color: ink),
+          child: AppIcon(icon, size: 19, color: ink),
         ),
       ),
     );
@@ -530,8 +531,8 @@ class _TodayCard extends StatelessWidget {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(
-                                  Icons.north_east,
+                                AppIcon(
+                                  AppIcons.arrowUpRight01,
                                   size: 13,
                                   color: ink.withValues(alpha: 0.5),
                                 ),
@@ -613,8 +614,8 @@ class _WeekRow extends StatelessWidget {
                           : ink.withValues(alpha: 0.06),
                     ),
                     child: hit
-                        ? Icon(
-                            Icons.check,
+                        ? AppIcon(
+                            AppIcons.tick02,
                             size: 15,
                             color: Theme.of(context).colorScheme.onPrimary,
                           )
@@ -722,8 +723,8 @@ class _YearBooksCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                Icons.schedule,
+              AppIcon(
+                AppIcons.clock01,
                 size: 14,
                 color: ink.withValues(alpha: 0.35),
               ),
@@ -900,7 +901,7 @@ class _StatCard extends StatelessWidget {
 }
 
 class _Badge {
-  final IconData icon;
+  final AppIconData icon;
   final String title;
   final String meta;
   final bool earned;
@@ -921,7 +922,7 @@ List<_Badge> _badgesFor(
 }) {
   return [
     _Badge(
-      icon: Icons.local_fire_department_outlined,
+      icon: AppIcons.fire,
       title: context.tr('连续 7 天', '7-day streak', '7日連続'),
       meta: summary.longestStreak >= 7
           ? context.tr('已达成', 'Earned', '達成済み')
@@ -933,7 +934,7 @@ List<_Badge> _badgesFor(
       earned: summary.longestStreak >= 7,
     ),
     _Badge(
-      icon: Icons.auto_stories_outlined,
+      icon: AppIcons.bookOpen02,
       title: context.tr('第一本读完', 'First book', '最初の1冊'),
       meta: booksRead > 0
           ? context.tr(
@@ -945,7 +946,7 @@ List<_Badge> _badgesFor(
       earned: booksRead > 0,
     ),
     _Badge(
-      icon: Icons.bookmark_border,
+      icon: AppIcons.bookmark02,
       title: context.tr('生词 100', '100 words', '単語100個'),
       meta: savedWordCount >= 100
           ? context.tr('已达成', 'Earned', '達成済み')
@@ -957,7 +958,7 @@ List<_Badge> _badgesFor(
       earned: savedWordCount >= 100,
     ),
     _Badge(
-      icon: Icons.emoji_events_outlined,
+      icon: AppIcons.champion,
       title: context.tr('连续 30 天', '30-day streak', '30日連続'),
       meta: summary.longestStreak >= 30
           ? context.tr('已达成', 'Earned', '達成済み')
@@ -1000,7 +1001,7 @@ class _BadgeCard extends StatelessWidget {
                       : ink.withValues(alpha: 0.06),
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(
+                child: AppIcon(
                   badge.icon,
                   size: 21,
                   color: badge.earned ? ink : ink.withValues(alpha: 0.4),
@@ -1461,7 +1462,7 @@ class _GoalStepper extends StatelessWidget {
 
     return Row(
       children: [
-        _StepButton(icon: Icons.remove, onTap: onDecrease),
+        _StepButton(icon: AppIcons.minusSign, onTap: onDecrease),
         const SizedBox(width: 12),
         Expanded(
           child: ClipRRect(
@@ -1477,14 +1478,14 @@ class _GoalStepper extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 12),
-        _StepButton(icon: Icons.add, onTap: onIncrease),
+        _StepButton(icon: AppIcons.add01, onTap: onIncrease),
       ],
     );
   }
 }
 
 class _StepButton extends StatelessWidget {
-  final IconData icon;
+  final AppIconData icon;
   final VoidCallback onTap;
 
   const _StepButton({required this.icon, required this.onTap});
@@ -1503,7 +1504,7 @@ class _StepButton extends StatelessWidget {
           color: ink.withValues(alpha: 0.06),
           borderRadius: BorderRadius.circular(13),
         ),
-        child: Icon(icon, size: 18, color: ink),
+        child: AppIcon(icon, size: 18, color: ink),
       ),
     );
   }

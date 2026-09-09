@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -15,47 +16,50 @@ import 'package:lumina/presentation/widgets/design_system/macos_window_toolbar.d
 
 void main() {
   group('MacosWindowToolbar', () {
-    testWidgets('renders toolbar buttons and handles toggle, back, and forward', (
-      tester,
-    ) async {
-      bool toggleClicked = false;
-      bool backClicked = false;
-      bool forwardClicked = false;
+    testWidgets(
+      'renders toolbar buttons and handles toggle, back, and forward',
+      (tester) async {
+        bool toggleClicked = false;
+        bool backClicked = false;
+        bool forwardClicked = false;
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: MacosWindowToolbar(
-              isSidebarVisible: true,
-              onToggleSidebar: () => toggleClicked = true,
-              canGoBack: true,
-              onBack: () => backClicked = true,
-              canGoForward: true,
-              onForward: () => forwardClicked = true,
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: MacosWindowToolbar(
+                isSidebarVisible: true,
+                onToggleSidebar: () => toggleClicked = true,
+                canGoBack: true,
+                onBack: () => backClicked = true,
+                canGoForward: true,
+                onForward: () => forwardClicked = true,
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      final toggleFinder = find.byKey(
-        const ValueKey('macos-sidebar-toggle-button'),
-      );
-      final backFinder = find.byKey(const ValueKey('macos-back-button'));
-      final forwardFinder = find.byKey(const ValueKey('macos-forward-button'));
+        final toggleFinder = find.byKey(
+          const ValueKey('macos-sidebar-toggle-button'),
+        );
+        final backFinder = find.byKey(const ValueKey('macos-back-button'));
+        final forwardFinder = find.byKey(
+          const ValueKey('macos-forward-button'),
+        );
 
-      expect(toggleFinder, findsOneWidget);
-      expect(backFinder, findsOneWidget);
-      expect(forwardFinder, findsOneWidget);
+        expect(toggleFinder, findsOneWidget);
+        expect(backFinder, findsOneWidget);
+        expect(forwardFinder, findsOneWidget);
 
-      await tester.tap(toggleFinder);
-      expect(toggleClicked, isTrue);
+        await tester.tap(toggleFinder);
+        expect(toggleClicked, isTrue);
 
-      await tester.tap(backFinder);
-      expect(backClicked, isTrue);
+        await tester.tap(backFinder);
+        expect(backClicked, isTrue);
 
-      await tester.tap(forwardFinder);
-      expect(forwardClicked, isTrue);
-    });
+        await tester.tap(forwardFinder);
+        expect(forwardClicked, isTrue);
+      },
+    );
 
     testWidgets('disabled back and forward buttons ignore taps', (
       tester,
@@ -93,9 +97,7 @@ void main() {
     setUp(() {
       database = AppDatabase.forTesting(NativeDatabase.memory());
       container = ProviderContainer(
-        overrides: [
-          appDatabaseProvider.overrideWithValue(database),
-        ],
+        overrides: [appDatabaseProvider.overrideWithValue(database)],
       );
     });
 
@@ -160,6 +162,12 @@ void main() {
       // MacosWindowToolbar is present
       expect(find.byType(MacosWindowToolbar), findsOneWidget);
 
+      final header = find.byKey(const ValueKey('home-fixed-header'));
+      final content = find.byKey(const ValueKey('home-section-pages'));
+      expect(tester.getTopLeft(header).dy, 0);
+      expect(tester.getSize(header).height, macosTopControlsReservedHeight);
+      expect(tester.getTopLeft(content).dy, macosTopControlsReservedHeight);
+
       // NavigationRail is initially extended (width >= 160)
       final railFinder = find.byType(NavigationRail);
       expect(railFinder, findsOneWidget);
@@ -172,6 +180,16 @@ void main() {
       );
       await tester.tap(toggleFinder);
       await tester.pumpAndSettle();
+
+      expect(tester.getTopLeft(header).dy, 0);
+      expect(
+        tester.getTopLeft(header).dx,
+        greaterThanOrEqualTo(macosTopControlsReservedWidth),
+      );
+      expect(tester.getTopLeft(content).dy, macosTopControlsReservedHeight);
+      await tester.tap(find.byKey(const ValueKey('home-section-books')));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
 
       // Sidebar AnimatedContainer has width 0
       final animatedContainerFinder = find.byWidgetPredicate(
@@ -217,6 +235,19 @@ void main() {
       expect(toolbar.canGoBack, isTrue);
       expect(toolbar.canGoForward, isFalse);
 
+      final selector = find.byKey(const ValueKey('discover-scope-selector'));
+      expect(tester.getTopLeft(selector).dy, greaterThanOrEqualTo(0));
+      expect(
+        tester.getBottomLeft(selector).dy,
+        lessThanOrEqualTo(macosTopControlsReservedHeight),
+      );
+      expect(
+        tester
+            .getTopLeft(find.byKey(const ValueKey('discover-search-field')))
+            .dy,
+        lessThan(macosTopControlsReservedHeight),
+      );
+
       // Tap back button
       await tester.tap(backButton);
       await tester.pumpAndSettle();
@@ -251,7 +282,8 @@ void main() {
 
         // Locate draggable splitter
         final splitterFinder = find.byWidgetPredicate(
-          (w) => w is MouseRegion && w.cursor == SystemMouseCursors.resizeColumn,
+          (w) =>
+              w is MouseRegion && w.cursor == SystemMouseCursors.resizeColumn,
         );
         expect(splitterFinder, findsOneWidget);
 
@@ -396,7 +428,9 @@ void main() {
         await tester.pumpAndSettle();
 
         // Find settings button in MeScreen header and tap it
-        final settingsIcon = find.byIcon(Icons.settings_outlined);
+        final settingsIcon = find.byWidgetPredicate(
+          (widget) => widget is AppIcon && widget.icon == AppIcons.settings02,
+        );
         expect(settingsIcon, findsOneWidget);
         await tester.tap(settingsIcon);
         await tester.pumpAndSettle();
@@ -459,15 +493,17 @@ void main() {
 
         await database.into(database.books).insert(testBook);
         await database.into(database.chapters).insert(testChapter);
-        await database.into(database.paragraphs).insert(
-          const Paragraph(
-            id: 'p-mac-1',
-            chapterId: 'ch-mac-1',
-            paragraphIndex: 0,
-            content: 'Desktop navigation channel paragraph content.',
-            bookId: 'test-mac-book-1',
-          ),
-        );
+        await database
+            .into(database.paragraphs)
+            .insert(
+              const Paragraph(
+                id: 'p-mac-1',
+                chapterId: 'ch-mac-1',
+                paragraphIndex: 0,
+                content: 'Desktop navigation channel paragraph content.',
+                bookId: 'test-mac-book-1',
+              ),
+            );
 
         final book = await database.getBook('test-mac-book-1');
         final chapters = await database.getChapters('test-mac-book-1');
@@ -482,14 +518,16 @@ void main() {
                     child: ElevatedButton(
                       key: const ValueKey('open-reader-button'),
                       onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => BookReaderScreen(
-                              book: book!,
-                              initialChapter: chapters.first,
-                            ),
-                          ),
-                        ).then((_) => didPop = true);
+                        Navigator.of(context)
+                            .push(
+                              MaterialPageRoute(
+                                builder: (_) => BookReaderScreen(
+                                  book: book!,
+                                  initialChapter: chapters.first,
+                                ),
+                              ),
+                            )
+                            .then((_) => didPop = true);
                       },
                       child: const Text('Open Reader'),
                     ),
@@ -576,15 +614,17 @@ void main() {
                     child: ElevatedButton(
                       key: const ValueKey('open-player-button'),
                       onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => PlayerScreen(
-                              book: book!,
-                              initialChapter: chapters.first,
-                              autoplayOnOpen: false,
-                            ),
-                          ),
-                        ).then((_) => didPop = true);
+                        Navigator.of(context)
+                            .push(
+                              MaterialPageRoute(
+                                builder: (_) => PlayerScreen(
+                                  book: book!,
+                                  initialChapter: chapters.first,
+                                  autoplayOnOpen: false,
+                                ),
+                              ),
+                            )
+                            .then((_) => didPop = true);
                       },
                       child: const Text('Open Player'),
                     ),
@@ -622,4 +662,3 @@ void main() {
     );
   });
 }
-

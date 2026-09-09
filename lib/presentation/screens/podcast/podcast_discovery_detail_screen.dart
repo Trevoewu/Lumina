@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -229,10 +230,10 @@ class _PodcastDiscoveryDetailScreenState
                             dimension: 16,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : Icon(
+                        : AppIcon(
                             _subscribedShowId == null
-                                ? Icons.add_rounded
-                                : Icons.arrow_forward_rounded,
+                                ? AppIcons.add01
+                                : AppIcons.arrowRight02,
                           ),
                     label: Text(
                       _subscribedShowId == null
@@ -386,7 +387,7 @@ class _PreviewEpisodeTile extends StatelessWidget {
               IconButton(
                 tooltip: context.tr('试听', 'Preview', '試聴'),
                 onPressed: onTap,
-                icon: const Icon(Icons.play_circle_fill_rounded),
+                icon: const AppIcon(AppIcons.playCircle),
               ),
           ],
         ),
@@ -407,7 +408,7 @@ class _PreviewError extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 28),
       child: Column(
         children: [
-          const Icon(Icons.cloud_off_outlined, size: 40),
+          const AppIcon(AppIcons.cloudOff, size: 40),
           const SizedBox(height: 10),
           Text(
             context.tr(
@@ -428,7 +429,7 @@ class _PreviewError extends StatelessWidget {
           const SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: onRetry,
-            icon: const Icon(Icons.refresh_rounded),
+            icon: const AppIcon(AppIcons.refresh),
             label: Text(context.tr('重试', 'Retry', '再試行')),
           ),
         ],

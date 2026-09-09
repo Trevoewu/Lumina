@@ -1,3 +1,4 @@
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -63,9 +64,9 @@ class _ReaderAppearanceSheet extends ConsumerWidget {
           Text(
             context.tr('阅读排版', 'Typography & Theme', '読書設定'),
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: context.appTextPrimary,
-                ),
+              fontWeight: FontWeight.w700,
+              color: context.appTextPrimary,
+            ),
           ),
           const SizedBox(height: 18),
 
@@ -73,7 +74,7 @@ class _ReaderAppearanceSheet extends ConsumerWidget {
           Row(
             children: [
               _ThemeOptionButton(
-                icon: Icons.brightness_auto_outlined,
+                icon: AppIcons.sun01,
                 label: context.tr('系统', 'System', '自動'),
                 selected: preferences.theme == AppThemePreference.system,
                 onTap: () => ref
@@ -82,7 +83,7 @@ class _ReaderAppearanceSheet extends ConsumerWidget {
               ),
               const SizedBox(width: 10),
               _ThemeOptionButton(
-                icon: Icons.wb_sunny_outlined,
+                icon: AppIcons.sun03,
                 label: context.tr('浅色', 'Light', 'ライト'),
                 selected: preferences.theme == AppThemePreference.light,
                 onTap: () => ref
@@ -91,7 +92,7 @@ class _ReaderAppearanceSheet extends ConsumerWidget {
               ),
               const SizedBox(width: 10),
               _ThemeOptionButton(
-                icon: Icons.nightlight_outlined,
+                icon: AppIcons.moon02,
                 label: context.tr('深色', 'Dark', 'ダーク'),
                 selected: preferences.theme == AppThemePreference.dark,
                 onTap: () => ref
@@ -106,9 +107,9 @@ class _ReaderAppearanceSheet extends ConsumerWidget {
           Text(
             context.tr('字体', 'Font', 'フォント'),
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: context.appTextSecondary,
-                  fontWeight: FontWeight.w600,
-                ),
+              color: context.appTextSecondary,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 8),
           Row(
@@ -161,19 +162,22 @@ class _ReaderAppearanceSheet extends ConsumerWidget {
           Text(
             context.tr('字号', 'Font Size', '文字サイズ'),
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: context.appTextSecondary,
-                  fontWeight: FontWeight.w600,
-                ),
+              color: context.appTextSecondary,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 8),
           Row(
             children: [
               IconButton(
-                icon: const Icon(Icons.remove_circle_outline),
+                icon: const AppIcon(AppIcons.minusSignCircle),
                 color: context.appTextSecondary,
                 onPressed: appearance.fontScale > 0.85
                     ? () {
-                        final next = (appearance.fontScale - 0.05).clamp(0.85, 1.3);
+                        final next = (appearance.fontScale - 0.05).clamp(
+                          0.85,
+                          1.3,
+                        );
                         controller.setFontScale(next);
                       }
                     : null,
@@ -190,11 +194,14 @@ class _ReaderAppearanceSheet extends ConsumerWidget {
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.add_circle_outline),
+                icon: const AppIcon(AppIcons.addCircle),
                 color: context.appTextSecondary,
                 onPressed: appearance.fontScale < 1.3
                     ? () {
-                        final next = (appearance.fontScale + 0.05).clamp(0.85, 1.3);
+                        final next = (appearance.fontScale + 0.05).clamp(
+                          0.85,
+                          1.3,
+                        );
                         controller.setFontScale(next);
                       }
                     : null,
@@ -217,7 +224,7 @@ class _ReaderAppearanceSheet extends ConsumerWidget {
 }
 
 class _ThemeOptionButton extends StatelessWidget {
-  final IconData icon;
+  final AppIconData icon;
   final String label;
   final bool selected;
   final VoidCallback onTap;
@@ -253,7 +260,7 @@ class _ThemeOptionButton extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
+              AppIcon(
                 icon,
                 size: 16,
                 color: selected ? context.appAccent : context.appTextSecondary,
