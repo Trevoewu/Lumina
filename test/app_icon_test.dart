@@ -57,15 +57,15 @@ void main() {
     () async {
       const gateway = MethodChannelAppIconGateway();
       expect(await gateway.isSupported(), isFalse);
-      expect(await gateway.currentIconId(), 'default');
+      expect(await gateway.currentIconId(), 'a1');
       expect(() => gateway.setIcon('unknown'), throwsArgumentError);
     },
   );
 
   test('all seven icon previews and native resources exist', () {
     expect(appIconOptions.map((option) => option.id), [
-      'default',
       'a1',
+      'default',
       'a2',
       'b1',
       'b2',

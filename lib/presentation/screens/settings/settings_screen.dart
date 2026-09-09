@@ -60,7 +60,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final design = context.appDesign;
     final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
     final scheme = Theme.of(context).colorScheme;
-    final preferences = ref.watch(appPreferencesProvider);
     final tts = ref.watch(ttsSettingsControllerProvider);
     final asr = ref.watch(asrSettingsControllerProvider);
     final llm = ref.watch(llmSettingsControllerProvider);
@@ -71,30 +70,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       body: ListView(
         padding: EdgeInsets.fromLTRB(inset, 0, inset, 120),
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(6, 0, 6, 22),
-            child: Text(
-              context.tr(
-                '语言、外观与模型',
-                'Language, appearance, and models',
-                '言語、外観、モデル',
-              ),
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
-            ),
-          ),
-          SegmentedChoiceRow<AppThemePreference>(
-            options: AppThemePreference.values,
-            selected: preferences.theme,
-            onSelected: ref.read(appPreferencesProvider.notifier).setTheme,
-            labelBuilder: _themeLabel,
-            iconBuilder: (theme) => switch (theme) {
-              AppThemePreference.system => Icons.phone_iphone_rounded,
-              AppThemePreference.light => Icons.light_mode_outlined,
-              AppThemePreference.dark => Icons.dark_mode_outlined,
-            },
-          ),
 
           SettingsSectionLabel(
             title: context.tr('模型与服务', 'Models & Services', 'モデルとサービス'),
@@ -328,12 +303,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final icon = context.tr('图标', 'Icon', 'アイコン');
     return '${appearance.fontOption.label} · $percent% · $icon';
   }
-
-  String _themeLabel(AppThemePreference value) => switch (value) {
-    AppThemePreference.system => context.tr('系统', 'System', 'システム'),
-    AppThemePreference.light => context.tr('浅色', 'Light', 'ライト'),
-    AppThemePreference.dark => context.tr('深色', 'Dark', 'ダーク'),
-  };
 
   Future<void> _push(Widget page) async {
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));

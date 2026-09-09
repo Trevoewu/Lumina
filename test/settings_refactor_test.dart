@@ -129,13 +129,9 @@ void main() {
     expect(divider.endIndent, isNull);
     expect(divider.color?.a, closeTo(0.06, 0.01));
 
-    final settingsScrollable = find.byType(Scrollable).last;
     final languageRow = find.byKey(const ValueKey('language-selector'));
-    await tester.scrollUntilVisible(
-      languageRow,
-      400,
-      scrollable: settingsScrollable,
-    );
+    await tester.drag(find.byType(Scrollable).last, const Offset(0, -300));
+    await tester.pumpAndSettle();
     await tester.tap(languageRow);
     await tester.pumpAndSettle();
 
@@ -164,12 +160,14 @@ void main() {
     expect(await database.getSetting('general_language'), 'english');
     expect(await database.getSetting('ai_service_language'), 'japanese');
 
-    // Theme is a segmented pill control at the top of the page, not a menu.
+    // Theme preference is configured inside AppearanceScreen
     await tester.tap(find.byType(AppBackButton));
     await tester.pumpAndSettle();
-    await tester.drag(find.byType(Scrollable).last, const Offset(0, 2000));
+    final appearanceRow = find.byKey(const ValueKey('appearance-settings'));
+    await tester.ensureVisible(appearanceRow);
+    await tester.tap(appearanceRow);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Dark'));
+    await tester.tap(find.byIcon(Icons.nightlight_outlined));
     await tester.pumpAndSettle();
     expect(await database.getSetting('general_theme_mode'), 'dark');
   });

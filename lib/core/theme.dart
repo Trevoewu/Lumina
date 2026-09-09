@@ -8,58 +8,93 @@ import 'app_text_styles.dart';
 /// 全局应用主题
 class AppTheme {
   static ThemeData darkTheme({
+    Color? backgroundColor,
+    Color? foregroundColor,
     Color accentColor = AppColors.defaultAccent,
     String? readingFontFamily,
     List<String>? readingFontFamilyFallback,
   }) => _buildTheme(
     AppColors.darkColorScheme,
+    backgroundColor: backgroundColor,
+    foregroundColor: foregroundColor,
     accentColor: accentColor,
     readingFontFamily: readingFontFamily,
     readingFontFamilyFallback: readingFontFamilyFallback,
+    isDark: true,
   );
 
   static ThemeData lightTheme({
+    Color? backgroundColor,
+    Color? foregroundColor,
     Color accentColor = AppColors.defaultAccent,
     String? readingFontFamily,
     List<String>? readingFontFamilyFallback,
   }) => _buildTheme(
     AppColors.lightColorScheme,
+    backgroundColor: backgroundColor,
+    foregroundColor: foregroundColor,
     accentColor: accentColor,
     readingFontFamily: readingFontFamily,
     readingFontFamilyFallback: readingFontFamilyFallback,
+    isDark: false,
   );
 
   static ThemeData _buildTheme(
     ColorScheme baseScheme, {
+    Color? backgroundColor,
+    Color? foregroundColor,
     required Color accentColor,
     required String? readingFontFamily,
     required List<String>? readingFontFamilyFallback,
+    required bool isDark,
   }) {
+    final bg = backgroundColor ?? baseScheme.surface;
+    final fg = foregroundColor ?? baseScheme.onSurface;
+    final fgVariant = Color.lerp(fg, bg, isDark ? 0.35 : 0.40)!;
+
+    final surfaceContainer = isDark
+        ? Color.lerp(bg, Colors.white, 0.08)!
+        : (bg.computeLuminance() > 0.9
+            ? Colors.white
+            : Color.lerp(bg, Colors.white, 0.5)!);
+    final surfaceContainerHighest = isDark
+        ? Color.lerp(bg, Colors.white, 0.14)!
+        : Color.lerp(bg, Colors.black, 0.06)!;
+
     final tokens = AppDesignTokens(
       readingFontFamily: readingFontFamily,
       readingFontFamilyFallback: readingFontFamilyFallback,
     );
     final accentContainer = Color.alphaBlend(
       accentColor.withValues(alpha: 0.16),
-      baseScheme.surface,
+      bg,
     );
+    final onAccent = accentColor.computeLuminance() > 0.5
+        ? Colors.black
+        : Colors.white;
+
     final colorScheme = baseScheme.copyWith(
+      surface: bg,
+      surfaceContainer: surfaceContainer,
+      surfaceContainerHighest: surfaceContainerHighest,
+      onSurface: fg,
+      onSurfaceVariant: fgVariant,
       primary: accentColor,
       secondary: accentColor,
-      onPrimary: Colors.black,
-      onSecondary: Colors.black,
+      onPrimary: onAccent,
+      onSecondary: onAccent,
       primaryContainer: accentContainer,
-      onPrimaryContainer: baseScheme.onSurface,
+      onPrimaryContainer: fg,
       primaryFixed: accentColor,
       primaryFixedDim: accentColor,
-      onPrimaryFixed: Colors.black,
-      onPrimaryFixedVariant: Colors.black,
+      onPrimaryFixed: onAccent,
+      onPrimaryFixedVariant: onAccent,
       secondaryContainer: accentContainer,
-      onSecondaryContainer: baseScheme.onSurface,
+      onSecondaryContainer: fg,
       secondaryFixed: accentColor,
       secondaryFixedDim: accentColor,
-      onSecondaryFixed: Colors.black,
-      onSecondaryFixedVariant: Colors.black,
+      onSecondaryFixed: onAccent,
+      onSecondaryFixedVariant: onAccent,
       inversePrimary: accentColor,
       surfaceTint: accentColor,
     );
