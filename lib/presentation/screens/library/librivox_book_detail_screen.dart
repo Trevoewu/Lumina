@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../../core/app_colors.dart';
@@ -241,8 +242,8 @@ class _LibrivoxBookDetailScreenState
   Widget _coverPlaceholder() => ColoredBox(
     color: context.appSurface,
     child: Center(
-      child: Icon(
-        Icons.headphones_rounded,
+      child: HugeIcon(
+        icon: HugeIcons.strokeRoundedHeadphones,
         size: 52,
         color: context.appTextSecondary,
       ),

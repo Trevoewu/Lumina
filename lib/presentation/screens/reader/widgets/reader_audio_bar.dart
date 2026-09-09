@@ -1,6 +1,7 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hugeicons/hugeicons.dart';
 
 import '../../../../core/app_colors.dart';
 import '../../../../core/app_localizations.dart';
@@ -184,7 +185,11 @@ class ReaderAudioBar extends ConsumerWidget {
                   ] else ...[
                     FilledButton.icon(
                       onPressed: onStartListening,
-                      icon: const Icon(Icons.headphones_rounded, size: 16),
+                      icon: const HugeIcon(
+                        icon: HugeIcons.strokeRoundedHeadphones,
+                        size: 16,
+                        color: Colors.white,
+                      ),
                       label: Text(context.tr('听书', 'Listen', '聴く')),
                       style: FilledButton.styleFrom(
                         backgroundColor: accent,

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -192,66 +193,51 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             Material(
               key: const ValueKey('home-fixed-header'),
               color: context.appBackground,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      inset + 6,
-                      14,
-                      design.spaceXs,
-                      0,
+              child: Padding(
+                padding: EdgeInsets.only(
+                  top: 8,
+                  bottom: 2,
+                  right: design.spaceXs,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _HomeSectionSelector(
+                        selected: _section,
+                        onSelected: _selectSection,
+                      ),
                     ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Lumina',
-                            style: TextStyle(
-                              fontSize: 19,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.38,
+                    IconButton(
+                      key: const ValueKey('home-add-action'),
+                      tooltip: _section == _HomeSection.podcasts
+                          ? context.tr(
+                              '添加 Podcast',
+                              'Add podcast',
+                              'ポッドキャストを追加',
+                            )
+                          : _section == _HomeSection.books
+                          ? context.tr('导入书籍', 'Import book', '本をインポート')
+                          : context.tr('添加内容', 'Add content', 'コンテンツを追加'),
+                      onPressed: _importing || _addingPodcast
+                          ? null
+                          : _handleAddAction,
+                      icon: _importing || _addingPodcast
+                          ? SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: accent,
+                              ),
+                            )
+                          : HugeIcon(
+                              icon: HugeIcons.strokeRoundedAdd01,
+                              size: 22,
                               color: context.appTextPrimary,
                             ),
-                          ),
-                        ),
-                        IconButton(
-                          key: const ValueKey('home-add-action'),
-                          tooltip: _section == _HomeSection.podcasts
-                              ? context.tr(
-                                  '添加 Podcast',
-                                  'Add podcast',
-                                  'ポッドキャストを追加',
-                                )
-                              : _section == _HomeSection.books
-                              ? context.tr('导入书籍', 'Import book', '本をインポート')
-                              : context.tr('添加内容', 'Add content', 'コンテンツを追加'),
-                          onPressed: _importing || _addingPodcast
-                              ? null
-                              : _handleAddAction,
-                          icon: _importing || _addingPodcast
-                              ? SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.5,
-                                    color: accent,
-                                  ),
-                                )
-                              : Icon(
-                                  Icons.add,
-                                  size: 22,
-                                  color: context.appTextPrimary,
-                                ),
-                        ),
-                      ],
                     ),
-                  ),
-                  _HomeSectionSelector(
-                    selected: _section,
-                    onSelected: _selectSection,
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
             Expanded(

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hugeicons/hugeicons.dart';
 
 import '../../../core/app_colors.dart';
 import '../../../core/app_design_tokens.dart';
@@ -457,10 +458,11 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
                                       onPressed: _openTocSheet,
                                     ),
                                     IconButton(
-                                      icon: const Icon(
-                                        Icons.headphones_outlined,
+                                      icon: HugeIcon(
+                                        icon: HugeIcons.strokeRoundedHeadphones,
+                                        color: context.appAccent,
+                                        size: 20,
                                       ),
-                                      color: context.appAccent,
                                       tooltip: context.tr(
                                         '听书播放器',
                                         'Player',
@@ -528,15 +530,21 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
                               ),
                               // TOC Sheet
                               IconButton(
-                                icon: const Icon(Icons.menu_book_rounded),
-                                color: context.appTextPrimary,
+                                icon: HugeIcon(
+                                  icon: HugeIcons.strokeRoundedBookBookmark02,
+                                  color: context.appTextPrimary,
+                                  size: 20,
+                                ),
                                 tooltip: context.tr('目录', 'Table of Contents', '目次'),
                                 onPressed: _openTocSheet,
                               ),
                               // Listen in Full Player
                               IconButton(
-                                icon: const Icon(Icons.headphones_outlined),
-                                color: context.appAccent,
+                                icon: HugeIcon(
+                                  icon: HugeIcons.strokeRoundedHeadphones,
+                                  color: context.appAccent,
+                                  size: 20,
+                                ),
                                 tooltip: context.tr('听书播放器', 'Player', '再生プレーヤー'),
                                 onPressed: () => _openPlayer(chapter: _currentChapter, autoplay: false),
                               ),

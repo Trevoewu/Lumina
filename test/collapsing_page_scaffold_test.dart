@@ -50,7 +50,7 @@ void main() {
     }
   });
 
-  testWidgets('page header stays neutral and collapses its single title', (
+  testWidgets('page header uses flat title that scrolls off screen with content', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(430, 700);
@@ -75,37 +75,26 @@ void main() {
     final header = tester.widget<Material>(
       find.byKey(const ValueKey('collapsing-page-header')),
     );
-    // Opaque background keeps scrolling body content from ghosting through
-    // the pinned header while matching the scaffold color at rest.
     expect(header.color, AppColors.darkColorScheme.surface);
+
+    final titleFinder = find.byKey(const ValueKey('collapsing-page-title'));
+    final initialPos = tester.getTopLeft(titleFinder);
     expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('collapsing-page-title')))
-          .style
-          ?.fontSize,
-      34,
+      tester.widget<Text>(titleFinder).style?.fontSize,
+      32,
     );
     expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('collapsing-page-title')))
-          .style
-          ?.fontWeight,
-      FontWeight.w700,
+      tester.widget<Text>(titleFinder).style?.fontWeight,
+      FontWeight.w800,
     );
-    expect(
-      tester.getTopLeft(find.byKey(const ValueKey('collapsing-page-title'))).dx,
-      closeTo(16, 0.1),
-    );
+    expect(initialPos.dx, closeTo(22, 0.1));
 
     await tester.drag(find.byType(ListView), const Offset(0, -320));
     await tester.pumpAndSettle();
 
-    final collapsedTitle = tester.widget<Text>(
-      find.byKey(const ValueKey('collapsing-page-title')),
-    );
-    expect(collapsedTitle.style?.fontSize, closeTo(18, 0.1));
-    expect(collapsedTitle.style?.fontWeight, FontWeight.w700);
-    expect(find.text('Library'), findsOneWidget);
+    // The header has flat typography and scrolls away with page content rather than
+    // centering or pinning at a shrunk size.
+    expect(find.byKey(const ValueKey('collapsing-page-title')), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }

@@ -2149,9 +2149,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                   key: const ValueKey(
                                     'player-reader-mode-button',
                                   ),
-                                  icon: const Icon(
-                                    Icons.menu_book_rounded,
+                                  icon: HugeIcon(
+                                    icon: HugeIcons.strokeRoundedBookOpen01,
                                     size: 20,
+                                    color: context.appTextPrimary,
                                   ),
                                   tooltip: context.tr(
                                     '阅读模式',
@@ -2211,9 +2212,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                       key: const ValueKey(
                                         'player-reader-mode-button',
                                       ),
-                                      icon: const Icon(
-                                        Icons.menu_book_rounded,
+                                      icon: HugeIcon(
+                                        icon: HugeIcons.strokeRoundedBookOpen01,
                                         size: 20,
+                                        color: context.appTextPrimary,
                                       ),
                                       tooltip: context.tr(
                                         '阅读模式',

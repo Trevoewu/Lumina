@@ -5,6 +5,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hugeicons/hugeicons.dart';
 
 import '../../../core/app_colors.dart';
 import '../../../core/app_design_tokens.dart';
@@ -1228,7 +1229,11 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
         Expanded(
           child: FilledButton.icon(
             key: const ValueKey('book-start-reading-button'),
-            icon: const Icon(Icons.menu_book_rounded, size: 18),
+            icon: const HugeIcon(
+              icon: HugeIcons.strokeRoundedBookOpen01,
+              size: 18,
+              color: Colors.white,
+            ),
             label: Text(
               hasStarted
                   ? context.tr('继续阅读', 'Continue Reading', '続きを読む')
@@ -1250,7 +1255,11 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
         Expanded(
           child: OutlinedButton.icon(
             key: const ValueKey('book-listen-button'),
-            icon: const Icon(Icons.headphones_rounded, size: 18),
+            icon: HugeIcon(
+              icon: HugeIcons.strokeRoundedHeadphones,
+              size: 18,
+              color: context.appTextPrimary,
+            ),
             label: Text(
               context.tr('听书', 'Listen', '聴く'),
               style: const TextStyle(fontWeight: FontWeight.w700),
