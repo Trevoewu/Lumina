@@ -1,5 +1,6 @@
 import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hugeicons/hugeicons.dart';
@@ -65,7 +66,10 @@ class ReaderAudioBar extends ConsumerWidget {
                   GestureDetector(
                     onTap: () {
                       if (currentChapter != null) {
-                        Navigator.of(context, rootNavigator: true).push(
+                        final isDesktop =
+                            defaultTargetPlatform == TargetPlatform.macOS &&
+                            MediaQuery.sizeOf(context).width >= 600;
+                        Navigator.of(context, rootNavigator: !isDesktop).push(
                           MaterialPageRoute<void>(
                             builder: (_) => PlayerScreen(
                               book: book,
@@ -96,7 +100,10 @@ class ReaderAudioBar extends ConsumerWidget {
                     child: GestureDetector(
                       onTap: () {
                         if (currentChapter != null) {
-                          Navigator.of(context, rootNavigator: true).push(
+                          final isDesktop =
+                              defaultTargetPlatform == TargetPlatform.macOS &&
+                              MediaQuery.sizeOf(context).width >= 600;
+                          Navigator.of(context, rootNavigator: !isDesktop).push(
                             MaterialPageRoute<void>(
                               builder: (_) => PlayerScreen(
                                 book: book,

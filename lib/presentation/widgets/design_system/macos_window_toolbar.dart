@@ -141,8 +141,68 @@ class _MacosToolbarButtonState extends State<MacosToolbarButton> {
   }
 }
 
+/// A macOS-style toolbar menu button that opens a popup menu when clicked,
+/// featuring native hover feedback and toolbar sizing.
+class MacosToolbarMenuButton<T> extends StatefulWidget {
+  const MacosToolbarMenuButton({
+    super.key,
+    required this.itemBuilder,
+    required this.onSelected,
+    this.tooltip,
+    this.icon = HugeIcons.strokeRoundedMoreHorizontal,
+    this.size = 26.0,
+  });
+
+  final PopupMenuItemBuilder<T> itemBuilder;
+  final ValueChanged<T> onSelected;
+  final String? tooltip;
+  final dynamic icon;
+  final double size;
+
+  @override
+  State<MacosToolbarMenuButton<T>> createState() =>
+      _MacosToolbarMenuButtonState<T>();
+}
+
+class _MacosToolbarMenuButtonState<T> extends State<MacosToolbarMenuButton<T>> {
+  final _popupKey = GlobalKey<PopupMenuButtonState<T>>();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        SizedBox(
+          width: widget.size,
+          height: widget.size,
+          child: PopupMenuButton<T>(
+            key: _popupKey,
+            tooltip: '',
+            position: PopupMenuPosition.under,
+            offset: const Offset(0, 4),
+            onSelected: widget.onSelected,
+            itemBuilder: widget.itemBuilder,
+            child: const SizedBox.expand(),
+          ),
+        ),
+        MacosToolbarButton(
+          size: widget.size,
+          tooltip: widget.tooltip,
+          onPressed: () => _popupKey.currentState?.showButtonMenu(),
+          child: HugeIcon(
+            icon: widget.icon,
+            size: 20.0,
+            color: theme.colorScheme.onSurface,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// The standard height of the macOS top window toolbar.
-const double macosTopControlsReservedHeight = 36.0;
+const double macosTopControlsReservedHeight = 38.0;
 
 /// Reserved clearance width on macOS desktop for traffic lights + navigation controls.
 /// Traffic lights (78pt) + Sidebar toggle (26pt) + Gap (14pt) + Back (26pt) + Gap (14pt) + Forward (26pt) + margin (12pt) = 196pt.
@@ -161,7 +221,7 @@ class MacosWindowToolbar extends StatelessWidget {
     this.onForward,
     this.height = macosTopControlsReservedHeight,
     this.trafficLightsLeftPadding = 78.0,
-    this.buttonTopOffset = 2.0,
+    this.buttonTopOffset = 0.0,
     this.backgroundColor,
     this.trailing,
   });

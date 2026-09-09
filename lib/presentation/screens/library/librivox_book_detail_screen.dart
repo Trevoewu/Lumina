@@ -134,7 +134,7 @@ class _LibrivoxBookDetailScreenState
                       style: TextStyle(
                         color: context.appTextPrimary,
                         fontSize: 24,
-                        fontWeight: FontWeight.w900,
+                        fontWeight: FontWeight.normal,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -226,7 +226,7 @@ class _LibrivoxBookDetailScreenState
               style: TextStyle(
                 color: context.appTextPrimary,
                 fontSize: 18,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.normal,
               ),
             ),
             const SizedBox(height: 10),

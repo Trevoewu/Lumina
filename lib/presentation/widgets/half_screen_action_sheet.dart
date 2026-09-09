@@ -153,7 +153,7 @@ class _HalfScreenActionSheet extends StatelessWidget {
                                               alpha: 0.5,
                                             ),
                                       fontSize: 18,
-                                      fontWeight: FontWeight.w700,
+                                      fontWeight: FontWeight.normal,
                                     ),
                                   ),
                                 ),

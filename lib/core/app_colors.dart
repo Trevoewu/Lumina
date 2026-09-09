@@ -29,6 +29,7 @@ class AppColors {
 
   /// 分割线与边界颜色
   static const Color divider = Color(0xFFE3E3E1);
+  static const Color darkDivider = Color(0xFF1C1C1C);
 
   /// 根据这些颜色生成 ColorScheme
   static const ColorScheme darkColorScheme = ColorScheme.dark(
@@ -41,6 +42,7 @@ class AppColors {
     surfaceContainerHighest: surfaceHighlight, // Hover states, elevated cards
     onSurface: textPrimary,
     onSurfaceVariant: textSecondary,
+    outlineVariant: darkDivider,
     error: error,
     onError: Colors.white,
   );
@@ -55,6 +57,7 @@ class AppColors {
     surfaceContainerHighest: Color(0xFFE8E8E8),
     onSurface: Color(0xFF151515),
     onSurfaceVariant: Color(0xFF666666),
+    outlineVariant: divider,
     error: error,
     onError: Colors.white,
   );
@@ -68,5 +71,9 @@ extension AppColorContext on BuildContext {
       Theme.of(this).colorScheme.surfaceContainerHighest;
   Color get appTextPrimary => Theme.of(this).colorScheme.onSurface;
   Color get appTextSecondary => Theme.of(this).colorScheme.onSurfaceVariant;
-  Color get appDivider => AppColors.divider;
+  Color get appDivider =>
+      Theme.of(this).dividerTheme.color ??
+      (Theme.of(this).brightness == Brightness.dark
+          ? AppColors.darkDivider
+          : AppColors.divider);
 }

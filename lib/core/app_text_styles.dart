@@ -14,22 +14,27 @@ class AppTextStyles {
     headlineMedium: TextStyle(
       fontSize: 22,
       height: 1.25,
-      fontWeight: FontWeight.w700,
+      fontWeight: FontWeight.normal,
     ),
     headlineSmall: TextStyle(
       fontSize: 18,
       height: 1.2,
-      fontWeight: FontWeight.w700,
+      fontWeight: FontWeight.normal,
     ),
     titleLarge: TextStyle(
       fontSize: 22,
       height: 1.25,
-      fontWeight: FontWeight.w700,
+      fontWeight: FontWeight.normal,
     ),
     titleMedium: TextStyle(
       fontSize: 16,
       height: 1.3,
-      fontWeight: FontWeight.w700,
+      fontWeight: FontWeight.normal,
+    ),
+    titleSmall: TextStyle(
+      fontSize: 14,
+      height: 1.3,
+      fontWeight: FontWeight.normal,
     ),
     bodyLarge: TextStyle(
       fontSize: 16,
@@ -44,12 +49,12 @@ class AppTextStyles {
     labelLarge: TextStyle(
       fontSize: 14,
       height: 1.3,
-      fontWeight: FontWeight.w600,
+      fontWeight: FontWeight.w400,
     ),
     bodySmall: TextStyle(
       fontSize: 12,
       height: 1.35,
-      fontWeight: FontWeight.w500,
+      fontWeight: FontWeight.w400,
     ),
   );
 }

@@ -50,7 +50,7 @@ class NarratorLabel extends ConsumerWidget {
         style: TextStyle(
           color: context.appTextSecondary,
           fontSize: compact ? 12 : 14,
-          fontWeight: compact ? FontWeight.w600 : FontWeight.w700,
+          fontWeight: FontWeight.normal,
         ),
       ),
     );

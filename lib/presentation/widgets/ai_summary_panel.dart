@@ -204,7 +204,7 @@ class _AiSummaryPanelState extends ConsumerState<AiSummaryPanel> {
                 'AI Summary',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: context.appTextPrimary,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.normal,
                 ),
               ),
             ),
@@ -423,7 +423,7 @@ class AiAnswerText extends StatelessWidget {
     ).textTheme.bodyLarge?.copyWith(color: context.appTextPrimary, height: 1.5);
     final headingStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
       color: context.appTextPrimary,
-      fontWeight: FontWeight.w800,
+      fontWeight: FontWeight.normal,
       height: 1.3,
     );
     return MarkdownBody(
@@ -438,16 +438,16 @@ class AiAnswerText extends StatelessWidget {
         h5: headingStyle,
         h6: headingStyle,
         em: baseTextStyle?.copyWith(fontStyle: FontStyle.italic),
-        strong: baseTextStyle?.copyWith(fontWeight: FontWeight.w800),
+        strong: baseTextStyle?.copyWith(fontWeight: FontWeight.normal),
         del: baseTextStyle?.copyWith(decoration: TextDecoration.lineThrough),
         blockquote: baseTextStyle,
         checkbox: baseTextStyle?.copyWith(color: accent),
         listBullet: baseTextStyle?.copyWith(color: context.appTextSecondary),
-        tableHead: baseTextStyle?.copyWith(fontWeight: FontWeight.w700),
+        tableHead: baseTextStyle?.copyWith(fontWeight: FontWeight.normal),
         tableBody: baseTextStyle,
         a: baseTextStyle?.copyWith(
           color: accent,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.normal,
           decoration: TextDecoration.none,
         ),
         blockSpacing: context.appDesign.spaceMd,
@@ -837,7 +837,7 @@ class _ConversationEmptyState extends StatelessWidget {
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               color: context.appTextPrimary,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.normal,
             ),
           ),
           SizedBox(height: design.spaceSm),

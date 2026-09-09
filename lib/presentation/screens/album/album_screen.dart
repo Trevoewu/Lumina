@@ -4,6 +4,7 @@ import '../../widgets/app_glass_controls.dart';
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hugeicons/hugeicons.dart';
@@ -29,6 +30,8 @@ import '../../../tts/tts_provider.dart';
 import '../../widgets/animated_pressable_card.dart';
 import '../../widgets/book_cover.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
+import '../../widgets/design_system/macos_toolbar_providers.dart';
+import '../../widgets/design_system/macos_window_toolbar.dart';
 import '../../widgets/half_screen_action_sheet.dart';
 import '../../widgets/swipe_action_row.dart';
 import '../../widgets/voice_selection_card.dart';
@@ -61,6 +64,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   late int _currentParagraphIndex;
   late int _playbackOffsetMs;
   late bool _isRead;
+  AppToolbarStateNotifier<Widget?>? _macosTrailingNotifier;
 
   bool get _isStreamingAudiobook =>
       widget.book.externalSource == librivoxSourceId;
@@ -68,6 +72,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   @override
   void initState() {
     super.initState();
+    _macosTrailingNotifier = ref.read(macosToolbarTrailingProvider.notifier);
     _bookIntroductionFuture = _loadBookIntroduction();
     _chapterDataFuture = _loadChapterData(ref.read(appDatabaseProvider));
     _bookVoiceFuture = _isStreamingAudiobook
@@ -85,6 +90,9 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   @override
   void dispose() {
     _voicePreview?.dispose();
+    Future.microtask(() {
+      _macosTrailingNotifier?.updateValue(null);
+    });
     super.dispose();
   }
 
@@ -157,11 +165,14 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   }
 
   Future<void> _openChapter(drift_db.Chapter chapter) async {
+    final isDesktop = (Theme.of(context).platform == TargetPlatform.macOS ||
+            defaultTargetPlatform == TargetPlatform.macOS) &&
+        MediaQuery.sizeOf(context).width >= 600;
     final latestBook =
         await ref.read(appDatabaseProvider).getBook(widget.book.id) ??
         widget.book;
     if (!mounted) return;
-    await Navigator.of(context, rootNavigator: true).push(
+    await Navigator.of(context, rootNavigator: !isDesktop).push(
       MaterialPageRoute<void>(
         builder: (_) => PlayerScreen(
           book: latestBook,
@@ -170,6 +181,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
         ),
       ),
     );
+    if (mounted) setState(() {});
     final database = ref.read(appDatabaseProvider);
     final results = await Future.wait<Object?>([
       database.getBook(widget.book.id),
@@ -188,6 +200,9 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   }
 
   Future<void> _openReader([drift_db.Chapter? chapter]) async {
+    final isDesktop = (Theme.of(context).platform == TargetPlatform.macOS ||
+            defaultTargetPlatform == TargetPlatform.macOS) &&
+        MediaQuery.sizeOf(context).width >= 600;
     final database = ref.read(appDatabaseProvider);
     final latestBook = await database.getBook(widget.book.id) ?? widget.book;
     final resolvedData = _chapterData ?? await _chapterDataFuture;
@@ -201,7 +216,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       );
     }
     if (!mounted || targetChapter == null) return;
-    await Navigator.of(context, rootNavigator: true).push(
+    await Navigator.of(context, rootNavigator: !isDesktop).push(
       MaterialPageRoute<void>(
         builder: (_) => BookReaderScreen(
           book: latestBook,
@@ -210,6 +225,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
         ),
       ),
     );
+    if (mounted) setState(() {});
     final results = await Future.wait<Object?>([
       database.getBook(widget.book.id),
       _loadChapterData(database),
@@ -295,7 +311,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                     context.tr('选取使用的音色', 'Choose a voice', '使用する音声を選択'),
                     style: const TextStyle(
                       fontSize: 20,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.normal,
                     ),
                   ),
                 ),
@@ -760,7 +776,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                   context.tr('修改旁白', 'Change narrator', 'ナレーターを変更'),
                   style: const TextStyle(
                     fontSize: 20,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.normal,
                   ),
                 ),
               ),
@@ -869,7 +885,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                 context.tr('隐藏章节', 'Hidden chapters', '非表示の章'),
                 style: const TextStyle(
                   fontSize: 20,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.normal,
                 ),
               ),
             ),
@@ -927,53 +943,81 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return CollapsingPageScaffold(
-      title: widget.book.title,
-      showBackButton: true,
-      actions: [
-        AppGlassMenuButton<String>(
-          key: const ValueKey('book-detail-more-menu'),
-          tooltip: context.tr('更多', 'More', 'その他'),
-          onSelected: (value) {
-            if (value == 'hidden_chapters') {
-              _showHiddenChapters();
-            } else if (value == 'toggle_read') {
-              _toggleBookReadStatus();
-            }
-          },
-          itemBuilder: (context) => [
-            PopupMenuItem<String>(
-              value: 'toggle_read',
-              child: Row(
-                children: [
-                  AppIcon(
-                    _isRead ? AppIcons.cancel02 : AppIcons.tickDouble02,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    _isRead
-                        ? context.tr('标记为未读', 'Mark as unread', '未読にする')
-                        : context.tr('标记为已读', 'Mark as read', '既読にする'),
-                  ),
-                ],
-              ),
+  List<PopupMenuEntry<String>> _buildBookMoreMenuItems(BuildContext context) {
+    return [
+      PopupMenuItem<String>(
+        value: 'toggle_read',
+        child: Row(
+          children: [
+            AppIcon(
+              _isRead ? AppIcons.cancel02 : AppIcons.tickDouble02,
+              size: 20,
             ),
-            PopupMenuItem<String>(
-              value: 'hidden_chapters',
-              child: Row(
-                children: [
-                  const AppIcon(AppIcons.viewOff, size: 20),
-                  const SizedBox(width: 12),
-                  Text(context.tr('隐藏章节', 'Hidden chapters', '非表示の章')),
-                ],
-              ),
+            const SizedBox(width: 12),
+            Text(
+              _isRead
+                  ? context.tr('标记为未读', 'Mark as unread', '未読にする')
+                  : context.tr('标记为已读', 'Mark as read', '既読にする'),
             ),
           ],
         ),
-      ],
+      ),
+      PopupMenuItem<String>(
+        value: 'hidden_chapters',
+        child: Row(
+          children: [
+            const AppIcon(AppIcons.viewOff, size: 20),
+            const SizedBox(width: 12),
+            Text(context.tr('隐藏章节', 'Hidden chapters', '非表示の章')),
+          ],
+        ),
+      ),
+    ];
+  }
+
+  void _handleBookMoreMenuSelected(String value) {
+    if (value == 'hidden_chapters') {
+      _showHiddenChapters();
+    } else if (value == 'toggle_read') {
+      _toggleBookReadStatus();
+    }
+  }
+
+  void _updateToolbarTrailing(bool isMac) {
+    if (!isMac) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _macosTrailingNotifier?.updateValue(
+        MacosToolbarMenuButton<String>(
+          key: const ValueKey('macos-book-detail-more-button'),
+          tooltip: context.tr('更多', 'More', 'その他'),
+          onSelected: _handleBookMoreMenuSelected,
+          itemBuilder: (menuContext) => _buildBookMoreMenuItems(menuContext),
+        ),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isMac = Theme.of(context).platform == TargetPlatform.macOS ||
+        MacosPersistentToolbarScope.hasToolbar(context);
+    _updateToolbarTrailing(isMac);
+
+    return CollapsingPageScaffold(
+      title: widget.book.title,
+      showTitle: false,
+      showBackButton: true,
+      actions: isMac
+          ? const []
+          : [
+              AppGlassMenuButton<String>(
+                key: const ValueKey('book-detail-more-menu'),
+                tooltip: context.tr('更多', 'More', 'その他'),
+                onSelected: _handleBookMoreMenuSelected,
+                itemBuilder: (context) => _buildBookMoreMenuItems(context),
+              ),
+            ],
       body: FutureBuilder<_AlbumChapterData>(
         future: _chapterDataFuture,
         builder: (context, snapshot) {
@@ -1009,7 +1053,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                           style: Theme.of(context).textTheme.titleLarge
                               ?.copyWith(
                                 color: context.appTextPrimary,
-                                fontWeight: FontWeight.w800,
+                                fontWeight: FontWeight.normal,
                               ),
                         ),
                         SizedBox(height: design.spaceSm),
@@ -1111,7 +1155,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   color: context.appTextPrimary,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.normal,
                 ),
               ),
               SizedBox(height: design.spaceSm),
@@ -1137,7 +1181,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                         context.tr(
                           'LibriVox 真人朗读',
                           'Human narration from LibriVox',
-                          'LibriVoxの人間による朗読',
+                          'LibriVoxの人間による朗读',
                         ),
                         style: TextStyle(color: context.appTextSecondary),
                       ),
@@ -1150,7 +1194,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                   context.tr('使用的音色', 'VOICE', '使用する音声'),
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: context.appTextSecondary,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.normal,
                     letterSpacing: 1.1,
                   ),
                 ),
@@ -1237,7 +1281,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
               hasStarted
                   ? context.tr('继续阅读', 'Continue Reading', '続きを読む')
                   : context.tr('开始阅读', 'Start Reading', '読み始める'),
-              style: const TextStyle(fontWeight: FontWeight.w700),
+              style: const TextStyle(fontWeight: FontWeight.normal),
             ),
             style: FilledButton.styleFrom(
               backgroundColor: context.appAccent,
@@ -1261,7 +1305,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
             ),
             label: Text(
               context.tr('听书', 'Listen', '聴く'),
-              style: const TextStyle(fontWeight: FontWeight.w700),
+              style: const TextStyle(fontWeight: FontWeight.normal),
             ),
             style: OutlinedButton.styleFrom(
               foregroundColor: context.appTextPrimary,
@@ -1528,7 +1572,7 @@ class _ChapterCard extends StatelessWidget {
                                   : context.appTextPrimary,
                               fontSize: 17,
                               height: 1.25,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.normal,
                               letterSpacing: -0.3,
                             ),
                           ),
@@ -1691,7 +1735,7 @@ class _ChapterBadge extends StatelessWidget {
               style: TextStyle(
                 color: accent,
                 fontSize: 15,
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.normal,
               ),
             ),
     );

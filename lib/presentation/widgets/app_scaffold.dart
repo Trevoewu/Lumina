@@ -17,9 +17,31 @@ import '../screens/library/library_screen.dart';
 import '../screens/me/me_screen.dart';
 import '../screens/settings/settings_screen.dart';
 import 'design_system/app_navigation_icon.dart';
+import 'design_system/app_search_field.dart';
+import 'design_system/macos_toolbar_providers.dart';
 import 'design_system/macos_window_toolbar.dart';
-import 'design_system/macos_page_toolbar.dart';
+import 'design_system/page_control_tabs.dart';
+import 'design_system/page_toolbar_search.dart';
+import '../screens/discover/discover_scope.dart';
 import 'mini_player.dart';
+
+/// Scope provided by AppScaffold to allow child widgets (like MiniPlayer)
+/// to push sub-pages onto the currently active tab navigator on desktop.
+class AppScaffoldScope extends InheritedWidget {
+  const AppScaffoldScope({
+    super.key,
+    required this.pushContent,
+    required super.child,
+  });
+
+  final Future<T?> Function<T>(Route<T> route) pushContent;
+
+  static AppScaffoldScope? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<AppScaffoldScope>();
+
+  @override
+  bool updateShouldNotify(AppScaffoldScope oldWidget) => false;
+}
 
 /// 全局骨架，包含底部导航栏和迷你播放器。
 class AppScaffold extends ConsumerStatefulWidget {
@@ -124,6 +146,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
       _handleIncomingBookImport,
     );
     ref.watch(playbackProgressServiceProvider);
+    final miniPlayerSuppressed = ref.watch(miniPlayerSuppressedProvider);
     final handlerAsync = ref.watch(luminaAudioHandlerProvider);
 
     return handlerAsync.when(
@@ -133,7 +156,10 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         stream: handler.mediaItem,
         initialData: handler.mediaItem.valueOrNull,
         builder: (context, snapshot) {
-          return _buildScaffold(hasMiniPlayer: snapshot.data != null);
+          final hasMedia = snapshot.data != null;
+          return _buildScaffold(
+            hasMiniPlayer: hasMedia && !miniPlayerSuppressed,
+          );
         },
       ),
     );
@@ -256,120 +282,113 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     final theme = Theme.of(context);
     final accent = theme.colorScheme.primary;
 
-    final scaffold = Scaffold(
+    final scaffold = AppScaffoldScope(
+      pushContent: <T>(route) {
+        final currentNav = _navigatorKeys[_currentIndex].currentState;
+        if (currentNav != null) {
+          return currentNav.push<T>(route);
+        }
+        return Navigator.of(context, rootNavigator: true).push<T>(route);
+      },
+      child: Scaffold(
       backgroundColor: theme.colorScheme.surface,
-      body: Stack(
+      body: Row(
         children: [
-          // Base layout: full-height Row with sidebar, full-height 1px divider, and content
-          Positioned.fill(
-            child: Row(
+          // Collapsible & resizable sidebar
+          ClipRect(
+            child: AnimatedContainer(
+              duration: _isDragging
+                  ? Duration.zero
+                  : const Duration(milliseconds: 200),
+              curve: Curves.easeOutCubic,
+              width: _isSidebarVisible ? _sidebarWidth : 0.0,
+              child: OverflowBox(
+                alignment: Alignment.topLeft,
+                minWidth: 0,
+                maxWidth: double.infinity,
+                child: _isSidebarVisible
+                    ? _buildSidebarColumn(theme, accent)
+                    : const SizedBox.shrink(),
+              ),
+            ),
+          ),
+          // Draggable splitter handle extending across the full app window boundary
+          MouseRegion(
+            cursor: SystemMouseCursors.resizeColumn,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onHorizontalDragStart: (_) {
+                setState(() {
+                  _isDragging = true;
+                  _dragWidth = _isSidebarVisible ? _sidebarWidth : 0.0;
+                });
+              },
+              onHorizontalDragUpdate: (details) {
+                setState(() {
+                  _dragWidth += details.delta.dx;
+                  if (_dragWidth < 45.0) {
+                    _isSidebarVisible = false;
+                  } else {
+                    _isSidebarVisible = true;
+                    _sidebarWidth = _dragWidth.clamp(80.0, 360.0);
+                    if (_sidebarWidth >= 160.0) {
+                      _lastExpandedWidth = _sidebarWidth;
+                    }
+                  }
+                });
+              },
+              onHorizontalDragEnd: (_) {
+                setState(() {
+                  _isDragging = false;
+                  _dragWidth = _sidebarWidth;
+                });
+              },
+              onHorizontalDragCancel: () {
+                setState(() {
+                  _isDragging = false;
+                  _dragWidth = _sidebarWidth;
+                });
+              },
+              onDoubleTap: () {
+                setState(() {
+                  _isSidebarVisible = true;
+                  _sidebarWidth = 210.0;
+                  _lastExpandedWidth = 210.0;
+                });
+              },
+              child: Container(
+                width: 8.0,
+                color: Colors.transparent,
+                alignment: Alignment.center,
+                child: Container(
+                  width: 1.0,
+                  color: _isSidebarVisible
+                      ? context.appDivider
+                      : Colors.transparent,
+                ),
+              ),
+            ),
+          ),
+          // Persistent Top Control Bar + Content Area
+          Expanded(
+            child: Column(
               children: [
-                // Collapsible & resizable sidebar
-                ClipRect(
-                  child: AnimatedContainer(
-                    duration: _isDragging
-                        ? Duration.zero
-                        : const Duration(milliseconds: 200),
-                    curve: Curves.easeOutCubic,
-                    width: _isSidebarVisible ? _sidebarWidth : 0.0,
-                    child: OverflowBox(
-                      alignment: Alignment.topLeft,
-                      minWidth: 0,
-                      maxWidth: double.infinity,
-                      child: _isSidebarVisible
-                          ? _buildSidebarColumn(theme, accent)
-                          : const SizedBox.shrink(),
-                    ),
-                  ),
+                Consumer(
+                  builder: (context, topBarRef, _) =>
+                      _buildPersistentTopBar(theme, accent, topBarRef),
                 ),
-                // Draggable splitter handle extending across the full app window boundary
-                MouseRegion(
-                  cursor: SystemMouseCursors.resizeColumn,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onHorizontalDragStart: (_) {
-                      setState(() {
-                        _isDragging = true;
-                        _dragWidth = _isSidebarVisible ? _sidebarWidth : 0.0;
-                      });
-                    },
-                    onHorizontalDragUpdate: (details) {
-                      setState(() {
-                        _dragWidth += details.delta.dx;
-                        if (_dragWidth < 45.0) {
-                          _isSidebarVisible = false;
-                        } else {
-                          _isSidebarVisible = true;
-                          _sidebarWidth = _dragWidth.clamp(80.0, 360.0);
-                          if (_sidebarWidth >= 160.0) {
-                            _lastExpandedWidth = _sidebarWidth;
-                          }
-                        }
-                      });
-                    },
-                    onHorizontalDragEnd: (_) {
-                      setState(() {
-                        _isDragging = false;
-                        _dragWidth = _sidebarWidth;
-                      });
-                    },
-                    onHorizontalDragCancel: () {
-                      setState(() {
-                        _isDragging = false;
-                        _dragWidth = _sidebarWidth;
-                      });
-                    },
-                    onDoubleTap: () {
-                      setState(() {
-                        _isSidebarVisible = true;
-                        _sidebarWidth = 210.0;
-                        _lastExpandedWidth = 210.0;
-                      });
-                    },
-                    child: Container(
-                      width: 8.0,
-                      color: Colors.transparent,
-                      alignment: Alignment.center,
-                      child: Container(
-                        width: 1.0,
-                        color: _isSidebarVisible
-                            ? AppColors.divider
-                            : Colors.transparent,
-                      ),
-                    ),
-                  ),
-                ),
-                // Page controls share the window toolbar row above the content.
                 Expanded(
                   child: Stack(
                     children: [
                       Positioned.fill(
                         child: Padding(
                           padding: EdgeInsets.only(
-                            top: 0,
                             bottom: hasMiniPlayer
                                 ? MiniPlayer.navigationGap + MiniPlayer.height
                                 : 0,
                           ),
-                          child: LayoutBuilder(
-                            builder: (context, constraints) =>
-                                MacosPageToolbarScope(
-                                  leadingInset:
-                                      (macosTopControlsReservedWidth +
-                                              16 -
-                                              (MediaQuery.sizeOf(
-                                                    context,
-                                                  ).width -
-                                                  constraints.maxWidth))
-                                          .clamp(
-                                            0.0,
-                                            macosTopControlsReservedWidth + 16,
-                                          ),
-                                  child: Builder(
-                                    builder: (context) =>
-                                        _buildContent(context),
-                                  ),
-                                ),
+                          child: MacosPersistentToolbarScope(
+                            child: _buildContent(),
                           ),
                         ),
                       ),
@@ -386,28 +405,280 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
               ],
             ),
           ),
-          // Top window toolbar with traffic lights clearance and navigation controls
-          Positioned(
-            top: 0,
-            left: 0,
-            width: macosTopControlsReservedWidth + 16,
-            child: MacosWindowToolbar(
-              isSidebarVisible: _isSidebarVisible,
-              onToggleSidebar: _toggleSidebar,
-              canGoBack: _canGoBack,
-              onBack: _handleBack,
-              canGoForward: _canGoForward,
-              onForward: _handleForward,
-            ),
-          ),
         ],
       ),
-    );
+    ),
+  );
 
     return MediaQuery.removePadding(
       context: context,
       removeTop: true,
       child: scaffold,
+    );
+  }
+
+  Widget _buildPersistentTopBar(
+    ThemeData theme,
+    Color accent,
+    WidgetRef topBarRef,
+  ) {
+    final canGoBack = _canGoBack;
+    final canGoForward = _canGoForward;
+    final customMiddle = topBarRef.watch(macosToolbarMiddleProvider);
+    final customTitle = topBarRef.watch(macosToolbarTitleProvider);
+    final customTrailing = topBarRef.watch(macosToolbarTrailingProvider);
+
+    return Container(
+      height: macosTopControlsReservedHeight,
+      color: theme.colorScheme.surface,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          if (!_isSidebarVisible) ...[
+            const SizedBox(width: 78.0),
+            MacosToolbarButton(
+              key: const ValueKey('macos-sidebar-toggle-button-collapsed'),
+              size: 26.0,
+              tooltip: '显示侧边栏',
+              onPressed: _toggleSidebar,
+              child: const SidebarToggleIcon(size: 18.0),
+            ),
+            const SizedBox(width: 14.0),
+            MacosToolbarButton(
+              key: const ValueKey('macos-back-button-collapsed'),
+              size: 26.0,
+              tooltip: '返回',
+              onPressed: canGoBack ? _handleBack : null,
+              child: const MacosNavArrowIcon(
+                direction: MacosNavArrowDirection.left,
+                size: 18.0,
+              ),
+            ),
+            const SizedBox(width: 14.0),
+            MacosToolbarButton(
+              key: const ValueKey('macos-forward-button-collapsed'),
+              size: 26.0,
+              tooltip: '前进',
+              onPressed: canGoForward ? _handleForward : null,
+              child: const MacosNavArrowIcon(
+                direction: MacosNavArrowDirection.right,
+                size: 18.0,
+              ),
+            ),
+            const SizedBox(width: 16.0),
+          ] else if (_sidebarWidth < 170.0) ...[
+            const SizedBox(width: 8.0),
+            MacosToolbarButton(
+              key: const ValueKey('macos-back-button-narrow'),
+              size: 26.0,
+              tooltip: '返回',
+              onPressed: canGoBack ? _handleBack : null,
+              child: const MacosNavArrowIcon(
+                direction: MacosNavArrowDirection.left,
+                size: 18.0,
+              ),
+            ),
+            const SizedBox(width: 10.0),
+            MacosToolbarButton(
+              key: const ValueKey('macos-forward-button-narrow'),
+              size: 26.0,
+              tooltip: '前进',
+              onPressed: canGoForward ? _handleForward : null,
+              child: const MacosNavArrowIcon(
+                direction: MacosNavArrowDirection.right,
+                size: 18.0,
+              ),
+            ),
+            const SizedBox(width: 12.0),
+          ],
+          Expanded(
+            child: customMiddle ??
+                ((canGoBack && customTitle != null)
+                    ? Container(
+                        height: macosTopControlsReservedHeight,
+                        padding: const EdgeInsets.only(left: 14.0),
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          customTitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.normal,
+                            color: theme.colorScheme.onSurface,
+                          ),
+                        ),
+                      )
+                    : _buildPageControlsForCurrentTab(theme, accent, topBarRef)),
+          ),
+          if (customTrailing != null)
+            Padding(
+              padding: const EdgeInsets.only(right: 12.0),
+              child: customTrailing,
+            )
+          else if (_currentIndex == 0 && !canGoBack)
+            Padding(
+              padding: const EdgeInsets.only(right: 12.0),
+              child: _buildHomeAddButton(theme, topBarRef),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPageControlsForCurrentTab(
+    ThemeData theme,
+    Color accent,
+    WidgetRef topBarRef,
+  ) {
+    switch (_currentIndex) {
+      case 0:
+        return _buildHomeTopControls(theme, accent, topBarRef);
+      case 1:
+        return _buildDiscoverTopControls(theme, accent, topBarRef);
+      case 2:
+        return _buildDictionaryTopControls(theme, accent);
+      case 3:
+        return _buildMeTopControls(theme, accent);
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  Widget _buildHomeTopControls(
+    ThemeData theme,
+    Color accent,
+    WidgetRef topBarRef,
+  ) {
+    final currentSection = topBarRef.watch(homeSectionProvider);
+
+    return PageControlTabs<HomeSection>(
+      key: const ValueKey('home-section-selector-desktop'),
+      height: macosTopControlsReservedHeight,
+      padding: const EdgeInsets.only(left: 12.0),
+      labels: {
+        HomeSection.all: context.tr('全部', 'All', 'すべて'),
+        HomeSection.books: context.tr('书籍', 'Books', '本'),
+        HomeSection.podcasts: 'Podcast',
+      },
+      selected: currentSection,
+      onSelected: (section) {
+        ref.read(homeSectionProvider.notifier).updateValue(section);
+      },
+      itemKey: (section) => ValueKey('home-section-${section.name}'),
+    );
+  }
+
+  Widget _buildHomeAddButton(ThemeData theme, WidgetRef topBarRef) {
+    final currentSection = topBarRef.watch(homeSectionProvider);
+    final onAddAction = topBarRef.watch(homeAddActionProvider);
+
+    return MacosToolbarButton(
+      key: const ValueKey('home-add-action-desktop'),
+      size: 26.0,
+      tooltip: currentSection == HomeSection.podcasts
+          ? context.tr('添加 Podcast', 'Add podcast', 'ポッドキャストを追加')
+          : currentSection == HomeSection.books
+          ? context.tr('导入书籍', 'Import book', '本をインポート')
+          : context.tr('添加内容', 'Add content', 'コンテンツを追加'),
+      onPressed: onAddAction,
+      child: HugeIcon(
+        icon: HugeIcons.strokeRoundedAdd01,
+        size: 20.0,
+        color: theme.colorScheme.onSurface,
+      ),
+    );
+  }
+
+  Widget _buildDiscoverTopControls(
+    ThemeData theme,
+    Color accent,
+    WidgetRef topBarRef,
+  ) {
+    final currentScope = topBarRef.watch(discoverScopeProvider);
+    final searchController = topBarRef.watch(discoverSearchControllerProvider);
+    final searching = topBarRef.watch(discoverSearchingProvider);
+    final onSearch = topBarRef.watch(discoverSearchHandlerProvider);
+
+    final tabs = PageControlTabs<DiscoverScope>(
+      key: const ValueKey('discover-scope-selector-desktop'),
+      height: macosTopControlsReservedHeight,
+      padding: const EdgeInsets.only(left: 12.0),
+      labels: {
+        for (final scope in [
+          DiscoverScope.onlineBooks,
+          DiscoverScope.audiobooks,
+          DiscoverScope.podcasts,
+          DiscoverScope.library,
+        ])
+          scope: scope.label(context),
+      },
+      selected: currentScope,
+      itemKey: (scope) => ValueKey('discover-scope-${scope.name}'),
+      onSelected: (scope) {
+        ref.read(discoverScopeProvider.notifier).updateValue(scope);
+      },
+    );
+
+    if (searchController == null) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(child: tabs),
+        ],
+      );
+    }
+
+    Widget buildSearch(bool autofocus) => AppSearchField(
+      fieldKey: const ValueKey('discover-search-field-desktop'),
+      controller: searchController,
+      onChanged: (val) {
+        if (onSearch != null) onSearch();
+      },
+      autofocus: autofocus,
+      compact: true,
+      autocorrect: currentScope != DiscoverScope.podcasts,
+      enableSuggestions: currentScope != DiscoverScope.podcasts,
+      loading: searching,
+      onSubmitted: (_) {
+        if (onSearch != null) onSearch();
+      },
+      onSearch: onSearch ?? () {},
+      hintText: currentScope.hintText(context),
+    );
+
+    return PageToolbarSearch(
+      tabs: tabs,
+      searchBuilder: buildSearch,
+    );
+  }
+
+  Widget _buildDictionaryTopControls(ThemeData theme, Color accent) {
+    return Container(
+      height: macosTopControlsReservedHeight,
+      padding: const EdgeInsets.only(left: 14.0),
+      alignment: Alignment.centerLeft,
+      child: Text(
+        context.tr('查词', 'Dictionary', '辞書'),
+        style: theme.textTheme.titleSmall?.copyWith(
+          fontWeight: FontWeight.normal,
+          color: theme.colorScheme.onSurface,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMeTopControls(ThemeData theme, Color accent) {
+    return Container(
+      height: macosTopControlsReservedHeight,
+      padding: const EdgeInsets.only(left: 14.0),
+      alignment: Alignment.centerLeft,
+      child: Text(
+        context.tr('我的', 'Me', 'マイページ'),
+        style: theme.textTheme.titleSmall?.copyWith(
+          fontWeight: FontWeight.normal,
+          color: theme.colorScheme.onSurface,
+        ),
+      ),
     );
   }
 
@@ -419,6 +690,47 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Container(
+            height: macosTopControlsReservedHeight,
+            padding: const EdgeInsets.only(left: 78.0, right: 8.0),
+            alignment: Alignment.centerLeft,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                MacosToolbarButton(
+                  key: const ValueKey('macos-sidebar-toggle-button'),
+                  size: 26.0,
+                  tooltip: '隐藏侧边栏',
+                  onPressed: _toggleSidebar,
+                  child: const SidebarToggleIcon(size: 18.0),
+                ),
+                if (_sidebarWidth >= 170.0) ...[
+                  const SizedBox(width: 14.0),
+                  MacosToolbarButton(
+                    key: const ValueKey('macos-back-button'),
+                    size: 26.0,
+                    tooltip: '返回',
+                    onPressed: _canGoBack ? _handleBack : null,
+                    child: const MacosNavArrowIcon(
+                      direction: MacosNavArrowDirection.left,
+                      size: 18.0,
+                    ),
+                  ),
+                  const SizedBox(width: 14.0),
+                  MacosToolbarButton(
+                    key: const ValueKey('macos-forward-button'),
+                    size: 26.0,
+                    tooltip: '前进',
+                    onPressed: _canGoForward ? _handleForward : null,
+                    child: const MacosNavArrowIcon(
+                      direction: MacosNavArrowDirection.right,
+                      size: 18.0,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
           Expanded(
             child: OverflowBox(
               alignment: Alignment.topLeft,
@@ -427,7 +739,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
               child: _buildNavigationRail(theme, accent),
             ),
           ),
-          Divider(height: 1, thickness: 1, color: AppColors.divider),
+          Divider(height: 1, thickness: 1, color: context.appDivider),
           _buildBottomMeCard(theme, accent, isExtended),
         ],
       ),
@@ -455,12 +767,12 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
       ),
       selectedLabelTextStyle: theme.textTheme.bodyMedium?.copyWith(
         color: accent,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.normal,
       ),
       unselectedLabelTextStyle: theme.textTheme.bodyMedium?.copyWith(
         color: theme.colorScheme.onSurfaceVariant,
       ),
-      leading: const SizedBox(height: 44.0),
+      leading: const SizedBox(height: 8.0),
       destinations: [
         NavigationRailDestination(
           icon: const AppNavigationIcon(AppNavigationSymbol.home),
@@ -590,8 +902,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
 
   // ── Shared: tab content (IndexedStack + per-tab navigators) ───────────────
 
-  Widget _buildContent([BuildContext? contentContext]) {
-    final context = contentContext ?? this.context;
+  Widget _buildContent() {
     return IndexedStack(
       key: const ValueKey('app-content-layer'),
       index: _currentIndex,
@@ -603,22 +914,11 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                 onPopWithResult: (_) {
                   _navigatorKeys[index].currentState?.maybePop();
                 },
-                child: Padding(
-                  padding: EdgeInsets.only(
-                    top:
-                        MacosPageToolbarScope.maybeOf(context) != null &&
-                            (index > 1 ||
-                                (_navigatorKeys[index].currentState?.canPop() ??
-                                    false))
-                        ? macosTopControlsReservedHeight
-                        : 0,
-                  ),
-                  child: Navigator(
-                    key: _navigatorKeys[index],
-                    observers: [_navigatorObservers[index]],
-                    onGenerateRoute: (_) =>
-                        MaterialPageRoute(builder: (_) => _rootPageFor(index)),
-                  ),
+                child: Navigator(
+                  key: _navigatorKeys[index],
+                  observers: [_navigatorObservers[index]],
+                  onGenerateRoute: (_) =>
+                      MaterialPageRoute(builder: (_) => _rootPageFor(index)),
                 ),
               )
             : const SizedBox.shrink(),
@@ -783,7 +1083,7 @@ class _MacosProfileTileState extends State<_MacosProfileTile> {
                             TextSpan(
                               text: widget.userName,
                               style: theme.textTheme.bodyMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.normal,
                                 color: widget.isSelected
                                     ? widget.accentColor
                                     : onSurface,

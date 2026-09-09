@@ -1,5 +1,6 @@
 import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hugeicons/hugeicons.dart';
@@ -10,6 +11,7 @@ import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart' as drift_db;
 import '../../widgets/app_back_button.dart';
+import '../../widgets/design_system/macos_toolbar_providers.dart';
 import '../../widgets/design_system/macos_window_toolbar.dart';
 import '../player/player_screen.dart';
 import 'widgets/reader_appearance_sheet.dart';
@@ -47,20 +49,61 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
   int? _lastScrolledPlayingIndex;
 
   StreamSubscription<dynamic>? _audioSubscription;
+  AppToolbarStateNotifier<Widget?>? _macosMiddleNotifier;
+  AppToolbarStateNotifier<Widget?>? _macosTrailingNotifier;
+  Widget? _previousTrailing;
+  String? _lastToolbarChapterId;
+  int? _lastToolbarChapterCount;
+  bool _toolbarMounted = false;
 
   @override
   void initState() {
     super.initState();
+    _macosMiddleNotifier = ref.read(macosToolbarMiddleProvider.notifier);
+    _macosTrailingNotifier = ref.read(macosToolbarTrailingProvider.notifier);
+    _previousTrailing = _macosTrailingNotifier?.state;
     _loadBookData();
     _scrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
+    _toolbarMounted = false;
+    _lastToolbarChapterId = null;
+    _lastToolbarChapterCount = null;
     _audioSubscription?.cancel();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    Future.microtask(() {
+      _macosMiddleNotifier?.updateValue(null);
+      _macosTrailingNotifier?.updateValue(_previousTrailing);
+    });
     super.dispose();
+  }
+
+  void _syncPersistentToolbar(BuildContext context, ThemeData theme) {
+    final chapterId = _currentChapter?.id;
+    final chapterCount = _chapters.length;
+    if (_toolbarMounted &&
+        _lastToolbarChapterId == chapterId &&
+        _lastToolbarChapterCount == chapterCount) {
+      return;
+    }
+    _toolbarMounted = true;
+    _lastToolbarChapterId = chapterId;
+    _lastToolbarChapterCount = chapterCount;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final currentRoute = ModalRoute.of(context);
+      if (currentRoute != null && !currentRoute.isCurrent) return;
+      _macosMiddleNotifier?.updateValue(
+        _buildReaderToolbarMiddle(context, theme),
+      );
+      _macosTrailingNotifier?.updateValue(
+        _buildReaderToolbarTrailing(context, theme),
+      );
+    });
   }
 
   void _onScroll() {
@@ -179,10 +222,19 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
     setState(() => _barsVisible = !_barsVisible);
   }
 
-  void _openPlayer({drift_db.Chapter? chapter, bool autoplay = true}) {
+  Future<void> _openPlayer({
+    drift_db.Chapter? chapter,
+    bool autoplay = true,
+  }) async {
     final targetChapter = chapter ?? _currentChapter;
-    if (targetChapter == null) return;
-    Navigator.of(context, rootNavigator: true).push(
+    final isDesktop = (Theme.of(context).platform == TargetPlatform.macOS ||
+            defaultTargetPlatform == TargetPlatform.macOS) &&
+        MediaQuery.sizeOf(context).width >= 600;
+    _toolbarMounted = false;
+    _lastToolbarChapterId = null;
+    _macosMiddleNotifier?.updateValue(null);
+    _macosTrailingNotifier?.updateValue(null);
+    await Navigator.of(context, rootNavigator: !isDesktop).push(
       MaterialPageRoute<void>(
         builder: (_) => PlayerScreen(
           book: widget.book,
@@ -190,6 +242,119 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
           autoplayOnOpen: autoplay,
         ),
       ),
+    );
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  Widget _buildReaderToolbarMiddle(BuildContext context, ThemeData theme) {
+    final currentIndex = _currentChapter != null
+        ? _chapters.indexWhere((c) => c.id == _currentChapter!.id)
+        : -1;
+    final hasPrevChapter = currentIndex > 0;
+    final hasNextChapter =
+        currentIndex >= 0 && currentIndex < _chapters.length - 1;
+
+    return Container(
+      height: macosTopControlsReservedHeight,
+      padding: const EdgeInsets.only(left: 12.0),
+      child: Row(
+        children: [
+          MacosToolbarButton(
+            key: const ValueKey('reader-prev-chapter-button'),
+            size: 26.0,
+            tooltip: context.tr('上一章', 'Previous Chapter', '前の章'),
+            onPressed: hasPrevChapter ? _goToPreviousChapter : null,
+            child: const MacosNavArrowIcon(
+              direction: MacosNavArrowDirection.left,
+              size: 16.0,
+            ),
+          ),
+          const SizedBox(width: 4.0),
+          MacosToolbarButton(
+            key: const ValueKey('reader-next-chapter-button'),
+            size: 26.0,
+            tooltip: context.tr('下一章', 'Next Chapter', '次の章'),
+            onPressed: hasNextChapter ? _goToNextChapter : null,
+            child: const MacosNavArrowIcon(
+              direction: MacosNavArrowDirection.right,
+              size: 16.0,
+            ),
+          ),
+          const SizedBox(width: 12.0),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  _currentChapter?.title ?? widget.book.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.normal,
+                    color: theme.colorScheme.onSurface,
+                    fontSize: 13,
+                    height: 1.2,
+                  ),
+                ),
+                if (_currentChapter != null && _chapters.isNotEmpty)
+                  Text(
+                    '${_currentChapter!.chapterIndex + 1} / ${_chapters.length}',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.normal,
+                      color:
+                          theme.colorScheme.onSurface.withValues(alpha: 0.55),
+                      fontSize: 10,
+                      fontFamily: 'monospace',
+                      height: 1.1,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReaderToolbarTrailing(BuildContext context, ThemeData theme) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        MacosToolbarButton(
+          key: const ValueKey('reader-appearance-button'),
+          size: 26.0,
+          tooltip: context.tr('阅读排版', 'Typography', '読書設定'),
+          onPressed: () => showReaderAppearanceSheet(context),
+          child: const AppIcon(AppIcons.textFont, size: 16.0),
+        ),
+        const SizedBox(width: 6.0),
+        MacosToolbarButton(
+          key: const ValueKey('reader-toc-button'),
+          size: 26.0,
+          tooltip: context.tr('目录', 'Table of Contents', '目次'),
+          onPressed: _openTocSheet,
+          child: const AppIcon(AppIcons.bookOpen01, size: 16.0),
+        ),
+        const SizedBox(width: 6.0),
+        MacosToolbarButton(
+          key: const ValueKey('reader-player-button'),
+          size: 26.0,
+          tooltip: context.tr('听书播放器', 'Player', '再生プレーヤー'),
+          onPressed: () => _openPlayer(
+            chapter: _currentChapter,
+            autoplay: false,
+          ),
+          child: HugeIcon(
+            icon: HugeIcons.strokeRoundedHeadphones,
+            color: context.appAccent,
+            size: 18.0,
+          ),
+        ),
+      ],
     );
   }
 
@@ -229,6 +394,13 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
     final scheme = Theme.of(context).colorScheme;
     final isMac = Theme.of(context).platform == TargetPlatform.macOS;
     final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
+    final hasPersistentToolbar =
+        MacosPersistentToolbarScope.hasToolbar(context);
+
+    final isCurrent = ModalRoute.of(context)?.isCurrent ?? true;
+    if (hasPersistentToolbar && isCurrent) {
+      _syncPersistentToolbar(context, Theme.of(context));
+    }
 
     // Audio sync
     final handler = ref.watch(luminaAudioHandlerProvider).asData?.value;
@@ -270,7 +442,9 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
                     controller: _scrollController,
                     padding: EdgeInsets.fromLTRB(
                       inset,
-                      MediaQuery.paddingOf(context).top + 72,
+                      hasPersistentToolbar
+                          ? design.spaceLg
+                          : MediaQuery.paddingOf(context).top + 72,
                       inset,
                       MediaQuery.paddingOf(context).bottom + 120,
                     ),
@@ -291,7 +465,7 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
                                   style: TextStyle(
                                     fontSize: 13,
                                     letterSpacing: 1.5,
-                                    fontWeight: FontWeight.w700,
+                                    fontWeight: FontWeight.normal,
                                     color: context.appAccent,
                                   ),
                                 ),
@@ -302,7 +476,7 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
                                     .textTheme
                                     .headlineMedium
                                     ?.copyWith(
-                                      fontWeight: FontWeight.w800,
+                                      fontWeight: FontWeight.normal,
                                       color: context.appTextPrimary,
                                       height: 1.25,
                                     ),
@@ -396,7 +570,8 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
                 ),
 
                 // ── Top Navigation Bar (Immersive Floating) ─────────────────────
-                AnimatedPositioned(
+                if (!hasPersistentToolbar)
+                  AnimatedPositioned(
                   duration: const Duration(milliseconds: 220),
                   curve: Curves.easeInOutCubic,
                   top: _barsVisible ? 0 : -90,
@@ -414,7 +589,7 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
                       border: Border(
                         bottom: BorderSide(
                           color: isMac
-                              ? AppColors.divider
+                              ? context.appDivider
                               : scheme.onSurface.withValues(alpha: 0.08),
                           width: 1.0,
                         ),

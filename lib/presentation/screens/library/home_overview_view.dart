@@ -197,7 +197,7 @@ class _HomeOverviewContentState extends State<_HomeOverviewContent> {
                       context.tr('全部', 'See all', 'すべて表示'),
                       style: TextStyle(
                         fontSize: 13,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.normal,
                         color: Theme.of(context).colorScheme.primary,
                       ),
                     ),
@@ -329,14 +329,30 @@ class _HomeOverviewContentState extends State<_HomeOverviewContent> {
   }
 }
 
-class _HeroBlock extends StatelessWidget {
+class _HeroBlock extends ConsumerWidget {
   final _HomeEntry entry;
 
   const _HeroBlock({required this.entry});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final ink = context.appTextPrimary;
+    final handlerAsync = ref.watch(luminaAudioHandlerProvider);
+    final handler = handlerAsync.asData?.value;
+    final mediaItem = handler?.mediaItem.valueOrNull;
+    final playbackState = handler?.playbackState.valueOrNull;
+    final isCurrentMedia = mediaItem != null && (mediaItem.title == entry.title);
+    final isPlaying = isCurrentMedia && (playbackState?.playing ?? false);
+
+    void handlePlayPause() {
+      if (isPlaying) {
+        handler?.pause();
+      } else if (isCurrentMedia) {
+        handler?.play();
+      } else {
+        entry.onTap();
+      }
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -366,7 +382,7 @@ class _HeroBlock extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 22,
                           height: 1.22,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.normal,
                           letterSpacing: -0.33,
                           color: ink,
                         ),
@@ -391,7 +407,7 @@ class _HeroBlock extends StatelessWidget {
                           context,
                           size: 12.5,
                           alpha: 0.45,
-                          weight: FontWeight.w500,
+                          weight: FontWeight.w400,
                         ),
                       ),
                     ],
@@ -404,7 +420,7 @@ class _HeroBlock extends StatelessWidget {
         const SizedBox(height: 16),
         Row(
           children: [
-            _PlayButton(onTap: entry.onTap),
+            _PlayButton(onTap: handlePlayPause, isPlaying: isPlaying),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
@@ -486,7 +502,7 @@ class _FeedRow extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 15.5,
                       height: 1.3,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.normal,
                       color: ink,
                     ),
                   ),
@@ -519,14 +535,12 @@ class _FeedRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 10),
-            Container(
+            SizedBox(
               width: 32,
               height: 32,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: ink.withValues(alpha: 0.06),
+              child: Center(
+                child: AppIcon(AppIcons.play, size: 20, color: ink),
               ),
-              child: AppIcon(AppIcons.play, size: 18, color: ink),
             ),
           ],
         ),
@@ -581,32 +595,31 @@ class _EntryArtwork extends StatelessWidget {
 
 class _PlayButton extends StatelessWidget {
   final VoidCallback onTap;
+  final bool isPlaying;
 
-  const _PlayButton({required this.onTap});
+  const _PlayButton({required this.onTap, this.isPlaying = false});
 
   @override
   Widget build(BuildContext context) {
     final ink = context.appTextPrimary;
 
-    return GestureDetector(
-      key: const ValueKey('home-overview-hero-play'),
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Container(
-        width: 56,
-        height: 56,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: ink,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.22),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        key: const ValueKey('home-overview-hero-play'),
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Center(
+            child: AppIcon(
+              isPlaying ? AppIcons.pause : AppIcons.play,
+              size: 34,
+              color: ink,
             ),
-          ],
+          ),
         ),
-        child: AppIcon(AppIcons.play, size: 30, color: context.appBackground),
       ),
     );
   }
@@ -762,7 +775,7 @@ class _StartRow extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 15.5,
                       height: 1.3,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.normal,
                       color: ink,
                     ),
                   ),

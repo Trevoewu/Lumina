@@ -39,7 +39,7 @@ void main() {
     );
     expect(theme.textTheme.headlineLarge?.fontWeight, FontWeight.w700);
     expect(theme.textTheme.headlineSmall?.fontSize, 18);
-    expect(theme.textTheme.headlineSmall?.fontWeight, FontWeight.w700);
+    expect(theme.textTheme.headlineSmall?.fontWeight, FontWeight.normal);
     expect(chipShape.borderRadius, BorderRadius.circular(tokens.radiusSmall));
     expect(
       buttonPadding,
@@ -49,7 +49,9 @@ void main() {
       ),
     );
     expect(tokens.dividerThickness, 1.0);
-    expect(theme.dividerTheme.color, AppColors.divider);
+    expect(theme.dividerTheme.color, AppColors.darkDivider);
+    expect(theme.dividerTheme.color, const Color(0xFF1C1C1C));
+    expect(AppTheme.lightTheme().dividerTheme.color, AppColors.divider);
     expect(theme.dividerTheme.thickness, 1.0);
   });
 

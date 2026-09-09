@@ -5,22 +5,26 @@ import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
 import '../player/player_screen.dart';
 import '../../widgets/app_back_button.dart';
+import '../../widgets/app_scaffold.dart';
 
-/// Opens Podcast playback above the tab navigator so every entry point uses
-/// the same immersive player surface as the global mini player.
+/// Opens Podcast playback inside the active tab navigator on desktop,
+/// or above the tab navigator on mobile.
 Future<void> openPodcastEpisodePlayer(
   BuildContext context, {
   required String episodeId,
   bool autoplayOnOpen = false,
 }) {
-  return Navigator.of(context, rootNavigator: true).push(
-    MaterialPageRoute<void>(
-      builder: (_) => PodcastEpisodeScreen(
-        episodeId: episodeId,
-        autoplayOnOpen: autoplayOnOpen,
-      ),
+  final route = MaterialPageRoute<void>(
+    builder: (_) => PodcastEpisodeScreen(
+      episodeId: episodeId,
+      autoplayOnOpen: autoplayOnOpen,
     ),
   );
+  final scaffold = AppScaffoldScope.maybeOf(context);
+  if (scaffold != null) {
+    return scaffold.pushContent(route);
+  }
+  return Navigator.of(context, rootNavigator: true).push(route);
 }
 
 /// Resolves the persisted Podcast entities, then opens the same immersive

@@ -250,7 +250,7 @@ class AppTheme {
         style: FilledButton.styleFrom(
           backgroundColor: accentColor,
           foregroundColor: Colors.black,
-          textStyle: const TextStyle(fontWeight: FontWeight.bold),
+          textStyle: const TextStyle(fontWeight: FontWeight.normal),
           padding: EdgeInsets.symmetric(
             horizontal: tokens.spaceXl,
             vertical: tokens.spaceMd,
@@ -260,12 +260,28 @@ class AppTheme {
           ),
         ),
       ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          textStyle: const TextStyle(fontWeight: FontWeight.normal),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          textStyle: const TextStyle(fontWeight: FontWeight.normal),
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          textStyle: const TextStyle(fontWeight: FontWeight.normal),
+        ),
+      ),
       sliderTheme: SliderThemeData(
         activeTrackColor: accentColor,
         thumbColor: accentColor,
       ),
+      dividerColor: isDark ? AppColors.darkDivider : AppColors.divider,
       dividerTheme: DividerThemeData(
-        color: AppColors.divider,
+        color: isDark ? AppColors.darkDivider : AppColors.divider,
         thickness: tokens.dividerThickness,
         space: tokens.dividerThickness,
       ),

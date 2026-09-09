@@ -9,7 +9,6 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../../widgets/app_sheet.dart';
-import '../../widgets/design_system/macos_page_toolbar.dart';
 import '../../widgets/design_system/page_control_tabs.dart';
 import '../../../core/app_colors.dart';
 import '../../../core/app_design_tokens.dart';
@@ -31,28 +30,28 @@ import '../../widgets/half_screen_action_sheet.dart';
 import '../album/album_screen.dart';
 import '../podcast/podcast_library_view.dart';
 import 'home_overview_view.dart';
-
-enum _HomeSection { all, books, podcasts }
+import '../../widgets/design_system/macos_toolbar_providers.dart';
 
 enum _HomeAddAction { importBook, addPodcast }
 
-class _HomeSectionSelector extends StatelessWidget {
-  final _HomeSection selected;
-  final ValueChanged<_HomeSection> onSelected;
+class HomeSectionSelector extends StatelessWidget {
+  final HomeSection selected;
+  final ValueChanged<HomeSection> onSelected;
 
-  const _HomeSectionSelector({
+  const HomeSectionSelector({
+    super.key,
     required this.selected,
     required this.onSelected,
   });
 
   @override
   Widget build(BuildContext context) {
-    return PageControlTabs<_HomeSection>(
+    return PageControlTabs<HomeSection>(
       key: const ValueKey('home-section-selector'),
       labels: {
-        _HomeSection.all: context.tr('全部', 'All', 'すべて'),
-        _HomeSection.books: context.tr('书籍', 'Books', '本'),
-        _HomeSection.podcasts: 'Podcast',
+        HomeSection.all: context.tr('全部', 'All', 'すべて'),
+        HomeSection.books: context.tr('书籍', 'Books', '本'),
+        HomeSection.podcasts: 'Podcast',
       },
       selected: selected,
       onSelected: onSelected,
@@ -74,15 +73,26 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   int _lastIncomingImportEventId = 0;
   bool _importing = false;
   bool _addingPodcast = false;
-  _HomeSection _section = _HomeSection.all;
+  HomeSection _section = HomeSection.all;
   final Set<String> _coverBackfillStarted = {};
   final Map<String, _BookCacheProgress> _bookCacheProgress = {};
   Future<_LibraryBooksData>? _booksDataFuture;
   int _booksDataToken = -1;
-  final PageController _sectionPageController = PageController();
+  late final PageController _sectionPageController;
   final ScrollController _overviewScrollController = ScrollController();
   final ScrollController _booksScrollController = ScrollController();
   final ScrollController _podcastsScrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _section = ref.read(homeSectionProvider);
+    _sectionPageController = PageController(initialPage: _section.index);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(homeAddActionProvider.notifier).updateValue(_handleAddAction);
+    });
+  }
 
   @override
   void dispose() {
@@ -95,6 +105,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<HomeSection>(homeSectionProvider, (previous, next) {
+      if (next != _section) {
+        _selectSection(next);
+      }
+    });
+
     final incomingImport = ref.watch(incomingBookImportControllerProvider);
     if (incomingImport.phase == IncomingBookImportPhase.succeeded &&
         incomingImport.eventId != _lastIncomingImportEventId) {
@@ -105,30 +121,30 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final accent = Theme.of(context).colorScheme.primary;
     final design = context.appDesign;
     final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
+    final hasPersistentToolbar = MacosPersistentToolbarScope.hasToolbar(context);
 
-    final desktopToolbar = MacosPageToolbarScope.maybeOf(context) != null;
     final header = Material(
       key: const ValueKey('home-fixed-header'),
       color: context.appBackground,
       child: Padding(
         padding: EdgeInsets.only(
-          top: desktopToolbar ? 0 : 8,
-          bottom: desktopToolbar ? 0 : 2,
+          top: 8,
+          bottom: 2,
           right: design.spaceXs,
         ),
         child: Row(
           children: [
             Expanded(
-              child: _HomeSectionSelector(
+              child: HomeSectionSelector(
                 selected: _section,
                 onSelected: _selectSection,
               ),
             ),
             IconButton(
               key: const ValueKey('home-add-action'),
-              tooltip: _section == _HomeSection.podcasts
+              tooltip: _section == HomeSection.podcasts
                   ? context.tr('添加 Podcast', 'Add podcast', 'ポッドキャストを追加')
-                  : _section == _HomeSection.books
+                  : _section == HomeSection.books
                   ? context.tr('导入书籍', 'Import book', '本をインポート')
                   : context.tr('添加内容', 'Add content', 'コンテンツを追加'),
               onPressed: _importing || _addingPodcast ? null : _handleAddAction,
@@ -155,18 +171,20 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     return Scaffold(
       backgroundColor: context.appBackground,
       body: SafeArea(
+        top: !hasPersistentToolbar,
         bottom: false,
         child: Column(
           children: [
-            if (desktopToolbar) MacosPageToolbar(child: header) else header,
+            if (!hasPersistentToolbar) header,
             Expanded(
               child: PageView(
                 key: const ValueKey('home-section-pages'),
                 controller: _sectionPageController,
                 onPageChanged: (index) {
-                  final section = _HomeSection.values[index];
+                  final section = HomeSection.values[index];
                   if (section != _section) {
                     setState(() => _section = section);
+                    ref.read(homeSectionProvider.notifier).updateValue(section);
                   }
                 },
                 children: [
@@ -196,13 +214,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     );
   }
 
-  void _selectSection(_HomeSection section) {
+  void _selectSection(HomeSection section) {
     if (section == _section) return;
     setState(() => _section = section);
+    ref.read(homeSectionProvider.notifier).updateValue(section);
     _animateToSection(section);
   }
 
-  void _animateToSection(_HomeSection section) {
+  void _animateToSection(HomeSection section) {
     if (!_sectionPageController.hasClients) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !_sectionPageController.hasClients) return;
@@ -219,13 +238,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   void _handleAddAction() {
     switch (_section) {
-      case _HomeSection.all:
+      case HomeSection.all:
         _showAddContentSheet();
         break;
-      case _HomeSection.books:
+      case HomeSection.books:
         _importBook(context);
         break;
-      case _HomeSection.podcasts:
+      case HomeSection.podcasts:
         _showAddPodcastDialog();
         break;
     }
@@ -457,7 +476,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           .subscribe(feedUrl);
       if (!mounted) return;
       setState(() => _reloadToken++);
-      _selectSection(_HomeSection.podcasts);
+      _selectSection(HomeSection.podcasts);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -540,7 +559,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 context.tr('你的书架空空如也', 'Your library is empty', '本棚は空です'),
                 style: TextStyle(
                   fontSize: 22,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.normal,
                   color: context.appTextPrimary,
                 ),
               ),
@@ -580,7 +599,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     : AppIcon(AppIcons.fileUpload),
                 label: Text(
                   _importing ? '导入中...' : '导入书籍',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                  style: TextStyle(fontWeight: FontWeight.normal),
                 ),
               ),
             ],
@@ -1196,7 +1215,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                       style: TextStyle(
                         color: context.appTextPrimary,
                         fontSize: 20,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.normal,
                       ),
                     ),
                     const SizedBox(height: 16),

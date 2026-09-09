@@ -2688,7 +2688,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
           : widget.expanded
           ? 22
           : 18,
-      fontWeight: focusActive ? FontWeight.w800 : FontWeight.w700,
+      fontWeight: FontWeight.normal,
       color: color,
       height: widget.expanded || widget.focusMode ? 1.35 : 1.4,
       fontFamily: context.appDesign.readingFontFamily,

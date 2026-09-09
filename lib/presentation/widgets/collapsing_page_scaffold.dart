@@ -11,6 +11,7 @@ class CollapsingPageScaffold extends StatelessWidget {
   final bool showBackButton;
   final bool compactHeader;
   final double expandedHeight;
+  final bool showTitle;
 
   const CollapsingPageScaffold({
     super.key,
@@ -20,6 +21,7 @@ class CollapsingPageScaffold extends StatelessWidget {
     this.showBackButton = false,
     this.compactHeader = false,
     this.expandedHeight = 124,
+    this.showTitle = true,
   });
 
   @override
@@ -30,6 +32,14 @@ class CollapsingPageScaffold extends StatelessWidget {
     final gutter = pageInset + 6;
     final isMac = theme.platform == TargetPlatform.macOS;
     final renderBackButton = showBackButton && !isMac;
+    final showHeader = renderBackButton || actions.isNotEmpty || showTitle;
+
+    if (!showHeader) {
+      return Scaffold(
+        backgroundColor: context.appBackground,
+        body: body,
+      );
+    }
 
     return Scaffold(
       backgroundColor: context.appBackground,
@@ -71,17 +81,18 @@ class CollapsingPageScaffold extends StatelessWidget {
                         ),
                         SizedBox(height: design.spaceSm),
                       ],
-                      Text(
-                        title,
-                        key: const ValueKey('collapsing-page-title'),
-                        style: TextStyle(
-                          fontSize: 32,
-                          height: 1.1,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.8,
-                          color: context.appTextPrimary,
+                      if (showTitle)
+                        Text(
+                          title,
+                          key: const ValueKey('collapsing-page-title'),
+                          style: TextStyle(
+                            fontSize: 32,
+                            height: 1.1,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.8,
+                            color: context.appTextPrimary,
+                          ),
                         ),
-                      ),
                     ],
                   ),
                 ),

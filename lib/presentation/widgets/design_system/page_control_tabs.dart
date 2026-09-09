@@ -12,12 +12,16 @@ class PageControlTabs<T> extends StatelessWidget {
     required this.selected,
     required this.onSelected,
     this.itemKey,
+    this.height,
+    this.padding,
   });
 
   final Map<T, String> labels;
   final T selected;
   final ValueChanged<T> onSelected;
   final Key Function(T)? itemKey;
+  final double? height;
+  final EdgeInsetsGeometry? padding;
 
   /// Width needed to show every label without scrolling, including padding.
   double preferredWidth(BuildContext context) {
@@ -47,10 +51,14 @@ class PageControlTabs<T> extends StatelessWidget {
     final design = context.appDesign;
     final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
     final values = labels.keys.toList(growable: false);
+    final effectiveHeight = height ?? 38.0;
+    final effectivePadding =
+        padding ?? EdgeInsets.fromLTRB(inset + 6, 0, design.spaceXs, 0);
+
     return SizedBox(
-      height: 44,
+      height: effectiveHeight,
       child: ListView.separated(
-        padding: EdgeInsets.fromLTRB(inset + 6, 0, design.spaceXs, 0),
+        padding: effectivePadding,
         scrollDirection: Axis.horizontal,
         primary: false,
         itemCount: values.length,
@@ -95,7 +103,7 @@ class _PageControlTab extends StatelessWidget {
         onTap: onTap,
         child: IntrinsicWidth(
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.end,
+            mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               AnimatedDefaultTextStyle(
@@ -108,7 +116,7 @@ class _PageControlTab extends StatelessWidget {
                 ),
                 child: Text(label),
               ),
-              const SizedBox(height: 7),
+              const SizedBox(height: 4),
               AnimatedScale(
                 duration: const Duration(milliseconds: 300),
                 curve: const Cubic(0.2, 0.7, 0.2, 1),

@@ -90,7 +90,7 @@ class SettingsSectionLabel extends StatelessWidget {
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
           fontFamily: 'monospace',
           fontSize: 11,
-          fontWeight: FontWeight.w500,
+          fontWeight: FontWeight.normal,
           letterSpacing: 1.3,
           color: scheme.onSurfaceVariant,
         ),
@@ -187,7 +187,7 @@ class _SegmentButton extends StatelessWidget {
                 Text(
                   label,
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.normal,
                     color: selected
                         ? scheme.surface
                         : scheme.onSurface.withValues(alpha: 0.55),
@@ -237,7 +237,7 @@ class SettingsChip extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             textAlign: expand ? TextAlign.center : TextAlign.start,
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.normal,
               color: selected
                   ? scheme.surface
                   : scheme.onSurface.withValues(alpha: 0.55),
@@ -313,7 +313,7 @@ class SettingBadge extends StatelessWidget {
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
             fontFamily: 'monospace',
             color: tinted ? scheme.onSurface : scheme.onSurfaceVariant,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.normal,
           ),
         ),
       ),
@@ -376,7 +376,7 @@ class SetupProgressHeader extends StatelessWidget {
                                       color: index == currentStep
                                           ? scheme.onPrimary
                                           : scheme.onSurfaceVariant,
-                                      fontWeight: FontWeight.w700,
+                                      fontWeight: FontWeight.normal,
                                     ),
                               ),
                       ),
@@ -390,9 +390,7 @@ class SetupProgressHeader extends StatelessWidget {
                           color: index == currentStep
                               ? scheme.primary
                               : scheme.onSurfaceVariant,
-                          fontWeight: index == currentStep
-                              ? FontWeight.w700
-                              : null,
+                          fontWeight: FontWeight.normal,
                         ),
                       ),
                     ],
@@ -666,7 +664,7 @@ class SettingValueRow extends StatelessWidget {
                     textAlign: TextAlign.end,
                     style: textTheme.bodyMedium?.copyWith(
                       color: valueColor ?? scheme.onSurfaceVariant,
-                      fontWeight: valueColor == null ? null : FontWeight.w600,
+                      fontWeight: FontWeight.normal,
                     ),
                   ),
                 ),
@@ -727,7 +725,7 @@ class SettingsDangerButton extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.normal,
                     color: scheme.error,
                   ),
                 ),

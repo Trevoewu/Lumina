@@ -12,6 +12,7 @@ import 'package:lumina/presentation/screens/settings/settings_screen.dart';
 import 'package:lumina/presentation/widgets/app_back_button.dart';
 import 'package:lumina/presentation/widgets/app_scaffold.dart';
 import 'package:lumina/presentation/widgets/collapsing_page_scaffold.dart';
+import 'package:lumina/presentation/widgets/design_system/macos_toolbar_providers.dart';
 import 'package:lumina/presentation/widgets/design_system/macos_window_toolbar.dart';
 
 void main() {
@@ -159,14 +160,18 @@ void main() {
       await tester.pumpWidget(buildTestApp());
       await tester.pumpAndSettle();
 
-      // MacosWindowToolbar is present
-      expect(find.byType(MacosWindowToolbar), findsOneWidget);
+      // Persistent top control bar and sidebar toggle button are present
+      final toggleFinder = find.byKey(
+        const ValueKey('macos-sidebar-toggle-button'),
+      );
+      expect(toggleFinder, findsOneWidget);
 
-      final header = find.byKey(const ValueKey('home-fixed-header'));
-      final content = find.byKey(const ValueKey('home-section-pages'));
-      expect(tester.getTopLeft(header).dy, 0);
-      expect(tester.getSize(header).height, macosTopControlsReservedHeight);
-      expect(tester.getTopLeft(content).dy, macosTopControlsReservedHeight);
+      final selector = find.byKey(
+        const ValueKey('home-section-selector-desktop'),
+      );
+      expect(selector, findsOneWidget);
+      expect(tester.getTopLeft(selector).dy, 0);
+      expect(tester.getSize(selector).height, macosTopControlsReservedHeight);
 
       // NavigationRail is initially extended (width >= 160)
       final railFinder = find.byType(NavigationRail);
@@ -175,19 +180,11 @@ void main() {
       expect(rail.extended, isTrue);
 
       // Click toggle sidebar button to hide sidebar
-      final toggleFinder = find.byKey(
-        const ValueKey('macos-sidebar-toggle-button'),
-      );
       await tester.tap(toggleFinder);
       await tester.pumpAndSettle();
 
-      expect(tester.getTopLeft(header).dy, 0);
-      expect(
-        tester.getTopLeft(header).dx,
-        greaterThanOrEqualTo(macosTopControlsReservedWidth),
-      );
-      expect(tester.getTopLeft(content).dy, macosTopControlsReservedHeight);
-      await tester.tap(find.byKey(const ValueKey('home-section-books')));
+      expect(tester.getTopLeft(selector).dy, 0);
+      await tester.tap(find.text('书籍'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
 
@@ -197,8 +194,12 @@ void main() {
       );
       expect(animatedContainerFinder, findsOneWidget);
 
-      // Click toggle button again to restore sidebar
-      await tester.tap(toggleFinder);
+      // Click collapsed toggle button to restore sidebar
+      final collapsedToggle = find.byKey(
+        const ValueKey('macos-sidebar-toggle-button-collapsed'),
+      );
+      expect(collapsedToggle, findsOneWidget);
+      await tester.tap(collapsedToggle);
       await tester.pumpAndSettle();
 
       rail = tester.widget<NavigationRail>(railFinder);
@@ -219,23 +220,17 @@ void main() {
       final forwardButton = find.byKey(const ValueKey('macos-forward-button'));
 
       // Initially at root of tab 0 (Home), back and forward are disabled
-      MacosWindowToolbar toolbar = tester.widget<MacosWindowToolbar>(
-        find.byType(MacosWindowToolbar),
-      );
-      expect(toolbar.canGoBack, isFalse);
-      expect(toolbar.canGoForward, isFalse);
+      expect(tester.widget<MacosToolbarButton>(backButton).onPressed, isNull);
+      expect(tester.widget<MacosToolbarButton>(forwardButton).onPressed, isNull);
 
       // Switch to tab 1 ("发现" / Discover)
       await tester.tap(find.text('发现'));
       await tester.pumpAndSettle();
 
-      toolbar = tester.widget<MacosWindowToolbar>(
-        find.byType(MacosWindowToolbar),
-      );
-      expect(toolbar.canGoBack, isTrue);
-      expect(toolbar.canGoForward, isFalse);
+      expect(tester.widget<MacosToolbarButton>(backButton).onPressed, isNotNull);
+      expect(tester.widget<MacosToolbarButton>(forwardButton).onPressed, isNull);
 
-      final selector = find.byKey(const ValueKey('discover-scope-selector'));
+      final selector = find.byKey(const ValueKey('discover-scope-selector-desktop'));
       expect(tester.getTopLeft(selector).dy, greaterThanOrEqualTo(0));
       expect(
         tester.getBottomLeft(selector).dy,
@@ -243,7 +238,7 @@ void main() {
       );
       expect(
         tester
-            .getTopLeft(find.byKey(const ValueKey('discover-search-field')))
+            .getTopLeft(find.byKey(const ValueKey('discover-search-field-desktop')))
             .dy,
         lessThan(macosTopControlsReservedHeight),
       );
@@ -253,21 +248,15 @@ void main() {
       await tester.pumpAndSettle();
 
       // Returned to tab 0 ("主页")
-      toolbar = tester.widget<MacosWindowToolbar>(
-        find.byType(MacosWindowToolbar),
-      );
-      expect(toolbar.canGoForward, isTrue);
+      expect(tester.widget<MacosToolbarButton>(forwardButton).onPressed, isNotNull);
 
       // Tap forward button
       await tester.tap(forwardButton);
       await tester.pumpAndSettle();
 
       // Forwarded back to tab 1 ("发现")
-      toolbar = tester.widget<MacosWindowToolbar>(
-        find.byType(MacosWindowToolbar),
-      );
-      expect(toolbar.canGoBack, isTrue);
-      expect(toolbar.canGoForward, isFalse);
+      expect(tester.widget<MacosToolbarButton>(backButton).onPressed, isNotNull);
+      expect(tester.widget<MacosToolbarButton>(forwardButton).onPressed, isNull);
     });
 
     testWidgets(
@@ -351,10 +340,7 @@ void main() {
 
         // Back button in toolbar is now enabled
         final backButton = find.byKey(const ValueKey('macos-back-button'));
-        MacosWindowToolbar toolbar = tester.widget<MacosWindowToolbar>(
-          find.byType(MacosWindowToolbar),
-        );
-        expect(toolbar.canGoBack, isTrue);
+        expect(tester.widget<MacosToolbarButton>(backButton).onPressed, isNotNull);
 
         // Tap back to return to Home (tab 0)
         await tester.tap(backButton);
@@ -437,14 +423,13 @@ void main() {
 
         // SettingsScreen is displayed
         expect(find.byType(SettingsScreen), findsOneWidget);
-        // MacosWindowToolbar is still present and persistent
-        expect(find.byType(MacosWindowToolbar), findsOneWidget);
         // Mobile AppBackButton is not rendered in CollapsingPageScaffold
         expect(find.byType(AppBackButton), findsNothing);
 
         // The toolbar back button is enabled
         final toolbarBack = find.byKey(const ValueKey('macos-back-button'));
         expect(toolbarBack, findsOneWidget);
+        expect(tester.widget<MacosToolbarButton>(toolbarBack).onPressed, isNotNull);
         await tester.tap(toolbarBack);
         await tester.pumpAndSettle();
 
@@ -655,6 +640,322 @@ void main() {
         await tester.pump(const Duration(milliseconds: 500));
 
         expect(didPop, isTrue);
+
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(seconds: 5));
+      },
+    );
+
+    testWidgets(
+      'PlayerScreen suppresses bottom MiniPlayer on desktop while active',
+      (tester) async {
+        tester.view.physicalSize = const Size(1200, 800);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() => tester.view.resetPhysicalSize());
+
+        final testBook = Book(
+          id: 'test-miniplayer-suppress-book',
+          title: 'MiniPlayer Suppress Book',
+          author: 'Author',
+          language: 'english',
+          format: 'epub',
+          sourcePath: '/path/to/test.epub',
+          chapterCount: 1,
+          paragraphCount: 1,
+          currentChapterId: 'ch-mini-1',
+          currentParagraphIndex: 0,
+          playbackOffsetMs: 0,
+          importedAt: 1000,
+          lastReadAt: 1000,
+          isRead: false,
+          kind: 'book',
+          rightsStatus: 'public_domain',
+        );
+        final testChapter = Chapter(
+          id: 'ch-mini-1',
+          bookId: 'test-miniplayer-suppress-book',
+          chapterIndex: 0,
+          title: 'Chapter 1',
+          textOffset: 0,
+          isHidden: false,
+        );
+        await database.into(database.books).insert(testBook);
+        await database.into(database.chapters).insert(testChapter);
+
+        final book = await database.getBook('test-miniplayer-suppress-book');
+        final chapters = await database.getChapters('test-miniplayer-suppress-book');
+
+        bool didPop = false;
+        await tester.pumpWidget(
+          buildTestApp(
+            home: Navigator(
+              onGenerateRoute: (settings) => MaterialPageRoute(
+                builder: (context) => Scaffold(
+                  body: Center(
+                    child: ElevatedButton(
+                      key: const ValueKey('open-player-suppress-button'),
+                      onPressed: () {
+                        Navigator.of(context)
+                            .push(
+                              MaterialPageRoute(
+                                builder: (_) => PlayerScreen(
+                                  book: book!,
+                                  initialChapter: chapters.first,
+                                  autoplayOnOpen: false,
+                                ),
+                              ),
+                            )
+                            .then((_) => didPop = true);
+                      },
+                      child: const Text('Open Player'),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // miniPlayerSuppressedProvider should initially be false
+        expect(container.read(miniPlayerSuppressedProvider), isFalse);
+
+        // Open PlayerScreen
+        await tester.tap(find.byKey(const ValueKey('open-player-suppress-button')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 700));
+
+        // When PlayerScreen is active, miniPlayerSuppressedProvider must be true
+        expect(container.read(miniPlayerSuppressedProvider), isTrue);
+
+        // Pop PlayerScreen via the toolbar back button
+        final toolbarBack = find.byKey(const ValueKey('macos-back-button'));
+        expect(toolbarBack, findsOneWidget);
+        await tester.tap(toolbarBack);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 700));
+
+        expect(didPop, isTrue);
+        // After popping PlayerScreen, miniPlayerSuppressedProvider must return to false
+        expect(container.read(miniPlayerSuppressedProvider), isFalse);
+
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(seconds: 5));
+      },
+    );
+
+    testWidgets(
+      'AlbumScreen suppresses duplicate title and moves more button to top toolbar on macOS',
+      (tester) async {
+        tester.view.physicalSize = const Size(1200, 800);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() => tester.view.resetPhysicalSize());
+
+        final testBook = Book(
+          id: 'test-album-toolbar-book',
+          title: 'Number the Stars',
+          author: 'Lois Lowry',
+          language: 'english',
+          format: 'epub',
+          sourcePath: '/path/to/test.epub',
+          chapterCount: 1,
+          paragraphCount: 1,
+          currentParagraphIndex: 0,
+          playbackOffsetMs: 0,
+          importedAt: 1000,
+          lastReadAt: 1000,
+          isRead: false,
+          kind: 'book',
+          rightsStatus: 'public_domain',
+        );
+        final testChapter = Chapter(
+          id: 'ch-album-1',
+          bookId: 'test-album-toolbar-book',
+          chapterIndex: 0,
+          title: 'Chapter 1',
+          textOffset: 0,
+          isHidden: false,
+        );
+        await database.into(database.books).insert(testBook);
+        await database.into(database.chapters).insert(testChapter);
+
+        await tester.pumpWidget(buildTestApp());
+        await tester.pumpAndSettle();
+
+        // Initially on root Home: + button is present, more button is absent
+        expect(find.byKey(const ValueKey('home-add-action-desktop')), findsOneWidget);
+        expect(find.byKey(const ValueKey('macos-book-detail-more-button')), findsNothing);
+
+        // Open AlbumScreen by tapping the hero book in the library
+        final heroFinder = find.byKey(const ValueKey('home-overview-hero'));
+        expect(heroFinder, findsOneWidget);
+        await tester.tap(heroFinder);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 700));
+
+        // 1. Verify the duplicate large title in CollapsingPageScaffold is NOT rendered
+        expect(find.byKey(const ValueKey('collapsing-page-title')), findsNothing);
+
+        // 2. Verify the circular more menu button in the content area is NOT rendered
+        expect(find.byKey(const ValueKey('book-detail-more-menu')), findsNothing);
+
+        // 3. Verify the + button in top control bar is REPLACED by the more button
+        expect(find.byKey(const ValueKey('home-add-action-desktop')), findsNothing);
+        expect(find.byKey(const ValueKey('macos-book-detail-more-button')), findsOneWidget);
+
+        // Pop AlbumScreen via toolbar back button
+        final toolbarBack = find.byKey(const ValueKey('macos-back-button'));
+        expect(toolbarBack, findsOneWidget);
+        await tester.tap(toolbarBack);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 700));
+        await tester.pumpAndSettle();
+
+        // 4. After popping, top toolbar restores the + button and clears the more button
+        expect(find.byKey(const ValueKey('home-add-action-desktop')), findsOneWidget);
+        expect(find.byKey(const ValueKey('macos-book-detail-more-button')), findsNothing);
+
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(seconds: 5));
+      },
+    );
+
+    testWidgets(
+      'BookReaderScreen hides All/Books/Podcast switcher, puts reader controls into top persistent bar, and suppresses secondary content bar',
+      (tester) async {
+        tester.view.physicalSize = const Size(1200, 800);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() => tester.view.resetPhysicalSize());
+
+        final testBook = Book(
+          id: 'test-reader-toolbar-book',
+          title: 'Number the Stars',
+          author: 'Lois Lowry',
+          language: 'english',
+          format: 'epub',
+          sourcePath: '/path/to/test.epub',
+          chapterCount: 2,
+          paragraphCount: 4,
+          currentParagraphIndex: 0,
+          playbackOffsetMs: 0,
+          importedAt: 1000,
+          lastReadAt: 1000,
+          isRead: false,
+          kind: 'book',
+          rightsStatus: 'public_domain',
+        );
+        final ch1 = Chapter(
+          id: 'ch-reader-1',
+          bookId: 'test-reader-toolbar-book',
+          chapterIndex: 0,
+          title: 'Introduction',
+          textOffset: 0,
+          isHidden: false,
+        );
+        final ch2 = Chapter(
+          id: 'ch-reader-2',
+          bookId: 'test-reader-toolbar-book',
+          chapterIndex: 1,
+          title: 'Chapter 2',
+          textOffset: 100,
+          isHidden: false,
+        );
+        final p1 = Paragraph(
+          id: 'p-reader-1',
+          chapterId: 'ch-reader-1',
+          bookId: 'test-reader-toolbar-book',
+          paragraphIndex: 0,
+          content: 'It is hard to believe that I wrote Number the Stars...',
+        );
+        final p2 = Paragraph(
+          id: 'p-reader-2',
+          chapterId: 'ch-reader-1',
+          bookId: 'test-reader-toolbar-book',
+          paragraphIndex: 1,
+          content: 'Most books published that long ago have faded...',
+        );
+        await database.into(database.books).insert(testBook);
+        await database.into(database.chapters).insert(ch1);
+        await database.into(database.chapters).insert(ch2);
+        await database.into(database.paragraphs).insert(p1);
+        await database.into(database.paragraphs).insert(p2);
+
+        await tester.pumpWidget(buildTestApp());
+        await tester.pumpAndSettle();
+
+        // Initially on root Home: All/Books/Podcast switcher and + button are present
+        expect(find.byKey(const ValueKey('home-section-selector-desktop')), findsOneWidget);
+        expect(find.byKey(const ValueKey('home-add-action-desktop')), findsOneWidget);
+        expect(find.byKey(const ValueKey('reader-prev-chapter-button')), findsNothing);
+        expect(find.byKey(const ValueKey('reader-next-chapter-button')), findsNothing);
+
+        // Open AlbumScreen by tapping the hero book in the library
+        final heroFinder = find.byKey(const ValueKey('home-overview-hero'));
+        expect(heroFinder, findsOneWidget);
+        await tester.tap(heroFinder);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 700));
+
+        // From AlbumScreen, tap "Start Reading" button to open BookReaderScreen
+        final startReadingFinder = find.byKey(const ValueKey('book-start-reading-button'));
+        expect(startReadingFinder, findsOneWidget);
+        await tester.tap(startReadingFinder);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 700));
+        await tester.pumpAndSettle();
+
+        // 1. Verify All/Books/Podcast tabs and + button are HIDDEN in top persistent bar
+        expect(find.byKey(const ValueKey('home-section-selector-desktop')), findsNothing);
+        expect(find.byKey(const ValueKey('home-add-action-desktop')), findsNothing);
+
+        // 2. Verify reader controls are rendered in the top persistent toolbar
+        expect(find.byKey(const ValueKey('reader-prev-chapter-button')), findsOneWidget);
+        expect(find.byKey(const ValueKey('reader-next-chapter-button')), findsOneWidget);
+        expect(find.byKey(const ValueKey('reader-appearance-button')), findsOneWidget);
+        expect(find.byKey(const ValueKey('reader-toc-button')), findsOneWidget);
+        expect(find.byKey(const ValueKey('reader-player-button')), findsOneWidget);
+
+        // 3. Verify chapter title and progress in top persistent bar
+        expect(find.text('Introduction'), findsAtLeastNWidgets(1));
+        expect(find.text('1 / 2'), findsOneWidget);
+
+        // 4. Verify no secondary floating bar in content area:
+        // On macOS inside AppScaffold, there should only be one TOC button and one appearance button (both in top bar)
+        expect(find.byKey(const ValueKey('reader-appearance-button')), findsOneWidget);
+        expect(find.byKey(const ValueKey('reader-toc-button')), findsOneWidget);
+
+        // 5. Navigate to Chapter 2 via next chapter button in top persistent bar
+        final nextChapterButton = find.byKey(const ValueKey('reader-next-chapter-button'));
+        await tester.tap(nextChapterButton);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 700));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Chapter 2'), findsAtLeastNWidgets(1));
+        expect(find.text('2 / 2'), findsOneWidget);
+
+        // 6. Pop BookReaderScreen via toolbar back button
+        final toolbarBack = find.byKey(const ValueKey('macos-back-button'));
+        expect(toolbarBack, findsOneWidget);
+        await tester.tap(toolbarBack);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 700));
+        await tester.pumpAndSettle();
+
+        // 7. Verify reader controls are removed and AlbumScreen toolbar is restored
+        expect(find.byKey(const ValueKey('reader-prev-chapter-button')), findsNothing);
+        expect(find.byKey(const ValueKey('reader-next-chapter-button')), findsNothing);
+        expect(find.byKey(const ValueKey('macos-book-detail-more-button')), findsOneWidget);
+
+        // 8. Pop AlbumScreen back to Home library root
+        await tester.tap(toolbarBack);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 700));
+        await tester.pumpAndSettle();
+
+        // 9. Verify root Home controls are restored
+        expect(find.byKey(const ValueKey('home-section-selector-desktop')), findsOneWidget);
+        expect(find.byKey(const ValueKey('home-add-action-desktop')), findsOneWidget);
 
         await tester.pumpWidget(const SizedBox.shrink());
         await tester.pump(const Duration(seconds: 5));

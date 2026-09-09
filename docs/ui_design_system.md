@@ -96,6 +96,13 @@ Large Title 展开和折叠过程只改变字号、位置和对齐，不改变�
 
 页面不得直接写 `fontSize` 和 `fontWeight` 来创造已有角色。确有新角色时，先更新 `AppTextStyles` 并说明用途。
 
+### 3.4 字重纪律与非加粗原则 (Strict Font Weight Discipline)
+
+- **唯一加粗例外**：全局仅允许两处使用加粗效果：
+  1. 页面最大标题（`headlineLarge`，如 Tab 根页面的主要大标题 Large Title）；
+  2. 顶部固定控制栏选中的切换项字体（`PageControlTabs` 选中项）。
+- **严格非加粗约束**：除上述两处外，**其余所有界面元素一律严禁使用加粗字体（不得使用 `FontWeight.bold` / `w700` / `w800`）**。包括但不限于书籍标题、Podcast 标题、章节标题、副标题、标签、说明文字、元数据以及长文正文，统一使用常规字重（`FontWeight.normal` / `400` 或 `500`）。
+
 ## 4. 间距与布局
 
 ### 顶部固定控制栏
@@ -233,37 +240,32 @@ App 全局图标统一采用 **HugeIcons Stroke / Rounded** 视觉家族：
       - 激活/选中/强调图标：`Theme.of(context).colorScheme.primary`
    - 桌面端导航项推荐使用共享组件 `AppNavigationIcon`（`lib/presentation/widgets/design_system/app_navigation_icon.dart`），通过 `AppNavigationSymbol` 统一定义与维护。
 
-### 5.7 macOS 顶部窗口栏与核心导航通道规范 (Top Window Toolbar & Navigation Channel)
+### 5.7 macOS 顶部常驻窗口控制栏规范与单一控制区原则 (Top Window Toolbar & Single Control Zone Principle)
 
-在 macOS 桌面端，窗口顶部左侧 `(0, 0)` 起始区域构建一体化水平导航通道，统筹系统操作与应用级导航：
+在 macOS 桌面端，应用骨架统一采用 `AppScaffold` 顶部的一体化常驻控制栏架构（`macosTopControlsReservedHeight = 38.0`），统筹系统红绿灯、全局导航与当前页面的交互组件：
 
-1. **通道定义与预留目的**：
-   - 顶部安全区域（`y = 0..36pt`，`x = 0..196pt`）的**核心目的，是为【原生红绿灯】、【显示/隐藏侧边栏】、【返回】、【前进】这一组桌面核心导航控件提供专属视觉与交互通道**。
-   - 通道尺寸由常量明确规定：`macosTopControlsReservedHeight = 36.0`，`macosTopControlsReservedWidth = 196.0`。
-   - 坐标排布基准：
-     - `x = 0..78pt`：系统原生红绿灯避让区（关闭/最小化/全屏）；
-     - `x = 78..104pt`：【显示/隐藏侧边栏】按钮（`HugeIcons.strokeRoundedSidebarLeft`，26×26pt）；
-     - `x = 104..118pt`：间距 14pt；
-     - `x = 118..144pt`：【返回】按钮（`HugeIcons.strokeRoundedArrowLeft01`，26×26pt）；
-     - `x = 144..158pt`：间距 14pt；
-     - `x = 158..184pt`：【前进】按钮（`HugeIcons.strokeRoundedArrowRight01`，26×26pt）；
-     - `x = 184..196pt`：右侧安全间隔 12pt。
+1. **单一顶部控制区原则（Single Persistent Control Zone Principle）**：
+   - **核心设计约束**：**所有页面的控制组件必须统一放置在顶部预留的常驻控制区，严禁在内容区二次划分区域用于显示控制组件**。
+   - 绝不允许在内容区域（Content Area）额外叠加、浮动或划分出第二层局部工具栏（Secondary Floating / Segmented Toolbar）。
+   - 当页面处于常驻顶栏模式（`MacosPersistentToolbarScope.hasToolbar(context) == true`）时，所有局部标题栏、章节切换栏、排版/目录操作栏等次级工具条一律彻底移除。内容区正文直接从标准上边距（`tokens.spaceLg`）开始排布，保持原生 macOS 桌面应用的清爽通透。
 
-2. **全局架构与页面适配规则**：
-   - **设置页及其子页面（`SettingsScreen`, `AppearanceScreen` 等）**：
-     - 在 macOS 桌面端统一由当前 Tab Navigator 承载，严禁使用全屏覆盖的 `rootNavigator: true`。
-     - 主窗口桌面骨架（侧边栏、分割线、顶栏 `MacosWindowToolbar`）保持常驻；
-     - 顶栏的【返回】按键（及 `Cmd+[` 快捷键）对设置页及所有深层子页面生效，支持逐级返回；
-     - 顶栏的【显示/隐藏侧边栏】保持常驻可用；
-     - `CollapsingPageScaffold` 在 macOS 托管模式下隐藏局部多余的移动端 `AppBackButton`。
-   - **全屏沉浸式页面（EPUB 阅读器 `BookReaderScreen`、全屏播放器 `PlayerScreen`）**：
-     - 在页面顶部集成 `MacosWindowToolbar` 专属通道；
-     - 通道中的【返回】按键直接执行 `Navigator.of(context).maybePop()`，安全退回上一级；
-     - 阅读器中【显示/隐藏侧边栏】按键联动展开/关闭目录抽屉（TOC Sheet）；
-     - 原页面左上角的移动端返回键/关闭按键一律移除，杜绝与系统红绿灯重叠碰撞；
-     - 页面标题、章节状态与操作图标（字体 Aa、听书、阅读模式等）严格排布在 `x ≥ 196.0pt` 右侧或顶栏下方。
-   - **详情页与通用页面（`CollapsingPageScaffold`）**：
-     - 依托桌面骨架，通过顶栏统一接管返回，禁用局部双重返回按钮，标题对齐页面规范边距。
+2. **顶栏三段式通道架构与动态挂载机制**：
+   - **左侧导航通道（Left Zone）**：
+     - 系统红绿灯避让区（`x = 0..78pt`）；
+     - 侧边栏折叠/展开按钮（26×26pt，`HugeIcons.strokeRoundedSidebarLeft`）；
+     - 历史记录【返回】与【前进】导航按键（26×26pt，`MacosNavArrowIcon`）。
+   - **中间内容/控制通道（Middle Zone, `macosToolbarMiddleProvider`）**：
+     - 根级别（如 Home 首页）展示多视角切换分段栏（`All | Books | Podcast`）；
+     - 子页面（如书籍阅读器 `BookReaderScreen`）挂载该页面的核心控制台（如章节切换 `<` / `>` 按键、当前章节标题、章节阅读进度 `1 / 20` 等）；
+     - 当子页面提供 `macosToolbarMiddleProvider` 时，应用自动隐藏根切换栏（`All | Books | Podcast`），实现无缝无冲突的上下文切换。
+   - **右侧操作通道（Trailing Zone, `macosToolbarTrailingProvider`）**：
+     - 根级别（如 Home 首页）展示全局添加按键（`+`）；
+     - 子页面动态挂载专属操作组件（例如：阅读界面的阅读排版 `Aa`、目录 `BookOpen`、听书播放器 `Headphones`，或书籍详情页的更多操作 `...` 菜单）；
+     - 挂载专属操作组件时，自动替换根级别的 `+` 按键。
+
+3. **页面生命周期与顶栏状态清理**：
+   - 页面挂载顶栏组件（Middle / Trailing）时，应在 `dispose()` 中通过 `Future.microtask` 清理重置为 `null`；
+   - 路由压栈切换时（如阅读器打开全屏播放器），主动清理或检测当前路由状态（`isCurrent`），并在返回恢复时重新挂载。
 
 ## 6. 色彩系统
 

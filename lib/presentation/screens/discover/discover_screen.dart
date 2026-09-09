@@ -26,6 +26,7 @@ import '../../widgets/design_system/page_toolbar_search.dart';
 import '../album/album_screen.dart';
 import '../library/gutendex_book_detail_screen.dart';
 import '../library/librivox_book_detail_screen.dart';
+import '../../widgets/design_system/macos_toolbar_providers.dart';
 import 'discover_scope.dart';
 import 'discover_editorial_feed.dart';
 import 'podcast_discover_view.dart';
@@ -58,7 +59,13 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
   @override
   void initState() {
     super.initState();
+    _scope = ref.read(discoverScopeProvider);
     _loadForScope();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(discoverSearchControllerProvider.notifier).updateValue(_controller);
+      ref.read(discoverSearchHandlerProvider.notifier).updateValue(_runSearch);
+    });
   }
 
   /// 只加载当前范围需要的数据，切换范围时再按需拉取。
@@ -277,6 +284,17 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<DiscoverScope>(discoverScopeProvider, (prev, next) {
+      if (next != _scope) {
+        _debounce?.cancel();
+        FocusManager.instance.primaryFocus?.unfocus();
+        setState(() {
+          _scope = next;
+          _loadForScope();
+        });
+      }
+    });
+
     final design = context.appDesign;
     final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
     // Podcast 范围有自己的加载指示，这里只反映书籍类检索的进度。
@@ -286,8 +304,13 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
       DiscoverScope.podcasts => false,
       DiscoverScope.library => _localSearching,
     };
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(discoverSearchingProvider.notifier).updateValue(searching);
+    });
 
-    final desktopToolbar = MacosPageToolbarScope.maybeOf(context) != null;
+    final hasPersistentToolbar = MacosPersistentToolbarScope.hasToolbar(context);
+    final desktopToolbar = !hasPersistentToolbar && MacosPageToolbarScope.maybeOf(context) != null;
     final selector = PageControlTabs<DiscoverScope>(
       key: const ValueKey('discover-scope-selector'),
       labels: {
@@ -309,6 +332,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
           _scope = scope;
           _loadForScope();
         });
+        ref.read(discoverScopeProvider.notifier).updateValue(scope);
       },
     );
     Widget searchField(bool autofocus) => AppSearchField(
@@ -328,7 +352,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
       title: context.tr('发现', 'Discover', '発見'),
       body: Column(
         children: [
-          if (!desktopToolbar)
+          if (!desktopToolbar && !hasPersistentToolbar)
             Padding(
               padding: EdgeInsets.fromLTRB(
                 inset,
@@ -338,7 +362,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
               ),
               child: searchField(false),
             ),
-          if (!desktopToolbar)
+          if (!desktopToolbar && !hasPersistentToolbar)
             Padding(
               padding: EdgeInsets.only(bottom: design.spaceMd),
               child: selector,
@@ -381,7 +405,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
         ],
       ),
     );
-    if (!desktopToolbar) return page;
+    if (hasPersistentToolbar || !desktopToolbar) return page;
     return Column(
       children: [
         MacosPageToolbar(

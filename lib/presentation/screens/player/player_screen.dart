@@ -15,6 +15,7 @@ import 'package:hugeicons/hugeicons.dart';
 import '../../widgets/app_sheet.dart';
 import '../../widgets/app_back_button.dart';
 import '../../widgets/design_system/macos_window_toolbar.dart';
+import '../../widgets/design_system/macos_toolbar_providers.dart';
 import '../../../ai/ai_models.dart';
 import '../../../ai/transcript_tool.dart';
 import '../../../core/app_colors.dart';
@@ -452,9 +453,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   drift_db.Chapter? get _selectedAudiobookChapter =>
       _activeAudiobookChapter ?? widget.initialChapter;
 
+  AppToolbarStateNotifier<String?>? _macosTitleNotifier;
+  AppToolbarStateNotifier<Widget?>? _macosTrailingNotifier;
+  AppToolbarStateNotifier<bool>? _miniPlayerSuppressedNotifier;
+
   @override
   void initState() {
     super.initState();
+    _macosTitleNotifier = ref.read(macosToolbarTitleProvider.notifier);
+    _macosTrailingNotifier = ref.read(macosToolbarTrailingProvider.notifier);
+    _miniPlayerSuppressedNotifier =
+        ref.read(miniPlayerSuppressedProvider.notifier);
     _playerScrollController = ScrollController(
       onAttach: _handlePageScrollPositionAttached,
       onDetach: _handlePageScrollPositionDetached,
@@ -472,6 +481,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       unawaited(_refreshPodcastLocalAudioAvailability());
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _miniPlayerSuppressedNotifier?.updateValue(true);
       unawaited(_loadPlaybackSpeed());
       if (_isPodcast) {
         ref.read(generationOrchestratorProvider).pausePlaybackGenerations();
@@ -498,6 +509,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _playerScrollController.dispose();
     _pageScrollActive.dispose();
     _controlStateRevision.dispose();
+    Future.microtask(() {
+      _macosTitleNotifier?.updateValue(null);
+      _macosTrailingNotifier?.updateValue(null);
+      _miniPlayerSuppressedNotifier?.updateValue(false);
+    });
     super.dispose();
   }
 
@@ -2006,6 +2022,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final pageBottom = theme.colorScheme.surface;
     final middleTint = Color.lerp(topTint, pageBottom, 0.62)!;
     final isDark = theme.brightness == Brightness.dark;
+    final hasPersistentToolbar =
+        MacosPersistentToolbarScope.hasToolbar(context);
+    if (hasPersistentToolbar) {
+      final currentTitle = _isPodcast
+          ? (_podcastEpisode?.title ??
+              widget.podcast?.episode.title ??
+              widget.book.title)
+          : (_activeAudiobookChapter?.title ?? widget.book.title);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _macosTitleNotifier?.updateValue(currentTitle);
+        _macosTrailingNotifier?.updateValue(
+              _buildPersistentToolbarTrailing(context),
+            );
+      });
+    }
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
@@ -2043,6 +2075,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               // Keep the page-level background visible behind both system bars.
               backgroundColor: Colors.transparent,
               body: SafeArea(
+                top: !hasPersistentToolbar,
                 child: Column(
                   children: [
                     Expanded(
@@ -2127,7 +2160,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 ),
               ),
             ),
-            if (!isPhoneLandscape)
+            if (!isPhoneLandscape && !hasPersistentToolbar)
               Positioned(
                 top: 0,
                 left: 0,
@@ -2759,7 +2792,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                               ),
                         style: TextStyle(
                           fontSize: 15,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.normal,
                           color: context.appTextPrimary.withValues(alpha: 0.8),
                         ),
                       ),
@@ -3165,7 +3198,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     style: Theme.of(sheetContext).textTheme.titleMedium
                         ?.copyWith(
                           color: sheetContext.appTextPrimary,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.normal,
                         ),
                   ),
                 ),
@@ -3360,9 +3393,48 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               color: context.appTextPrimary,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.normal,
             ),
           ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPersistentToolbarTrailing(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (!_isPodcast)
+          IconButton(
+            key: const ValueKey('player-reader-mode-button'),
+            icon: HugeIcon(
+              icon: HugeIcons.strokeRoundedBookOpen01,
+              size: 20,
+              color: context.appTextPrimary,
+            ),
+            tooltip: context.tr(
+              '阅读模式',
+              'Reader Mode',
+              '読書モード',
+            ),
+            style: IconButton.styleFrom(
+              foregroundColor: context.appTextPrimary,
+            ),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => BookReaderScreen(
+                    book: widget.book,
+                    initialChapter: _activeAudiobookChapter,
+                  ),
+                ),
+              );
+            },
+          ),
+        Material(
+          type: MaterialType.transparency,
+          child: _buildPlaybackMoreMenu(),
         ),
       ],
     );
@@ -3487,6 +3559,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   color: context.appTextPrimary,
+                  fontWeight: FontWeight.normal,
                 ),
               ),
               SizedBox(height: design.spaceXs),
@@ -3573,7 +3646,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: context.appTextPrimary,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.normal,
                   ),
                 ),
                 if (!_transcribingPodcast) ...[
@@ -4359,7 +4432,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                               style: Theme.of(context).textTheme.titleLarge
                                   ?.copyWith(
                                     color: context.appTextPrimary,
-                                    fontWeight: FontWeight.w800,
+                                    fontWeight: FontWeight.normal,
                                   ),
                             ),
                             SizedBox(height: design.spaceXs),
@@ -4420,7 +4493,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 color: context.appTextPrimary,
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.normal,
                                 fontSize: 14.5,
                               ),
                             ),
@@ -4780,7 +4853,7 @@ class _WhisperModelSetupSheetState extends State<_WhisperModelSetupSheet> {
                           '文字起こしモデルをダウンロード',
                         ),
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.normal,
                         ),
                       ),
                       SizedBox(height: design.spaceXs),

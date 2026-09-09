@@ -14,6 +14,7 @@ import 'book_cover.dart';
 import 'app_control_buttons.dart';
 import '../../core/app_localizations.dart';
 import 'podcast_artwork.dart';
+import 'app_scaffold.dart';
 
 /// 全局迷你播放器
 class MiniPlayer extends ConsumerWidget {
@@ -83,12 +84,19 @@ class MiniPlayer extends ConsumerWidget {
                         ? null
                         : await db.getChapter(chapterId);
                     if (book != null && context.mounted) {
-                      Navigator.of(context, rootNavigator: true).push(
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              PlayerScreen(book: book, initialChapter: chapter),
-                        ),
+                      final route = MaterialPageRoute(
+                        builder: (_) =>
+                            PlayerScreen(book: book, initialChapter: chapter),
                       );
+                      final scaffold = AppScaffoldScope.maybeOf(context);
+                      if (scaffold != null) {
+                        await scaffold.pushContent(route);
+                      } else {
+                        await Navigator.of(
+                          context,
+                          rootNavigator: true,
+                        ).push(route);
+                      }
                     }
                   },
                   child: _MiniPlayerSurface(
@@ -134,7 +142,7 @@ class MiniPlayer extends ConsumerWidget {
                                             color: Theme.of(
                                               context,
                                             ).colorScheme.onSurface,
-                                            fontWeight: FontWeight.bold,
+                                            fontWeight: FontWeight.normal,
                                           ),
                                     ),
                                     const SizedBox(height: 2),

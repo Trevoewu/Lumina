@@ -99,7 +99,7 @@ class _PodcastLibraryViewState extends ConsumerState<PodcastLibraryView> {
                       context.tr('已订阅', 'Subscriptions', '購読中'),
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         color: context.appTextPrimary,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.normal,
                       ),
                     ),
                   ),
@@ -141,7 +141,7 @@ class _PodcastLibraryViewState extends ConsumerState<PodcastLibraryView> {
                               style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(
                                     color: context.appTextPrimary,
-                                    fontWeight: FontWeight.w700,
+                                    fontWeight: FontWeight.normal,
                                   ),
                             ),
                           ],
@@ -159,7 +159,7 @@ class _PodcastLibraryViewState extends ConsumerState<PodcastLibraryView> {
                       context.tr('最新单集', 'Latest episodes', '最新エピソード'),
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         color: context.appTextPrimary,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.normal,
                       ),
                     ),
                   ),
@@ -280,7 +280,7 @@ class _PodcastEmptyState extends StatelessWidget {
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                 color: context.appTextPrimary,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.normal,
               ),
             ),
             const SizedBox(height: 10),
