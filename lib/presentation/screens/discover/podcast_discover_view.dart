@@ -262,7 +262,7 @@ class _PodcastIndexError extends StatelessWidget {
                 'Podcast Index search failed',
                 'Podcast Indexの検索に失敗しました',
               ),
-              style: const TextStyle(fontWeight: FontWeight.w800),
+              style: const TextStyle(fontWeight: FontWeight.normal),
             ),
             const SizedBox(height: 8),
             Text(
@@ -327,7 +327,7 @@ class _PodcastIndexResultTile extends StatelessWidget {
                       podcast.title,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w800),
+                      style: const TextStyle(fontWeight: FontWeight.normal),
                     ),
                     if (metadata.isNotEmpty) ...[
                       const SizedBox(height: 5),

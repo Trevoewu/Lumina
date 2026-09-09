@@ -1,4 +1,4 @@
-import 'package:cupertino_native_better/cupertino_native.dart';
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:lumina/presentation/widgets/app_back_button.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -49,8 +49,15 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(AppBackButton), findsOneWidget);
       expect(
-        tester.widget<CNButton>(find.byType(CNButton)).imageAsset?.assetPath,
-        'assets/ui_icons/back.png',
+        tester
+            .widget<AppIcon>(
+              find.descendant(
+                of: find.byType(AppBackButton),
+                matching: find.byType(AppIcon),
+              ),
+            )
+            .icon,
+        AppIcons.arrowLeft02,
       );
       await tester.tap(find.byType(AppBackButton));
       await tester.pumpAndSettle();

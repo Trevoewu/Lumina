@@ -83,17 +83,25 @@ void main() {
       find.byWidgetPredicate(
         (widget) =>
             widget is CNIcon &&
-            widget.imageAsset?.assetPath == 'assets/ui_icons/home.png',
+            widget.imageAsset?.assetPath == 'assets/ui_icons/home@3x.png',
       ),
       findsOneWidget,
     );
     expect(find.byIcon(Icons.home), findsNothing);
     expect(find.byIcon(Icons.home_outlined), findsNothing);
+    for (final name in ['home', 'discover', 'dictionary', 'me']) {
+      final icon = find.byWidgetPredicate(
+        (widget) => widget is CNIcon &&
+            widget.imageAsset?.assetPath == 'assets/ui_icons/$name@3x.png',
+      );
+      expect(tester.getSize(icon), const Size(25, 25));
+    }
     expect(
       find.byWidgetPredicate(
         (widget) =>
             widget is CNIcon &&
-            widget.imageAsset?.assetPath == 'assets/ui_icons/dictionary.png',
+            widget.imageAsset?.assetPath ==
+                'assets/ui_icons/dictionary@3x.png',
       ),
       findsOneWidget,
     );
@@ -272,7 +280,7 @@ void main() {
       find.byWidgetPredicate(
         (widget) =>
             widget is CNIcon &&
-            widget.imageAsset?.assetPath == 'assets/ui_icons/me.png',
+            widget.imageAsset?.assetPath == 'assets/ui_icons/me@3x.png',
       ),
     );
     await tester.pump(const Duration(milliseconds: 300));
@@ -324,7 +332,7 @@ void main() {
       find.byWidgetPredicate(
         (widget) =>
             widget is CNIcon &&
-            widget.imageAsset?.assetPath == 'assets/ui_icons/me.png',
+            widget.imageAsset?.assetPath == 'assets/ui_icons/me@3x.png',
       ),
     );
     await tester.pump(const Duration(milliseconds: 300));
@@ -374,7 +382,7 @@ void main() {
       find.byWidgetPredicate(
         (widget) =>
             widget is CNIcon &&
-            widget.imageAsset?.assetPath == 'assets/ui_icons/me.png',
+            widget.imageAsset?.assetPath == 'assets/ui_icons/me@3x.png',
       ),
     );
     await tester.pump(const Duration(milliseconds: 300));

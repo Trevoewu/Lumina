@@ -108,7 +108,7 @@ class _ReaderAppearanceSheet extends ConsumerWidget {
             context.tr('字体', 'Font', 'フォント'),
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
               color: context.appTextSecondary,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.normal,
             ),
           ),
           const SizedBox(height: 8),
@@ -140,9 +140,7 @@ class _ReaderAppearanceSheet extends ConsumerWidget {
                           font.label,
                           style: TextStyle(
                             fontFamily: font.fontFamily,
-                            fontWeight: appearance.fontId == font.id
-                                ? FontWeight.w700
-                                : FontWeight.w500,
+                            fontWeight: FontWeight.normal,
                             color: appearance.fontId == font.id
                                 ? context.appAccent
                                 : context.appTextPrimary,
@@ -163,7 +161,7 @@ class _ReaderAppearanceSheet extends ConsumerWidget {
             context.tr('字号', 'Font Size', '文字サイズ'),
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
               color: context.appTextSecondary,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.normal,
             ),
           ),
           const SizedBox(height: 8),
@@ -210,7 +208,7 @@ class _ReaderAppearanceSheet extends ConsumerWidget {
                 '${(appearance.fontScale * 100).round()}%',
                 style: TextStyle(
                   fontFamily: 'monospace',
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.normal,
                   fontSize: 13,
                   color: context.appTextPrimary,
                 ),
@@ -270,7 +268,7 @@ class _ThemeOptionButton extends StatelessWidget {
                 label,
                 style: TextStyle(
                   fontSize: 13,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  fontWeight: FontWeight.normal,
                   color: selected ? context.appAccent : context.appTextPrimary,
                 ),
               ),

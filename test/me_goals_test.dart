@@ -40,10 +40,24 @@ void main() {
     expect(find.text('20'), findsOneWidget);
     expect(find.text('/ 30 MIN'), findsOneWidget);
     expect(find.text('10 min to go'), findsOneWidget);
+    for (final label in ['20', '10 min to go', 'Adjust goal']) {
+      expect(
+        tester.widget<Text>(find.text(label)).style?.fontWeight,
+        FontWeight.normal,
+        reason: label,
+      );
+    }
 
     await tester.tap(find.byKey(const ValueKey('me-adjust-goals')));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('me-goals-sheet')), findsOneWidget);
+    for (final label in ['Save goals', '15']) {
+      expect(
+        tester.widget<Text>(find.text(label)).style?.fontWeight,
+        FontWeight.normal,
+        reason: label,
+      );
+    }
 
     await tester.tap(find.widgetWithText(GestureDetector, '15').first);
     await tester.pumpAndSettle();

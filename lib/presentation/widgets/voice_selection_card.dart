@@ -47,7 +47,7 @@ class VoiceSelectionCard extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.normal,
                     ),
                   ),
                   if (note != null) ...[

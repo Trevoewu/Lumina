@@ -630,7 +630,7 @@ class SettingValueRow extends StatelessWidget {
                     Text(
                       title,
                       style: textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.normal,
                       ),
                     ),
                     if (subtitle != null) ...[

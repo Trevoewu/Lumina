@@ -148,7 +148,7 @@ class _TtsProviderEditorSheetState
                 child: Text(
                   _error!,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.normal,
                     color: scheme.error,
                   ),
                 ),
@@ -180,7 +180,7 @@ class _TtsProviderEditorSheetState
                             context.tr('保存', 'Save', '保存'),
                             style: Theme.of(context).textTheme.titleMedium
                                 ?.copyWith(
-                                  fontWeight: FontWeight.w800,
+                                  fontWeight: FontWeight.normal,
                                   color: scheme.surface,
                                 ),
                           ),

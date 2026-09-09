@@ -873,27 +873,29 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
           CNTabBarItem(
             label: context.tr('主页', 'Home', 'ホーム'),
             imageAsset: const CNImageAsset(
-              'assets/ui_icons/home.png',
+              // UIKit recognizes @3x as 75 pixels / 3 = 25 points.
+              // A Flutter 3.0x directory alone does not set UIImage.scale.
+              'assets/ui_icons/home@3x.png',
               size: 25,
             ),
           ),
           CNTabBarItem(
             label: context.tr('发现', 'Discover', '発見'),
             imageAsset: const CNImageAsset(
-              'assets/ui_icons/discover.png',
+              'assets/ui_icons/discover@3x.png',
               size: 25,
             ),
           ),
           CNTabBarItem(
             label: context.tr('查词', 'Dictionary', '辞書'),
             imageAsset: const CNImageAsset(
-              'assets/ui_icons/dictionary.png',
+              'assets/ui_icons/dictionary@3x.png',
               size: 25,
             ),
           ),
           CNTabBarItem(
             label: context.tr('我的', 'Me', 'マイページ'),
-            imageAsset: const CNImageAsset('assets/ui_icons/me.png', size: 25),
+            imageAsset: const CNImageAsset('assets/ui_icons/me@3x.png', size: 25),
           ),
         ],
       ),

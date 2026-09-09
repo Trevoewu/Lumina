@@ -1,7 +1,8 @@
-import 'package:cupertino_native_better/cupertino_native.dart';
 import 'package:flutter/material.dart';
+import 'app_control_buttons.dart';
+import 'design_system/app_icon.dart';
 
-/// The shared native glass back button used by the player and sheets.
+/// Shared plain back button with a 44-point touch target.
 class AppBackButton extends StatelessWidget {
   const AppBackButton({super.key, this.onPressed, this.tooltip});
 
@@ -12,22 +13,10 @@ class AppBackButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final label =
         tooltip ?? MaterialLocalizations.of(context).backButtonTooltip;
-    return Semantics(
-      label: label,
-      button: true,
-      child: Tooltip(
-        message: label,
-        child: CNButton.icon(
-          imageAsset: const CNImageAsset('assets/ui_icons/back.png', size: 22),
-          config: const CNButtonConfig(
-            style: CNButtonStyle.glass,
-            width: 44,
-            minHeight: 44,
-            padding: EdgeInsets.zero,
-          ),
-          onPressed: onPressed ?? () => Navigator.of(context).maybePop(),
-        ),
-      ),
+    return AppControlIconButton(
+      icon: AppIcons.arrowLeft02,
+      tooltip: label,
+      onPressed: onPressed ?? () => Navigator.of(context).maybePop(),
     );
   }
 }

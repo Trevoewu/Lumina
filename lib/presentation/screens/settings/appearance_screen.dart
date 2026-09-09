@@ -156,7 +156,7 @@ class AppearanceScreen extends ConsumerWidget {
                       'A',
                       style: TextStyle(
                         fontSize: 13,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.normal,
                         color: scheme.onSurfaceVariant,
                       ),
                     ),
@@ -173,7 +173,7 @@ class AppearanceScreen extends ConsumerWidget {
                       'A',
                       style: TextStyle(
                         fontSize: 22,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.normal,
                         color: scheme.onSurface,
                       ),
                     ),
@@ -337,7 +337,7 @@ class _FontChoice extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.normal,
                   color: selected ? scheme.onSurface : scheme.onSurfaceVariant,
                 ),
               ),
@@ -558,7 +558,7 @@ class _ThemePaletteCard extends StatelessWidget {
                           currentPreset.label,
                           style: TextStyle(
                             fontSize: 13,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.normal,
                             color: scheme.onSurface,
                           ),
                         ),
@@ -651,7 +651,7 @@ class _ThemePaletteCard extends StatelessWidget {
             label,
             style: TextStyle(
               fontSize: 15,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.normal,
               color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
@@ -721,7 +721,7 @@ class _ColorChip extends StatelessWidget {
                       style: TextStyle(
                         fontFamily: 'monospace',
                         fontSize: 13,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.normal,
                         letterSpacing: 0.4,
                         color: scheme.onSurface,
                       ),
@@ -871,7 +871,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
               maxLength: 6,
               style: const TextStyle(
                 fontFamily: 'monospace',
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.normal,
                 letterSpacing: 1.5,
               ),
               decoration: InputDecoration(
@@ -891,7 +891,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
             Text(
               context.tr('预设推荐', 'Suggested Colors', 'おすすめカラー'),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.normal,
                 color: scheme.onSurfaceVariant,
               ),
             ),

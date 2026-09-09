@@ -57,7 +57,7 @@ class WordListCard extends StatelessWidget {
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(
                               color: context.appTextPrimary,
-                              fontWeight: FontWeight.w800,
+                              fontWeight: FontWeight.normal,
                             ),
                       ),
                     ),
@@ -165,7 +165,7 @@ class _WordInitialBadge extends StatelessWidget {
         initial,
         style: Theme.of(context).textTheme.titleMedium?.copyWith(
           color: favorite ? accent : context.appTextPrimary,
-          fontWeight: FontWeight.w900,
+          fontWeight: FontWeight.normal,
         ),
       ),
     );

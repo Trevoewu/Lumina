@@ -116,7 +116,7 @@ class _TtsServiceScreenState extends ConsumerState<TtsServiceScreen> {
                           '${data.chunkChars} 文字',
                         ),
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.normal,
                         ),
                       ),
                     ],
@@ -287,7 +287,7 @@ class _TtsProviderCard extends StatelessWidget {
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: Theme.of(context).textTheme.titleMedium
-                                      ?.copyWith(fontWeight: FontWeight.w700),
+                                      ?.copyWith(fontWeight: FontWeight.normal),
                                 ),
                               ),
                               const SizedBox(width: 8),

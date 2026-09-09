@@ -124,7 +124,7 @@ class ReaderAudioBar extends ConsumerWidget {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 14,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.normal,
                               color: context.appTextPrimary,
                             ),
                           ),
@@ -149,9 +149,7 @@ class ReaderAudioBar extends ConsumerWidget {
                               color: isThisBook && isPlaying
                                   ? accent
                                   : context.appTextSecondary,
-                              fontWeight: isThisBook && isPlaying
-                                  ? FontWeight.w600
-                                  : FontWeight.w400,
+                              fontWeight: FontWeight.normal,
                             ),
                           ),
                         ],

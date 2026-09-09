@@ -26,6 +26,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      expect(find.byType(AppGlassSurface), findsNothing);
       final icon = tester.widget<HugeIcon>(find.byType(HugeIcon));
       expect(icon.icon, AppIcons.moreHorizontal);
       expect(

@@ -113,7 +113,7 @@ class _SwipeActionRowState extends State<SwipeActionRow> {
                                               color: action.foregroundColor,
                                               fontSize: 14,
                                               height: 1.15,
-                                              fontWeight: FontWeight.w700,
+                                              fontWeight: FontWeight.normal,
                                             ),
                                           ),
                                         ),

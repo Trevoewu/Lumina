@@ -169,7 +169,7 @@ class _DictionaryEntryContentState extends State<DictionaryEntryContent> {
                             : context.tr('展开全文', 'Read more', '続きを読む'),
                         style: TextStyle(
                           fontSize: 14,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.normal,
                           color: ink.withValues(alpha: 0.45),
                         ),
                       ),
@@ -419,7 +419,7 @@ class _ContextCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 13.5,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.normal,
                         color: ink,
                       ),
                     ),
@@ -472,7 +472,7 @@ class _ContextCard extends StatelessWidget {
                           ),
                     style: TextStyle(
                       fontSize: 13.5,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.normal,
                       color: accent,
                     ),
                   ),
@@ -496,7 +496,7 @@ class _ContextCard extends StatelessWidget {
     if (matches.isEmpty) return TextSpan(text: sentence);
 
     final highlight = TextStyle(
-      fontWeight: FontWeight.w800,
+      fontWeight: FontWeight.normal,
       color: context.appTextPrimary,
     );
     final spans = <TextSpan>[];
@@ -590,7 +590,7 @@ class _Pill extends StatelessWidget {
         style: prose
             ? TextStyle(
                 fontSize: 13.5,
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.normal,
                 color: ink.withValues(alpha: 0.62),
               )
             : technicalTextStyle(context, size: 12.5, alpha: 0.45),

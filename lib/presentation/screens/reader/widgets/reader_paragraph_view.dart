@@ -67,7 +67,7 @@ class ReaderParagraphView extends ConsumerWidget {
                     ? context.appTextPrimary
                     : context.appTextPrimary.withValues(alpha: 0.88),
                 letterSpacing: 0.3,
-                fontWeight: isPlaying ? FontWeight.w500 : FontWeight.w400,
+                fontWeight: FontWeight.normal,
               ),
               contextMenuBuilder: (context, editableTextState) {
                 final selectedText = editableTextState
@@ -121,7 +121,7 @@ class ReaderParagraphView extends ConsumerWidget {
                     context.tr('正在朗读', 'Reading aloud', '朗読中'),
                     style: TextStyle(
                       fontSize: 11,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.normal,
                       color: accent,
                     ),
                   ),

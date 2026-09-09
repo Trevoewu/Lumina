@@ -468,7 +468,7 @@ class _DictionaryCollectionScreenState
               style: TextStyle(
                 color: context.appTextSecondary,
                 fontSize: 16,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.normal,
               ),
             ),
           ],
@@ -900,7 +900,7 @@ class _FavoriteWordCard extends StatelessWidget {
                                 entry.word,
                                 style: TextStyle(
                                   fontSize: 21,
-                                  fontWeight: FontWeight.w800,
+                                  fontWeight: FontWeight.normal,
                                   letterSpacing: -0.21,
                                   color: ink,
                                 ),
@@ -1009,7 +1009,7 @@ class _HistoryRow extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 16,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.normal,
                               color: ink,
                             ),
                           ),
@@ -1112,7 +1112,7 @@ class _SuggestionRow extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.normal,
                       color: ink,
                     ),
                   ),

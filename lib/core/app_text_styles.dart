@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 class AppTextStyles {
   /// UI typography intentionally uses the platform system font. Reading
   /// typography is applied only by content widgets through AppDesignTokens.
+  /// Only headings and selected page/rail navigation may override w400.
   static const TextTheme textTheme = TextTheme(
     headlineLarge: TextStyle(
       fontSize: 34,
@@ -50,6 +51,16 @@ class AppTextStyles {
       fontSize: 14,
       height: 1.3,
       fontWeight: FontWeight.w400,
+    ),
+    labelMedium: TextStyle(
+      fontSize: 12,
+      height: 1.3,
+      fontWeight: FontWeight.normal,
+    ),
+    labelSmall: TextStyle(
+      fontSize: 11,
+      height: 1.3,
+      fontWeight: FontWeight.normal,
     ),
     bodySmall: TextStyle(
       fontSize: 12,

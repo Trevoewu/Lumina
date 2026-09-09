@@ -127,7 +127,8 @@ void main() {
       find.byWidgetPredicate(
         (widget) =>
             widget is CNIcon &&
-            widget.imageAsset?.assetPath == 'assets/ui_icons/dictionary.png',
+            widget.imageAsset?.assetPath ==
+                'assets/ui_icons/dictionary@3x.png',
       ),
     );
     await _pumpReady(tester);
@@ -142,7 +143,8 @@ void main() {
       find.byWidgetPredicate(
         (widget) =>
             widget is CNIcon &&
-            widget.imageAsset?.assetPath == 'assets/ui_icons/dictionary.png',
+            widget.imageAsset?.assetPath ==
+                'assets/ui_icons/dictionary@3x.png',
       ),
     );
     await _pumpReady(tester);

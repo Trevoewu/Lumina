@@ -163,9 +163,7 @@ class _ReaderTocSheetState extends State<_ReaderTocSheet> {
                           style: TextStyle(
                             fontFamily: 'monospace',
                             fontSize: 13,
-                            fontWeight: isCurrent
-                                ? FontWeight.w800
-                                : FontWeight.w500,
+                            fontWeight: FontWeight.normal,
                             color: isCurrent
                                 ? context.appAccent
                                 : context.appTextSecondary,
@@ -179,9 +177,7 @@ class _ReaderTocSheetState extends State<_ReaderTocSheet> {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 15,
-                              fontWeight: isCurrent
-                                  ? FontWeight.w700
-                                  : FontWeight.w400,
+                              fontWeight: FontWeight.normal,
                               color: isCurrent
                                   ? context.appAccent
                                   : context.appTextPrimary,

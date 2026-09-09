@@ -227,7 +227,7 @@ class _ConsoleLine extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               fontSize: 11,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.normal,
               color: tagColor,
             ),
           ),
@@ -278,7 +278,7 @@ class _FlatButton extends StatelessWidget {
             child: Text(
               label,
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.normal,
                 color: onTap == null
                     ? scheme.onSurface.withValues(alpha: 0.3)
                     : emphasised

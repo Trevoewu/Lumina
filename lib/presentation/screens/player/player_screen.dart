@@ -4216,20 +4216,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             ),
           ],
         ),
-        if (primaryAction == PlayerPrimaryAudioAction.loading)
-          Padding(
-            padding: EdgeInsets.only(top: design.spaceSm),
-            child: Semantics(
-              liveRegion: true,
-              child: Text(
-                primaryTooltip,
-                key: const ValueKey('player-audio-wait-status'),
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: secondaryColor),
-              ),
-            ),
-          ),
         if (showSecondaryActions) ...[
           SizedBox(height: design.spaceXl),
           Padding(

@@ -82,14 +82,12 @@ class _AppGlassMenuButtonState<T> extends State<AppGlassMenuButton<T>> {
       label:
           widget.tooltip ?? MaterialLocalizations.of(context).showMenuTooltip,
       button: true,
-      child: AppGlassSurface(
-        child: IconButton(
-          icon: const AppIcon(AppIcons.moreHorizontal, size: 22),
-          color: Theme.of(context).colorScheme.onSurface,
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints.tightFor(width: 44, height: 44),
-          onPressed: () => _menuKey.currentState?.showButtonMenu(),
-        ),
+      child: IconButton(
+        icon: const AppIcon(AppIcons.moreHorizontal, size: 22),
+        color: Theme.of(context).colorScheme.onSurface,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints.tightFor(width: 44, height: 44),
+        onPressed: () => _menuKey.currentState?.showButtonMenu(),
       ),
     ),
   );

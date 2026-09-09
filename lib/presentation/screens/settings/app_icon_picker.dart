@@ -203,7 +203,7 @@ class _IconChoice extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.normal,
                   color: selected ? scheme.onSurface : scheme.onSurfaceVariant,
                 ),
               ),

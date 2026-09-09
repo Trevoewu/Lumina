@@ -791,7 +791,7 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
                         icon: const AppIcon(AppIcons.target02, size: 18),
                         label: Text(
                           context.tr('回到朗读处', 'Back to audio', '朗読位置へ'),
-                          style: const TextStyle(fontWeight: FontWeight.w600),
+                          style: const TextStyle(fontWeight: FontWeight.normal),
                         ),
                         onPressed: () {
                           setState(() => _userScrolledAway = false);
