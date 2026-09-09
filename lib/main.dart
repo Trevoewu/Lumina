@@ -146,7 +146,7 @@ class _MacWindowInset extends StatelessWidget {
 
     return ColoredBox(
       color: context.appBackground,
-      child: Padding(padding: const EdgeInsets.only(top: 28), child: child),
+      child: child,
     );
   }
 }
