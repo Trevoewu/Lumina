@@ -49,6 +49,7 @@ import '../../widgets/podcast_artwork.dart';
 import '../../widgets/podcast_link_text.dart';
 import '../../widgets/synced_lyrics_list.dart';
 import '../../widgets/transcript_slider_track.dart';
+import '../reader/book_reader_screen.dart';
 import '../settings/dictionary_explanation_service_screen.dart';
 import '../settings/tts_service_screen.dart';
 
@@ -2153,9 +2154,33 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           )
                         else
                           const AppBackButton(),
-                        Material(
-                          type: MaterialType.transparency,
-                          child: _buildPlaybackMoreMenu(),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (!_isPodcast)
+                              IconButton(
+                                key: const ValueKey('player-reader-mode-button'),
+                                icon: const Icon(Icons.menu_book_rounded, size: 20),
+                                tooltip: context.tr('阅读模式', 'Reader Mode', '読書モード'),
+                                style: IconButton.styleFrom(
+                                  foregroundColor: context.appTextPrimary,
+                                ),
+                                onPressed: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => BookReaderScreen(
+                                        book: widget.book,
+                                        initialChapter: _activeAudiobookChapter,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            Material(
+                              type: MaterialType.transparency,
+                              child: _buildPlaybackMoreMenu(),
+                            ),
+                          ],
                         ),
                       ],
                     ),

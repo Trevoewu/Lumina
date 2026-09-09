@@ -32,6 +32,7 @@ import '../../widgets/half_screen_action_sheet.dart';
 import '../../widgets/swipe_action_row.dart';
 import '../../widgets/voice_selection_card.dart';
 import '../player/player_screen.dart';
+import '../reader/book_reader_screen.dart';
 import '../settings/voice_preview_controller.dart';
 
 class AlbumScreen extends ConsumerStatefulWidget {
@@ -182,6 +183,46 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     final chapterData = results[1] as _AlbumChapterData;
     setState(() {
       _currentChapterId = refreshedBook?.currentChapterId ?? chapter.id;
+      _currentParagraphIndex = refreshedBook?.currentParagraphIndex ?? 0;
+      _playbackOffsetMs = refreshedBook?.playbackOffsetMs ?? 0;
+      _chapterData = chapterData;
+      _chapterDataFuture = Future<_AlbumChapterData>.value(chapterData);
+    });
+  }
+
+  Future<void> _openReader([drift_db.Chapter? chapter]) async {
+    final database = ref.read(appDatabaseProvider);
+    final latestBook =
+        await database.getBook(widget.book.id) ?? widget.book;
+    final resolvedData = _chapterData ?? await _chapterDataFuture;
+    final chapters = resolvedData.chapters;
+    drift_db.Chapter? targetChapter = chapter;
+    if (targetChapter == null && chapters.isNotEmpty) {
+      final currentId = _currentChapterId ?? latestBook.currentChapterId;
+      targetChapter = chapters.firstWhere(
+        (c) => c.id == currentId,
+        orElse: () => chapters.first,
+      );
+    }
+    if (!mounted || targetChapter == null) return;
+    await Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute<void>(
+        builder: (_) => BookReaderScreen(
+          book: latestBook,
+          initialChapter: targetChapter,
+          initialParagraphIndex: _currentParagraphIndex,
+        ),
+      ),
+    );
+    final results = await Future.wait<Object?>([
+      database.getBook(widget.book.id),
+      _loadChapterData(database),
+    ]);
+    if (!mounted) return;
+    final refreshedBook = results[0] as drift_db.Book?;
+    final chapterData = results[1] as _AlbumChapterData;
+    setState(() {
+      _currentChapterId = refreshedBook?.currentChapterId ?? targetChapter?.id;
       _currentParagraphIndex = refreshedBook?.currentParagraphIndex ?? 0;
       _playbackOffsetMs = refreshedBook?.playbackOffsetMs ?? 0;
       _chapterData = chapterData;
@@ -973,7 +1014,9 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             _buildBookHeader(),
-                            SizedBox(height: design.spaceXl),
+                            SizedBox(height: design.spaceLg),
+                            _buildActionButtons(chapters),
+                            SizedBox(height: design.spaceLg),
                             _buildBookIntroduction(),
                             SizedBox(height: design.spaceXxl),
                             Text(
@@ -1038,6 +1081,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                         chapterId: chapter.id,
                         streamingAudio: _isStreamingAudiobook,
                         onPlay: () => _openChapter(chapter),
+                        onRead: () => _openReader(chapter),
                         onDownload: () => _toggleChapterDownload(chapter),
                         onCancelDownload: () => _cancelChapterDownload(chapter),
                         paused: _pausedChapterIds.contains(chapter.id),
@@ -1192,6 +1236,66 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     );
   }
 
+  Widget _buildActionButtons(List<drift_db.Chapter> chapters) {
+    if (chapters.isEmpty) return const SizedBox.shrink();
+    final hasStarted = _currentChapterId != null;
+    final scheme = Theme.of(context).colorScheme;
+
+    return Row(
+      children: [
+        Expanded(
+          child: FilledButton.icon(
+            key: const ValueKey('book-start-reading-button'),
+            icon: const Icon(Icons.menu_book_rounded, size: 18),
+            label: Text(
+              hasStarted
+                  ? context.tr('继续阅读', 'Continue Reading', '続きを読む')
+                  : context.tr('开始阅读', 'Start Reading', '読み始める'),
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            style: FilledButton.styleFrom(
+              backgroundColor: context.appAccent,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onPressed: () => _openReader(),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: OutlinedButton.icon(
+            key: const ValueKey('book-listen-button'),
+            icon: const Icon(Icons.headphones_rounded, size: 18),
+            label: Text(
+              context.tr('听书', 'Listen', '聴く'),
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: context.appTextPrimary,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              side: BorderSide(
+                color: scheme.onSurface.withValues(alpha: 0.2),
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onPressed: () {
+              final target = chapters.firstWhere(
+                (c) => c.id == _currentChapterId,
+                orElse: () => chapters.first,
+              );
+              _openChapter(target);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildBookIntroduction() {
     return FutureBuilder<String?>(
       future: _bookIntroductionFuture,
@@ -1296,6 +1400,7 @@ class _ChapterCard extends StatelessWidget {
   final String chapterId;
   final bool streamingAudio;
   final VoidCallback onPlay;
+  final VoidCallback? onRead;
   final VoidCallback onDownload;
   final VoidCallback onCancelDownload;
   final bool paused;
@@ -1320,6 +1425,7 @@ class _ChapterCard extends StatelessWidget {
     required this.chapterId,
     this.streamingAudio = false,
     required this.onPlay,
+    this.onRead,
     required this.onDownload,
     required this.onCancelDownload,
     required this.paused,
@@ -1502,6 +1608,12 @@ class _ChapterCard extends StatelessWidget {
       context,
       title: title,
       actions: [
+        if (onRead != null)
+          HalfScreenActionSheetItem(
+            label: context.tr('阅读此章', 'Read chapter', 'この章を読む'),
+            icon: Icons.menu_book_rounded,
+            onPressed: onRead!,
+          ),
         if (!streamingAudio && isGenerating)
           HalfScreenActionSheetItem(
             label: paused ? '继续缓存' : '暂停缓存',

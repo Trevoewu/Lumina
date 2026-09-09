@@ -14,6 +14,7 @@ import '../screens/discover/discover_screen.dart';
 import '../screens/library/library_screen.dart';
 import '../screens/me/me_screen.dart';
 import '../screens/settings/settings_screen.dart';
+import 'design_system/app_navigation_icon.dart';
 import 'mini_player.dart';
 
 /// 全局骨架，包含底部导航栏和迷你播放器。
@@ -174,40 +175,41 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
           NavigationRail(
             selectedIndex: _currentIndex,
             onDestinationSelected: _onDestinationSelected,
-            labelType: NavigationRailLabelType.all,
+            extended: true,
+            minExtendedWidth: 200,
+            labelType: NavigationRailLabelType.none,
             backgroundColor: theme.colorScheme.surface,
             indicatorColor: accent.withValues(alpha: 0.12),
+            indicatorShape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             selectedIconTheme: IconThemeData(color: accent),
             unselectedIconTheme: IconThemeData(
               color: theme.colorScheme.onSurfaceVariant,
             ),
-            selectedLabelTextStyle: theme.textTheme.labelSmall?.copyWith(
+            selectedLabelTextStyle: theme.textTheme.bodyMedium?.copyWith(
               color: accent,
               fontWeight: FontWeight.w600,
             ),
-            unselectedLabelTextStyle: theme.textTheme.labelSmall?.copyWith(
+            unselectedLabelTextStyle: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
             leading: const SizedBox(height: 28), // room for traffic lights
             destinations: [
               NavigationRailDestination(
-                icon: const Icon(Icons.home_outlined),
-                selectedIcon: const Icon(Icons.home_rounded),
+                icon: const AppNavigationIcon(AppNavigationSymbol.home),
                 label: Text(context.tr('主页', 'Home', 'ホーム')),
               ),
               NavigationRailDestination(
-                icon: const Icon(Icons.search_rounded),
-                selectedIcon: const Icon(Icons.search_rounded),
+                icon: const AppNavigationIcon(AppNavigationSymbol.discover),
                 label: Text(context.tr('发现', 'Discover', '発見')),
               ),
               NavigationRailDestination(
-                icon: const Icon(Icons.find_in_page_outlined),
-                selectedIcon: const Icon(Icons.find_in_page_rounded),
+                icon: const AppNavigationIcon(AppNavigationSymbol.dictionary),
                 label: Text(context.tr('查词', 'Dictionary', '辞書')),
               ),
               NavigationRailDestination(
-                icon: const Icon(Icons.person_outline_rounded),
-                selectedIcon: const Icon(Icons.person_rounded),
+                icon: const AppNavigationIcon(AppNavigationSymbol.me),
                 label: Text(context.tr('我的', 'Me', 'マイページ')),
               ),
             ],
