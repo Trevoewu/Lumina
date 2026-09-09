@@ -6,6 +6,7 @@ import 'providers.dart';
 
 const _fontKey = 'appearance_font_family';
 const _scaleKey = 'appearance_font_scale';
+const _subtitleGapKey = 'appearance_subtitle_gap';
 const _accentKey = 'appearance_accent_color';
 
 const _lightPresetKey = 'appearance_light_preset';
@@ -191,6 +192,7 @@ class ThemePalette {
 }
 
 class AppearanceSettings {
+  final double subtitleGap;
   final String fontId;
   final double fontScale;
   final Color accentColor;
@@ -199,6 +201,7 @@ class AppearanceSettings {
   final bool loaded;
 
   const AppearanceSettings({
+    this.subtitleGap = 40,
     this.fontId = 'system',
     this.fontScale = 1.0,
     this.accentColor = AppColors.defaultAccent,
@@ -215,6 +218,7 @@ class AppearanceSettings {
   }
 
   AppearanceSettings copyWith({
+    double? subtitleGap,
     String? fontId,
     double? fontScale,
     Color? accentColor,
@@ -223,6 +227,7 @@ class AppearanceSettings {
     bool? loaded,
   }) {
     return AppearanceSettings(
+      subtitleGap: subtitleGap ?? this.subtitleGap,
       fontId: fontId ?? this.fontId,
       fontScale: fontScale ?? this.fontScale,
       accentColor: accentColor ?? this.accentColor,
@@ -245,6 +250,9 @@ class AppearanceController extends Notifier<AppearanceSettings> {
     // so migrate that value to the platform system reading font.
     final migratedFontId = fontId == 'inter' ? 'system' : fontId;
     final scale = double.tryParse(await db.getSetting(_scaleKey) ?? '');
+    final subtitleGap = double.tryParse(
+      await db.getSetting(_subtitleGapKey) ?? '',
+    );
     final accent = _parseColor(await db.getSetting(_accentKey));
 
     final lightPreset = await db.getSetting(_lightPresetKey);
@@ -276,6 +284,9 @@ class AppearanceController extends Notifier<AppearanceSettings> {
           ? migratedFontId
           : state.fontId,
       fontScale: (scale ?? state.fontScale).clamp(0.85, 1.3),
+      subtitleGap: subtitleGap != null && subtitleGap.isFinite
+          ? subtitleGap.clamp(20, 80)
+          : state.subtitleGap,
       accentColor: accent ?? state.accentColor,
       lightPalette: resolvedLightPalette,
       darkPalette: resolvedDarkPalette,
@@ -295,6 +306,15 @@ class AppearanceController extends Notifier<AppearanceSettings> {
     await ref
         .read(appDatabaseProvider)
         .setSetting(_scaleKey, value.toStringAsFixed(2));
+  }
+
+  Future<void> setSubtitleGap(double gap) async {
+    if (!gap.isFinite) return;
+    final value = gap.clamp(20.0, 80.0);
+    state = state.copyWith(subtitleGap: value, loaded: true);
+    await ref
+        .read(appDatabaseProvider)
+        .setSetting(_subtitleGapKey, value.toString());
   }
 
   Future<void> setAccentColor(Color color) async {
@@ -336,7 +356,9 @@ class AppearanceController extends Notifier<AppearanceSettings> {
       foreground: foreground,
       accent: accent,
     );
-    final matchingPreset = lightThemePresets.where((p) => updated.matchesPreset(p));
+    final matchingPreset = lightThemePresets.where(
+      (p) => updated.matchesPreset(p),
+    );
     final finalPalette = matchingPreset.isNotEmpty
         ? updated.copyWith(presetId: matchingPreset.first.id)
         : updated;
@@ -392,7 +414,9 @@ class AppearanceController extends Notifier<AppearanceSettings> {
       foreground: foreground,
       accent: accent,
     );
-    final matchingPreset = darkThemePresets.where((p) => updated.matchesPreset(p));
+    final matchingPreset = darkThemePresets.where(
+      (p) => updated.matchesPreset(p),
+    );
     final finalPalette = matchingPreset.isNotEmpty
         ? updated.copyWith(presetId: matchingPreset.first.id)
         : updated;
@@ -425,18 +449,37 @@ class AppearanceController extends Notifier<AppearanceSettings> {
     final db = ref.read(appDatabaseProvider);
     await db.setSetting(_fontKey, defaults.fontId);
     await db.setSetting(_scaleKey, defaults.fontScale.toStringAsFixed(2));
+    await db.setSetting(_subtitleGapKey, defaults.subtitleGap.toString());
     await db.setSetting(
       _accentKey,
       defaults.accentColor.toARGB32().toRadixString(16).padLeft(8, '0'),
     );
     await db.setSetting(_lightPresetKey, defaults.lightPalette.presetId);
-    await db.setSetting(_lightBgKey, _colorToHex(defaults.lightPalette.background));
-    await db.setSetting(_lightFgKey, _colorToHex(defaults.lightPalette.foreground));
-    await db.setSetting(_lightAccentKey, _colorToHex(defaults.lightPalette.accent));
+    await db.setSetting(
+      _lightBgKey,
+      _colorToHex(defaults.lightPalette.background),
+    );
+    await db.setSetting(
+      _lightFgKey,
+      _colorToHex(defaults.lightPalette.foreground),
+    );
+    await db.setSetting(
+      _lightAccentKey,
+      _colorToHex(defaults.lightPalette.accent),
+    );
     await db.setSetting(_darkPresetKey, defaults.darkPalette.presetId);
-    await db.setSetting(_darkBgKey, _colorToHex(defaults.darkPalette.background));
-    await db.setSetting(_darkFgKey, _colorToHex(defaults.darkPalette.foreground));
-    await db.setSetting(_darkAccentKey, _colorToHex(defaults.darkPalette.accent));
+    await db.setSetting(
+      _darkBgKey,
+      _colorToHex(defaults.darkPalette.background),
+    );
+    await db.setSetting(
+      _darkFgKey,
+      _colorToHex(defaults.darkPalette.foreground),
+    );
+    await db.setSetting(
+      _darkAccentKey,
+      _colorToHex(defaults.darkPalette.accent),
+    );
   }
 
   String _colorToHex(Color color) =>

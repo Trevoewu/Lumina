@@ -125,6 +125,27 @@ class AppearanceScreen extends ConsumerWidget {
                 ),
 
                 _BlockDivider(
+                  title: context.tr('字幕句间距', 'Subtitle spacing', '字幕の間隔'),
+                  value: '${appearance.subtitleGap.round()} pt',
+                ),
+                Slider(
+                  key: const ValueKey('subtitle-spacing-slider'),
+                  min: 20,
+                  max: 80,
+                  divisions: 12,
+                  value: appearance.subtitleGap,
+                  label: '${appearance.subtitleGap.round()} pt',
+                  onChanged: controller.setSubtitleGap,
+                ),
+                Text(
+                  context.tr(
+                    '增大间距可减少同屏字幕；当前句保持相同字号。',
+                    'More spacing shows fewer subtitles; the current sentence keeps the same text size.',
+                    '間隔を広げると表示される字幕が減ります。現在の文も同じ文字サイズです。',
+                  ),
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                _BlockDivider(
                   title: context.tr('字号', 'Text Size', '文字サイズ'),
                   value: '${(appearance.fontScale * 100).round()}%',
                 ),

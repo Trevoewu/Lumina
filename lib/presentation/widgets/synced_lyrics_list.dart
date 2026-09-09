@@ -1138,6 +1138,7 @@ class SyncedLyricsList extends StatefulWidget {
   final bool virtualized;
   final double scrollSpeed;
   final bool sweepEnabled;
+  final double subtitleGap;
 
   const SyncedLyricsList({
     super.key,
@@ -1154,6 +1155,7 @@ class SyncedLyricsList extends StatefulWidget {
     this.virtualized = false,
     this.scrollSpeed = 1.0,
     this.sweepEnabled = true,
+    this.subtitleGap = 40,
   });
 
   @override
@@ -1164,7 +1166,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
     with TickerProviderStateMixin {
   /// Vertical padding a lyric line adds around its text, so a measured or
   /// estimated text height turns into the extent the list lays out.
-  static const _lyricLineVerticalPadding = 20.0;
+  double get _lyricLineVerticalPadding => widget.subtitleGap.clamp(20.0, 80.0);
 
   final ScrollController _scrollController = ScrollController();
   final GlobalKey<SelectionAreaState> _selectionAreaKey =
@@ -1267,6 +1269,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
       }
     }
     if (oldWidget.expanded != widget.expanded ||
+        oldWidget.subtitleGap != widget.subtitleGap ||
         oldWidget.focusMode != widget.focusMode ||
         oldWidget.virtualized != widget.virtualized) {
       _invalidateVirtualMetrics();
@@ -1628,9 +1631,8 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
 
   void _ensureVirtualMetrics(double width) {
     final safeWidth = math.max(width, 1.0);
-    // Measure at the active-line size in focus mode. Every line reaches it once
-    // it becomes current, and `itemExtentBuilder` forces the extent it is given,
-    // so measuring the smaller size would clip whichever line is playing.
+    // Playback and inactive lines share font metrics, keeping item extents
+    // stable when the active sentence changes.
     final style = _lineTextStyle(
       color: _primaryLyricTextColor,
       highlighted: widget.focusMode,
@@ -2408,18 +2410,16 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
         splashColor: Colors.transparent,
         highlightColor: Colors.transparent,
         child: AnimatedScale(
-          // Focus mode already steps the active line up a font size; scaling it
-          // again would push a long sentence past the viewport edge.
-          scale:
-              (highlighted && !widget.focusMode ? 1.025 : 1) *
-              (pressed ? 0.985 : 1),
+          scale: pressed ? 0.985 : 1,
           alignment: Alignment.centerLeft,
           duration: const Duration(milliseconds: 260),
           curve: Curves.easeOutCubic,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
             curve: Curves.easeOutCubic,
-            padding: const EdgeInsets.symmetric(vertical: 10),
+            padding: EdgeInsets.symmetric(
+              vertical: _lyricLineVerticalPadding / 2,
+            ),
             decoration: BoxDecoration(
               color: pressed
                   ? context.appSurfaceHighlight.withValues(alpha: 0.22)
@@ -2548,16 +2548,13 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
 
   Widget _buildWordSelectionLine(SyncedLyricLine line) {
     final accent = Theme.of(context).colorScheme.primary;
-    // Selection is an interaction layer over the current lyric line, not a
-    // different typography mode. In focus mode the active line is larger than
-    // its neighbours, so dropping `highlighted` here used to shrink it from
-    // 26px to 21px and reflow the sentence as soon as it was long-pressed.
+    // Selection shares playback typography so long-pressing cannot reflow text.
     final tokenStyle = _lineTextStyle(
       color: context.appTextPrimary,
       highlighted: line.id == _activeLineId,
     );
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: EdgeInsets.symmetric(vertical: _lyricLineVerticalPadding / 2),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -2676,21 +2673,18 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
     );
   }
 
-  /// Focus mode steps the active line up a size the way Apple Music does, so a
-  /// screen holds three or four sentences of context around it. Transcript
-  /// sentences are longer than song lines, so the step is smaller than a lyric
-  /// app would use — 26/21 rather than doubling.
+  /// Playback changes emphasis, never font metrics or line wrapping.
   TextStyle _lineTextStyle({required Color color, bool highlighted = false}) {
-    final focusActive = widget.focusMode && highlighted;
     return TextStyle(
       fontSize: widget.focusMode
-          ? (focusActive ? 26 : 21)
+          ? 21
           : widget.expanded
           ? 22
           : 18,
       fontWeight: FontWeight.normal,
       color: color,
-      height: widget.expanded || widget.focusMode ? 1.35 : 1.4,
+      height: 1.5,
+      letterSpacing: 0,
       fontFamily: context.appDesign.readingFontFamily,
       fontFamilyFallback: context.appDesign.readingFontFamilyFallback,
     );

@@ -1179,7 +1179,7 @@ void main() {
             )
             .first,
       );
-      expect(originalStyle.style.fontSize, 26);
+      expect(originalStyle.style.fontSize, 21);
 
       final lineInkWell = tester.widget<InkWell>(
         find.ancestor(of: originalText, matching: find.byType(InkWell)).first,
@@ -1201,7 +1201,7 @@ void main() {
         of: selectionTextRoot,
         matching: find.byType(Text),
       );
-      expect(tester.widget<Text>(selectionText).style?.fontSize, 26);
+      expect(tester.widget<Text>(selectionText).style?.fontSize, 21);
       expect(
         tester.getSize(selectionText).height,
         closeTo(originalSize.height, 1),

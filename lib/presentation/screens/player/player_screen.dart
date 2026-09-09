@@ -1,5 +1,6 @@
 import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'dart:async';
+import '../../../core/appearance.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -462,8 +463,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     super.initState();
     _macosTitleNotifier = ref.read(macosToolbarTitleProvider.notifier);
     _macosTrailingNotifier = ref.read(macosToolbarTrailingProvider.notifier);
-    _miniPlayerSuppressedNotifier =
-        ref.read(miniPlayerSuppressedProvider.notifier);
+    _miniPlayerSuppressedNotifier = ref.read(
+      miniPlayerSuppressedProvider.notifier,
+    );
     _playerScrollController = ScrollController(
       onAttach: _handlePageScrollPositionAttached,
       onDetach: _handlePageScrollPositionDetached,
@@ -2022,20 +2024,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final pageBottom = theme.colorScheme.surface;
     final middleTint = Color.lerp(topTint, pageBottom, 0.62)!;
     final isDark = theme.brightness == Brightness.dark;
-    final hasPersistentToolbar =
-        MacosPersistentToolbarScope.hasToolbar(context);
+    final hasPersistentToolbar = MacosPersistentToolbarScope.hasToolbar(
+      context,
+    );
     if (hasPersistentToolbar) {
       final currentTitle = _isPodcast
           ? (_podcastEpisode?.title ??
-              widget.podcast?.episode.title ??
-              widget.book.title)
+                widget.podcast?.episode.title ??
+                widget.book.title)
           : (_activeAudiobookChapter?.title ?? widget.book.title);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         _macosTitleNotifier?.updateValue(currentTitle);
         _macosTrailingNotifier?.updateValue(
-              _buildPersistentToolbarTrailing(context),
-            );
+          _buildPersistentToolbarTrailing(context),
+        );
       });
     }
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -3413,11 +3416,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               size: 20,
               color: context.appTextPrimary,
             ),
-            tooltip: context.tr(
-              '阅读模式',
-              'Reader Mode',
-              '読書モード',
-            ),
+            tooltip: context.tr('阅读模式', 'Reader Mode', '読書モード'),
             style: IconButton.styleFrom(
               foregroundColor: context.appTextPrimary,
             ),
@@ -3679,6 +3678,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       }
 
       final lyrics = SyncedLyricsList(
+        subtitleGap: ref.watch(
+          appearanceControllerProvider.select((s) => s.subtitleGap),
+        ),
         key: listKey,
         paragraphs: paragraphs,
         manifest: manifest,
@@ -3752,6 +3754,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     ),
                   )
                 : SyncedLyricsList(
+                    subtitleGap: ref.watch(
+                      appearanceControllerProvider.select((s) => s.subtitleGap),
+                    ),
                     key: listKey,
                     paragraphs: [
                       for (final paragraph in _audiobookParagraphs)
@@ -3792,6 +3797,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           );
         }
         return SyncedLyricsList(
+          subtitleGap: ref.watch(
+            appearanceControllerProvider.select((s) => s.subtitleGap),
+          ),
           key: listKey,
           paragraphs: paragraphs,
           manifest: manifest,
