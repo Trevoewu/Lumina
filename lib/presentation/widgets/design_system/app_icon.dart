@@ -25,9 +25,16 @@ class AppIcon extends StatelessWidget {
     return Semantics(
       label: semanticLabel,
       child: ExcludeSemantics(
-        child: icon == null
-            ? SizedBox.square(dimension: dimension)
-            : HugeIcon(icon: icon!, size: dimension, color: color),
+        child: SizedBox.square(
+          dimension: dimension,
+          // Tight parent constraints may enlarge the outer hit area. Keep the
+          // vector centered at its requested size, as Flutter's Icon does.
+          child: Center(
+            child: icon == null
+                ? null
+                : HugeIcon(icon: icon!, size: dimension, color: color),
+          ),
+        ),
       ),
     );
   }
