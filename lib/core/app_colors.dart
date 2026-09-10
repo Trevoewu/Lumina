@@ -6,7 +6,7 @@ class AppColors {
   ///
   /// UI code must read `Theme.of(context).colorScheme.primary` instead so
   /// user-selected accent colors are respected.
-  static const Color defaultAccent = Color(0xFF1DB954);
+  static const Color defaultAccent = Color(0xFF93B259);
 
   /// 深色背景 - 纯黑/深灰
   static const Color background = Color(0xFF121212);

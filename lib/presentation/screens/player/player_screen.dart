@@ -456,6 +456,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   AppToolbarStateNotifier<String?>? _macosTitleNotifier;
   AppToolbarStateNotifier<Widget?>? _macosTrailingNotifier;
+  AppToolbarStateNotifier<Widget?>? _macosMiddleNotifier;
   AppToolbarStateNotifier<bool>? _miniPlayerSuppressedNotifier;
 
   @override
@@ -463,6 +464,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     super.initState();
     _macosTitleNotifier = ref.read(macosToolbarTitleProvider.notifier);
     _macosTrailingNotifier = ref.read(macosToolbarTrailingProvider.notifier);
+    _macosMiddleNotifier = ref.read(macosToolbarMiddleProvider.notifier);
     _miniPlayerSuppressedNotifier = ref.read(
       miniPlayerSuppressedProvider.notifier,
     );
@@ -484,6 +486,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      _macosMiddleNotifier?.updateValue(null);
       _miniPlayerSuppressedNotifier?.updateValue(true);
       unawaited(_loadPlaybackSpeed());
       if (_isPodcast) {
@@ -512,6 +515,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _pageScrollActive.dispose();
     _controlStateRevision.dispose();
     Future.microtask(() {
+      _macosMiddleNotifier?.updateValue(null);
       _macosTitleNotifier?.updateValue(null);
       _macosTrailingNotifier?.updateValue(null);
       _miniPlayerSuppressedNotifier?.updateValue(false);
@@ -2035,6 +2039,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           : (_activeAudiobookChapter?.title ?? widget.book.title);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
+        _macosMiddleNotifier?.updateValue(null);
         _macosTitleNotifier?.updateValue(currentTitle);
         _macosTrailingNotifier?.updateValue(
           _buildPersistentToolbarTrailing(context),

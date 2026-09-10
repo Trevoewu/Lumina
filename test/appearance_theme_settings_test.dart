@@ -28,14 +28,42 @@ void main() {
       );
       expect(preset.background.toHexRgb(), 'FAF9F5');
       expect(preset.foreground.toHexRgb(), '1F1E1D');
-      expect(preset.accent.toHexRgb(), 'C96442');
+      expect(preset.accent.toHexRgb(), '93B259');
     });
 
     test('Default Dark preset matches reference values exactly', () {
       final preset = darkThemePresets.firstWhere((p) => p.id == 'default_dark');
-      expect(preset.background.toHexRgb(), '101010');
-      expect(preset.foreground.toHexRgb(), 'CCCCCC');
-      expect(preset.accent.toHexRgb(), '007ACC');
+      expect(preset.background.toHexRgb(), '1F1E1D');
+      expect(preset.foreground.toHexRgb(), 'FAF9F5');
+      expect(preset.accent.toHexRgb(), '93B259');
+    });
+
+    test('All presets match specified configurations', () {
+      expect(lightThemePresets, hasLength(3));
+      expect(lightThemePresets[0].id, 'default_light');
+      expect(lightThemePresets[0].label, 'Default');
+      expect(lightThemePresets[0].background.toHexRgb(), 'FAF9F5');
+      expect(lightThemePresets[0].foreground.toHexRgb(), '1F1E1D');
+      expect(lightThemePresets[0].accent.toHexRgb(), '93B259');
+
+      expect(lightThemePresets[1].id, 'terracotta_orange');
+      expect(lightThemePresets[1].label, 'Terracotta Orange');
+      expect(lightThemePresets[1].background.toHexRgb(), 'FAF9F5');
+      expect(lightThemePresets[1].foreground.toHexRgb(), '1F1E1D');
+      expect(lightThemePresets[1].accent.toHexRgb(), 'C96442');
+
+      expect(lightThemePresets[2].id, 'ever_forest');
+      expect(lightThemePresets[2].label, 'Ever Forest');
+      expect(lightThemePresets[2].background.toHexRgb(), 'FDF6E3');
+      expect(lightThemePresets[2].foreground.toHexRgb(), '5C6A72');
+      expect(lightThemePresets[2].accent.toHexRgb(), '93B259');
+
+      expect(darkThemePresets, hasLength(1));
+      expect(darkThemePresets[0].id, 'default_dark');
+      expect(darkThemePresets[0].label, 'Default');
+      expect(darkThemePresets[0].background.toHexRgb(), '1F1E1D');
+      expect(darkThemePresets[0].foreground.toHexRgb(), 'FAF9F5');
+      expect(darkThemePresets[0].accent.toHexRgb(), '93B259');
     });
 
     test(
@@ -105,33 +133,20 @@ void main() {
         );
 
         // Check preset labels
-        expect(find.text('Default Light'), findsOneWidget);
-        expect(find.text('Default Dark'), findsOneWidget);
+        expect(find.text('Default'), findsNWidgets(2));
 
-        // Check hex codes from reference image
+        // Check hex codes from reference values
         expect(
           find.textContaining('FAF9F5', findRichText: true),
-          findsOneWidget,
+          findsNWidgets(2),
         );
         expect(
           find.textContaining('1F1E1D', findRichText: true),
-          findsOneWidget,
+          findsNWidgets(2),
         );
         expect(
-          find.textContaining('C96442', findRichText: true),
-          findsOneWidget,
-        );
-        expect(
-          find.textContaining('101010', findRichText: true),
-          findsOneWidget,
-        );
-        expect(
-          find.textContaining('CCCCCC', findRichText: true),
-          findsOneWidget,
-        );
-        expect(
-          find.textContaining('007ACC', findRichText: true),
-          findsOneWidget,
+          find.textContaining('93B259', findRichText: true),
+          findsNWidgets(2),
         );
       },
     );

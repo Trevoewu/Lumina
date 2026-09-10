@@ -1,20 +1,33 @@
 PODS:
+  - flutter_inappwebview_macos (0.0.1):
+    - FlutterMacOS
+    - OrderedSet (~> 6.0.3)
   - FlutterMacOS (1.0.0)
+  - OrderedSet (6.0.3)
   - whisper_ggml (1.0.0):
     - FlutterMacOS
 
 DEPENDENCIES:
+  - flutter_inappwebview_macos (from `Flutter/ephemeral/.symlinks/plugins/flutter_inappwebview_macos/macos`)
   - FlutterMacOS (from `Flutter/ephemeral`)
   - whisper_ggml (from `Flutter/ephemeral/.symlinks/plugins/whisper_ggml/macos`)
 
+SPEC REPOS:
+  trunk:
+    - OrderedSet
+
 EXTERNAL SOURCES:
+  flutter_inappwebview_macos:
+    :path: Flutter/ephemeral/.symlinks/plugins/flutter_inappwebview_macos/macos
   FlutterMacOS:
     :path: Flutter/ephemeral
   whisper_ggml:
     :path: Flutter/ephemeral/.symlinks/plugins/whisper_ggml/macos
 
 SPEC CHECKSUMS:
+  flutter_inappwebview_macos: c2d68649f9f8f1831bfcd98d73fd6256366d9d1d
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
+  OrderedSet: e539b66b644ff081c73a262d24ad552a69be3a94
   whisper_ggml: e5e0ee0c5b0f0485b9659f4ebcd340b7ceb94fac
 
 PODFILE CHECKSUM: b585e24753846454d1ed692973444f2d0972701c

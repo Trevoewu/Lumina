@@ -1,18 +1,24 @@
-import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'dart:async';
+import 'dart:io';
 import 'package:audio_service/audio_service.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:lumina/core/appearance.dart';
+import 'package:lumina/core/app_preferences.dart';
 import 'package:lumina/core/providers.dart';
 import 'package:lumina/core/theme.dart';
 import 'package:lumina/data/database/app_database.dart';
 import 'package:lumina/domain/models/chapter_manifest.dart';
 import 'package:lumina/presentation/screens/reader/book_reader_screen.dart';
+import 'package:lumina/presentation/screens/reader/widgets/reader_audio_bar.dart';
+import 'package:lumina/presentation/screens/reader/widgets/reader_bottom_bar.dart';
 import 'package:lumina/presentation/screens/reader/widgets/reader_paragraph_view.dart';
+import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
+import 'package:lumina/presentation/widgets/design_system/macos_toolbar_providers.dart';
 import 'package:lumina/services/lumina_audio_handler.dart';
 
 class _FakeLuminaAudioHandler extends BaseAudioHandler
@@ -152,6 +158,7 @@ void main() {
   ];
 
   setUp(() async {
+    SharedPreferences.setMockInitialValues({});
     fakeAudioHandler = _FakeLuminaAudioHandler();
     database = AppDatabase.forTesting(NativeDatabase.memory());
     await database.replaceBookData(
@@ -362,4 +369,204 @@ void main() {
       findsOneWidget,
     );
   });
+
+  for (final desktop in [false, true]) {
+    testWidgets('EPUB controls reserve content space (desktop: $desktop)', (
+      tester,
+    ) async {
+      tester.view.physicalSize = desktop
+          ? const Size(1000, 800)
+          : const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      tester.view.padding = const FakeViewPadding(top: 47, bottom: 34);
+      addTearDown(tester.view.resetPadding);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final tempDir = Directory.systemTemp.createTempSync('epub_test_');
+      final epubFile = File('${tempDir.path}/sample.epub');
+      epubFile.writeAsBytesSync([0, 1, 2, 3]);
+
+      final fileBook = testBook.copyWith(sourcePath: epubFile.path);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            appDatabaseProvider.overrideWithValue(database),
+            luminaAudioHandlerProvider.overrideWith(
+              (ref) async => fakeAudioHandler,
+            ),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightTheme(),
+            home: Builder(
+              builder: (context) {
+                final screen = BookReaderScreen(
+                  book: fileBook,
+                  initialChapter: testChapters.first,
+                  epubReaderBuilder: (context, file) =>
+                      const SizedBox(key: Key('mock_epub_view')),
+                );
+                return desktop
+                    ? MacosPersistentToolbarScope(child: screen)
+                    : screen;
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.byKey(const Key('mock_epub_view')), findsOneWidget);
+
+      final reader = find.byKey(const Key('mock_epub_view'));
+      expect(
+        tester.getRect(reader).top,
+        greaterThanOrEqualTo(desktop ? 0 : 47 + 60),
+      );
+      expect(
+        tester.getRect(reader).bottom,
+        lessThan(tester.getRect(find.text('AI')).top),
+      );
+      final normalBottom = tester.getRect(reader).bottom;
+      await tester.tap(find.byTooltip('Progress'));
+      await tester.pumpAndSettle();
+      expect(tester.getRect(reader).bottom, lessThan(normalBottom));
+      expect(
+        tester.getRect(reader).bottom,
+        lessThan(tester.getRect(find.text('AI')).top),
+      );
+      expect(
+        tester.getRect(reader).bottom,
+        lessThan(tester.getRect(find.byType(Slider)).top),
+      );
+      expect(
+        tester.getRect(find.byTooltip('AI Assistant')).bottom,
+        lessThan(
+          tester.getRect(find.byKey(const Key('reader-progress-panel'))).top,
+        ),
+      );
+      expect(tester.takeException(), isNull);
+
+      tempDir.deleteSync(recursive: true);
+    });
+  }
+
+  testWidgets(
+    'BookReaderScreen hides ReaderAudioBar when hasPersistentToolbar is true and sets toolbar middle',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final container = ProviderContainer(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          luminaAudioHandlerProvider.overrideWith(
+            (ref) async => fakeAudioHandler,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: AppTheme.lightTheme(),
+            home: MacosPersistentToolbarScope(
+              child: BookReaderScreen(
+                book: testBook,
+                initialChapter: testChapters.first,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pumpAndSettle();
+
+      // On desktop with persistent toolbar, ReaderAudioBar should NOT be rendered (preventing duplicate miniplayer)
+      expect(find.byType(ReaderAudioBar), findsNothing);
+
+      // Verify macosToolbarMiddleProvider has the chapter switcher
+      expect(container.read(macosToolbarMiddleProvider), isNotNull);
+    },
+  );
+
+  testWidgets(
+    'BookReaderScreen supports three-zone tap to toggle menus and interact with ReaderBottomBar',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            appDatabaseProvider.overrideWithValue(database),
+            luminaAudioHandlerProvider.overrideWith(
+              (ref) async => fakeAudioHandler,
+            ),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightTheme(),
+            home: BookReaderScreen(
+              book: testBook,
+              initialChapter: testChapters.first,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pumpAndSettle();
+
+      // Initially, bars are visible
+      expect(find.byType(ReaderBottomBar), findsOneWidget);
+      expect(find.text('AI'), findsOneWidget);
+      expect(find.text('译'), findsOneWidget);
+      expect(find.text('听'), findsOneWidget);
+
+      // Tap middle zone (x = 400, y = 500) to toggle bars off
+      await tester.tapAt(const Offset(400, 500));
+      await tester.pumpAndSettle();
+
+      // Check that ReaderBottomBar receives isVisible: false
+      final bottomBarFinder = find.byType(ReaderBottomBar);
+      expect(bottomBarFinder, findsOneWidget);
+      final bottomBar = tester.widget<ReaderBottomBar>(bottomBarFinder);
+      expect(bottomBar.isVisible, isFalse);
+
+      // Minimal page indicator is present at bottom-right
+      expect(find.text('1 / 1'), findsOneWidget);
+
+      // Tap middle zone again to show bars
+      await tester.tapAt(const Offset(400, 500));
+      await tester.pumpAndSettle();
+
+      final bottomBarShown = tester.widget<ReaderBottomBar>(bottomBarFinder);
+      expect(bottomBarShown.isVisible, isTrue);
+
+      // Tap progress compass icon in bottom bar to open slider scrubber
+      await tester.tap(find.byTooltip('Progress'));
+      await tester.pumpAndSettle();
+
+      // Progress percentage text should now be visible
+      expect(find.text('0.0%'), findsOneWidget);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(BookReaderScreen)),
+      );
+      await tester.tap(find.byTooltip('Theme'));
+      await tester.pumpAndSettle();
+      expect(
+        container.read(appPreferencesProvider).theme,
+        AppThemePreference.dark,
+      );
+    },
+  );
 }

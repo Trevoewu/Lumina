@@ -5,19 +5,48 @@ import '../../../../core/app_colors.dart';
 import '../../../../core/app_localizations.dart';
 import '../../../../data/database/app_database.dart' as drift_db;
 
-Future<drift_db.Chapter?> showReaderTocSheet({
+class ReaderTocItem {
+  final String id;
+  final String title;
+  final String? href;
+  final int index;
+  final drift_db.Chapter? dbChapter;
+
+  const ReaderTocItem({
+    required this.id,
+    required this.title,
+    this.href,
+    required this.index,
+    this.dbChapter,
+  });
+}
+
+Future<ReaderTocItem?> showReaderTocSheet({
   required BuildContext context,
   required String bookTitle,
-  required List<drift_db.Chapter> chapters,
+  List<drift_db.Chapter>? chapters,
+  List<ReaderTocItem>? items,
   required String currentChapterId,
 }) {
-  return showModalBottomSheet<drift_db.Chapter>(
+  final resolvedItems = items ??
+      (chapters ?? const [])
+          .map(
+            (c) => ReaderTocItem(
+              id: c.id,
+              title: c.title,
+              index: c.chapterIndex,
+              dbChapter: c,
+            ),
+          )
+          .toList(growable: false);
+
+  return showModalBottomSheet<ReaderTocItem>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     builder: (sheetContext) => _ReaderTocSheet(
       bookTitle: bookTitle,
-      chapters: chapters,
+      items: resolvedItems,
       currentChapterId: currentChapterId,
     ),
   );
@@ -25,12 +54,12 @@ Future<drift_db.Chapter?> showReaderTocSheet({
 
 class _ReaderTocSheet extends StatefulWidget {
   final String bookTitle;
-  final List<drift_db.Chapter> chapters;
+  final List<ReaderTocItem> items;
   final String currentChapterId;
 
   const _ReaderTocSheet({
     required this.bookTitle,
-    required this.chapters,
+    required this.items,
     required this.currentChapterId,
   });
 
@@ -46,7 +75,7 @@ class _ReaderTocSheetState extends State<_ReaderTocSheet> {
     super.initState();
     _scrollController = ScrollController();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final index = widget.chapters.indexWhere(
+      final index = widget.items.indexWhere(
         (c) => c.id == widget.currentChapterId,
       );
       if (index > 0 && _scrollController.hasClients) {
@@ -115,7 +144,7 @@ class _ReaderTocSheetState extends State<_ReaderTocSheet> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        '${widget.bookTitle} · ${context.tr('共 ${widget.chapters.length} 章', '${widget.chapters.length} chapters', '全 ${widget.chapters.length} 章')}',
+                        '${widget.bookTitle} · ${context.tr('共 ${widget.items.length} 项', '${widget.items.length} items', '全 ${widget.items.length} 項目')}',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: context.appTextSecondary,
                         ),
@@ -138,14 +167,14 @@ class _ReaderTocSheetState extends State<_ReaderTocSheet> {
             child: ListView.separated(
               controller: _scrollController,
               padding: EdgeInsets.fromLTRB(12, 8, 12, bottomInset + 16),
-              itemCount: widget.chapters.length,
+              itemCount: widget.items.length,
               separatorBuilder: (context, index) => const SizedBox(height: 2),
               itemBuilder: (context, index) {
-                final chapter = widget.chapters[index];
-                final isCurrent = chapter.id == widget.currentChapterId;
+                final item = widget.items[index];
+                final isCurrent = item.id == widget.currentChapterId;
 
                 return InkWell(
-                  onTap: () => Navigator.of(context).pop(chapter),
+                  onTap: () => Navigator.of(context).pop(item),
                   borderRadius: BorderRadius.circular(10),
                   child: Container(
                     height: 52,
@@ -159,7 +188,7 @@ class _ReaderTocSheetState extends State<_ReaderTocSheet> {
                     child: Row(
                       children: [
                         Text(
-                          '${chapter.chapterIndex + 1}',
+                          '${item.index + 1}',
                           style: TextStyle(
                             fontFamily: 'monospace',
                             fontSize: 13,
@@ -172,7 +201,7 @@ class _ReaderTocSheetState extends State<_ReaderTocSheet> {
                         const SizedBox(width: 14),
                         Expanded(
                           child: Text(
-                            chapter.title,
+                            item.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(

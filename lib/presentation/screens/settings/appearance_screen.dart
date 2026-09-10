@@ -775,17 +775,17 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
 
   static const _sampleColors = [
     Color(0xFFFAF9F5),
+    Color(0xFFFDF6E3),
     Color(0xFFFFFFFF),
-    Color(0xFFF3F4F6),
+    Color(0xFF5C6A72),
     Color(0xFF1F1E1D),
-    Color(0xFF101010),
-    Color(0xFF0D1117),
-    Color(0xFFCCCCCC),
+    Color(0xFF93B259),
     Color(0xFFC96442),
     Color(0xFF007ACC),
     Color(0xFF1DB954),
     Color(0xFF56A8FF),
     Color(0xFFFF6B6B),
+    Color(0xFFCCCCCC),
   ];
 
   @override

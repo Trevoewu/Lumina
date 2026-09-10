@@ -80,62 +80,34 @@ class ThemePreset {
 const lightThemePresets = <ThemePreset>[
   ThemePreset(
     id: 'default_light',
-    label: 'Default Light',
+    label: 'Default',
+    background: Color(0xFFFAF9F5),
+    foreground: Color(0xFF1F1E1D),
+    accent: Color(0xFF93B259),
+  ),
+  ThemePreset(
+    id: 'terracotta_orange',
+    label: 'Terracotta Orange',
     background: Color(0xFFFAF9F5),
     foreground: Color(0xFF1F1E1D),
     accent: Color(0xFFC96442),
   ),
   ThemePreset(
-    id: 'pure_white',
-    label: 'Pure White',
-    background: Color(0xFFFFFFFF),
-    foreground: Color(0xFF151515),
-    accent: Color(0xFF1DB954),
-  ),
-  ThemePreset(
-    id: 'warm_paper',
-    label: 'Warm Paper',
-    background: Color(0xFFF7F2E8),
-    foreground: Color(0xFF2C2523),
-    accent: Color(0xFFD97706),
-  ),
-  ThemePreset(
-    id: 'cool_gray',
-    label: 'Cool Gray',
-    background: Color(0xFFF3F4F6),
-    foreground: Color(0xFF1F2937),
-    accent: Color(0xFF2563EB),
+    id: 'ever_forest',
+    label: 'Ever Forest',
+    background: Color(0xFFFDF6E3),
+    foreground: Color(0xFF5C6A72),
+    accent: Color(0xFF93B259),
   ),
 ];
 
 const darkThemePresets = <ThemePreset>[
   ThemePreset(
     id: 'default_dark',
-    label: 'Default Dark',
-    background: Color(0xFF101010),
-    foreground: Color(0xFFCCCCCC),
-    accent: Color(0xFF007ACC),
-  ),
-  ThemePreset(
-    id: 'spotify_green',
-    label: 'Spotify Green',
-    background: Color(0xFF121212),
-    foreground: Color(0xFFFFFFFF),
-    accent: Color(0xFF1DB954),
-  ),
-  ThemePreset(
-    id: 'oled_black',
-    label: 'OLED Black',
-    background: Color(0xFF000000),
-    foreground: Color(0xFFE5E5E5),
-    accent: Color(0xFF3DDC97),
-  ),
-  ThemePreset(
-    id: 'midnight_blue',
-    label: 'Midnight Blue',
-    background: Color(0xFF0D1117),
-    foreground: Color(0xFFC9D1D9),
-    accent: Color(0xFF58A6FF),
+    label: 'Default',
+    background: Color(0xFF1F1E1D),
+    foreground: Color(0xFFFAF9F5),
+    accent: Color(0xFF93B259),
   ),
 ];
 
@@ -143,14 +115,14 @@ const defaultLightPalette = ThemePalette(
   presetId: 'default_light',
   background: Color(0xFFFAF9F5),
   foreground: Color(0xFF1F1E1D),
-  accent: Color(0xFFC96442),
+  accent: Color(0xFF93B259),
 );
 
 const defaultDarkPalette = ThemePalette(
   presetId: 'default_dark',
-  background: Color(0xFF101010),
-  foreground: Color(0xFFCCCCCC),
-  accent: Color(0xFF007ACC),
+  background: Color(0xFF1F1E1D),
+  foreground: Color(0xFFFAF9F5),
+  accent: Color(0xFF93B259),
 );
 
 extension ColorHexFormatting on Color {
@@ -265,18 +237,43 @@ class AppearanceController extends Notifier<AppearanceSettings> {
     final darkFg = _parseColor(await db.getSetting(_darkFgKey));
     final darkAccent = _parseColor(await db.getSetting(_darkAccentKey));
 
+    final isLightPresetValid = lightThemePresets.any((p) => p.id == lightPreset);
+    final isDarkPresetValid = darkThemePresets.any((p) => p.id == darkPreset);
+
+    final isOldDefaultDark = darkPreset == 'default_dark' &&
+        darkBg == const Color(0xFF101010) &&
+        darkFg == const Color(0xFFCCCCCC) &&
+        darkAccent == const Color(0xFF007ACC);
+    final effectiveDarkBg = isOldDefaultDark
+        ? defaultDarkPalette.background
+        : (darkBg ?? defaultDarkPalette.background);
+    final effectiveDarkFg = isOldDefaultDark
+        ? defaultDarkPalette.foreground
+        : (darkFg ?? defaultDarkPalette.foreground);
+    final effectiveDarkAccent = isOldDefaultDark
+        ? defaultDarkPalette.accent
+        : (darkAccent ?? defaultDarkPalette.accent);
+
+    final isOldDefaultLight = lightPreset == 'default_light' &&
+        lightBg == const Color(0xFFFAF9F5) &&
+        lightFg == const Color(0xFF1F1E1D) &&
+        lightAccent == const Color(0xFFC96442);
+    final effectiveLightAccent = isOldDefaultLight
+        ? defaultLightPalette.accent
+        : (lightAccent ?? defaultLightPalette.accent);
+
     final resolvedLightPalette = ThemePalette(
-      presetId: lightPreset ?? defaultLightPalette.presetId,
+      presetId: isLightPresetValid ? lightPreset! : defaultLightPalette.presetId,
       background: lightBg ?? defaultLightPalette.background,
       foreground: lightFg ?? defaultLightPalette.foreground,
-      accent: lightAccent ?? defaultLightPalette.accent,
+      accent: effectiveLightAccent,
     );
 
     final resolvedDarkPalette = ThemePalette(
-      presetId: darkPreset ?? defaultDarkPalette.presetId,
-      background: darkBg ?? defaultDarkPalette.background,
-      foreground: darkFg ?? defaultDarkPalette.foreground,
-      accent: darkAccent ?? defaultDarkPalette.accent,
+      presetId: isDarkPresetValid ? darkPreset! : defaultDarkPalette.presetId,
+      background: effectiveDarkBg,
+      foreground: effectiveDarkFg,
+      accent: effectiveDarkAccent,
     );
 
     state = state.copyWith(
