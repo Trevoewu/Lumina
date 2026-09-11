@@ -6,6 +6,11 @@ import 'providers.dart';
 
 const _fontKey = 'appearance_font_family';
 const _scaleKey = 'appearance_font_scale';
+const _readerMarginKey = 'reader_page_margin';
+const _readerLineHeightKey = 'reader_line_height';
+const _readerIndentKey = 'reader_indent';
+const _readerScrolledKey = 'reader_scrolled';
+
 const _subtitleGapKey = 'appearance_subtitle_gap';
 const _accentKey = 'appearance_accent_color';
 
@@ -43,6 +48,12 @@ const appearanceFontOptions = [
     label: 'Georgia',
     fontFamily: 'Georgia',
     fontFamilyFallback: ['Literata'],
+  ),
+  AppearanceFontOption(
+    id: 'athelas',
+    label: 'Athelas',
+    fontFamily: 'Athelas',
+    fontFamilyFallback: ['Georgia', 'Literata'],
   ),
   AppearanceFontOption(
     id: 'mono',
@@ -164,6 +175,11 @@ class ThemePalette {
 }
 
 class AppearanceSettings {
+  // Additional inset outside epub.js columns, whose own gutters remain intact.
+  final double readerMargin;
+  final double readerLineHeight;
+  final double readerIndent; // -1 preserves publisher indentation.
+  final bool readerScrolled;
   final double subtitleGap;
   final String fontId;
   final double fontScale;
@@ -173,6 +189,10 @@ class AppearanceSettings {
   final bool loaded;
 
   const AppearanceSettings({
+    this.readerMargin = 12,
+    this.readerLineHeight = 1.5,
+    this.readerIndent = -1,
+    this.readerScrolled = false,
     this.subtitleGap = 40,
     this.fontId = 'system',
     this.fontScale = 1.0,
@@ -190,6 +210,10 @@ class AppearanceSettings {
   }
 
   AppearanceSettings copyWith({
+    double? readerMargin,
+    double? readerLineHeight,
+    double? readerIndent,
+    bool? readerScrolled,
     double? subtitleGap,
     String? fontId,
     double? fontScale,
@@ -199,6 +223,10 @@ class AppearanceSettings {
     bool? loaded,
   }) {
     return AppearanceSettings(
+      readerMargin: readerMargin ?? this.readerMargin,
+      readerLineHeight: readerLineHeight ?? this.readerLineHeight,
+      readerIndent: readerIndent ?? this.readerIndent,
+      readerScrolled: readerScrolled ?? this.readerScrolled,
       subtitleGap: subtitleGap ?? this.subtitleGap,
       fontId: fontId ?? this.fontId,
       fontScale: fontScale ?? this.fontScale,
@@ -217,6 +245,30 @@ class AppearanceController extends Notifier<AppearanceSettings> {
   Future<void> load() async {
     if (state.loaded) return;
     final db = ref.read(appDatabaseProvider);
+    double bounded(String? raw, double fallback, double min, double max) {
+      final value = double.tryParse(raw ?? '');
+      return value != null && value.isFinite ? value.clamp(min, max) : fallback;
+    }
+
+    final readerMargin = bounded(
+      await db.getSetting(_readerMarginKey),
+      12,
+      0,
+      32,
+    );
+    final readerLineHeight = bounded(
+      await db.getSetting(_readerLineHeightKey),
+      1.5,
+      1.2,
+      2,
+    );
+    final readerIndent = bounded(
+      await db.getSetting(_readerIndentKey),
+      -1,
+      -1,
+      2,
+    );
+    final readerScrolled = await db.getSetting(_readerScrolledKey) == 'true';
     final fontId = await db.getSetting(_fontKey);
     // Older builds used "inter" as an app-wide UI font. It was never bundled,
     // so migrate that value to the platform system reading font.
@@ -237,10 +289,13 @@ class AppearanceController extends Notifier<AppearanceSettings> {
     final darkFg = _parseColor(await db.getSetting(_darkFgKey));
     final darkAccent = _parseColor(await db.getSetting(_darkAccentKey));
 
-    final isLightPresetValid = lightThemePresets.any((p) => p.id == lightPreset);
+    final isLightPresetValid = lightThemePresets.any(
+      (p) => p.id == lightPreset,
+    );
     final isDarkPresetValid = darkThemePresets.any((p) => p.id == darkPreset);
 
-    final isOldDefaultDark = darkPreset == 'default_dark' &&
+    final isOldDefaultDark =
+        darkPreset == 'default_dark' &&
         darkBg == const Color(0xFF101010) &&
         darkFg == const Color(0xFFCCCCCC) &&
         darkAccent == const Color(0xFF007ACC);
@@ -254,7 +309,8 @@ class AppearanceController extends Notifier<AppearanceSettings> {
         ? defaultDarkPalette.accent
         : (darkAccent ?? defaultDarkPalette.accent);
 
-    final isOldDefaultLight = lightPreset == 'default_light' &&
+    final isOldDefaultLight =
+        lightPreset == 'default_light' &&
         lightBg == const Color(0xFFFAF9F5) &&
         lightFg == const Color(0xFF1F1E1D) &&
         lightAccent == const Color(0xFFC96442);
@@ -263,7 +319,9 @@ class AppearanceController extends Notifier<AppearanceSettings> {
         : (lightAccent ?? defaultLightPalette.accent);
 
     final resolvedLightPalette = ThemePalette(
-      presetId: isLightPresetValid ? lightPreset! : defaultLightPalette.presetId,
+      presetId: isLightPresetValid
+          ? lightPreset!
+          : defaultLightPalette.presetId,
       background: lightBg ?? defaultLightPalette.background,
       foreground: lightFg ?? defaultLightPalette.foreground,
       accent: effectiveLightAccent,
@@ -277,10 +335,14 @@ class AppearanceController extends Notifier<AppearanceSettings> {
     );
 
     state = state.copyWith(
+      readerMargin: readerMargin,
+      readerLineHeight: readerLineHeight,
+      readerIndent: readerIndent,
+      readerScrolled: readerScrolled,
       fontId: appearanceFontOptions.any((option) => option.id == migratedFontId)
           ? migratedFontId
           : state.fontId,
-      fontScale: (scale ?? state.fontScale).clamp(0.85, 1.3),
+      fontScale: (scale ?? state.fontScale).clamp(16 / 24, 40 / 24),
       subtitleGap: subtitleGap != null && subtitleGap.isFinite
           ? subtitleGap.clamp(20, 80)
           : state.subtitleGap,
@@ -291,6 +353,43 @@ class AppearanceController extends Notifier<AppearanceSettings> {
     );
   }
 
+  Future<void> setReaderLayout({
+    double? margin,
+    double? lineHeight,
+    double? indent,
+    bool? scrolled,
+  }) async {
+    if ([margin, lineHeight, indent].any((v) => v != null && !v.isFinite)) {
+      return;
+    }
+    final updated = state.copyWith(
+      readerMargin: margin?.clamp(0, 32),
+      readerLineHeight: lineHeight?.clamp(1.2, 2),
+      readerIndent: indent?.clamp(-1, 2),
+      readerScrolled: scrolled,
+    );
+    state = updated;
+    final db = ref.read(appDatabaseProvider);
+    if (margin != null) {
+      await db.setSetting(_readerMarginKey, updated.readerMargin.toString());
+    }
+    if (lineHeight != null) {
+      await db.setSetting(
+        _readerLineHeightKey,
+        updated.readerLineHeight.toString(),
+      );
+    }
+    if (indent != null) {
+      await db.setSetting(_readerIndentKey, updated.readerIndent.toString());
+    }
+    if (scrolled != null) {
+      await db.setSetting(
+        _readerScrolledKey,
+        updated.readerScrolled.toString(),
+      );
+    }
+  }
+
   Future<void> setFont(String fontId) async {
     if (!appearanceFontOptions.any((option) => option.id == fontId)) return;
     state = state.copyWith(fontId: fontId, loaded: true);
@@ -298,11 +397,11 @@ class AppearanceController extends Notifier<AppearanceSettings> {
   }
 
   Future<void> setFontScale(double scale) async {
-    final value = scale.clamp(0.85, 1.3);
+    final value = scale.clamp(16 / 24, 40 / 24);
     state = state.copyWith(fontScale: value, loaded: true);
     await ref
         .read(appDatabaseProvider)
-        .setSetting(_scaleKey, value.toStringAsFixed(2));
+        .setSetting(_scaleKey, value.toStringAsFixed(4));
   }
 
   Future<void> setSubtitleGap(double gap) async {

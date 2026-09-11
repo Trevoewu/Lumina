@@ -118,7 +118,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
   });
 
-  testWidgets('app text size is relative to system accessibility scaling', (
+  testWidgets('app text size preserves system accessibility scaling without reader font scale leakage', (
     tester,
   ) async {
     tester.platformDispatcher.textScaleFactorTestValue = 2;
@@ -140,7 +140,7 @@ void main() {
     );
     expect(
       MediaQuery.textScalerOf(contentContext).scale(10),
-      closeTo(22.1, 0.01),
+      closeTo(17.0, 0.01),
     );
   });
 

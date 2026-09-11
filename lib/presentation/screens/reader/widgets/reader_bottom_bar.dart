@@ -1,15 +1,15 @@
+import 'reader_appearance_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hugeicons/hugeicons.dart';
 
 import '../../../../core/app_colors.dart';
 import '../../../../core/app_localizations.dart';
-import '../../../widgets/design_system/app_icon.dart';
 
 /// 优雅的阅读器底栏控制器组件：
-/// 1. 右下角快捷胶囊三项：`AI`、`译`、`听`
+/// 1. 右下角快捷胶囊：听书播放器（耳机图标）
 /// 2. 进度拖拽面板（点击 `🧭` 唤起）
-/// 3. 五键操作栏：`≡` 目录、`🧭` 进度、`⊙-` 翻页模式、`☀️` 主题/亮度、`A` 排版
+/// 3. 四键操作栏：`≡` 目录、`🧭` 进度、`☀️` 主题/亮度、`A` 排版
 class ReaderBottomBar extends StatefulWidget {
   final bool isVisible;
   final ValueChanged<bool>? onProgressVisibilityChanged;
@@ -18,16 +18,13 @@ class ReaderBottomBar extends StatefulWidget {
   final int currentPage;
   final int totalPages;
   final String chapterTitle;
-  final bool isScrolledFlow;
   final bool hasPrevChapter;
   final bool hasNextChapter;
   final VoidCallback onToggleToc;
   final ValueChanged<double> onSeekProgress;
-  final VoidCallback onToggleFlowMode;
   final VoidCallback onToggleTheme;
-  final VoidCallback onOpenTypography;
-  final VoidCallback onOpenAi;
-  final VoidCallback onOpenTranslate;
+  final VoidCallback? onOpenAi;
+  final VoidCallback? onOpenTranslate;
   final VoidCallback onStartListening;
   final VoidCallback? onPrevChapter;
   final VoidCallback? onNextChapter;
@@ -41,16 +38,13 @@ class ReaderBottomBar extends StatefulWidget {
     required this.currentPage,
     required this.totalPages,
     required this.chapterTitle,
-    required this.isScrolledFlow,
     required this.hasPrevChapter,
     required this.hasNextChapter,
     required this.onToggleToc,
     required this.onSeekProgress,
-    required this.onToggleFlowMode,
     required this.onToggleTheme,
-    required this.onOpenTypography,
-    required this.onOpenAi,
-    required this.onOpenTranslate,
+    this.onOpenAi,
+    this.onOpenTranslate,
     required this.onStartListening,
     this.onPrevChapter,
     this.onNextChapter,
@@ -62,6 +56,7 @@ class ReaderBottomBar extends StatefulWidget {
 
 class _ReaderBottomBarState extends State<ReaderBottomBar> {
   bool _showProgressSlider = false;
+  bool _showTypography = false;
   double _dragProgress = 0.0;
   bool _isDragging = false;
 
@@ -70,6 +65,7 @@ class _ReaderBottomBarState extends State<ReaderBottomBar> {
     super.didUpdateWidget(oldWidget);
     if (!widget.isVisible && oldWidget.isVisible) {
       _showProgressSlider = false;
+      _showTypography = false;
     }
   }
 
@@ -83,48 +79,28 @@ class _ReaderBottomBarState extends State<ReaderBottomBar> {
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        // ── 1. 右下角悬浮快捷操作胶囊 (AI / 译 / 听) ─────────────────────────────
+        // ── 1. 右下角悬浮快捷操作 (听书播放器) ─────────────────────────────
         AnimatedPositioned(
           duration: const Duration(milliseconds: 240),
           curve: Curves.easeOutCubic,
           right: 16,
           bottom: widget.isVisible
-              ? (_showProgressSlider ? 168 + bottomPadding : 68 + bottomPadding)
+              ? (_showTypography
+                    ? 298 + bottomPadding
+                    : (_showProgressSlider
+                          ? 168 + bottomPadding
+                          : 68 + bottomPadding))
               : -80,
           child: AnimatedOpacity(
             duration: const Duration(milliseconds: 200),
             opacity: widget.isVisible ? 1.0 : 0.0,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildQuickActionPill(
-                  label: 'AI',
-                  isSparkle: true,
-                  tooltip: context.tr('AI 助读', 'AI Assistant', 'AI要約'),
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    widget.onOpenAi();
-                  },
-                ),
-                const SizedBox(width: 8),
-                _buildQuickActionPill(
-                  label: '译',
-                  tooltip: context.tr('翻译查词', 'Translate', '翻訳'),
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    widget.onOpenTranslate();
-                  },
-                ),
-                const SizedBox(width: 8),
-                _buildQuickActionPill(
-                  label: '听',
-                  tooltip: context.tr('听书播放器', 'Player', '再生プレーヤー'),
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    widget.onStartListening();
-                  },
-                ),
-              ],
+            child: _buildQuickActionPill(
+              icon: HugeIcons.strokeRoundedHeadphones,
+              tooltip: context.tr('听书播放器', 'Player', '再生プレーヤー'),
+              onTap: () {
+                HapticFeedback.lightImpact();
+                widget.onStartListening();
+              },
             ),
           ),
         ),
@@ -252,6 +228,14 @@ class _ReaderBottomBarState extends State<ReaderBottomBar> {
             ),
           ),
 
+        if (_showTypography && widget.isVisible)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 56 + bottomPadding,
+            child: const ReaderAppearancePanel(),
+          ),
+
         // ── 3. 主底栏五大功能项 ───────────────────────────────────────────────
         AnimatedPositioned(
           duration: const Duration(milliseconds: 240),
@@ -299,6 +283,7 @@ class _ReaderBottomBarState extends State<ReaderBottomBar> {
                     HapticFeedback.lightImpact();
                     setState(() {
                       _showProgressSlider = !_showProgressSlider;
+                      _showTypography = false;
                     });
                     widget.onProgressVisibilityChanged?.call(
                       _showProgressSlider,
@@ -306,21 +291,7 @@ class _ReaderBottomBarState extends State<ReaderBottomBar> {
                   },
                 ),
 
-                // 3. 模式 ⊙-
-                _buildBarItem(
-                  icon: widget.isScrolledFlow
-                      ? Icons.view_day_outlined
-                      : Icons.auto_stories_outlined,
-                  tooltip: widget.isScrolledFlow
-                      ? context.tr('切换至左右翻页', 'Page Turn', 'ページ送り')
-                      : context.tr('切换至上下滑动', 'Scroll', 'スクロール'),
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    widget.onToggleFlowMode();
-                  },
-                ),
-
-                // 4. 主题/亮度 ☀️
+                // 3. 主题/亮度 ☀️
                 _buildBarItem(
                   icon: HugeIcons.strokeRoundedSun03,
                   tooltip: context.tr('日夜模式', 'Theme', 'テーマ'),
@@ -330,13 +301,26 @@ class _ReaderBottomBarState extends State<ReaderBottomBar> {
                   },
                 ),
 
-                // 5. 排版 A
+                // 4. 排版 A
                 _buildBarItem(
-                  customWidget: const AppIcon(AppIcons.textFont, size: 20),
+                  customWidget: Text(
+                    'A',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: _showTypography
+                          ? context.appAccent
+                          : context.appTextPrimary,
+                    ),
+                  ),
+                  isActive: _showTypography,
                   tooltip: context.tr('阅读排版', 'Typography', '読書設定'),
                   onTap: () {
                     HapticFeedback.lightImpact();
-                    widget.onOpenTypography();
+                    setState(() {
+                      _showTypography = !_showTypography;
+                      _showProgressSlider = false;
+                    });
                   },
                 ),
               ],
@@ -348,10 +332,10 @@ class _ReaderBottomBarState extends State<ReaderBottomBar> {
   }
 
   Widget _buildQuickActionPill({
-    required String label,
+    dynamic icon,
+    String? label,
     required String tooltip,
     required VoidCallback onTap,
-    bool isSparkle = false,
   }) {
     return Tooltip(
       message: tooltip,
@@ -364,7 +348,7 @@ class _ReaderBottomBarState extends State<ReaderBottomBar> {
             width: 46,
             height: 46,
             decoration: BoxDecoration(
-              color: const Color(0xE6262628),
+              color: const Color(0xFF5F646C),
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
@@ -375,31 +359,18 @@ class _ReaderBottomBarState extends State<ReaderBottomBar> {
               ],
             ),
             child: Center(
-              child: isSparkle
-                  ? Row(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          label,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                        const Icon(
-                          Icons.auto_awesome,
-                          color: Color(0xFFFFD54F),
-                          size: 11,
-                        ),
-                      ],
-                    )
+              child: icon != null
+                  ? (icon is IconData
+                      ? Icon(icon, size: 22, color: Colors.white)
+                      : HugeIcon(
+                          icon: icon,
+                          size: 22,
+                          color: Colors.white,
+                        ))
                   : Text(
-                      label,
+                      label ?? '',
                       style: const TextStyle(
-                        fontSize: 16,
+                        fontSize: 20,
                         fontWeight: FontWeight.w600,
                         color: Colors.white,
                       ),

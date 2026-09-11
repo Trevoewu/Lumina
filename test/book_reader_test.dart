@@ -5,6 +5,7 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:lumina/core/appearance.dart';
@@ -214,12 +215,7 @@ void main() {
       );
 
       // Verify Top Action Icons (Aa format_size, menu_book TOC, player headphones)
-      expect(
-        find.byWidgetPredicate(
-          (widget) => widget is AppIcon && widget.icon == AppIcons.textFont,
-        ),
-        findsOneWidget,
-      );
+      expect(find.byTooltip('Typography'), findsOneWidget);
       expect(find.byTooltip('Table of Contents'), findsOneWidget);
       expect(find.byTooltip('Player'), findsOneWidget);
 
@@ -309,29 +305,54 @@ void main() {
       await tester.pumpAndSettle();
 
       // Tap typography settings button
-      await tester.tap(
-        find.byWidgetPredicate(
-          (widget) => widget is AppIcon && widget.icon == AppIcons.textFont,
-        ),
-      );
+      await tester.tap(find.byTooltip('Typography'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Typography & Theme'), findsOneWidget);
+      expect(find.byKey(const Key('reader-appearance-panel')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('reader-font-menu')));
+      await tester.pumpAndSettle();
       expect(find.text('Georgia'), findsOneWidget);
       expect(find.text('Menlo'), findsOneWidget);
 
       // Tap Georgia
-      await tester.tap(find.text('Georgia'));
+      await tester.tap(
+        find.ancestor(
+          of: find.text('Georgia'),
+          matching: find.byWidgetPredicate((w) => w is PopupMenuEntry),
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(container.read(appearanceControllerProvider).fontId, 'serif');
-
-      // Tap add font size (+)
+      expect(find.byKey(const Key('reader-margin-slider')), findsOneWidget);
+      expect(find.byKey(const Key('reader-line-slider')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('reader-indent-menu')));
+      await tester.pumpAndSettle();
       await tester.tap(
-        find.byWidgetPredicate(
-          (widget) => widget is AppIcon && widget.icon == AppIcons.addCircle,
+        find.ancestor(
+          of: find.text('Two characters'),
+          matching: find.byWidgetPredicate((w) => w is PopupMenuEntry),
         ),
       );
+      await tester.pumpAndSettle();
+      expect(container.read(appearanceControllerProvider).readerIndent, 2);
+      await tester.tap(find.byKey(const Key('reader-flow-menu')));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.ancestor(
+          of: find.text('Scroll'),
+          matching: find.byWidgetPredicate((w) => w is PopupMenuEntry),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        container.read(appearanceControllerProvider).readerScrolled,
+        isTrue,
+      );
+
+      tester
+          .widget<Slider>(find.byKey(const Key('reader-font-slider')))
+          .onChanged!(1.05);
       await tester.pumpAndSettle();
 
       expect(
@@ -371,7 +392,7 @@ void main() {
   });
 
   for (final desktop in [false, true]) {
-    testWidgets('EPUB controls reserve content space (desktop: $desktop)', (
+    testWidgets('EPUB controls overlay a stable page (desktop: $desktop)', (
       tester,
     ) async {
       tester.view.physicalSize = desktop
@@ -421,32 +442,23 @@ void main() {
       expect(find.byKey(const Key('mock_epub_view')), findsOneWidget);
 
       final reader = find.byKey(const Key('mock_epub_view'));
-      expect(
-        tester.getRect(reader).top,
-        greaterThanOrEqualTo(desktop ? 0 : 47 + 60),
-      );
-      expect(
-        tester.getRect(reader).bottom,
-        lessThan(tester.getRect(find.text('AI')).top),
-      );
-      final normalBottom = tester.getRect(reader).bottom;
+      expect(tester.getRect(reader).top, desktop ? 0 : 55);
+      final pageRect = tester.getRect(reader);
       await tester.tap(find.byTooltip('Progress'));
       await tester.pumpAndSettle();
-      expect(tester.getRect(reader).bottom, lessThan(normalBottom));
+      expect(tester.getRect(reader), pageRect);
       expect(
         tester.getRect(reader).bottom,
-        lessThan(tester.getRect(find.text('AI')).top),
+        greaterThan(tester.getRect(find.byType(Slider)).top),
       );
-      expect(
-        tester.getRect(reader).bottom,
-        lessThan(tester.getRect(find.byType(Slider)).top),
-      );
-      expect(
-        tester.getRect(find.byTooltip('AI Assistant')).bottom,
-        lessThan(
-          tester.getRect(find.byKey(const Key('reader-progress-panel'))).top,
-        ),
-      );
+      await tester.tap(find.byTooltip('Typography'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('reader-appearance-panel')), findsOneWidget);
+      expect(tester.getRect(reader), pageRect);
+      await tester.tap(find.byTooltip('Typography'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('reader-appearance-panel')), findsNothing);
+      expect(tester.getRect(reader), pageRect);
       expect(tester.takeException(), isNull);
 
       tempDir.deleteSync(recursive: true);
@@ -528,9 +540,15 @@ void main() {
 
       // Initially, bars are visible
       expect(find.byType(ReaderBottomBar), findsOneWidget);
-      expect(find.text('AI'), findsOneWidget);
-      expect(find.text('译'), findsOneWidget);
-      expect(find.text('听'), findsOneWidget);
+      expect(find.text('AI'), findsNothing);
+      expect(find.text('译'), findsNothing);
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is HugeIcon && w.icon == HugeIcons.strokeRoundedHeadphones,
+        ),
+        findsOneWidget,
+      );
 
       // Tap middle zone (x = 400, y = 500) to toggle bars off
       await tester.tapAt(const Offset(400, 500));

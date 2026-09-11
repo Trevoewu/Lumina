@@ -7,6 +7,8 @@ String buildEpubReaderScript({
   required bool scrolled,
   bool nativeGestures = false,
   double fontScale = 1,
+  double lineHeight = 1.5,
+  double indent = -1,
   String? fontFamily,
 }) =>
     '''
@@ -14,13 +16,25 @@ String buildEpubReaderScript({
   if (!window.rendition) return;
   var previousConfig = window._luminaReader;
   var typographyChanged = previousConfig &&
-    (previousConfig.fontScale !== $fontScale || previousConfig.fontFamily !== ${jsonEncode(fontFamily)});
+    (previousConfig.lineHeight !== $lineHeight || previousConfig.indent !== $indent || previousConfig.fontScale !== $fontScale || previousConfig.fontFamily !== ${jsonEncode(fontFamily)});
   var anchor = typographyChanged && rendition.location && rendition.location.start
     ? rendition.location.start.cfi : null;
   window._luminaReader = {
     background: '$background', foreground: '$foreground', scrolled: $scrolled, nativeGestures: $nativeGestures,
-    fontScale: $fontScale, fontFamily: ${jsonEncode(fontFamily)}
+    lineHeight: $lineHeight, indent: $indent, fontScale: $fontScale, fontFamily: ${jsonEncode(fontFamily)}
   };
+  var viewportStyle = document.getElementById('lumina-viewport-style');
+  if (!viewportStyle) {
+    viewportStyle = document.createElement('style');
+    viewportStyle.id = 'lumina-viewport-style';
+    document.head.appendChild(viewportStyle);
+  }
+  viewportStyle.textContent = $scrolled ? '' :
+    'html, body { overflow: hidden !important; } .epub-container { overflow-y: hidden !important; }';
+  if (!$scrolled) {
+    window.scrollTo(0, 0);
+    if (rendition.manager && rendition.manager.container) rendition.manager.container.scrollTop = 0;
+  }
   function nativeTarget(x, y) {
     var all = rendition.getContents();
     for (var i = 0; i < all.length; i++) {
@@ -88,7 +102,7 @@ String buildEpubReaderScript({
     var win = doc && doc.defaultView;
     if (!win) return;
     var config = window._luminaReader;
-    var styleKey = JSON.stringify([config.background, config.foreground, config.fontScale, config.fontFamily]);
+    var styleKey = JSON.stringify([config.background, config.foreground, config.fontScale, config.fontFamily, config.lineHeight, config.indent]);
     if (doc._luminaStyleKey === styleKey && (config.nativeGestures || doc._luminaGestures)) return;
     doc._luminaStyleKey = styleKey;
     var style = doc.getElementById('lumina-reader-style');
@@ -103,9 +117,10 @@ String buildEpubReaderScript({
       body * { background-color: transparent !important;
         color: inherit !important; }
       p { margin-top: 0 !important; margin-bottom: .65em !important;
-        line-height: 1.5 !important; }
-      h1, h2, h3, h4, h5, h6, [class*="title"], [class*="chapter"],
-      [class*="heading"], [class*="chap"] {
+        line-height: \${config.lineHeight} !important;
+        \${config.indent >= 0 ? "text-indent: " + config.indent + "em !important;" : ""} }
+      body :is(h1, h2, h3, h4, h5, h6, [class*="title"], [class*="chapter"],
+      [class*="heading"], [class*="chap"]) {
         margin-top: .75em !important; margin-bottom: .65em !important;
         padding-top: 0 !important; padding-bottom: 0 !important;
         min-height: 0 !important; height: auto !important;
@@ -126,6 +141,8 @@ String buildEpubReaderScript({
           return {
             element: el,
             size: parseFloat(win.getComputedStyle(el).fontSize),
+            indent: el.style.getPropertyValue('text-indent'),
+            indentPriority: el.style.getPropertyPriority('text-indent'),
             family: el.style.getPropertyValue('font-family'),
             familyPriority: el.style.getPropertyPriority('font-family')
           };
@@ -134,6 +151,16 @@ String buildEpubReaderScript({
     doc._luminaTypography.forEach(function(entry) {
       if (Number.isFinite(entry.size)) {
         entry.element.style.setProperty('font-size', (entry.size * config.fontScale) + 'px', 'important');
+      }
+      if (entry.element.localName === 'p') {
+        entry.element.style.setProperty('line-height', String(config.lineHeight), 'important');
+        if (config.indent >= 0) {
+          entry.element.style.setProperty('text-indent', config.indent + 'em', 'important');
+        } else if (entry.indent) {
+          entry.element.style.setProperty('text-indent', entry.indent, entry.indentPriority);
+        } else {
+          entry.element.style.removeProperty('text-indent');
+        }
       }
       if (config.fontFamily) {
         entry.element.style.setProperty('font-family', config.fontFamily, 'important');

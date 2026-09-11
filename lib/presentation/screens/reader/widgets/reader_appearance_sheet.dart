@@ -1,281 +1,354 @@
-import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import '../../../../core/appearance.dart';
 import '../../../../core/app_colors.dart';
 import '../../../../core/app_localizations.dart';
-import '../../../../core/app_preferences.dart';
 
-Future<void> showReaderAppearanceSheet(BuildContext context) {
-  return showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: Colors.transparent,
-    builder: (context) => const _ReaderAppearanceSheet(),
-  );
-}
+Future<void> showReaderAppearanceSheet(BuildContext context) =>
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.transparent,
+      showDragHandle: false,
+      builder: (context) =>
+          const SafeArea(top: false, child: ReaderAppearancePanel()),
+    );
 
-class _ReaderAppearanceSheet extends ConsumerWidget {
-  const _ReaderAppearanceSheet();
-
+/// Inline overlay: changing visibility never changes the EPUB viewport.
+class ReaderAppearancePanel extends ConsumerWidget {
+  const ReaderAppearancePanel({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final appearance = ref.watch(appearanceControllerProvider);
-    final preferences = ref.watch(appPreferencesProvider);
+    final settings = ref.watch(appearanceControllerProvider);
     final controller = ref.read(appearanceControllerProvider.notifier);
-    final scheme = Theme.of(context).colorScheme;
-
     return Container(
-      decoration: BoxDecoration(
-        color: context.appSurface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            blurRadius: 16,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      padding: EdgeInsets.fromLTRB(
-        20,
-        16,
-        20,
-        MediaQuery.paddingOf(context).bottom + 20,
-      ),
+      key: const Key('reader-appearance-panel'),
+      height: 230,
+      color: context.appSurface,
+      padding: const EdgeInsets.fromLTRB(22, 32, 22, 14),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Drag handle
-          Center(
-            child: Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: scheme.onSurfaceVariant.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
+          _ReferenceSlider(
+            sliderKey: const Key('reader-font-slider'),
+            label: context.tr('字号', 'Font Size', '文字サイズ'),
+            thumb: '${(24 * settings.fontScale).round()}',
+            leading: 'A',
+            trailing: 'A',
+            fontEnds: true,
+            value: settings.fontScale.clamp(16 / 24, 40 / 24),
+            min: 16 / 24,
+            max: 40 / 24,
+            divisions: 24,
+            onChanged: controller.setFontScale,
           ),
-          const SizedBox(height: 16),
-
-          // Title
-          Text(
-            context.tr('阅读排版', 'Typography & Theme', '読書設定'),
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: context.appTextPrimary,
-            ),
-          ),
-          const SizedBox(height: 18),
-
-          // Theme quick toggle
+          const SizedBox(height: 36),
           Row(
             children: [
-              _ThemeOptionButton(
-                icon: AppIcons.sun01,
-                label: context.tr('系统', 'System', '自動'),
-                selected: preferences.theme == AppThemePreference.system,
-                onTap: () => ref
-                    .read(appPreferencesProvider.notifier)
-                    .setTheme(AppThemePreference.system),
+              Expanded(
+                child: _ReferenceSlider(
+                  sliderKey: const Key('reader-margin-slider'),
+                  label: context.tr('边距', 'Margins', '余白'),
+                  thumb: context.tr('边距', 'Margin', '余白'),
+                  leading: context.tr('小', 'S', '小'),
+                  trailing: context.tr('大', 'L', '大'),
+                  value: settings.readerMargin.clamp(0.0, 24.0),
+                  min: 0,
+                  max: 24,
+                  divisions: 6,
+                  onChanged: (v) => controller.setReaderLayout(margin: v),
+                ),
               ),
-              const SizedBox(width: 10),
-              _ThemeOptionButton(
-                icon: AppIcons.sun03,
-                label: context.tr('浅色', 'Light', 'ライト'),
-                selected: preferences.theme == AppThemePreference.light,
-                onTap: () => ref
-                    .read(appPreferencesProvider.notifier)
-                    .setTheme(AppThemePreference.light),
-              ),
-              const SizedBox(width: 10),
-              _ThemeOptionButton(
-                icon: AppIcons.moon02,
-                label: context.tr('深色', 'Dark', 'ダーク'),
-                selected: preferences.theme == AppThemePreference.dark,
-                onTap: () => ref
-                    .read(appPreferencesProvider.notifier)
-                    .setTheme(AppThemePreference.dark),
+              const SizedBox(width: 20),
+              Expanded(
+                child: _ReferenceSlider(
+                  sliderKey: const Key('reader-line-slider'),
+                  label: context.tr('行距', 'Line Spacing', '行间'),
+                  thumb: context.tr('行距', 'Spacing', '行间'),
+                  leading: context.tr('紧', 'T', '狭'),
+                  trailing: context.tr('松', 'L', '広'),
+                  value: settings.readerLineHeight.clamp(1.2, 1.8),
+                  min: 1.2,
+                  max: 1.8,
+                  divisions: 6,
+                  onChanged: (v) => controller.setReaderLayout(lineHeight: v),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 18),
-
-          // Font family row
-          Text(
-            context.tr('字体', 'Font', 'フォント'),
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: context.appTextSecondary,
-              fontWeight: FontWeight.normal,
-            ),
-          ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 40),
           Row(
             children: [
-              for (final font in appearanceFontOptions) ...[
+              Expanded(
+                child: _ReaderMenu<String>(
+                  menuKey: const Key('reader-font-menu'),
+                  label: settings.fontOption.label,
+                  value: settings.fontId,
+                  options: {
+                    for (final font in appearanceFontOptions)
+                      font.id: font.label,
+                  },
+                  onSelected: controller.setFont,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _ReaderMenu<double>(
+                  menuKey: const Key('reader-indent-menu'),
+                  label: context.tr('首行缩进', 'Indent', '字下げ'),
+                  value: settings.readerIndent,
+                  options: {
+                    -1: context.tr('保留原书', 'Publisher', '原書'),
+                    0: context.tr('无缩进', 'None', 'なし'),
+                    2: context.tr('缩进两字', 'Two characters', '2文字'),
+                  },
+                  onSelected: (v) => controller.setReaderLayout(indent: v),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _ReaderMenu<bool>(
+                  menuKey: const Key('reader-flow-menu'),
+                  label: context.tr('翻页方式', 'Page Mode', 'ページ送り'),
+                  value: settings.readerScrolled,
+                  options: {
+                    false: context.tr('左右翻页', 'Paginated', '横ページ送り'),
+                    true: context.tr('上下滚动', 'Scroll', '縦スクロール'),
+                  },
+                  onSelected: (v) => controller.setReaderLayout(scrolled: v),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReferenceSlider extends StatelessWidget {
+  final Key sliderKey;
+  final String label, thumb, leading, trailing;
+  final double value, min, max;
+  final int divisions;
+  final bool fontEnds;
+  final ValueChanged<double> onChanged;
+  const _ReferenceSlider({
+    required this.sliderKey,
+    required this.label,
+    required this.thumb,
+    required this.leading,
+    required this.trailing,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.divisions,
+    required this.onChanged,
+    this.fontEnds = false,
+  });
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final track = dark ? const Color(0xFF303033) : const Color(0xFFF7F7F7);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final active = dark ? const Color(0xFF414144) : const Color(0xFFECECEE);
+        final clampedValue = value.clamp(min, max);
+        final fraction =
+            ((53 +
+                        (constraints.maxWidth - 106) *
+                            ((clampedValue - min) / (max - min))) /
+                    constraints.maxWidth)
+                .clamp(0.0, 1.0);
+        return SizedBox(
+          height: 36,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [active, active, track, track],
+                stops: [0, fraction, fraction, 1],
+              ),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 34,
+                  child: Center(
+                    child: Text(
+                      leading,
+                      style: TextStyle(
+                        fontSize: fontEnds ? 12 : 13,
+                        color: context.appTextSecondary,
+                      ),
+                    ),
+                  ),
+                ),
                 Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: InkWell(
-                      onTap: () => controller.setFont(font.id),
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        decoration: BoxDecoration(
-                          color: appearance.fontId == font.id
-                              ? context.appAccent.withValues(alpha: 0.15)
-                              : scheme.onSurface.withValues(alpha: 0.04),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: appearance.fontId == font.id
-                                ? context.appAccent
-                                : scheme.onSurface.withValues(alpha: 0.1),
-                            width: appearance.fontId == font.id ? 1.5 : 1,
-                          ),
+                  child: Semantics(
+                    label: label,
+                    child: SliderTheme(
+                      data: SliderTheme.of(context).copyWith(
+                        trackHeight: 36,
+                        activeTrackColor: dark
+                            ? const Color(0xFF414144)
+                            : const Color(0xFFECECEE),
+                        inactiveTrackColor: track,
+                        overlayShape: SliderComponentShape.noOverlay,
+                        showValueIndicator: ShowValueIndicator.never,
+                        tickMarkShape: SliderTickMarkShape.noTickMark,
+                        trackShape: const RectangularSliderTrackShape(),
+                        thumbShape: _LabelThumb(
+                          thumb,
+                          context.appTextPrimary,
+                          dark ? const Color(0xFF555558) : Colors.white,
                         ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          font.label,
-                          style: TextStyle(
-                            fontFamily: font.fontFamily,
-                            fontWeight: FontWeight.normal,
-                            color: appearance.fontId == font.id
-                                ? context.appAccent
-                                : context.appTextPrimary,
-                            fontSize: 14,
-                          ),
-                        ),
+                      ),
+                      child: Slider(
+                        key: sliderKey,
+                        value: clampedValue,
+                        min: min,
+                        max: max,
+                        divisions: divisions,
+                        semanticFormatterCallback: (v) => fontEnds
+                            ? '${(v * 24).round()}'
+                            : (divisions == 6 && min == 0
+                                ? v.round().toString()
+                                : v.toStringAsFixed(1)),
+                        onChanged: (newValue) {
+                          if (newValue != clampedValue) {
+                            HapticFeedback.selectionClick();
+                            onChanged(newValue);
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: 34,
+                  child: Center(
+                    child: Text(
+                      trailing,
+                      style: TextStyle(
+                        fontSize: fontEnds ? 18 : 13,
+                        color: context.appTextSecondary,
                       ),
                     ),
                   ),
                 ),
               ],
-            ],
-          ),
-          const SizedBox(height: 18),
-
-          // Font scale row
-          Text(
-            context.tr('字号', 'Font Size', '文字サイズ'),
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: context.appTextSecondary,
-              fontWeight: FontWeight.normal,
             ),
           ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              IconButton(
-                icon: const AppIcon(AppIcons.minusSignCircle),
-                color: context.appTextSecondary,
-                onPressed: appearance.fontScale > 0.85
-                    ? () {
-                        final next = (appearance.fontScale - 0.05).clamp(
-                          0.85,
-                          1.3,
-                        );
-                        controller.setFontScale(next);
-                      }
-                    : null,
-              ),
-              Expanded(
-                child: Slider(
-                  value: appearance.fontScale,
-                  min: 0.85,
-                  max: 1.3,
-                  divisions: 9,
-                  activeColor: context.appAccent,
-                  label: '${(appearance.fontScale * 100).round()}%',
-                  onChanged: controller.setFontScale,
-                ),
-              ),
-              IconButton(
-                icon: const AppIcon(AppIcons.addCircle),
-                color: context.appTextSecondary,
-                onPressed: appearance.fontScale < 1.3
-                    ? () {
-                        final next = (appearance.fontScale + 0.05).clamp(
-                          0.85,
-                          1.3,
-                        );
-                        controller.setFontScale(next);
-                      }
-                    : null,
-              ),
-              Text(
-                '${(appearance.fontScale * 100).round()}%',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  fontWeight: FontWeight.normal,
-                  fontSize: 13,
-                  color: context.appTextPrimary,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
 
-class _ThemeOptionButton extends StatelessWidget {
-  final AppIconData icon;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _ThemeOptionButton({
-    required this.icon,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
+class _LabelThumb extends SliderComponentShape {
+  final String text;
+  final Color foreground, background;
+  const _LabelThumb(this.text, this.foreground, this.background);
   @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: selected
-                ? context.appAccent.withValues(alpha: 0.15)
-                : scheme.onSurface.withValues(alpha: 0.04),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: selected
-                  ? context.appAccent
-                  : scheme.onSurface.withValues(alpha: 0.1),
-              width: selected ? 1.5 : 1,
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              AppIcon(
-                icon,
-                size: 16,
-                color: selected ? context.appAccent : context.appTextSecondary,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.normal,
-                  color: selected ? context.appAccent : context.appTextPrimary,
-                ),
-              ),
-            ],
-          ),
+  Size getPreferredSize(bool isEnabled, bool isDiscrete) => const Size(38, 38);
+  @override
+  void paint(
+    PaintingContext context,
+    Offset center, {
+    required Animation<double> activationAnimation,
+    required Animation<double> enableAnimation,
+    required bool isDiscrete,
+    required TextPainter labelPainter,
+    required RenderBox parentBox,
+    required SliderThemeData sliderTheme,
+    required TextDirection textDirection,
+    required double value,
+    required double textScaleFactor,
+    required Size sizeWithOverflow,
+  }) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          color: foreground,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
         ),
       ),
+      textDirection: textDirection,
+    )..layout();
+    final rect = Rect.fromCenter(
+      center: center,
+      width: (painter.width + 18).clamp(38, 64),
+      height: 38,
+    );
+    final path = Path()
+      ..addRRect(RRect.fromRectAndRadius(rect, const Radius.circular(22)));
+    context.canvas.drawShadow(
+      path,
+      Colors.black.withValues(alpha: .14),
+      5,
+      true,
+    );
+    context.canvas.drawPath(path, Paint()..color = background);
+    painter.paint(
+      context.canvas,
+      center - Offset(painter.width / 2, painter.height / 2),
     );
   }
+}
+
+class _ReaderMenu<T> extends StatelessWidget {
+  final Key menuKey;
+  final String label;
+  final T value;
+  final Map<T, String> options;
+  final ValueChanged<T> onSelected;
+  const _ReaderMenu({
+    required this.menuKey,
+    required this.label,
+    required this.value,
+    required this.options,
+    required this.onSelected,
+  });
+  @override
+  Widget build(BuildContext context) => PopupMenuButton<T>(
+    key: menuKey,
+    tooltip: label,
+    initialValue: value,
+    onSelected: onSelected,
+    itemBuilder: (context) => options.entries
+        .map(
+          (e) => CheckedPopupMenuItem<T>(
+            value: e.key,
+            checked: e.key == value,
+            child: Text(e.value),
+          ),
+        )
+        .toList(),
+    child: Container(
+      height: 36,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: context.appTextPrimary.withValues(alpha: .025),
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 13),
+            ),
+          ),
+          Icon(Icons.chevron_right, size: 16, color: context.appTextSecondary),
+        ],
+      ),
+    ),
+  );
 }

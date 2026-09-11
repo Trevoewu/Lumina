@@ -840,10 +840,14 @@ class GenerationOrchestrator {
   /// 保留第一段的 WAV 头（含 fmt chunk），去掉后续段的 header，
   /// 只把 data chunk 的原始 PCM 字节追加进去，并修正 RIFF/data size。
   static Uint8List concatWavPcm(List<Uint8List> wavs) {
-    if (wavs.length == 1) return wavs.first;
+    if (wavs.isEmpty) return Uint8List(0);
 
     final first = wavs.first;
     if (first.length < 44) return first;
+    if (String.fromCharCodes(first.sublist(0, 4)) != 'RIFF' ||
+        String.fromCharCodes(first.sublist(8, 12)) != 'WAVE') {
+      return first;
+    }
 
     final firstData = ByteData.sublistView(first);
     final sampleRate = firstData.getUint32(24, Endian.little);
@@ -871,9 +875,22 @@ class GenerationOrchestrator {
         .getUint32(dataOffset + 4, Endian.little)
         .toInt();
     final firstPcmStart = dataOffset + 8;
+    final availableFirstPcm =
+        (first.length - firstPcmStart).clamp(0, first.length);
+    final actualFirstDataSize =
+        (firstDataSize > 0 && firstPcmStart + firstDataSize <= first.length)
+            ? firstDataSize
+            : availableFirstPcm;
+
+    if (wavs.length == 1) {
+      if (firstDataSize > 0 && firstPcmStart + firstDataSize <= first.length) {
+        return first;
+      }
+    }
+
     final firstPcm = first.sublist(
       firstPcmStart,
-      firstPcmStart + firstDataSize,
+      firstPcmStart + actualFirstDataSize,
     );
 
     // 收集后续段的 PCM 数据
@@ -881,6 +898,10 @@ class GenerationOrchestrator {
     for (var i = 1; i < wavs.length; i++) {
       final wav = wavs[i];
       if (wav.length < 44) continue;
+      if (String.fromCharCodes(wav.sublist(0, 4)) != 'RIFF' ||
+          String.fromCharCodes(wav.sublist(8, 12)) != 'WAVE') {
+        continue;
+      }
       final wd = ByteData.sublistView(wav);
       int off = 12;
       while (off + 8 <= wav.length) {
@@ -888,7 +909,13 @@ class GenerationOrchestrator {
         final csz = wd.getUint32(off + 4, Endian.little).toInt();
         if (cid == 'data') {
           final pcmStart = off + 8;
-          pcmParts.add(wav.sublist(pcmStart, pcmStart + csz));
+          final available = (wav.length - pcmStart).clamp(0, wav.length);
+          final actualCsz = (csz > 0 && pcmStart + csz <= wav.length)
+              ? csz
+              : available;
+          if (actualCsz > 0) {
+            pcmParts.add(wav.sublist(pcmStart, pcmStart + actualCsz));
+          }
           break;
         }
         off += 8 + csz;
@@ -921,8 +948,14 @@ class GenerationOrchestrator {
     od.setUint16(20, 1, Endian.little); // PCM
     od.setUint16(22, channels, Endian.little);
     od.setUint32(24, sampleRate, Endian.little);
-    od.setUint32(28, byteRate, Endian.little);
-    od.setUint16(32, blockAlign, Endian.little);
+    final safeBlockAlign = blockAlign > 0
+        ? blockAlign
+        : (channels * (bitsPerSample ~/ 8));
+    final safeByteRate = byteRate > 0
+        ? byteRate
+        : (sampleRate * safeBlockAlign);
+    od.setUint32(28, safeByteRate, Endian.little);
+    od.setUint16(32, safeBlockAlign, Endian.little);
     od.setUint16(34, bitsPerSample, Endian.little);
 
     // data chunk
@@ -974,9 +1007,9 @@ class GenerationOrchestrator {
       final chunkId = String.fromCharCodes(wav.sublist(offset, offset + 4));
       final chunkSize = data.getUint32(offset + 4, Endian.little).toInt();
       final chunkDataOffset = offset + 8;
-      if (chunkDataOffset + chunkSize > wav.length) return wav;
 
       if (chunkId == 'fmt ' && chunkSize >= 16) {
+        if (chunkDataOffset + 16 > wav.length) return wav;
         formatCode = data.getUint16(chunkDataOffset, Endian.little);
         channels = data.getUint16(chunkDataOffset + 2, Endian.little);
         sampleRate = data.getUint32(chunkDataOffset + 4, Endian.little);
@@ -984,9 +1017,15 @@ class GenerationOrchestrator {
         bitsPerSample = data.getUint16(chunkDataOffset + 14, Endian.little);
       } else if (chunkId == 'data') {
         dataOffset = chunkDataOffset;
-        dataSize = chunkSize;
+        final availableBytes =
+            (wav.length - chunkDataOffset).clamp(0, wav.length);
+        dataSize = (chunkSize > 0 && chunkDataOffset + chunkSize <= wav.length)
+            ? chunkSize
+            : availableBytes;
+        break;
       }
 
+      if (chunkDataOffset + chunkSize > wav.length) return wav;
       offset += 8 + chunkSize;
       if (chunkSize.isOdd) offset += 1;
     }
@@ -996,6 +1035,7 @@ class GenerationOrchestrator {
         sampleRate == null ||
         bitsPerSample != 16 ||
         blockAlign == null ||
+        blockAlign <= 0 ||
         dataOffset == null ||
         dataSize == null ||
         dataSize <= 0) {
@@ -1025,6 +1065,7 @@ class GenerationOrchestrator {
         );
       }
     }
+
     return out;
   }
 

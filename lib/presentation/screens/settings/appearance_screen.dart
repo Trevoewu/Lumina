@@ -1,5 +1,6 @@
 import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/app_design_tokens.dart';
@@ -147,7 +148,7 @@ class AppearanceScreen extends ConsumerWidget {
                 ),
                 _BlockDivider(
                   title: context.tr('字号', 'Text Size', '文字サイズ'),
-                  value: '${(appearance.fontScale * 100).round()}%',
+                  value: '${(24 * appearance.fontScale).round()} pt',
                 ),
                 const SizedBox(height: 8),
                 Row(
@@ -162,11 +163,16 @@ class AppearanceScreen extends ConsumerWidget {
                     ),
                     Expanded(
                       child: Slider(
-                        min: 0.85,
-                        max: 1.3,
-                        divisions: 9,
-                        value: appearance.fontScale,
-                        onChanged: controller.setFontScale,
+                        min: 16 / 24,
+                        max: 40 / 24,
+                        divisions: 24,
+                        value: appearance.fontScale.clamp(16 / 24, 40 / 24),
+                        onChanged: (v) {
+                          if (v != appearance.fontScale) {
+                            HapticFeedback.selectionClick();
+                            controller.setFontScale(v);
+                          }
+                        },
                       ),
                     ),
                     Text(

@@ -62,6 +62,33 @@ void main() {
     expect(repaired.segments.single.durationMs, 1000);
     expect(repaired.totalDurationMs, 1000);
   });
+
+  test('sanitizeWavHeader fixes placeholder data and riff sizes', () {
+    final wav = _pcmWav(
+      actualDataBytes: 48000,
+      declaredDataBytes: 0xFFFFFF00,
+      byteRate: 48000,
+    );
+    // Artificially corrupt RIFF size too
+    ByteData.sublistView(wav).setUint32(4, 0xFFFFFFFF, Endian.little);
+
+    final fixed = sanitizeWavHeader(wav);
+    final d = ByteData.sublistView(fixed);
+
+    expect(d.getUint32(40, Endian.little), 48000);
+    expect(d.getUint32(4, Endian.little), 36 + 48000);
+  });
+
+  test('sanitizeWavHeader leaves already valid WAV untouched', () {
+    final wav = _pcmWav(
+      actualDataBytes: 48000,
+      declaredDataBytes: 48000,
+      byteRate: 48000,
+    );
+
+    final result = sanitizeWavHeader(wav);
+    expect(result, same(wav));
+  });
 }
 
 Uint8List _pcmWav({

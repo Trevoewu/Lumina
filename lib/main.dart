@@ -109,7 +109,7 @@ class _LuminaAppState extends ConsumerState<LuminaApp> {
               : media.viewPadding,
           textScaler: _RelativeTextScaler(
             media.textScaler,
-            appearance.fontScale * appTextScaleBaseline,
+            appTextScaleBaseline,
           ),
         );
         return MediaQuery(
@@ -122,8 +122,6 @@ class _LuminaAppState extends ConsumerState<LuminaApp> {
   }
 }
 
-/// Applies Lumina's reading-size preference without discarding the platform's
-/// accessibility text scaling (including nonlinear scaling on newer systems).
 class _RelativeTextScaler extends TextScaler {
   final TextScaler systemScaler;
   final double factor;

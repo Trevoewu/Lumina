@@ -47,7 +47,6 @@ class EpubReaderView extends ConsumerStatefulWidget {
 class _EpubReaderViewState extends ConsumerState<EpubReaderView> {
   final FocusNode _focusNode = FocusNode();
   bool _loading = true;
-  bool _showNavButtons = false;
   Uint8List? _epubBytes;
   String? _selectedText;
   int? _pointer;
@@ -61,7 +60,7 @@ class _EpubReaderViewState extends ConsumerState<EpubReaderView> {
           defaultTargetPlatform == TargetPlatform.macOS);
 
   void _pointerDown(PointerDownEvent event) {
-    if (!_usesNativeGestures || _loading || event.buttons != kPrimaryButton) {
+    if (_loading || event.buttons != kPrimaryButton) {
       return;
     }
     _focusNode.requestFocus();
@@ -73,8 +72,10 @@ class _EpubReaderViewState extends ConsumerState<EpubReaderView> {
     _pointerStart = event.localPosition;
     _pointerTime = event.timeStamp;
     _multiplePointers = false;
+    if (!_usesNativeGestures) return;
     widget.controller.webViewController?.callMethod('luminaPointerDown', [
-      event.localPosition.dx,
+      event.localPosition.dx -
+          ref.read(appearanceControllerProvider).readerMargin,
       event.localPosition.dy,
     ]);
   }
@@ -86,8 +87,18 @@ class _EpubReaderViewState extends ConsumerState<EpubReaderView> {
     _pointer = null;
     if (_multiplePointers || start == null || time == null) return;
     final delta = event.localPosition - start;
+    final margin = ref.read(appearanceControllerProvider).readerMargin;
+    if (!_usesNativeGestures) {
+      final width = context.size!.width;
+      if (delta.distance < 15 &&
+          (event.timeStamp - time).inMilliseconds < 350) {
+        if (start.dx < margin) widget.controller.prev();
+        if (start.dx > width - margin) widget.controller.next();
+      }
+      return;
+    }
     widget.controller.webViewController?.callMethod('luminaPointerUp', [
-      event.localPosition.dx,
+      event.localPosition.dx - margin,
       event.localPosition.dy,
       delta.dx,
       delta.dy,
@@ -157,6 +168,8 @@ class _EpubReaderViewState extends ConsumerState<EpubReaderView> {
       scrolled: widget.isScrolledFlow,
       nativeGestures: _usesNativeGestures,
       fontScale: appearance.fontScale,
+      lineHeight: appearance.readerLineHeight,
+      indent: appearance.readerIndent,
       fontFamily: appearance.fontOption.fontFamily,
     );
     widget.controller.webViewController
@@ -169,16 +182,12 @@ class _EpubReaderViewState extends ConsumerState<EpubReaderView> {
   @override
   Widget build(BuildContext context) {
     final appearance = ref.watch(appearanceControllerProvider);
-    final isDesktop =
-        !kIsWeb &&
-        (defaultTargetPlatform == TargetPlatform.macOS ||
-            defaultTargetPlatform == TargetPlatform.windows ||
-            defaultTargetPlatform == TargetPlatform.linux);
-
     // 监听外观变化并同步到 EpubController
     ref.listen(appearanceControllerProvider, (prev, next) {
       if (prev?.fontScale != next.fontScale ||
           prev?.fontId != next.fontId ||
+          prev?.readerLineHeight != next.readerLineHeight ||
+          prev?.readerIndent != next.readerIndent ||
           prev?.lightPalette != next.lightPalette ||
           prev?.darkPalette != next.darkPalette) {
         try {
@@ -202,42 +211,33 @@ class _EpubReaderViewState extends ConsumerState<EpubReaderView> {
       );
     }
 
-    return Focus(
-      focusNode: _focusNode,
-      autofocus: true,
-      onKeyEvent: (node, event) {
-        if (event is KeyDownEvent) {
-          if (event.logicalKey == LogicalKeyboardKey.arrowRight ||
-              event.logicalKey == LogicalKeyboardKey.pageDown ||
-              event.logicalKey == LogicalKeyboardKey.space) {
-            try {
-              widget.controller.next();
-            } catch (_) {}
-            return KeyEventResult.handled;
-          } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft ||
-              event.logicalKey == LogicalKeyboardKey.pageUp) {
-            try {
-              widget.controller.prev();
-            } catch (_) {}
-            return KeyEventResult.handled;
-          }
-        }
-        return KeyEventResult.ignored;
-      },
-      child: MouseRegion(
-        onEnter: (_) {
-          if (isDesktop && mounted) {
-            setState(() => _showNavButtons = true);
-          }
-        },
-        onExit: (_) {
-          if (isDesktop && mounted) {
-            setState(() => _showNavButtons = false);
-          }
-        },
-        child: Stack(
-          children: [
-            _nativeInput(
+    return _nativeInput(
+      Padding(
+        padding: EdgeInsets.symmetric(horizontal: appearance.readerMargin),
+        child: Focus(
+          focusNode: _focusNode,
+          autofocus: true,
+          onKeyEvent: (node, event) {
+            if (event is KeyDownEvent) {
+              if (event.logicalKey == LogicalKeyboardKey.arrowRight ||
+                  event.logicalKey == LogicalKeyboardKey.pageDown ||
+                  event.logicalKey == LogicalKeyboardKey.space) {
+                try {
+                  widget.controller.next();
+                } catch (_) {}
+                return KeyEventResult.handled;
+              } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft ||
+                  event.logicalKey == LogicalKeyboardKey.pageUp) {
+                try {
+                  widget.controller.prev();
+                } catch (_) {}
+                return KeyEventResult.handled;
+              }
+            }
+            return KeyEventResult.ignored;
+          },
+          child: Stack(
+            children: [
               EpubViewer(
                 epubController: widget.controller,
                 epubSource: EpubSource.fromData(_epubBytes!),
@@ -302,105 +302,21 @@ class _EpubReaderViewState extends ConsumerState<EpubReaderView> {
                 // reports touch-up even for drags and text-selection gestures.
                 onTouchUp: (x, y) => widget.onTapCenter?.call(),
               ),
-            ),
 
-            // 桌面端左右边缘悬浮翻页按钮
-            if (isDesktop && _showNavButtons && !_loading) ...[
-              Positioned(
-                left: 16,
-                top: 0,
-                bottom: 0,
-                child: Center(
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () {
-                        try {
-                          widget.controller.prev();
-                        } catch (_) {}
-                      },
-                      borderRadius: BorderRadius.circular(24),
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: context.appSurface.withValues(alpha: 0.85),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: context.appDivider.withValues(alpha: 0.2),
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.1),
-                              blurRadius: 10,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Icon(
-                          Icons.chevron_left_rounded,
-                          size: 28,
-                          color: context.appTextPrimary,
-                        ),
+              if (_loading)
+                Positioned.fill(
+                  child: ColoredBox(
+                    color: context.appBackground,
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        color: context.appAccent,
+                        strokeWidth: 2.5,
                       ),
                     ),
                   ),
                 ),
-              ),
-              Positioned(
-                right: 16,
-                top: 0,
-                bottom: 0,
-                child: Center(
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () {
-                        try {
-                          widget.controller.next();
-                        } catch (_) {}
-                      },
-                      borderRadius: BorderRadius.circular(24),
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: context.appSurface.withValues(alpha: 0.85),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: context.appDivider.withValues(alpha: 0.2),
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.1),
-                              blurRadius: 10,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Icon(
-                          Icons.chevron_right_rounded,
-                          size: 28,
-                          color: context.appTextPrimary,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
             ],
-
-            if (_loading)
-              Positioned.fill(
-                child: ColoredBox(
-                  color: context.appBackground,
-                  child: Center(
-                    child: CircularProgressIndicator(
-                      color: context.appAccent,
-                      strokeWidth: 2.5,
-                    ),
-                  ),
-                ),
-              ),
-          ],
+          ),
         ),
       ),
     );
@@ -408,6 +324,7 @@ class _EpubReaderViewState extends ConsumerState<EpubReaderView> {
 
   Widget _nativeInput(Widget child) {
     return Listener(
+      behavior: HitTestBehavior.opaque,
       onPointerDown: _pointerDown,
       onPointerUp: _pointerUp,
       onPointerPanZoomStart: (_) {

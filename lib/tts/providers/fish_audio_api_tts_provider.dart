@@ -439,7 +439,9 @@ class FishAudioApiTtsProvider
       ),
     );
     return FishTimestampSynthesisResult(
-      audioBytes: Uint8List.fromList(response.data ?? const []),
+      audioBytes: sanitizeWavHeader(
+        Uint8List.fromList(response.data ?? const []),
+      ),
       timings: const [],
     );
   }
@@ -627,7 +629,7 @@ class FishTimestampSseAccumulator {
         .expand((snapshot) => snapshot.timings)
         .toList(growable: false);
     return FishTimestampSynthesisResult(
-      audioBytes: _audio.takeBytes(),
+      audioBytes: sanitizeWavHeader(_audio.takeBytes()),
       timings: timings,
     );
   }

@@ -12,6 +12,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../../../ai/ai_models.dart';
+import '../../../core/appearance.dart';
 import '../../../core/app_colors.dart';
 import '../../../core/app_design_tokens.dart';
 import '../../../core/app_localizations.dart';
@@ -24,7 +25,6 @@ import '../../widgets/design_system/macos_window_toolbar.dart';
 import '../../widgets/dictionary_lookup_sheet.dart';
 import '../player/player_screen.dart';
 import 'widgets/epub_reader_view.dart';
-import 'widgets/reader_appearance_sheet.dart';
 import 'widgets/reader_bottom_bar.dart';
 import 'widgets/reader_paragraph_view.dart';
 import 'widgets/reader_toc_sheet.dart';
@@ -64,11 +64,9 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
 
   bool _loading = true;
   bool _barsVisible = true;
-  bool _readerProgressExpanded = false;
   int _currentPage = 1;
   int _totalPages = 1;
   double _currentProgress = 0.0;
-  bool _isScrolledFlow = false;
   bool _userScrolledAway = false;
   int? _lastScrolledPlayingIndex;
 
@@ -451,7 +449,6 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
   void _toggleBars() {
     setState(() {
       _barsVisible = !_barsVisible;
-      if (!_barsVisible) _readerProgressExpanded = false;
     });
     final hasPersistentToolbar = MacosPersistentToolbarScope.hasToolbar(
       context,
@@ -688,36 +685,12 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
     final totalCount = _isEpubMode && _epubTocItems.isNotEmpty
         ? _epubTocItems.length
         : _chapters.length;
-    final hasPrevChapter = currentIndex > 0;
-    final hasNextChapter = currentIndex >= 0 && currentIndex < totalCount - 1;
 
     return Container(
       height: macosTopControlsReservedHeight,
       padding: const EdgeInsets.only(left: 12.0),
       child: Row(
         children: [
-          MacosToolbarButton(
-            key: const ValueKey('reader-prev-chapter-button'),
-            size: 26.0,
-            tooltip: context.tr('上一章', 'Previous Chapter', '前の章'),
-            onPressed: hasPrevChapter ? _goToPreviousChapter : null,
-            child: const MacosNavArrowIcon(
-              direction: MacosNavArrowDirection.left,
-              size: 16.0,
-            ),
-          ),
-          const SizedBox(width: 4.0),
-          MacosToolbarButton(
-            key: const ValueKey('reader-next-chapter-button'),
-            size: 26.0,
-            tooltip: context.tr('下一章', 'Next Chapter', '次の章'),
-            onPressed: hasNextChapter ? _goToNextChapter : null,
-            child: const MacosNavArrowIcon(
-              direction: MacosNavArrowDirection.right,
-              size: 16.0,
-            ),
-          ),
-          const SizedBox(width: 12.0),
           Expanded(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -761,32 +734,27 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
       mainAxisSize: MainAxisSize.min,
       children: [
         MacosToolbarButton(
-          key: const ValueKey('reader-appearance-button'),
-          size: 26.0,
-          tooltip: context.tr('阅读排版', 'Typography', '読書設定'),
-          onPressed: () => showReaderAppearanceSheet(context),
-          child: const AppIcon(AppIcons.textFont, size: 16.0),
+          key: const ValueKey('reader-bookmark-button'),
+          size: 26,
+          tooltip: context.tr('书签', 'Bookmark', 'ブックマーク'),
+          onPressed: _toggleBookmark,
+          child: const Icon(Icons.bookmark_border_rounded, size: 20),
         ),
-        const SizedBox(width: 6.0),
+        const SizedBox(width: 6),
         MacosToolbarButton(
-          key: const ValueKey('reader-toc-button'),
-          size: 26.0,
-          tooltip: context.tr('目录', 'Table of Contents', '目次'),
-          onPressed: _openTocSheet,
-          child: const AppIcon(AppIcons.bookOpen01, size: 16.0),
+          key: const ValueKey('reader-share-button'),
+          size: 26,
+          tooltip: context.tr('分享', 'Share', '共有'),
+          onPressed: _showShareSheet,
+          child: const Icon(Icons.ios_share_rounded, size: 20),
         ),
-        const SizedBox(width: 6.0),
+        const SizedBox(width: 6),
         MacosToolbarButton(
-          key: const ValueKey('reader-player-button'),
-          size: 26.0,
-          tooltip: context.tr('听书播放器', 'Player', '再生プレーヤー'),
-          onPressed: () =>
-              _openPlayer(chapter: _currentChapter, autoplay: false),
-          child: HugeIcon(
-            icon: HugeIcons.strokeRoundedHeadphones,
-            color: context.appAccent,
-            size: 18.0,
-          ),
+          key: const ValueKey('reader-more-button'),
+          size: 26,
+          tooltip: context.tr('更多', 'More', 'その他'),
+          onPressed: _showMoreMenu,
+          child: const Icon(Icons.more_vert_rounded, size: 20),
         ),
       ],
     );
@@ -864,6 +832,7 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final appearance = ref.watch(appearanceControllerProvider);
     final design = context.appDesign;
     final scheme = Theme.of(context).colorScheme;
     final isMac = Theme.of(context).platform == TargetPlatform.macOS;
@@ -923,10 +892,8 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
                     right: 0,
                     top: hasPersistentToolbar
                         ? 0
-                        : (MediaQuery.paddingOf(context).top + 64),
-                    bottom:
-                        (MediaQuery.paddingOf(context).bottom +
-                        (_readerProgressExpanded && _barsVisible ? 226 : 126)),
+                        : (MediaQuery.paddingOf(context).top + 8),
+                    bottom: (MediaQuery.paddingOf(context).bottom + 32),
                     child: ClipRect(
                       child:
                           widget.epubReaderBuilder?.call(context, _epubFile!) ??
@@ -934,7 +901,7 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
                             file: _epubFile!,
                             controller: _epubController,
                             initialCfi: _currentCfi,
-                            isScrolledFlow: _isScrolledFlow,
+                            isScrolledFlow: appearance.readerScrolled,
                             onChaptersLoaded: _onEpubChaptersLoaded,
                             onRelocated: _onEpubRelocated,
                             onPageChanged: _onPageChanged,
@@ -992,12 +959,12 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
                     child: ListView.builder(
                       controller: _scrollController,
                       padding: EdgeInsets.fromLTRB(
-                        inset,
+                        inset + appearance.readerMargin,
                         hasPersistentToolbar
                             ? design.spaceLg
                             : MediaQuery.paddingOf(context).top + 24,
-                        inset,
-                        MediaQuery.paddingOf(context).bottom + 80,
+                        inset + appearance.readerMargin,
+                        MediaQuery.paddingOf(context).bottom + 32,
                       ),
                       itemCount:
                           _paragraphs.length +
@@ -1254,71 +1221,54 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
                   ),
 
                 // ── Bottom Controls & Floating Action Trio ──────────────────────
-                if (!hasPersistentToolbar || _isEpubMode)
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      ignoring: !_barsVisible,
-                      child: ReaderBottomBar(
-                        isVisible: _barsVisible,
-                        onProgressVisibilityChanged: (expanded) {
-                          setState(() => _readerProgressExpanded = expanded);
-                        },
-                        isEpub: _isEpubMode,
-                        progress: _currentProgress,
-                        currentPage: _currentPage,
-                        totalPages: _totalPages,
-                        chapterTitle:
-                            _currentChapter?.title ?? widget.book.title,
-                        isScrolledFlow: _isScrolledFlow,
-                        hasPrevChapter: hasPrevChapter,
-                        hasNextChapter: hasNextChapter,
-                        onToggleToc: _openTocSheet,
-                        onSeekProgress: (val) {
-                          setState(() => _currentProgress = val);
-                          if (_isEpubMode) {
-                            try {
-                              if (_epubTocItems.isNotEmpty) {
-                                final idx = (val * (_epubTocItems.length - 1))
-                                    .round()
-                                    .clamp(0, _epubTocItems.length - 1);
-                                final href = _epubTocItems[idx].href;
-                                if (href != null) {
-                                  _epubController.display(cfi: href);
-                                }
+                Positioned.fill(
+                  child: IgnorePointer(
+                    ignoring: !_barsVisible,
+                    child: ReaderBottomBar(
+                      isVisible: _barsVisible,
+                      isEpub: _isEpubMode,
+                      progress: _currentProgress,
+                      currentPage: _currentPage,
+                      totalPages: _totalPages,
+                      chapterTitle: _currentChapter?.title ?? widget.book.title,
+                      hasPrevChapter: hasPrevChapter,
+                      hasNextChapter: hasNextChapter,
+                      onToggleToc: _openTocSheet,
+                      onSeekProgress: (val) {
+                        setState(() => _currentProgress = val);
+                        if (_isEpubMode) {
+                          try {
+                            if (_epubTocItems.isNotEmpty) {
+                              final idx = (val * (_epubTocItems.length - 1))
+                                  .round()
+                                  .clamp(0, _epubTocItems.length - 1);
+                              final href = _epubTocItems[idx].href;
+                              if (href != null) {
+                                _epubController.display(cfi: href);
                               }
-                            } catch (_) {}
-                          } else {
-                            if (_scrollController.hasClients) {
-                              final max =
-                                  _scrollController.position.maxScrollExtent;
-                              _scrollController.jumpTo(val * max);
                             }
+                          } catch (_) {}
+                        } else {
+                          if (_scrollController.hasClients) {
+                            final max =
+                                _scrollController.position.maxScrollExtent;
+                            _scrollController.jumpTo(val * max);
                           }
-                        },
-                        onToggleFlowMode: () {
-                          setState(() {
-                            _isScrolledFlow = !_isScrolledFlow;
-                          });
-                        },
-                        onToggleTheme: _cycleTheme,
-                        onOpenTypography: () =>
-                            showReaderAppearanceSheet(context),
-                        onOpenAi: _openAiPanel,
-                        onOpenTranslate: () => showDictionaryLookupSheet(
-                          context,
-                          initialQuery: '',
-                        ),
-                        onStartListening: () => _openPlayer(
-                          chapter: _currentChapter,
-                          autoplay: true,
-                        ),
-                        onPrevChapter: hasPrevChapter
-                            ? _goToPreviousChapter
-                            : null,
-                        onNextChapter: hasNextChapter ? _goToNextChapter : null,
-                      ),
+                        }
+                      },
+                      onToggleTheme: _cycleTheme,
+                      onOpenAi: _openAiPanel,
+                      onOpenTranslate: () =>
+                          showDictionaryLookupSheet(context, initialQuery: ''),
+                      onStartListening: () =>
+                          _openPlayer(chapter: _currentChapter, autoplay: true),
+                      onPrevChapter: hasPrevChapter
+                          ? _goToPreviousChapter
+                          : null,
+                      onNextChapter: hasNextChapter ? _goToNextChapter : null,
                     ),
                   ),
+                ),
               ],
             ),
     );

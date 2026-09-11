@@ -93,4 +93,55 @@ void main() {
     expect(d.getInt16(44 + 9 * 2, Endian.little), 10000);
     expect(d.getInt16(44 + 20 * 2, Endian.little), 10000);
   });
+
+  Uint8List makeStreamingWav(
+    int actualPcmBytes, {
+    int placeholderSize = 4294967040,
+  }) {
+    final wav = makeWav(actualPcmBytes);
+    final d = ByteData.sublistView(wav);
+    d.setUint32(40, placeholderSize, Endian.little);
+    return wav;
+  }
+
+  test('concatWavPcm merges streaming WAVs with placeholder size (0xFFFFFF00)', () {
+    // Fish Audio streaming data size: 4294967040 (0xFFFFFF00)
+    final wav1 = makeStreamingWav(4800, placeholderSize: 4294967040);
+    final wav2 = makeStreamingWav(3600, placeholderSize: 4294967040);
+    final merged = GenerationOrchestrator.concatWavPcm([wav1, wav2]);
+
+    expect(String.fromCharCodes(merged.sublist(0, 4)), 'RIFF');
+    expect(String.fromCharCodes(merged.sublist(8, 12)), 'WAVE');
+    expect(String.fromCharCodes(merged.sublist(36, 40)), 'data');
+
+    final d = ByteData.sublistView(merged);
+    final riffSize = d.getUint32(4, Endian.little);
+    final dataSize = d.getUint32(40, Endian.little);
+
+    expect(dataSize, 4800 + 3600);
+    expect(riffSize, 36 + 4800 + 3600);
+    expect(merged.length, 44 + 4800 + 3600);
+  });
+
+  test('concatWavPcm normalizes single streaming WAV with placeholder size', () {
+    final wav = makeStreamingWav(2000, placeholderSize: 4294967040);
+    final result = GenerationOrchestrator.concatWavPcm([wav]);
+
+    final d = ByteData.sublistView(result);
+    expect(d.getUint32(40, Endian.little), 2000);
+    expect(d.getUint32(4, Endian.little), 36 + 2000);
+    expect(result.length, 44 + 2000);
+  });
+
+  test('applyWavFadeIn handles streaming WAV with placeholder size', () {
+    final wav = makeConstantWav(frames: 100, sampleRate: 1000, sample: 10000);
+    ByteData.sublistView(wav).setUint32(40, 4294967040, Endian.little);
+
+    final faded = GenerationOrchestrator.applyWavFadeIn(wav, fadeInMs: 10);
+    final d = ByteData.sublistView(faded);
+
+    expect(d.getInt16(44, Endian.little), 0);
+    expect(d.getInt16(44 + 9 * 2, Endian.little), 10000);
+    expect(d.getInt16(44 + 20 * 2, Endian.little), 10000);
+  });
 }

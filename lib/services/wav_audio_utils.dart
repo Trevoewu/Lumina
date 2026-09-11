@@ -44,3 +44,56 @@ int wavDurationMs(Uint8List headerBytes, {int? totalBytes}) {
   }
   return 0;
 }
+
+/// Sanitizes a WAV header by ensuring `RIFF` and `data` chunk sizes correctly
+/// reflect the actual payload bytes in memory.
+///
+/// Streaming encoders (e.g. Fish Audio) often write placeholder values like
+/// `0xFFFFFF00` (4294967040) or `0xFFFFFFFF` into the `data` chunk size because
+/// total length is unknown at stream start. This function corrects those sizes
+/// so downstream processors and audio players handle the WAV properly.
+Uint8List sanitizeWavHeader(Uint8List wav) {
+  if (wav.length < 44) return wav;
+  if (String.fromCharCodes(wav.sublist(0, 4)) != 'RIFF' ||
+      String.fromCharCodes(wav.sublist(8, 12)) != 'WAVE') {
+    return wav;
+  }
+
+  final data = ByteData.sublistView(wav);
+  var offset = 12;
+  int? dataChunkOffset;
+  int? dataChunkSize;
+
+  while (offset + 8 <= wav.length) {
+    final chunkId = String.fromCharCodes(wav.sublist(offset, offset + 4));
+    final chunkSize = data.getUint32(offset + 4, Endian.little);
+    if (chunkId == 'data') {
+      dataChunkOffset = offset;
+      dataChunkSize = chunkSize;
+      break;
+    }
+    offset += 8 + chunkSize + (chunkSize.isOdd ? 1 : 0);
+  }
+
+  if (dataChunkOffset == null || dataChunkSize == null) return wav;
+
+  final pcmStart = dataChunkOffset + 8;
+  final availableBytes = (wav.length - pcmStart).clamp(0, wav.length);
+
+  final riffSize = data.getUint32(4, Endian.little);
+  final isDataSizeValid =
+      dataChunkSize > 0 && pcmStart + dataChunkSize <= wav.length;
+  final isRiffSizeValid = riffSize > 0 &&
+      riffSize <= wav.length - 8 &&
+      riffSize >= dataChunkOffset + dataChunkSize;
+
+  if (isDataSizeValid && isRiffSizeValid) {
+    return wav;
+  }
+
+  final fixed = Uint8List.fromList(wav);
+  final fixedData = ByteData.sublistView(fixed);
+  fixedData.setUint32(dataChunkOffset + 4, availableBytes, Endian.little);
+  fixedData.setUint32(4, dataChunkOffset + availableBytes, Endian.little);
+  return fixed;
+}

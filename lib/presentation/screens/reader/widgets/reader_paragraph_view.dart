@@ -29,11 +29,14 @@ class ReaderParagraphView extends ConsumerWidget {
     final fontFamilyFallback = appearance.fontOption.fontFamilyFallback;
 
     final fontSize = 17.5 * fontScale;
-    final lineHeight = 1.72;
+    final lineHeight = appearance.readerLineHeight;
     final paragraphSpacing = 16.0 * fontScale;
 
-    final contentText = paragraph.content.trim();
-    if (contentText.isEmpty) return const SizedBox.shrink();
+    final rawText = paragraph.content.trim();
+    final contentText = appearance.readerIndent > 0
+        ? '\u2003\u2003$rawText'
+        : rawText;
+    if (rawText.isEmpty) return const SizedBox.shrink();
 
     return Padding(
       padding: EdgeInsets.only(bottom: paragraphSpacing),

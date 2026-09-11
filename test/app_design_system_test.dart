@@ -59,11 +59,13 @@ void main() {
     expect(appearanceFontOptions.map((option) => option.fontFamily), [
       null,
       'Georgia',
+      'Athelas',
       'Menlo',
     ]);
     expect(appearanceFontOptions.map((option) => option.fontFamilyFallback), [
       null,
       ['Literata'],
+      ['Georgia', 'Literata'],
       ['JetBrainsMono'],
     ]);
   });

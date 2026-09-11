@@ -37,6 +37,7 @@ migrate_working_dir/
 .agents/
 skills-lock.json
 tmp_test_assets/
+test/failures/
 
 # Symbolication related
 app.*.symbols
