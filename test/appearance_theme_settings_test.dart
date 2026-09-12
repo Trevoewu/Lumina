@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:drift/native.dart';
+import 'package:lumina/data/database/app_database.dart';
 import 'package:lumina/core/appearance.dart';
 import 'package:lumina/core/app_preferences.dart';
 import 'package:lumina/core/providers.dart';
@@ -250,5 +252,80 @@ void main() {
         AppThemePreference.light,
       );
     });
+
+    testWidgets(
+      'circular info buttons display explanations in dialogs and switch toggles scrolling',
+      (tester) async {
+        tester.view.physicalSize = const Size(430, 2400);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final database = AppDatabase.forTesting(NativeDatabase.memory());
+        addTearDown(database.close);
+
+        final container = ProviderContainer(
+          overrides: [
+            appDatabaseProvider.overrideWithValue(database),
+            appIconGatewayProvider.overrideWithValue(_FakeAppIconGateway()),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: const MaterialApp(
+              home: AppearanceScreen(),
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 700));
+        await tester.pumpAndSettle();
+
+        // 1. Scroll until subtitle scrolling switch is visible and toggles
+        final switchFinder = find.byKey(
+          const ValueKey('subtitle-scrolling-switch'),
+        );
+        await tester.drag(find.byType(ListView), const Offset(0, -600));
+        await tester.pumpAndSettle();
+        expect(switchFinder, findsOneWidget);
+        expect(
+          container.read(appearanceControllerProvider).subtitleScrolling,
+          isTrue,
+        );
+        await tester.tap(switchFinder);
+        await tester.pumpAndSettle();
+        expect(
+          container.read(appearanceControllerProvider).subtitleScrolling,
+          isFalse,
+        );
+
+        // 2. Verify subtitle spacing slider and text size slider are present
+        expect(
+          find.byKey(const ValueKey('subtitle-spacing-slider')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('appearance-font-slider')),
+          findsOneWidget,
+        );
+
+        // 3. Verify no circular info buttons exist
+        expect(
+          find.byKey(const ValueKey('info-button-subtitle-scrolling')),
+          findsNothing,
+        );
+        expect(
+          find.byKey(const ValueKey('info-button-subtitle-spacing')),
+          findsNothing,
+        );
+        expect(
+          find.byKey(const ValueKey('info-button-font-size')),
+          findsNothing,
+        );
+      },
+    );
   });
 }

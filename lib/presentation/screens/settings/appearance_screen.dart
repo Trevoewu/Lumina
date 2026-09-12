@@ -96,158 +96,187 @@ class AppearanceScreen extends ConsumerWidget {
             title: context.tr('排版与正文', 'Typography & Reading', '本文のフォントと文字'),
           ),
           SettingsCard(
-            padding: const EdgeInsets.all(18),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _BlockHeader(
-                  title: context.tr('正文字体', 'Reading Font', '本文フォント'),
-                ),
-                const SizedBox(height: 12),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      for (
-                        var i = 0;
-                        i < appearanceFontOptions.length;
-                        i++
-                      ) ...[
-                        if (i > 0) const SizedBox(width: 8),
-                        _FontChoice(
-                          option: appearanceFontOptions[i],
-                          selected:
-                              appearance.fontId == appearanceFontOptions[i].id,
-                          onTap: () =>
-                              controller.setFont(appearanceFontOptions[i].id),
+                      _BlockHeader(
+                        title: context.tr('正文字体', 'Reading Font', '本文フォント'),
+                      ),
+                      const SizedBox(height: 12),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            for (
+                              var i = 0;
+                              i < appearanceFontOptions.length;
+                              i++
+                            ) ...[
+                              if (i > 0) const SizedBox(width: 8),
+                              _FontChoice(
+                                option: appearanceFontOptions[i],
+                                selected:
+                                    appearance.fontId ==
+                                    appearanceFontOptions[i].id,
+                                onTap: () => controller.setFont(
+                                  appearanceFontOptions[i].id,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
-                      ],
+                      ),
                     ],
                   ),
                 ),
-
-                _BlockDivider(
-                  title: context.tr('字幕滚动', 'Subtitle scrolling', '字幕スクロール'),
+                Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: scheme.onSurface.withValues(alpha: 0.06),
                 ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        context.tr(
-                          '关闭后只显示当前行',
-                          'Show only the current line when off',
-                          'オフにすると現在の行のみ表示',
-                        ),
-                      ),
-                    ),
-                    CupertinoSwitch(
+                _SettingActionRow(
+                  title: context.tr('字幕滚动', 'Subtitle scrolling', '字幕スクロール'),
+                  trailing: Transform.scale(
+                    scale: 0.8,
+                    alignment: Alignment.centerRight,
+                    child: CupertinoSwitch(
                       key: const ValueKey('subtitle-scrolling-switch'),
                       value: appearance.subtitleScrolling,
                       activeTrackColor: const Color(0xFF8AB449),
                       onChanged: controller.setSubtitleScrolling,
                     ),
-                  ],
-                ),
-                _BlockDivider(
-                  title: context.tr('字幕句间距', 'Subtitle spacing', '字幕の間隔'),
-                ),
-                ReadingAdjustmentSlider(
-                  sliderKey: const ValueKey('subtitle-spacing-slider'),
-                  label: context.tr('字幕句间距', 'Subtitle spacing', '字幕の間隔'),
-                  thumb: '${appearance.subtitleGap.round()}',
-                  leading: context.tr('紧', 'T', '狭'),
-                  trailing: context.tr('松', 'L', '広'),
-                  min: 20,
-                  max: 80,
-                  divisions: 12,
-                  value: appearance.subtitleGap,
-                  onChanged: controller.setSubtitleGap,
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  context.tr(
-                    '增大间距可减少同屏字幕；当前句保持相同字号。',
-                    'More spacing shows fewer subtitles; the current sentence keeps the same text size.',
-                    '間隔を広げると表示される字幕が減ります。現在の文も同じ文字サイズです。',
                   ),
-                  style: Theme.of(context).textTheme.bodySmall,
                 ),
-                _BlockDivider(title: context.tr('字号', 'Text Size', '文字サイズ')),
-                const SizedBox(height: 8),
-                ReadingAdjustmentSlider(
-                  sliderKey: const ValueKey('appearance-font-slider'),
-                  label: context.tr('字号', 'Text Size', '文字サイズ'),
-                  thumb: '${(24 * appearance.fontScale).round()}',
-                  leading: 'A',
-                  trailing: 'A',
-                  fontEnds: true,
-                  min: 16 / 24,
-                  max: 40 / 24,
-                  divisions: 24,
-                  value: appearance.fontScale.clamp(16 / 24, 40 / 24),
-                  onChanged: controller.setFontScale,
+                Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: scheme.onSurface.withValues(alpha: 0.06),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  context.tr(
-                    '字体与字号用于阅读正文和播放器字幕；句间距仅用于字幕。',
-                    'Font and size apply to reading and subtitles; spacing applies only to subtitles.',
-                    'フォントとサイズは本文と字幕に、間隔は字幕に適用されます。',
+                _SettingActionRow(
+                  title: context.tr('字幕间距', 'Subtitle spacing', '字幕の間隔'),
+                  trailing: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final width = constraints.maxWidth.clamp(140.0, 190.0);
+                      return SizedBox(
+                        width: width,
+                        child: ReadingAdjustmentSlider(
+                          sliderKey: const ValueKey('subtitle-spacing-slider'),
+                          label: context.tr(
+                            '字幕间距',
+                            'Subtitle spacing',
+                            '字幕の間隔',
+                          ),
+                          thumb: '${appearance.subtitleGap.round()}',
+                          leading: context.tr('紧', 'T', '狭'),
+                          trailing: context.tr('松', 'L', '広'),
+                          min: 20,
+                          max: 80,
+                          divisions: 12,
+                          value: appearance.subtitleGap,
+                          onChanged: controller.setSubtitleGap,
+                        ),
+                      );
+                    },
                   ),
-                  style: Theme.of(context).textTheme.bodySmall,
                 ),
-                const SizedBox(height: 16),
-                _BlockHeader(
-                  title: context.tr('字幕预览', 'Subtitle preview', '字幕プレビュー'),
-                  value: appearance.subtitleScrolling
-                      ? context.tr('可滚动', 'Scroll to preview', 'スクロール可')
-                      : context.tr('当前行', 'Current line', '現在の行'),
+                Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: scheme.onSurface.withValues(alpha: 0.06),
                 ),
-                const SizedBox(height: 8),
-                Container(
-                  height: 280,
-                  clipBehavior: Clip.hardEdge,
-                  decoration: BoxDecoration(
-                    color: scheme.onSurface.withValues(alpha: 0.04),
-                    borderRadius: BorderRadius.circular(14),
+                _SettingActionRow(
+                  title: context.tr('字号', 'Text Size', '文字サイズ'),
+                  trailing: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final width = constraints.maxWidth.clamp(140.0, 190.0);
+                      return SizedBox(
+                        width: width,
+                        child: ReadingAdjustmentSlider(
+                          sliderKey: const ValueKey('appearance-font-slider'),
+                          label: context.tr('字号', 'Text Size', '文字サイズ'),
+                          thumb: '${(24 * appearance.fontScale).round()}',
+                          leading: 'A',
+                          trailing: 'A',
+                          fontEnds: true,
+                          min: 16 / 24,
+                          max: 40 / 24,
+                          divisions: 24,
+                          value: appearance.fontScale.clamp(16 / 24, 40 / 24),
+                          onChanged: controller.setFontScale,
+                        ),
+                      );
+                    },
                   ),
-                  child: SingleChildScrollView(
-                    key: const ValueKey('subtitle-preview'),
-                    primary: false,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        for (final (index, sentence) in const [
-                          'Every story begins with a single word.',
-                          '每一个故事，都从一个词开始。',
-                          'Take your time and listen to the next sentence.',
-                          '放慢脚步，听见文字里的世界。',
-                        ].indexed)
-                          if (appearance.subtitleScrolling || index == 1)
-                            SubtitleLine(
-                              gap: appearance.subtitleGap,
-                              child: Text(
-                                sentence,
-                                style:
-                                    subtitleTextStyle(
-                                      context,
-                                      color: scheme.onSurface.withValues(
-                                        alpha: index == 1 ? 1 : 0.46,
-                                      ),
-                                      fontScale: appearance.fontScale,
-                                      focusMode: true,
-                                    ).copyWith(
-                                      fontFamily:
-                                          appearance.fontOption.fontFamily,
-                                      fontFamilyFallback: appearance
-                                          .fontOption
-                                          .fontFamilyFallback,
+                ),
+                Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: scheme.onSurface.withValues(alpha: 0.06),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _BlockHeader(
+                        title: context.tr('字幕预览', 'Subtitle preview', '字幕プレビュー'),
+                        value: appearance.subtitleScrolling
+                            ? context.tr('可滚动', 'Scroll to preview', 'スクロール可')
+                            : context.tr('当前行', 'Current line', '現在の行'),
+                      ),
+                      const SizedBox(height: 10),
+                      Container(
+                        height: 280,
+                        clipBehavior: Clip.hardEdge,
+                        decoration: BoxDecoration(
+                          color: scheme.onSurface.withValues(alpha: 0.04),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: SingleChildScrollView(
+                          key: const ValueKey('subtitle-preview'),
+                          primary: false,
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              for (final (index, sentence) in const [
+                                'Every story begins with a single word.',
+                                '每一个故事，都从一个词开始。',
+                                'Take your time and listen to the next sentence.',
+                                '放慢脚步，听见文字里的世界。',
+                              ].indexed)
+                                if (appearance.subtitleScrolling || index == 1)
+                                  SubtitleLine(
+                                    gap: appearance.subtitleGap,
+                                    child: Text(
+                                      sentence,
+                                      style:
+                                          subtitleTextStyle(
+                                            context,
+                                            color: scheme.onSurface.withValues(
+                                              alpha: index == 1 ? 1 : 0.46,
+                                            ),
+                                            fontScale: appearance.fontScale,
+                                            focusMode: true,
+                                          ).copyWith(
+                                            fontFamily:
+                                                appearance.fontOption.fontFamily,
+                                            fontFamilyFallback: appearance
+                                                .fontOption
+                                                .fontFamilyFallback,
+                                          ),
                                     ),
-                              ),
-                            ),
-                      ],
-                    ),
+                                  ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -301,28 +330,41 @@ class _BlockHeader extends StatelessWidget {
   }
 }
 
-/// A [_BlockHeader] preceded by the hairline that separates two blocks inside
-/// the same card.
-class _BlockDivider extends StatelessWidget {
+class _SettingActionRow extends StatelessWidget {
   final String title;
+  final Widget trailing;
 
-  const _BlockDivider({required this.title});
+  const _SettingActionRow({
+    super.key,
+    required this.title,
+    required this.trailing,
+  });
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const SizedBox(height: 20),
-        Divider(
-          height: 1,
-          thickness: 1,
-          color: scheme.onSurface.withValues(alpha: 0.06),
-        ),
-        const SizedBox(height: 18),
-        _BlockHeader(title: title),
-      ],
+    return Container(
+      constraints: const BoxConstraints(minHeight: 56),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+      child: Row(
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.normal,
+              color: scheme.onSurface,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: trailing,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
