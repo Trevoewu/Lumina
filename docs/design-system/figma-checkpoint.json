@@ -1,0 +1,101 @@
+{
+  "fileKey": "bausX4pT314EryWBUNoUMT",
+  "platform": "iOS/macOS",
+  "status": "blocked by Figma Starter MCP call limit",
+  "phase": "foundations",
+  "collections": {
+    "Lumina Primitives": "VariableCollectionId:2:2",
+    "Lumina Light": "VariableCollectionId:2:3",
+    "Lumina Dark": "VariableCollectionId:2:4",
+    "Lumina Layout": "VariableCollectionId:2:5"
+  },
+  "createdVariables": [
+    {
+      "name": "paper",
+      "id": "VariableID:2:6"
+    },
+    {
+      "name": "ink",
+      "id": "VariableID:2:7"
+    },
+    {
+      "name": "white",
+      "id": "VariableID:2:8"
+    },
+    {
+      "name": "black",
+      "id": "VariableID:2:9"
+    },
+    {
+      "name": "accent",
+      "id": "VariableID:2:10"
+    },
+    {
+      "name": "error",
+      "id": "VariableID:2:11"
+    },
+    {
+      "name": "lightDivider",
+      "id": "VariableID:2:12"
+    },
+    {
+      "name": "darkDivider",
+      "id": "VariableID:2:13"
+    },
+    {
+      "name": "lightSecondary",
+      "id": "VariableID:2:14"
+    }
+  ],
+  "pendingPrimitiveValues": {
+    "darkSecondary": {
+      "r": 0.6798039215686275,
+      "g": 0.6758823529411765,
+      "b": 0.6643137254901961
+    },
+    "lightRaised": {
+      "r": 0.9215686274509803,
+      "g": 0.9178823529411764,
+      "b": 0.9031372549019607
+    },
+    "darkSurface": {
+      "r": 0.19184313725490199,
+      "g": 0.18823529411764706,
+      "b": 0.18462745098039215
+    },
+    "darkRaised": {
+      "r": 0.24454901960784314,
+      "g": 0.2411764705882353,
+      "b": 0.23780392156862745
+    },
+    "lightAccentContainer": {
+      "r": 0.9157647058823529,
+      "g": 0.9319215686274509,
+      "b": 0.8629019607843137
+    },
+    "darkAccentContainer": {
+      "r": 0.19435294117647056,
+      "g": 0.21050980392156862,
+      "b": 0.15137254901960784
+    },
+    "lyricsBackground": {
+      "r": 0.050980392156862744,
+      "g": 0.08235294117647059,
+      "b": 0.06666666666666667
+    },
+    "lyricsSecondary": {
+      "r": 0.5411764705882353,
+      "g": 0.5803921568627451,
+      "b": 0.5607843137254902
+    }
+  },
+  "pending": [
+    "semantic aliases",
+    "layout variables",
+    "SF Pro text styles",
+    "documentation",
+    "components",
+    "visual QA"
+  ],
+  "pageId": "0:1"
+}

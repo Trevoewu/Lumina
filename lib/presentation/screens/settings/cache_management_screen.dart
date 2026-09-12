@@ -9,6 +9,8 @@ import '../../../data/database/app_database.dart' as drift_db;
 import '../../../services/app_log_service.dart';
 import '../../../services/cache_manager.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
+import '../../widgets/book_cover.dart';
+import '../../widgets/disk_cached_network_image.dart';
 import '../../widgets/design_system/settings_components.dart';
 
 /// Cache management: a usage summary, then grouped rows that can be ticked and
@@ -348,6 +350,7 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
           meta: book.author ?? '',
           bytes: usage.bytes,
           art: _swatch(book.id),
+          coverPath: book.coverPath,
           clear: (c) => c.clearBook(book.id),
           loadChildren: () async {
             final rows = <_CacheEntry>[];
@@ -365,6 +368,7 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                   meta: '',
                   bytes: chapterUsage.bytes,
                   art: _swatch(chapter.id),
+                  coverPath: book.coverPath,
                   clear: (c) => c.clearChapter(book.id, chapter.id),
                 ),
               );
@@ -398,6 +402,7 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
           meta: episodeMeta(kept.length, transcripts),
           bytes: bytes,
           art: _swatch(show.id),
+          imageUrl: show.imageUrl,
           clear: (c) => c.clearPodcastShowData(show.id),
           loadChildren: () async {
             final rows = <_CacheEntry>[];
@@ -411,6 +416,9 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                   meta: '',
                   bytes: usage.bytes,
                   art: _swatch(episode.id),
+                  imageUrl: episode.imageUrl?.trim().isNotEmpty == true
+                      ? episode.imageUrl
+                      : show.imageUrl,
                   clear: (c) => c.clearPodcastEpisodeData(episode.id),
                 ),
               );
@@ -437,6 +445,7 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
           meta: active ? inUseLabel : '',
           bytes: info.installedBytes,
           art: _swatch(info.option.id),
+          placeholderIcon: AppIcons.mic01,
           clear: (_) => asr.deleteModel(model: info.model),
         ),
       );
@@ -472,8 +481,7 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
     );
   }
 
-  /// Stable stand-in artwork colour, so rows stay visually distinguishable
-  /// without loading cover images.
+  /// Stable fallback colour for entries without available artwork.
   static Color _swatch(String seed) {
     const palette = [
       Color(0xFF3A4436),
@@ -517,6 +525,9 @@ class _CacheEntry {
   final String meta;
   final int bytes;
   final Color art;
+  final String? coverPath;
+  final String? imageUrl;
+  final AppIconData placeholderIcon;
   final Future<void> Function(CacheManager cache) clear;
   final Future<List<_CacheEntry>> Function()? loadChildren;
 
@@ -527,6 +538,9 @@ class _CacheEntry {
     required this.meta,
     required this.bytes,
     required this.art,
+    this.coverPath,
+    this.imageUrl,
+    this.placeholderIcon = AppIcons.album01,
     required this.clear,
     this.loadChildren,
   });
@@ -709,6 +723,13 @@ class _EntryRow extends StatelessWidget {
     required this.onExpand,
   });
 
+  Widget _artPlaceholder() => ColoredBox(
+    color: entry.art,
+    child: Center(
+      child: AppIcon(entry.placeholderIcon, size: 20, color: Colors.white),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -725,12 +746,22 @@ class _EntryRow extends StatelessWidget {
             children: [
               _Checkbox(selected: selected),
               const SizedBox(width: 12),
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: entry.art,
+              SizedBox.square(
+                dimension: 36,
+                child: ClipRRect(
                   borderRadius: BorderRadius.circular(10),
+                  child: entry.coverPath?.trim().isNotEmpty == true
+                      ? BookCover(
+                          coverPath: entry.coverPath,
+                          iconSize: 20,
+                          borderRadius: 10,
+                        )
+                      : entry.imageUrl?.trim().isNotEmpty == true
+                      ? DiskCachedNetworkImage(
+                          url: entry.imageUrl!.trim(),
+                          placeholder: _artPlaceholder(),
+                        )
+                      : _artPlaceholder(),
                 ),
               ),
               const SizedBox(width: 12),

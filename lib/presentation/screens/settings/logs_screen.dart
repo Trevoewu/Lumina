@@ -1,3 +1,4 @@
+import '../../widgets/design_system/app_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -19,6 +20,16 @@ class LogsScreen extends StatefulWidget {
 class _LogsScreenState extends State<LogsScreen> {
   /// Null means "All"; `sys` entries only surface there, as in the spec.
   AppLogCategory? _filter;
+  final Set<AppLogEntry> _selected = {};
+
+  void _setFilter(AppLogCategory? filter) => setState(() {
+    _filter = filter;
+    _selected.clear();
+  });
+
+  void _toggle(AppLogEntry entry) => setState(() {
+    if (!_selected.add(entry)) _selected.remove(entry);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -35,6 +46,7 @@ class _LogsScreenState extends State<LogsScreen> {
           final visible = _filter == null
               ? entries
               : entries.where((e) => e.category == _filter).toList();
+          final selected = visible.where(_selected.contains).toList();
           return ListView(
             padding: EdgeInsets.fromLTRB(inset, design.spaceSm, inset, 120),
             children: [
@@ -44,7 +56,7 @@ class _LogsScreenState extends State<LogsScreen> {
                     label: context.tr('全部', 'All', 'すべて'),
                     selected: _filter == null,
                     expand: true,
-                    onTap: () => setState(() => _filter = null),
+                    onTap: () => _setFilter(null),
                   ),
                   for (final category in const [
                     AppLogCategory.asr,
@@ -56,22 +68,68 @@ class _LogsScreenState extends State<LogsScreen> {
                       label: category.label,
                       selected: _filter == category,
                       expand: true,
-                      onTap: () => setState(() => _filter = category),
+                      onTap: () => _setFilter(category),
                     ),
                   ],
                 ],
               ),
               const SizedBox(height: 16),
-              _Console(entries: visible),
+              if (visible.isNotEmpty)
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        context.tr(
+                          '已选 ${selected.length} 条',
+                          '${selected.length} selected',
+                          '${selected.length} 件選択中',
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => setState(() {
+                        if (selected.length == visible.length) {
+                          _selected.clear();
+                        } else {
+                          _selected.addAll(visible);
+                        }
+                      }),
+                      child: Text(
+                        selected.length == visible.length
+                            ? context.tr('取消全选', 'Deselect all', 'すべて解除')
+                            : context.tr('全选', 'Select all', 'すべて選択'),
+                      ),
+                    ),
+                  ],
+                ),
+              _Console(
+                entries: visible,
+                selected: _selected,
+                onToggle: _toggle,
+                onExport: (entry) => _export([entry]),
+              ),
               const SizedBox(height: 16),
               Row(
                 children: [
                   Expanded(
                     child: _FlatButton(
                       key: const ValueKey('export-logs'),
-                      label: context.tr('导出日志', 'Export logs', 'ログを書き出す'),
+                      label: selected.isEmpty
+                          ? context.tr(
+                              '导出当前日志',
+                              'Export visible logs',
+                              '表示中のログを書き出す',
+                            )
+                          : context.tr(
+                              '导出所选（${selected.length}）',
+                              'Export selected (${selected.length})',
+                              '選択分を書き出す（${selected.length}）',
+                            ),
                       emphasised: true,
-                      onTap: entries.isEmpty ? null : _export,
+                      onTap: visible.isEmpty
+                          ? null
+                          : () =>
+                                _export(selected.isEmpty ? visible : selected),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -103,18 +161,18 @@ class _LogsScreenState extends State<LogsScreen> {
     );
   }
 
-  Future<void> _export() async {
+  Future<void> _export(List<AppLogEntry> entries) async {
     await Clipboard.setData(
-      ClipboardData(text: AppLogService.instance.exportText()),
+      ClipboardData(text: entries.map((entry) => entry.formatted).join('\n\n')),
     );
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           context.tr(
-            '日志已复制到剪贴板',
-            'Logs copied to the clipboard',
-            'ログをクリップボードにコピーしました',
+            '已复制 ${entries.length} 条日志到剪贴板',
+            'Copied ${entries.length} logs to the clipboard',
+            '${entries.length} 件のログをクリップボードにコピーしました',
           ),
         ),
       ),
@@ -152,13 +210,23 @@ class _LogsScreenState extends State<LogsScreen> {
     );
     if (confirmed != true) return;
     await AppLogService.instance.clear();
+    if (mounted) setState(_selected.clear);
   }
 }
 
 class _Console extends StatelessWidget {
   final List<AppLogEntry> entries;
 
-  const _Console({required this.entries});
+  final Set<AppLogEntry> selected;
+  final ValueChanged<AppLogEntry> onToggle;
+  final ValueChanged<AppLogEntry> onExport;
+
+  const _Console({
+    required this.entries,
+    required this.selected,
+    required this.onToggle,
+    required this.onExport,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -175,7 +243,32 @@ class _Console extends StatelessWidget {
         children: [
           for (var i = 0; i < entries.length; i++) ...[
             if (i > 0) const SizedBox(height: 11),
-            _ConsoleLine(entry: entries[i]),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Checkbox(
+                  value: selected.contains(entries[i]),
+                  side: const BorderSide(color: Color(0x99FFFFFF)),
+                  onChanged: (_) => onToggle(entries[i]),
+                  semanticLabel: context.tr('选择日志', 'Select log', 'ログを選択'),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: _ConsoleLine(entry: entries[i]),
+                  ),
+                ),
+                IconButton(
+                  tooltip: context.tr('导出此条日志', 'Export this log', 'このログを書き出す'),
+                  onPressed: () => onExport(entries[i]),
+                  icon: const AppIcon(
+                    AppIcons.download01,
+                    size: 18,
+                    color: Color(0xB3FFFFFF),
+                  ),
+                ),
+              ],
+            ),
           ],
           if (entries.isEmpty)
             Text(

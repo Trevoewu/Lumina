@@ -1,0 +1,242 @@
+{
+  "sources": [
+    "lib/core/app_design_tokens.dart",
+    "lib/core/app_text_styles.dart",
+    "lib/core/appearance.dart",
+    "lib/core/theme.dart"
+  ],
+  "layout": {
+    "spaceXs": 4.0,
+    "spaceSm": 8.0,
+    "spaceMd": 12.0,
+    "spaceLg": 16.0,
+    "spaceXl": 24.0,
+    "spaceXxl": 32.0,
+    "pageGutter": 16.0,
+    "compactPageGutter": 16.0,
+    "radiusSmall": 8.0,
+    "radiusMedium": 12.0,
+    "radiusLarge": 16.0,
+    "radiusPill": 999.0,
+    "minimumTouchTarget": 44.0,
+    "controlHeight": 52.0,
+    "toolbarHeight": 56.0,
+    "dividerThickness": 1.0
+  },
+  "typography": {
+    "headlineLarge": {
+      "fontSize": 34.0,
+      "height": 1.12,
+      "letterSpacing": -0.5,
+      "weight": 700,
+      "fontFamily": "SF Pro",
+      "renderedSizeAtDefaultScale": 28.9
+    },
+    "headlineMedium": {
+      "fontSize": 22.0,
+      "height": 1.25,
+      "letterSpacing": 0,
+      "weight": 400,
+      "fontFamily": "SF Pro",
+      "renderedSizeAtDefaultScale": 18.7
+    },
+    "headlineSmall": {
+      "fontSize": 18.0,
+      "height": 1.2,
+      "letterSpacing": 0,
+      "weight": 400,
+      "fontFamily": "SF Pro",
+      "renderedSizeAtDefaultScale": 15.3
+    },
+    "titleLarge": {
+      "fontSize": 22.0,
+      "height": 1.25,
+      "letterSpacing": 0,
+      "weight": 400,
+      "fontFamily": "SF Pro",
+      "renderedSizeAtDefaultScale": 18.7
+    },
+    "titleMedium": {
+      "fontSize": 16.0,
+      "height": 1.3,
+      "letterSpacing": 0,
+      "weight": 400,
+      "fontFamily": "SF Pro",
+      "renderedSizeAtDefaultScale": 13.6
+    },
+    "titleSmall": {
+      "fontSize": 14.0,
+      "height": 1.3,
+      "letterSpacing": 0,
+      "weight": 400,
+      "fontFamily": "SF Pro",
+      "renderedSizeAtDefaultScale": 11.9
+    },
+    "bodyLarge": {
+      "fontSize": 16.0,
+      "height": 1.5,
+      "letterSpacing": 0,
+      "weight": 400,
+      "fontFamily": "SF Pro",
+      "renderedSizeAtDefaultScale": 13.6
+    },
+    "bodyMedium": {
+      "fontSize": 14.0,
+      "height": 1.4,
+      "letterSpacing": 0,
+      "weight": 400,
+      "fontFamily": "SF Pro",
+      "renderedSizeAtDefaultScale": 11.9
+    },
+    "labelLarge": {
+      "fontSize": 14.0,
+      "height": 1.3,
+      "letterSpacing": 0,
+      "weight": 400,
+      "fontFamily": "SF Pro",
+      "renderedSizeAtDefaultScale": 11.9
+    },
+    "labelMedium": {
+      "fontSize": 12.0,
+      "height": 1.3,
+      "letterSpacing": 0,
+      "weight": 400,
+      "fontFamily": "SF Pro",
+      "renderedSizeAtDefaultScale": 10.2
+    },
+    "labelSmall": {
+      "fontSize": 11.0,
+      "height": 1.3,
+      "letterSpacing": 0,
+      "weight": 400,
+      "fontFamily": "SF Pro",
+      "renderedSizeAtDefaultScale": 9.35
+    },
+    "bodySmall": {
+      "fontSize": 12.0,
+      "height": 1.35,
+      "letterSpacing": 0,
+      "weight": 400,
+      "fontFamily": "SF Pro",
+      "renderedSizeAtDefaultScale": 10.2
+    }
+  },
+  "appTextScaleBaseline": 0.85,
+  "defaultPalettes": {
+    "light": {
+      "background": "#FAF9F5",
+      "foreground": "#1F1E1D",
+      "accent": "#93B259"
+    },
+    "dark": {
+      "background": "#1F1E1D",
+      "foreground": "#FAF9F5",
+      "accent": "#93B259"
+    }
+  },
+  "figma": {
+    "fileKey": "bausX4pT314EryWBUNoUMT",
+    "url": "https://www.figma.com/design/bausX4pT314EryWBUNoUMT"
+  },
+  "status": "Source extraction saved; Figma build blocked by Starter MCP call limit",
+  "platform": "iOS/macOS",
+  "components": {
+    "AppSearchField": {
+      "source": "lib/presentation/widgets/design_system/app_search_field.dart",
+      "height": {
+        "standard": 52,
+        "compact": 28
+      },
+      "radius": 26,
+      "paddingLeft": {
+        "standard": 18,
+        "compact": 10
+      },
+      "paddingRight": {
+        "standard": 7,
+        "compact": 3
+      },
+      "fontSize": {
+        "standard": 16,
+        "compact": 13
+      },
+      "submitSize": {
+        "standard": 38,
+        "compact": 22
+      },
+      "states": [
+        "empty",
+        "ready",
+        "loading",
+        "no submit handler"
+      ],
+      "shadow": {
+        "color": "#000000",
+        "alpha": 0.05,
+        "blurRadius": 10,
+        "offset": [
+          0,
+          2
+        ]
+      },
+      "transitionMs": 250
+    },
+    "AppSectionHeader": {
+      "source": "lib/presentation/widgets/design_system/app_section_header.dart",
+      "paddingTop": 24,
+      "paddingBottom": 8,
+      "textStyle": "titleMedium",
+      "optionalAction": true
+    },
+    "AppSurface": {
+      "source": "lib/presentation/widgets/design_system/app_surface.dart",
+      "levels": {
+        "standard": {
+          "color": "surfaceContainer",
+          "radius": 12,
+          "elevation": 0
+        },
+        "elevated": {
+          "color": "surfaceContainerHighest",
+          "radius": 12,
+          "elevation": 1
+        },
+        "immersive": {
+          "color": "surfaceContainerHigh",
+          "radius": 16,
+          "elevation": 0
+        }
+      },
+      "paddingDefault": 0,
+      "note": "surfaceContainerHigh is inherited from Flutter ColorScheme; resolve from installed SDK before export."
+    },
+    "PageControlTabs": {
+      "source": "lib/presentation/widgets/design_system/page_control_tabs.dart",
+      "height": 38,
+      "gap": 22,
+      "paddingLeft": "pageInset + 6",
+      "paddingRight": 4,
+      "fontSize": 16,
+      "selectedWeight": 800,
+      "unselectedWeight": 400,
+      "unselectedAlpha": 0.35,
+      "underlineHeight": 2,
+      "underlineGap": 4,
+      "textTransitionMs": 250,
+      "underlineTransitionMs": 300
+    },
+    "MacosPageToolbar": {
+      "source": "lib/presentation/widgets/design_system/macos_window_toolbar.dart",
+      "height": 38,
+      "leadingInset": "dynamic window-control clearance"
+    }
+  },
+  "documentationConflicts": [
+    "Code pageGutter is 16; docs say 24.",
+    "Code text weights mostly 400; older role table lists 700/600/500.",
+    "Code search radius is 26; docs list 12.",
+    "Code page tabs height is 38 and underline gap is 4; docs list 44 and 7.",
+    "Code macOS reserved toolbar height is 38; docs list 36.",
+    "Dark divider is #1C1C1C; docs describe a universal light divider."
+  ]
+}

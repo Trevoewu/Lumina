@@ -101,7 +101,6 @@ class AppearanceScreen extends ConsumerWidget {
               children: [
                 _BlockHeader(
                   title: context.tr('正文字体', 'Reading Font', '本文フォント'),
-                  value: appearance.fontOption.label,
                 ),
                 const SizedBox(height: 12),
                 SingleChildScrollView(
@@ -128,7 +127,6 @@ class AppearanceScreen extends ConsumerWidget {
 
                 _BlockDivider(
                   title: context.tr('字幕句间距', 'Subtitle spacing', '字幕の間隔'),
-                  value: '${appearance.subtitleGap.round()} pt',
                 ),
                 ReadingAdjustmentSlider(
                   sliderKey: const ValueKey('subtitle-spacing-slider'),
@@ -153,7 +151,6 @@ class AppearanceScreen extends ConsumerWidget {
                 ),
                 _BlockDivider(
                   title: context.tr('字号', 'Text Size', '文字サイズ'),
-                  value: '${(24 * appearance.fontScale).round()} pt',
                 ),
                 const SizedBox(height: 8),
                 ReadingAdjustmentSlider(
@@ -243,12 +240,12 @@ class AppearanceScreen extends ConsumerWidget {
   }
 }
 
-/// Title on the left, current value in muted mono on the right.
+/// Section title with an optional supporting hint.
 class _BlockHeader extends StatelessWidget {
   final String title;
-  final String value;
+  final String? value;
 
-  const _BlockHeader({required this.title, required this.value});
+  const _BlockHeader({required this.title, this.value});
 
   @override
   Widget build(BuildContext context) {
@@ -265,14 +262,16 @@ class _BlockHeader extends StatelessWidget {
             ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
           ),
         ),
-        const SizedBox(width: 8),
-        Text(
-          value,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            fontFamily: 'monospace',
-            color: scheme.onSurfaceVariant,
+        if (value != null) ...[
+          const SizedBox(width: 8),
+          Text(
+            value!,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              fontFamily: 'monospace',
+              color: scheme.onSurfaceVariant,
+            ),
           ),
-        ),
+        ],
       ],
     );
   }
@@ -282,9 +281,8 @@ class _BlockHeader extends StatelessWidget {
 /// the same card.
 class _BlockDivider extends StatelessWidget {
   final String title;
-  final String value;
 
-  const _BlockDivider({required this.title, required this.value});
+  const _BlockDivider({required this.title});
 
   @override
   Widget build(BuildContext context) {
@@ -299,7 +297,7 @@ class _BlockDivider extends StatelessWidget {
           color: scheme.onSurface.withValues(alpha: 0.06),
         ),
         const SizedBox(height: 18),
-        _BlockHeader(title: title, value: value),
+        _BlockHeader(title: title),
       ],
     );
   }
