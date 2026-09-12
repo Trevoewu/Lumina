@@ -1217,6 +1217,22 @@ void main() {
   testWidgets('progress slider follows drag and seeks only on release', (
     tester,
   ) async {
+    final haptics = <Object?>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'HapticFeedback.vibrate') {
+          haptics.add(call.arguments);
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -1323,6 +1339,14 @@ void main() {
     slider.onChangeStart!(0);
     slider.onChanged!(0.6);
     await tester.pump();
+    expect(haptics, ['HapticFeedbackType.selectionClick']);
+    slider.onChanged!(0.61);
+    await tester.pump();
+    expect(
+      haptics.length,
+      1,
+      reason: 'Staying on the same subtitle does not vibrate again',
+    );
 
     slider = tester.widget<Slider>(sliderFinder);
     expect(slider.value, closeTo(0.6, 0.001));

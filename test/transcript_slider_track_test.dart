@@ -4,6 +4,28 @@ import 'package:lumina/domain/models/chapter_manifest.dart';
 import 'package:lumina/presentation/widgets/transcript_slider_track.dart';
 
 void main() {
+  test('two-hour subtitles keep visible gaps at narrow track widths', () {
+    // One subtitle every two seconds on a two-hour episode: 3600 marks
+    // previously overlapped when drawn as 1pt cuts on a 320pt track.
+    final ticks = [
+      for (var second = 0; second < 7200; second += 2) second / 7200,
+    ];
+    final original = List<double>.of(ticks);
+    for (final width in [240.0, 320.0, 768.0]) {
+      final visible = visibleSubtitleTicks(ticks, width);
+      expect(visible.length, greaterThan(20));
+      expect(visible.length, lessThanOrEqualTo((width / 4).ceil() + 1));
+      for (var i = 1; i < visible.length; i++) {
+        expect((visible[i] - visible[i - 1]) * width, greaterThanOrEqualTo(4));
+      }
+    }
+    expect(ticks, original, reason: 'Every subtitle must remain seekable');
+  });
+
+  test('sparse subtitles retain their exact tick positions', () {
+    expect(visibleSubtitleTicks([0, 0.2, 0.5, 1], 320), [0, 0.2, 0.5, 1]);
+    expect(visibleSubtitleTicks([0, 0.5], 0), isEmpty);
+  });
   ChapterManifest manifest(List<SegmentEntry> segments) => ChapterManifest(
     chapterId: 'chapter',
     bookId: 'book',

@@ -34,6 +34,22 @@ List<({double start, double end})> transcriptCoverage(
   return merged;
 }
 
+/// Keep dense subtitle boundaries from painting over the entire track.
+/// This only reduces painted marks; the seek timeline retains every line.
+List<double> visibleSubtitleTicks(List<double> ticks, double width) {
+  if (width <= 0 || !width.isFinite) return const [];
+  const minimumSpacing = 4.0;
+  final sorted = ticks.where((t) => t.isFinite && t >= 0 && t <= 1).toList()
+    ..sort();
+  final visible = <double>[];
+  for (final tick in sorted) {
+    if (visible.isEmpty || (tick - visible.last) * width >= minimumSpacing) {
+      visible.add(tick);
+    }
+  }
+  return visible;
+}
+
 /// Subtitle coverage fills the track beneath the opaque playback progress.
 class TranscriptSliderTrack extends RoundedRectSliderTrackShape {
   final List<({double start, double end})> ranges;
@@ -129,7 +145,7 @@ class TranscriptSliderTrack extends RoundedRectSliderTrackShape {
     final tickPaint = Paint()
       ..color = tickColor ?? inactive
       ..strokeWidth = 1;
-    for (final tick in ticks) {
+    for (final tick in visibleSubtitleTicks(ticks, rect.width)) {
       final fraction = textDirection == TextDirection.ltr ? tick : 1 - tick;
       final x = rect.left + fraction * rect.width;
       canvas.drawLine(Offset(x, rect.top), Offset(x, rect.bottom), tickPaint);

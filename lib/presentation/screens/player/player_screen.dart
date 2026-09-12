@@ -228,23 +228,37 @@ class _SubtitleSkipGlyph extends StatelessWidget {
       dimension: 36,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          HugeIcon(
-            icon: forward
-                ? HugeIcons.strokeRoundedNext
-                : HugeIcons.strokeRoundedPrevious,
-            size: 24,
-            color: IconTheme.of(context).color,
-          ),
-          Text(
-            '$count',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: IconTheme.of(context).color,
-            ),
-          ),
-        ],
+        children: forward
+            ? [
+                HugeIcon(
+                  icon: HugeIcons.strokeRoundedNext,
+                  size: 24,
+                  color: IconTheme.of(context).color,
+                ),
+                _lineCount(context),
+              ]
+            : [
+                _lineCount(context),
+                HugeIcon(
+                  icon: HugeIcons.strokeRoundedPrevious,
+                  size: 24,
+                  color: IconTheme.of(context).color,
+                ),
+              ],
+      ),
+    ),
+  );
+
+  Widget _lineCount(BuildContext context) => Flexible(
+    child: FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Text(
+        '$count',
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: IconTheme.of(context).color,
+        ),
       ),
     ),
   );
@@ -4091,7 +4105,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       setState(() => _progressDragging = dragging);
     }
 
-    void updateDragPosition(double value) {
+    void updateDragPosition(double value, {bool haptic = false}) {
+      final previousPosition = _progressDragPosition;
       final cachedValue = value.clamp(0.0, _progressDragCacheFraction);
       _progressDragValue = cachedValue;
       _progressDragPosition = Duration(
@@ -4112,6 +4127,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             _progressDragPosition!.inMicroseconds /
             _progressDragDuration.inMicroseconds *
             _progressDragCacheFraction;
+      }
+      if (haptic && previousPosition != null) {
+        final changed = _dragSubtitleStarts.isNotEmpty
+            ? previousPosition != _progressDragPosition
+            : (previousPosition.inMicroseconds *
+                      100 ~/
+                      _progressDragDuration.inMicroseconds) !=
+                  (_progressDragPosition!.inMicroseconds *
+                      100 ~/
+                      _progressDragDuration.inMicroseconds);
+        if (changed) unawaited(HapticFeedback.selectionClick());
       }
       _subtitlePreviewPosition.value = _progressDragPosition;
     }
@@ -4243,7 +4269,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       onChanged: !progressEnabled
                           ? null
                           : (value) {
-                              setState(() => updateDragPosition(value));
+                              setState(
+                                () => updateDragPosition(value, haptic: true),
+                              );
                             },
                       onChangeEnd: !progressEnabled
                           ? null

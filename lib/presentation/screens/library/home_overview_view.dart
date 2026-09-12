@@ -341,7 +341,8 @@ class _HeroBlock extends ConsumerWidget {
     final handler = handlerAsync.asData?.value;
     final mediaItem = handler?.mediaItem.valueOrNull;
     final playbackState = handler?.playbackState.valueOrNull;
-    final isCurrentMedia = mediaItem != null && (mediaItem.title == entry.title);
+    final isCurrentMedia =
+        mediaItem != null && (mediaItem.title == entry.title);
     final isPlaying = isCurrentMedia && (playbackState?.playing ?? false);
 
     void handlePlayPause() {
@@ -532,14 +533,6 @@ class _FeedRow extends StatelessWidget {
                     ),
                   ],
                 ],
-              ),
-            ),
-            const SizedBox(width: 10),
-            SizedBox(
-              width: 32,
-              height: 32,
-              child: Center(
-                child: AppIcon(AppIcons.play, size: 20, color: ink),
               ),
             ),
           ],
