@@ -11,6 +11,64 @@ import 'package:lumina/presentation/widgets/synced_lyrics_list.dart';
 import 'package:lumina/services/lumina_audio_handler.dart';
 
 void main() {
+  testWidgets('scrub preview overrides live subtitles until released', (
+    tester,
+  ) async {
+    final handler = _VirtualLyricsAudioHandler(paragraphId: 'streaming');
+    final preview = ValueNotifier<Duration?>(null);
+    addTearDown(handler.dispose);
+    addTearDown(preview.dispose);
+    await tester.pumpWidget(
+      _growingTranscript(
+        handler,
+        _streamedTranscriptLines(100),
+        scrollingEnabled: false,
+        previewPosition: preview,
+      ),
+    );
+    await tester.pumpAndSettle();
+    preview.value = const Duration(seconds: 75);
+    await tester.pumpAndSettle();
+    expect(find.text('Transcript segment 75.'), findsOneWidget);
+    handler.currentPosition = const Duration(seconds: 12);
+    handler.playbackState.add(PlaybackState());
+    await tester.pumpAndSettle();
+    expect(find.text('Transcript segment 75.'), findsOneWidget);
+    preview.value = const Duration(seconds: 30);
+    await tester.pumpAndSettle();
+    expect(find.text('Transcript segment 30.'), findsOneWidget);
+    preview.value = null;
+    await tester.pumpAndSettle();
+    expect(find.text('Transcript segment 12.'), findsOneWidget);
+  });
+  testWidgets('single-line mode follows playback and can resume scrolling', (
+    tester,
+  ) async {
+    final handler = _VirtualLyricsAudioHandler(paragraphId: 'streaming');
+    addTearDown(handler.dispose);
+    final lines = _streamedTranscriptLines(100);
+    await tester.pumpWidget(
+      _growingTranscript(handler, lines, scrollingEnabled: false),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Transcript segment 0.'), findsOneWidget);
+    expect(find.text('Transcript segment 1.'), findsNothing);
+    handler.currentPosition = const Duration(seconds: 80);
+    handler.playbackState.add(PlaybackState());
+    await tester.pumpAndSettle();
+    expect(find.text('Transcript segment 0.'), findsNothing);
+    expect(find.text('Transcript segment 80.'), findsOneWidget);
+    expect(find.text('Transcript segment 81.'), findsNothing);
+    await tester.pumpWidget(_growingTranscript(handler, lines));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('synced-lyrics-virtualized-list')),
+      findsOneWidget,
+    );
+    expect(find.text('Transcript segment 80.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   test('highlight clock stops during buffering even with play intent', () {
     final clock = SyncedLyricsClock();
     addTearDown(clock.dispose);
@@ -1387,8 +1445,10 @@ double? _lyricLineTop(WidgetTester tester, Finder virtualList, String text) =>
 
 Widget _growingTranscript(
   _VirtualLyricsAudioHandler handler,
-  List<String> lines,
-) {
+  List<String> lines, {
+  bool scrollingEnabled = true,
+  ValueNotifier<Duration?>? previewPosition,
+}) {
   final timings = [
     for (var index = 0; index < lines.length; index++)
       AudioTextTiming(
@@ -1404,6 +1464,7 @@ Widget _growingTranscript(
         width: 390,
         height: 500,
         child: SyncedLyricsList(
+          previewPosition: previewPosition,
           paragraphs: [
             Paragraph(
               id: 'streaming',
@@ -1431,6 +1492,7 @@ Widget _growingTranscript(
               ),
             ],
           ),
+          scrollingEnabled: scrollingEnabled,
           handler: handler,
           playbackEnabled: true,
           expanded: true,

@@ -51,6 +51,7 @@ import '../../widgets/podcast_artwork.dart';
 import '../../widgets/podcast_link_text.dart';
 import '../../widgets/synced_lyrics_list.dart';
 import '../../widgets/transcript_slider_track.dart';
+import '../../widgets/subtitle_seek_points.dart';
 import '../reader/book_reader_screen.dart';
 import '../settings/dictionary_explanation_service_screen.dart';
 import '../settings/tts_service_screen.dart';
@@ -213,6 +214,40 @@ class _PlaylistEntry {
     required this.leading,
     required this.onTap,
   });
+}
+
+class _SubtitleSkipGlyph extends StatelessWidget {
+  const _SubtitleSkipGlyph({required this.forward, required this.count});
+
+  final bool forward;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) => ExcludeSemantics(
+    child: SizedBox.square(
+      dimension: 36,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          HugeIcon(
+            icon: forward
+                ? HugeIcons.strokeRoundedNext
+                : HugeIcons.strokeRoundedPrevious,
+            size: 24,
+            color: IconTheme.of(context).color,
+          ),
+          Text(
+            '$count',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: IconTheme.of(context).color,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _PodcastTranscriptContent {
@@ -408,6 +443,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _streamPlaybackRequested = false;
   bool _startingPlayback = false;
   double? _progressDragValue;
+  Duration? _progressDragPosition;
+  final ValueNotifier<Duration?> _subtitlePreviewPosition = ValueNotifier(null);
+  Duration _progressDragDuration = Duration.zero;
+  double _progressDragCacheFraction = 1;
+  List<int> _dragSubtitleStarts = const [];
+  ChapterManifest? _seekPointsManifest;
+  List<drift_db.Paragraph>? _seekPointsParagraphs;
+  List<int> _subtitleStarts = const [];
+  bool _progressDragging = false;
   int _progressDragSequence = 0;
   final ValueNotifier<int> _controlStateRevision = ValueNotifier<int>(0);
   int _paragraphCount = 0;
@@ -514,6 +558,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _playerScrollController.dispose();
     _pageScrollActive.dispose();
     _controlStateRevision.dispose();
+    _subtitlePreviewPosition.dispose();
     Future.microtask(() {
       _macosMiddleNotifier?.updateValue(null);
       _macosTitleNotifier?.updateValue(null);
@@ -1270,6 +1315,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final total = manifest?.segments.length ?? _paragraphCount;
     if (total <= 0) return 0;
     return ((manifest?.readyCount ?? 0) / total).clamp(0.0, 1.0);
+  }
+
+  Future<void> _seekAndReconcileProgress(
+    LuminaAudioHandler handler,
+    Duration target,
+    int sequence,
+  ) async {
+    try {
+      await handler.seek(target);
+    } finally {
+      if (mounted && sequence == _progressDragSequence) {
+        setState(() {
+          _progressDragValue = null;
+          _progressDragPosition = null;
+          _subtitlePreviewPosition.value = null;
+        });
+      }
+    }
   }
 
   ChapterManifest _playablePrefix(ChapterManifest manifest) {
@@ -3683,8 +3746,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       }
 
       final lyrics = SyncedLyricsList(
+        previewPosition: _subtitlePreviewPosition,
         fontScale: ref.watch(
           appearanceControllerProvider.select((s) => s.fontScale),
+        ),
+        scrollingEnabled: ref.watch(
+          appearanceControllerProvider.select((s) => s.subtitleScrolling),
         ),
         subtitleGap: ref.watch(
           appearanceControllerProvider.select((s) => s.subtitleGap),
@@ -3762,8 +3829,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     ),
                   )
                 : SyncedLyricsList(
+                    previewPosition: _subtitlePreviewPosition,
                     fontScale: ref.watch(
                       appearanceControllerProvider.select((s) => s.fontScale),
+                    ),
+                    scrollingEnabled: ref.watch(
+                      appearanceControllerProvider.select(
+                        (s) => s.subtitleScrolling,
+                      ),
                     ),
                     subtitleGap: ref.watch(
                       appearanceControllerProvider.select((s) => s.subtitleGap),
@@ -3808,8 +3881,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           );
         }
         return SyncedLyricsList(
+          previewPosition: _subtitlePreviewPosition,
           fontScale: ref.watch(
             appearanceControllerProvider.select((s) => s.fontScale),
+          ),
+          scrollingEnabled: ref.watch(
+            appearanceControllerProvider.select((s) => s.subtitleScrolling),
           ),
           subtitleGap: ref.watch(
             appearanceControllerProvider.select((s) => s.subtitleGap),
@@ -3873,9 +3950,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       context,
                       handler,
                       playing,
-                      selectedLoaded
-                          ? positionSnapshot.data ?? Duration.zero
-                          : Duration.zero,
+                      selectedLoaded ? handler.chapterPosition : Duration.zero,
                       duration,
                       manifest: manifest,
                       selectedLoaded: selectedLoaded,
@@ -3927,8 +4002,39 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final controlColor = foregroundColor;
     final cacheColor = context.appTextSecondary.withValues(alpha: 0.46);
     final secondaryColor = context.appTextSecondary;
-    final inactiveTrackColor = foregroundColor.withValues(alpha: 0.18);
+    final inactiveTrackColor = foregroundColor.withValues(alpha: 0.12);
+    final progressColor = foregroundColor.withValues(
+      alpha: _progressDragging ? 1 : 0.55,
+    );
+    final progressLabelColor = foregroundColor.withValues(
+      alpha: _progressDragging ? 1 : 0.45,
+    );
     final cacheFraction = _cacheFraction(manifest);
+    final subtitleManifest = _isPodcast
+        ? _podcastTranscript?.manifest
+        : manifest;
+    final sourceParagraphs = _isPodcast
+        ? _podcastTranscript?.paragraphs ?? const <drift_db.Paragraph>[]
+        : _audiobookParagraphs;
+    if (!identical(subtitleManifest, _seekPointsManifest) ||
+        !identical(sourceParagraphs, _seekPointsParagraphs)) {
+      _seekPointsManifest = subtitleManifest;
+      _seekPointsParagraphs = sourceParagraphs;
+      final paragraphs = _isRecordedBook
+          ? [
+              for (final paragraph in sourceParagraphs)
+                paragraph.copyWith(
+                  content: joinPodcastTranscriptLines(
+                    subtitleManifest?.segments
+                            .expand((s) => s.timings)
+                            .toList() ??
+                        const [],
+                  ),
+                ),
+            ]
+          : sourceParagraphs;
+      _subtitleStarts = subtitleSeekPoints(paragraphs, subtitleManifest);
+    }
     final subtitleRanges = _isPodcast || _isRecordedBook
         ? transcriptCoverage(
             _isPodcast ? _podcastTranscript?.manifest : manifest,
@@ -3943,14 +4049,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 100)
             .round();
     final dragValue = _progressDragValue;
-    final displayPosition = dragValue != null && cacheFraction > 0
-        ? Duration(
-            microseconds:
-                (duration.inMicroseconds *
-                        (dragValue.clamp(0.0, cacheFraction) / cacheFraction))
-                    .round(),
-          )
-        : position;
+    final displayPosition = _progressDragPosition ?? position;
+    final currentSentenceStart = stepSubtitleStart(
+      _subtitleStarts,
+      displayPosition.inMilliseconds,
+      0,
+    );
     final playbackFraction = duration.inMilliseconds <= 0
         ? 0.0
         : (displayPosition.inMilliseconds / duration.inMilliseconds)
@@ -3979,6 +4083,57 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         ? _fmt(duration)
         : '-${_fmt(remaining.isNegative ? Duration.zero : remaining)}';
     final speedIsCustomized = (_speed - 1).abs() > 0.01;
+    final progressEnabled =
+        selectedLoaded && duration.inMilliseconds > 0 && cacheFraction > 0;
+
+    void setProgressDragging(bool dragging) {
+      if (_progressDragging == dragging) return;
+      setState(() => _progressDragging = dragging);
+    }
+
+    void updateDragPosition(double value) {
+      final cachedValue = value.clamp(0.0, _progressDragCacheFraction);
+      _progressDragValue = cachedValue;
+      _progressDragPosition = Duration(
+        microseconds:
+            (_progressDragDuration.inMicroseconds *
+                    cachedValue /
+                    _progressDragCacheFraction)
+                .round(),
+      );
+      if (_dragSubtitleStarts.isNotEmpty) {
+        _progressDragPosition = Duration(
+          milliseconds: nearestSubtitleStart(
+            _dragSubtitleStarts,
+            _progressDragPosition!.inMilliseconds,
+          ),
+        );
+        _progressDragValue =
+            _progressDragPosition!.inMicroseconds /
+            _progressDragDuration.inMicroseconds *
+            _progressDragCacheFraction;
+      }
+      _subtitlePreviewPosition.value = _progressDragPosition;
+    }
+
+    void skipSubtitleLines(int lines) {
+      final targetMs = stepSubtitleStart(
+        _subtitleStarts
+            .where((start) => start <= duration.inMilliseconds)
+            .toList(),
+        (_progressDragPosition ?? handler.chapterPosition).inMilliseconds,
+        lines,
+      );
+      if (targetMs == null) return;
+      final target = Duration(milliseconds: targetMs);
+      final sequence = ++_progressDragSequence;
+      setState(() {
+        _progressDragPosition = target;
+        _progressDragValue = targetMs / duration.inMilliseconds * cacheFraction;
+        _subtitlePreviewPosition.value = target;
+      });
+      unawaited(_seekAndReconcileProgress(handler, target, sequence));
+    }
 
     return Column(
       key: const ValueKey('player-playback-controls'),
@@ -3989,122 +4144,156 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           curve: Curves.easeOutCubic,
           builder: (context, animatedCacheFraction, _) {
             final playbackTrackProgress =
+                dragValue ??
                 (playbackFraction * animatedCacheFraction)
                     .clamp(0.0, animatedCacheFraction)
                     .toDouble();
-            return SliderTheme(
-              data: SliderTheme.of(context).copyWith(
-                activeTrackColor: controlColor,
-                secondaryActiveTrackColor: cacheColor,
-                inactiveTrackColor: inactiveTrackColor,
-                thumbColor: controlColor,
-                disabledActiveTrackColor: controlColor,
-                disabledSecondaryActiveTrackColor: cacheColor,
-                disabledInactiveTrackColor: inactiveTrackColor,
-                trackShape: _isPodcast || _isRecordedBook
-                    ? TranscriptSliderTrack(
+            return TweenAnimationBuilder<double>(
+              tween: Tween(end: _progressDragging ? 10.0 : 3.0),
+              duration: MediaQuery.disableAnimationsOf(context)
+                  ? Duration.zero
+                  : const Duration(milliseconds: 140),
+              curve: Curves.easeOutCubic,
+              builder: (context, trackHeight, _) => SizedBox(
+                height: 44,
+                child: Listener(
+                  behavior: HitTestBehavior.opaque,
+                  onPointerDown: progressEnabled
+                      ? (_) => setProgressDragging(true)
+                      : null,
+                  onPointerUp: progressEnabled
+                      ? (_) => setProgressDragging(false)
+                      : null,
+                  onPointerCancel: progressEnabled
+                      ? (_) => setProgressDragging(false)
+                      : null,
+                  child: SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      activeTrackColor: progressColor,
+                      secondaryActiveTrackColor: cacheColor,
+                      inactiveTrackColor: inactiveTrackColor,
+                      thumbColor: controlColor,
+                      disabledActiveTrackColor: progressColor,
+                      disabledSecondaryActiveTrackColor: cacheColor,
+                      disabledInactiveTrackColor: inactiveTrackColor,
+                      trackShape: TranscriptSliderTrack(
+                        currentSentence:
+                            currentSentenceStart != null &&
+                                duration.inMilliseconds > 0
+                            ? (currentSentenceStart /
+                                      duration.inMilliseconds *
+                                      animatedCacheFraction)
+                                  .clamp(0.0, 1.0)
+                            : null,
+                        currentSentenceColor: accent,
+                        emphasis: ((trackHeight - 3) / 7).clamp(0.0, 1.0),
+                        ticks: [
+                          if (duration.inMilliseconds > 0)
+                            for (final start in _subtitleStarts)
+                              if (start <= duration.inMilliseconds)
+                                start /
+                                    duration.inMilliseconds *
+                                    animatedCacheFraction,
+                        ],
+                        tickColor: context.appBackground,
                         ranges: subtitleRanges,
-                        color: accent,
-                      )
-                    : const RoundedRectSliderTrackShape(),
-                trackHeight: 4,
-                thumbShape: SliderComponentShape.noThumb,
-                disabledThumbColor: hasCachedAudio
-                    ? controlColor
-                    : Colors.transparent,
-                overlayShape: SliderComponentShape.noOverlay,
-              ),
-              child: Slider(
-                key: const ValueKey('player-cache-playback-progress'),
-                semanticFormatterCallback: _isPodcast || _isRecordedBook
-                    ? (value) {
-                        final percent = cacheFraction <= 0
-                            ? 0
-                            : (value / cacheFraction * 100).round();
-                        return context.tr(
-                          '播放进度 $percent%，字幕覆盖 $subtitlePercent%',
-                          'Playback $percent%, subtitles cover $subtitlePercent%',
-                          '再生位置 $percent%、字幕の範囲 $subtitlePercent%',
-                        );
-                      }
-                    : null,
-                value: playbackTrackProgress,
-                secondaryTrackValue:
-                    animatedCacheFraction < playbackTrackProgress
-                    ? playbackTrackProgress
-                    : animatedCacheFraction,
-                onChangeStart:
-                    !selectedLoaded ||
-                        duration.inMilliseconds <= 0 ||
-                        cacheFraction <= 0
-                    ? null
-                    : (value) {
-                        _progressDragSequence++;
-                        setState(
-                          () => _progressDragValue = value.clamp(
-                            0.0,
-                            cacheFraction,
-                          ),
-                        );
-                      },
-                onChanged:
-                    !selectedLoaded ||
-                        duration.inMilliseconds <= 0 ||
-                        cacheFraction <= 0
-                    ? null
-                    : (value) {
-                        setState(
-                          () => _progressDragValue = value.clamp(
-                            0.0,
-                            cacheFraction,
-                          ),
-                        );
-                      },
-                onChangeEnd:
-                    !selectedLoaded ||
-                        duration.inMilliseconds <= 0 ||
-                        cacheFraction <= 0
-                    ? null
-                    : (value) {
-                        final cachedValue = value.clamp(0.0, cacheFraction);
-                        setState(() => _progressDragValue = cachedValue);
-                        final sequence = _progressDragSequence;
-                        final seekFraction = cachedValue / cacheFraction;
-                        final target = Duration(
-                          microseconds: (seekFraction * duration.inMicroseconds)
-                              .round(),
-                        );
-                        unawaited(
-                          handler.seek(target).whenComplete(() {
-                            if (!mounted || sequence != _progressDragSequence) {
-                              return;
+                        color: foregroundColor.withValues(alpha: 0.28),
+                      ),
+                      trackHeight: trackHeight,
+                      thumbShape: SliderComponentShape.noThumb,
+                      disabledThumbColor: hasCachedAudio
+                          ? controlColor
+                          : Colors.transparent,
+                      overlayShape: SliderComponentShape.noOverlay,
+                    ),
+                    child: Slider(
+                      key: const ValueKey('player-cache-playback-progress'),
+                      allowedInteraction: SliderInteraction.slideOnly,
+                      semanticFormatterCallback: _isPodcast || _isRecordedBook
+                          ? (value) {
+                              final percent = cacheFraction <= 0
+                                  ? 0
+                                  : (value / cacheFraction * 100).round();
+                              return context.tr(
+                                '播放进度 $percent%，字幕覆盖 $subtitlePercent%',
+                                'Playback $percent%, subtitles cover $subtitlePercent%',
+                                '再生位置 $percent%、字幕の範囲 $subtitlePercent%',
+                              );
                             }
-                            setState(() => _progressDragValue = null);
-                          }),
-                        );
-                      },
+                          : null,
+                      value: playbackTrackProgress,
+                      secondaryTrackValue:
+                          animatedCacheFraction < playbackTrackProgress
+                          ? playbackTrackProgress
+                          : animatedCacheFraction,
+                      onChangeStart: !progressEnabled
+                          ? null
+                          : (value) {
+                              _progressDragging = true;
+                              _progressDragSequence++;
+                              _progressDragDuration = duration;
+                              _dragSubtitleStarts = _subtitleStarts
+                                  .where(
+                                    (start) => start <= duration.inMilliseconds,
+                                  )
+                                  .toList();
+                              _progressDragCacheFraction = cacheFraction;
+                              setState(() => updateDragPosition(value));
+                            },
+                      onChanged: !progressEnabled
+                          ? null
+                          : (value) {
+                              setState(() => updateDragPosition(value));
+                            },
+                      onChangeEnd: !progressEnabled
+                          ? null
+                          : (value) {
+                              setState(() {
+                                _progressDragging = false;
+                                updateDragPosition(value);
+                              });
+                              final sequence = _progressDragSequence;
+                              final target = _progressDragPosition!;
+                              unawaited(
+                                _seekAndReconcileProgress(
+                                  handler,
+                                  target,
+                                  sequence,
+                                ),
+                              );
+                            },
+                    ),
+                  ),
+                ),
               ),
             );
           },
         ),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              _fmt(displayPosition),
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: secondaryColor,
-                fontFeatures: const [FontFeature.tabularFigures()],
+        AnimatedSlide(
+          offset: _progressDragging ? const Offset(0, 0.12) : Offset.zero,
+          duration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 140),
+          curve: Curves.easeOutCubic,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                _fmt(displayPosition),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: progressLabelColor,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
               ),
-            ),
-            Text(
-              remainingLabel,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: secondaryColor,
-                fontFeatures: const [FontFeature.tabularFigures()],
+              Text(
+                remainingLabel,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: progressLabelColor,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         SizedBox(height: design.spaceSm),
         Row(
@@ -4120,24 +4309,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ),
             ),
             IconButton(
-              key: const ValueKey('player-backward-10-seconds'),
-              tooltip: _isPodcast
-                  ? context.tr('后退 15 秒', 'Back 15 seconds', '15秒戻る')
-                  : context.tr('后退 10 秒', 'Back 10 seconds', '10秒戻る'),
-              icon: const HugeIcon(
-                icon: HugeIcons.strokeRoundedGoBackward10Sec,
-                size: 36,
+              key: const ValueKey('player-backward-one-line'),
+              tooltip: context.tr(
+                '后退一行字幕',
+                'Back one subtitle line',
+                '字幕を1行戻る',
               ),
+              icon: const _SubtitleSkipGlyph(forward: false, count: 1),
               color: foregroundColor,
               disabledColor: secondaryColor.withValues(alpha: 0.42),
-              onPressed: !selectedLoaded
+              onPressed: !progressEnabled || _subtitleStarts.isEmpty
                   ? null
-                  : () => handler.seek(
-                      (_isPodcast
-                              ? handler.position
-                              : handler.chapterPosition) -
-                          Duration(seconds: _isPodcast ? 15 : 10),
-                    ),
+                  : () => skipSubtitleLines(-1),
             ),
             Tooltip(
               message: primaryTooltip,
@@ -4185,22 +4368,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ),
             ),
             IconButton(
-              key: const ValueKey('player-forward-30-seconds'),
-              tooltip: context.tr('前进 30 秒', 'Forward 30 seconds', '30秒進む'),
-              icon: const HugeIcon(
-                icon: HugeIcons.strokeRoundedGoForward30Sec,
-                size: 36,
+              key: const ValueKey('player-forward-three-lines'),
+              tooltip: context.tr(
+                '前进三行字幕',
+                'Forward three subtitle lines',
+                '字幕を3行進む',
               ),
+              icon: const _SubtitleSkipGlyph(forward: true, count: 3),
               color: foregroundColor,
               disabledColor: secondaryColor.withValues(alpha: 0.42),
-              onPressed: !selectedLoaded
+              onPressed: !progressEnabled || _subtitleStarts.isEmpty
                   ? null
-                  : () => handler.seek(
-                      (_isPodcast
-                              ? handler.position
-                              : handler.chapterPosition) +
-                          const Duration(seconds: 30),
-                    ),
+                  : () => skipSubtitleLines(3),
             ),
             StreamBuilder<SleepTimerState>(
               stream: ref.watch(sleepTimerServiceProvider).stream,

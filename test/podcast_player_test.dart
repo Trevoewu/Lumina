@@ -682,8 +682,8 @@ void main() {
         'player-more-menu',
         'player-transcript-toggle',
         'player-primary-audio-action',
-        'player-backward-10-seconds',
-        'player-forward-30-seconds',
+        'player-backward-one-line',
+        'player-forward-three-lines',
       ];
       final elements = {
         for (final key in keys) key: tester.element(find.byKey(ValueKey(key))),

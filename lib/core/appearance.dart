@@ -11,6 +11,7 @@ const _readerLineHeightKey = 'reader_line_height';
 const _readerIndentKey = 'reader_indent';
 const _readerScrolledKey = 'reader_scrolled';
 
+const _subtitleScrollingKey = 'appearance_subtitle_scrolling';
 const _subtitleGapKey = 'appearance_subtitle_gap';
 const _accentKey = 'appearance_accent_color';
 
@@ -180,6 +181,7 @@ class AppearanceSettings {
   final double readerLineHeight;
   final double readerIndent; // -1 preserves publisher indentation.
   final bool readerScrolled;
+  final bool subtitleScrolling;
   final double subtitleGap;
   final String fontId;
   final double fontScale;
@@ -193,6 +195,7 @@ class AppearanceSettings {
     this.readerLineHeight = 1.5,
     this.readerIndent = -1,
     this.readerScrolled = false,
+    this.subtitleScrolling = true,
     this.subtitleGap = 40,
     this.fontId = 'system',
     this.fontScale = 1.0,
@@ -214,6 +217,7 @@ class AppearanceSettings {
     double? readerLineHeight,
     double? readerIndent,
     bool? readerScrolled,
+    bool? subtitleScrolling,
     double? subtitleGap,
     String? fontId,
     double? fontScale,
@@ -227,6 +231,7 @@ class AppearanceSettings {
       readerLineHeight: readerLineHeight ?? this.readerLineHeight,
       readerIndent: readerIndent ?? this.readerIndent,
       readerScrolled: readerScrolled ?? this.readerScrolled,
+      subtitleScrolling: subtitleScrolling ?? this.subtitleScrolling,
       subtitleGap: subtitleGap ?? this.subtitleGap,
       fontId: fontId ?? this.fontId,
       fontScale: fontScale ?? this.fontScale,
@@ -274,6 +279,8 @@ class AppearanceController extends Notifier<AppearanceSettings> {
     // so migrate that value to the platform system reading font.
     final migratedFontId = fontId == 'inter' ? 'system' : fontId;
     final scale = double.tryParse(await db.getSetting(_scaleKey) ?? '');
+    final subtitleScrolling =
+        await db.getSetting(_subtitleScrollingKey) != 'false';
     final subtitleGap = double.tryParse(
       await db.getSetting(_subtitleGapKey) ?? '',
     );
@@ -343,6 +350,7 @@ class AppearanceController extends Notifier<AppearanceSettings> {
           ? migratedFontId
           : state.fontId,
       fontScale: (scale ?? state.fontScale).clamp(16 / 24, 40 / 24),
+      subtitleScrolling: subtitleScrolling,
       subtitleGap: subtitleGap != null && subtitleGap.isFinite
           ? subtitleGap.clamp(20, 80)
           : state.subtitleGap,
@@ -402,6 +410,13 @@ class AppearanceController extends Notifier<AppearanceSettings> {
     await ref
         .read(appDatabaseProvider)
         .setSetting(_scaleKey, value.toStringAsFixed(4));
+  }
+
+  Future<void> setSubtitleScrolling(bool enabled) async {
+    state = state.copyWith(subtitleScrolling: enabled, loaded: true);
+    await ref
+        .read(appDatabaseProvider)
+        .setSetting(_subtitleScrollingKey, enabled.toString());
   }
 
   Future<void> setSubtitleGap(double gap) async {
@@ -545,6 +560,10 @@ class AppearanceController extends Notifier<AppearanceSettings> {
     final db = ref.read(appDatabaseProvider);
     await db.setSetting(_fontKey, defaults.fontId);
     await db.setSetting(_scaleKey, defaults.fontScale.toStringAsFixed(2));
+    await db.setSetting(
+      _subtitleScrollingKey,
+      defaults.subtitleScrolling.toString(),
+    );
     await db.setSetting(_subtitleGapKey, defaults.subtitleGap.toString());
     await db.setSetting(
       _accentKey,

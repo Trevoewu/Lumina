@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
@@ -1126,6 +1127,8 @@ class _LyricSweepPainter extends CustomPainter {
 }
 
 class SyncedLyricsList extends StatefulWidget {
+  /// Chapter-relative scrub preview; null resumes the live playback clock.
+  final ValueListenable<Duration?>? previewPosition;
   final List<drift_db.Paragraph> paragraphs;
   final ChapterManifest? manifest;
   final LuminaAudioHandler handler;
@@ -1139,11 +1142,13 @@ class SyncedLyricsList extends StatefulWidget {
   final bool virtualized;
   final double scrollSpeed;
   final bool sweepEnabled;
+  final bool scrollingEnabled;
   final double subtitleGap;
   final double fontScale;
 
   const SyncedLyricsList({
     super.key,
+    this.previewPosition,
     required this.paragraphs,
     required this.manifest,
     required this.handler,
@@ -1157,6 +1162,7 @@ class SyncedLyricsList extends StatefulWidget {
     this.virtualized = false,
     this.scrollSpeed = 1.0,
     this.sweepEnabled = true,
+    this.scrollingEnabled = true,
     this.subtitleGap = 40,
     this.fontScale = 1,
   });
@@ -1243,6 +1249,8 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
     _clock = SyncedLyricsClock(vsync: this)..addListener(_handleClockTick);
     _rebuildLines();
     _bindHandler();
+    widget.previewPosition?.addListener(_handlePreviewPosition);
+    if (widget.previewPosition?.value != null) _handlePreviewPosition();
   }
 
   @override
@@ -1255,6 +1263,11 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
   @override
   void didUpdateWidget(covariant SyncedLyricsList oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.previewPosition != widget.previewPosition) {
+      oldWidget.previewPosition?.removeListener(_handlePreviewPosition);
+      widget.previewPosition?.addListener(_handlePreviewPosition);
+      _handlePreviewPosition();
+    }
     if (oldWidget.paragraphs != widget.paragraphs ||
         oldWidget.manifest != widget.manifest) {
       // A podcast caches a chunk every few minutes while the reader is
@@ -1270,6 +1283,15 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
         });
         WidgetsBinding.instance.scheduleFrame();
       }
+    }
+    if (oldWidget.scrollingEnabled != widget.scrollingEnabled) {
+      _stopScrollAnimation();
+      _clearSelection();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && widget.scrollingEnabled && _activeLineId != null) {
+          _scrollTo(_activeLineId!, force: true);
+        }
+      });
     }
     if (oldWidget.expanded != widget.expanded ||
         oldWidget.subtitleGap != widget.subtitleGap ||
@@ -1331,6 +1353,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
     // stale/null paragraph until this widget was recreated (for example by
     // leaving and reopening transcript mode).
     _paragraphSub = widget.handler.currentParagraphIdStream.listen((id) {
+      if (widget.previewPosition?.value != null) return;
       _paragraphId = id;
       // A paragraph notification is a state update, not necessarily a seek.
       // Let the normal line-change path animate from the current offset.
@@ -1339,6 +1362,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
     _paragraphId = widget.handler.currentParagraphId;
     _positionSub = widget.handler.positionStream.listen(_handleRealPosition);
     _playbackStateSub = widget.handler.playbackState.listen((state) {
+      if (widget.previewPosition?.value != null) return;
       _clock.reanchor(
         widget.handler.position,
         playing: _clockEnabled && syncedLyricsAudioIsAdvancing(state),
@@ -1351,6 +1375,10 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
 
   void _sync(Duration position, {bool forceScroll = false}) {
     if (!mounted) return;
+    if (widget.previewPosition?.value != null) {
+      _handlePreviewPosition();
+      return;
+    }
     final playbackState = widget.handler.playbackState.value;
     _clock.reanchor(
       position,
@@ -1368,6 +1396,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
 
   void _handleRealPosition(Duration position) {
     if (!mounted) return;
+    if (widget.previewPosition?.value != null) return;
     final playbackState = widget.handler.playbackState.value;
     _clock.reanchor(
       position,
@@ -1380,6 +1409,37 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
   void _handleClockTick() {
     if (!mounted || !widget.playbackEnabled || _selectionActive) return;
     _updateActiveLine();
+  }
+
+  void _handlePreviewPosition() {
+    if (!mounted) return;
+    final preview = widget.previewPosition?.value;
+    if (preview == null) {
+      _paragraphId = widget.handler.currentParagraphId;
+      _sync(widget.handler.position, forceScroll: true);
+      return;
+    }
+    final segments = widget.manifest?.segments;
+    if (segments == null || segments.isEmpty) return;
+    var remainingMs = preview.inMilliseconds;
+    var segment = segments.last;
+    for (final candidate in segments) {
+      segment = candidate;
+      if (remainingMs < candidate.durationMs ||
+          identical(candidate, segments.last)) {
+        break;
+      }
+      remainingMs -= candidate.durationMs;
+    }
+    _paragraphId = segment.paragraphId;
+    _clock.reanchor(
+      Duration(milliseconds: remainingMs.clamp(0, segment.durationMs)),
+      playing: false,
+      speed: 1,
+    );
+    _manuallyScrolling = false;
+    _manualScrollResume?.cancel();
+    _updateActiveLine(forceScroll: true);
   }
 
   void _updateActiveLine({bool forceScroll = false}) {
@@ -1411,6 +1471,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
   }
 
   void _scrollTo(String lineId, {bool force = false}) {
+    if (!widget.scrollingEnabled) return;
     if (_selectionActive || _manuallyScrolling) return;
     _pendingScrollLineId = lineId;
     _pendingForceScroll = _pendingForceScroll || force;
@@ -2183,6 +2244,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
   @override
   void dispose() {
     _paragraphSub?.cancel();
+    widget.previewPosition?.removeListener(_handlePreviewPosition);
     _positionSub?.cancel();
     _playbackStateSub?.cancel();
     _scrollDebounce?.cancel();
@@ -2196,7 +2258,9 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
   @override
   Widget build(BuildContext context) {
     final wordSelectionActive = _wordSelectionLineId != null;
-    final scrollable = widget.virtualized
+    final scrollable = !widget.scrollingEnabled
+        ? _buildCurrentLine(wordSelectionActive)
+        : widget.virtualized
         ? _buildVirtualizedList(wordSelectionActive)
         : _buildEagerList(wordSelectionActive);
     return TapRegion(
@@ -2211,6 +2275,26 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
       child: NotificationListener<ScrollNotification>(
         onNotification: _handleScrollNotification,
         child: scrollable,
+      ),
+    );
+  }
+
+  Widget _buildCurrentLine(bool wordSelectionActive) {
+    final index = _lineIndexById[_activeLineId];
+    if (index == null) return const SizedBox.expand();
+    return Center(
+      child: SingleChildScrollView(
+        key: const ValueKey('synced-lyrics-current-line'),
+        padding: EdgeInsets.symmetric(horizontal: _lyricsPadding().left),
+        child: SelectionArea(
+          key: _selectionAreaKey,
+          onSelectionChanged: _handleSelectionChanged,
+          contextMenuBuilder: _buildSelectionMenu,
+          child: _buildLineSlot(
+            _lines[index],
+            wordSelectionActive: wordSelectionActive,
+          ),
+        ),
       ),
     );
   }

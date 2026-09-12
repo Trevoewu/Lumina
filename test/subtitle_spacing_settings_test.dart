@@ -16,11 +16,20 @@ void main() {
       final controller = container.read(appearanceControllerProvider.notifier);
       await controller.load();
       expect(container.read(appearanceControllerProvider).subtitleGap, 40);
+      expect(
+        container.read(appearanceControllerProvider).subtitleScrolling,
+        isTrue,
+      );
+      await controller.setSubtitleScrolling(false);
       await controller.setSubtitleGap(60);
       final restored = ProviderContainer(
         overrides: [appDatabaseProvider.overrideWithValue(db)],
       );
       await restored.read(appearanceControllerProvider.notifier).load();
+      expect(
+        restored.read(appearanceControllerProvider).subtitleScrolling,
+        isFalse,
+      );
       expect(restored.read(appearanceControllerProvider).subtitleGap, 60);
       expect(restored.read(appearanceControllerProvider).fontScale, 1);
       await controller.setSubtitleGap(200);
@@ -28,6 +37,7 @@ void main() {
       await controller.reset();
       expect(container.read(appearanceControllerProvider).subtitleGap, 40);
       expect(await db.getSetting('appearance_subtitle_gap'), '40.0');
+      expect(await db.getSetting('appearance_subtitle_scrolling'), 'true');
       restored.dispose();
       container.dispose();
       await db.close();

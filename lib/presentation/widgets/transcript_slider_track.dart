@@ -38,8 +38,21 @@ List<({double start, double end})> transcriptCoverage(
 class TranscriptSliderTrack extends RoundedRectSliderTrackShape {
   final List<({double start, double end})> ranges;
   final Color color;
+  final List<double> ticks;
+  final Color? tickColor;
+  final double? currentSentence;
+  final Color? currentSentenceColor;
+  final double emphasis;
 
-  const TranscriptSliderTrack({required this.ranges, required this.color});
+  const TranscriptSliderTrack({
+    required this.ranges,
+    required this.color,
+    this.ticks = const [],
+    this.tickColor,
+    this.currentSentence,
+    this.currentSentenceColor,
+    this.emphasis = 0,
+  });
 
   @override
   void paint(
@@ -55,19 +68,6 @@ class TranscriptSliderTrack extends RoundedRectSliderTrackShape {
     bool isEnabled = false,
     double additionalActiveTrackHeight = 2,
   }) {
-    super.paint(
-      context,
-      offset,
-      parentBox: parentBox,
-      sliderTheme: sliderTheme,
-      enableAnimation: enableAnimation,
-      textDirection: textDirection,
-      thumbCenter: thumbCenter,
-      secondaryOffset: secondaryOffset,
-      isDiscrete: isDiscrete,
-      isEnabled: isEnabled,
-      additionalActiveTrackHeight: 0,
-    );
     final rect = getPreferredRect(
       parentBox: parentBox,
       offset: offset,
@@ -75,12 +75,33 @@ class TranscriptSliderTrack extends RoundedRectSliderTrackShape {
       isEnabled: isEnabled,
       isDiscrete: isDiscrete,
     );
-    // Only expose the subtitle layer beyond playback; the played portion
-    // keeps the foreground color painted by the standard track above.
-    context.canvas.save();
-    context.canvas.clipRRect(
+    final canvas = context.canvas;
+    final inactive = ColorTween(
+      begin: sliderTheme.disabledInactiveTrackColor,
+      end: sliderTheme.inactiveTrackColor,
+    ).evaluate(enableAnimation)!;
+    final active = ColorTween(
+      begin: sliderTheme.disabledActiveTrackColor,
+      end: sliderTheme.activeTrackColor,
+    ).evaluate(enableAnimation)!;
+    final cached = ColorTween(
+      begin: sliderTheme.disabledSecondaryActiveTrackColor,
+      end: sliderTheme.secondaryActiveTrackColor,
+    ).evaluate(enableAnimation)!;
+    canvas.save();
+    canvas.clipRRect(
       RRect.fromRectAndRadius(rect, Radius.circular(rect.height / 2)),
     );
+    canvas.drawRect(rect, Paint()..color = inactive);
+    Rect filledTo(double x) => textDirection == TextDirection.ltr
+        ? Rect.fromLTRB(rect.left, rect.top, x, rect.bottom)
+        : Rect.fromLTRB(x, rect.top, rect.right, rect.bottom);
+    if (secondaryOffset != null) {
+      canvas.drawRect(filledTo(secondaryOffset.dx), Paint()..color = cached);
+    }
+    // Clip the whole capsule, keeping the playback boundary straight.
+    canvas.drawRect(filledTo(thumbCenter.dx), Paint()..color = active);
+    context.canvas.save();
     context.canvas.clipRect(
       textDirection == TextDirection.ltr
           ? Rect.fromLTRB(thumbCenter.dx, rect.top, rect.right, rect.bottom)
@@ -105,5 +126,31 @@ class TranscriptSliderTrack extends RoundedRectSliderTrackShape {
       );
     }
     context.canvas.restore();
+    final tickPaint = Paint()
+      ..color = tickColor ?? inactive
+      ..strokeWidth = 1;
+    for (final tick in ticks) {
+      final fraction = textDirection == TextDirection.ltr ? tick : 1 - tick;
+      final x = rect.left + fraction * rect.width;
+      canvas.drawLine(Offset(x, rect.top), Offset(x, rect.bottom), tickPaint);
+    }
+    canvas.restore();
+    // The current sentence extends beyond the capsule, so paint it after
+    // restoring the track clip. Its position is the sentence start.
+    final sentence = currentSentence;
+    if (sentence != null && currentSentenceColor != null) {
+      final fraction = textDirection == TextDirection.ltr
+          ? sentence
+          : 1 - sentence;
+      final marker = Rect.fromCenter(
+        center: Offset(rect.left + fraction * rect.width, rect.center.dy),
+        width: 2 + 2 * emphasis,
+        height: 14 + 12 * emphasis,
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(marker, Radius.circular(marker.width / 2)),
+        Paint()..color = currentSentenceColor!,
+      );
+    }
   }
 }

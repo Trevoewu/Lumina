@@ -14,6 +14,7 @@ class AppToolbarStateNotifier<T> extends Notifier<T> {
   T build() => _initial;
 
   void updateValue(T value) {
+    if (!ref.mounted) return;
     state = value;
   }
 }
@@ -38,9 +39,10 @@ final discoverScopeProvider =
 
 /// Search controller registered by DiscoverScreen.
 final discoverSearchControllerProvider =
-    NotifierProvider<AppToolbarStateNotifier<TextEditingController?>, TextEditingController?>(
-      () => AppToolbarStateNotifier<TextEditingController?>(null),
-    );
+    NotifierProvider<
+      AppToolbarStateNotifier<TextEditingController?>,
+      TextEditingController?
+    >(() => AppToolbarStateNotifier<TextEditingController?>(null));
 
 /// Search trigger callback registered by DiscoverScreen.
 final discoverSearchHandlerProvider =
@@ -81,13 +83,12 @@ final miniPlayerSuppressedProvider =
 /// InheritedWidget indicating that the top control bar is persistently
 /// rendered above the content area at the AppScaffold level.
 class MacosPersistentToolbarScope extends InheritedWidget {
-  const MacosPersistentToolbarScope({
-    super.key,
-    required super.child,
-  });
+  const MacosPersistentToolbarScope({super.key, required super.child});
 
   static bool hasToolbar(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<MacosPersistentToolbarScope>() != null;
+      context
+          .dependOnInheritedWidgetOfExactType<MacosPersistentToolbarScope>() !=
+      null;
 
   @override
   bool updateShouldNotify(MacosPersistentToolbarScope oldWidget) => false;

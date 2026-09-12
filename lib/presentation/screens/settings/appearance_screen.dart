@@ -1,5 +1,6 @@
 import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import '../../widgets/reading_adjustment_slider.dart';
 import '../../widgets/subtitle_line.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -126,6 +127,28 @@ class AppearanceScreen extends ConsumerWidget {
                 ),
 
                 _BlockDivider(
+                  title: context.tr('字幕滚动', 'Subtitle scrolling', '字幕スクロール'),
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        context.tr(
+                          '关闭后只显示当前行',
+                          'Show only the current line when off',
+                          'オフにすると現在の行のみ表示',
+                        ),
+                      ),
+                    ),
+                    CupertinoSwitch(
+                      key: const ValueKey('subtitle-scrolling-switch'),
+                      value: appearance.subtitleScrolling,
+                      activeTrackColor: const Color(0xFF8AB449),
+                      onChanged: controller.setSubtitleScrolling,
+                    ),
+                  ],
+                ),
+                _BlockDivider(
                   title: context.tr('字幕句间距', 'Subtitle spacing', '字幕の間隔'),
                 ),
                 ReadingAdjustmentSlider(
@@ -149,9 +172,7 @@ class AppearanceScreen extends ConsumerWidget {
                   ),
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
-                _BlockDivider(
-                  title: context.tr('字号', 'Text Size', '文字サイズ'),
-                ),
+                _BlockDivider(title: context.tr('字号', 'Text Size', '文字サイズ')),
                 const SizedBox(height: 8),
                 ReadingAdjustmentSlider(
                   sliderKey: const ValueKey('appearance-font-slider'),
@@ -178,7 +199,9 @@ class AppearanceScreen extends ConsumerWidget {
                 const SizedBox(height: 16),
                 _BlockHeader(
                   title: context.tr('字幕预览', 'Subtitle preview', '字幕プレビュー'),
-                  value: context.tr('可滚动', 'Scroll to preview', 'スクロール可'),
+                  value: appearance.subtitleScrolling
+                      ? context.tr('可滚动', 'Scroll to preview', 'スクロール可')
+                      : context.tr('当前行', 'Current line', '現在の行'),
                 ),
                 const SizedBox(height: 8),
                 Container(
@@ -201,27 +224,28 @@ class AppearanceScreen extends ConsumerWidget {
                           'Take your time and listen to the next sentence.',
                           '放慢脚步，听见文字里的世界。',
                         ].indexed)
-                          SubtitleLine(
-                            gap: appearance.subtitleGap,
-                            child: Text(
-                              sentence,
-                              style:
-                                  subtitleTextStyle(
-                                    context,
-                                    color: scheme.onSurface.withValues(
-                                      alpha: index == 1 ? 1 : 0.46,
+                          if (appearance.subtitleScrolling || index == 1)
+                            SubtitleLine(
+                              gap: appearance.subtitleGap,
+                              child: Text(
+                                sentence,
+                                style:
+                                    subtitleTextStyle(
+                                      context,
+                                      color: scheme.onSurface.withValues(
+                                        alpha: index == 1 ? 1 : 0.46,
+                                      ),
+                                      fontScale: appearance.fontScale,
+                                      focusMode: true,
+                                    ).copyWith(
+                                      fontFamily:
+                                          appearance.fontOption.fontFamily,
+                                      fontFamilyFallback: appearance
+                                          .fontOption
+                                          .fontFamilyFallback,
                                     ),
-                                    fontScale: appearance.fontScale,
-                                    focusMode: true,
-                                  ).copyWith(
-                                    fontFamily:
-                                        appearance.fontOption.fontFamily,
-                                    fontFamilyFallback: appearance
-                                        .fontOption
-                                        .fontFamilyFallback,
-                                  ),
+                              ),
                             ),
-                          ),
                       ],
                     ),
                   ),

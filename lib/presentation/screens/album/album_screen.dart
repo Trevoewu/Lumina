@@ -165,7 +165,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   }
 
   Future<void> _openChapter(drift_db.Chapter chapter) async {
-    final isDesktop = (Theme.of(context).platform == TargetPlatform.macOS ||
+    final isDesktop =
+        (Theme.of(context).platform == TargetPlatform.macOS ||
             defaultTargetPlatform == TargetPlatform.macOS) &&
         MediaQuery.sizeOf(context).width >= 600;
     final latestBook =
@@ -200,7 +201,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   }
 
   Future<void> _openReader([drift_db.Chapter? chapter]) async {
-    final isDesktop = (Theme.of(context).platform == TargetPlatform.macOS ||
+    final isDesktop =
+        (Theme.of(context).platform == TargetPlatform.macOS ||
             defaultTargetPlatform == TargetPlatform.macOS) &&
         MediaQuery.sizeOf(context).width >= 600;
     final database = ref.read(appDatabaseProvider);
@@ -1000,7 +1002,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isMac = Theme.of(context).platform == TargetPlatform.macOS ||
+    final isMac =
+        Theme.of(context).platform == TargetPlatform.macOS ||
         MacosPersistentToolbarScope.hasToolbar(context);
     _updateToolbarTrailing(isMac);
 
@@ -1272,10 +1275,10 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
         Expanded(
           child: FilledButton.icon(
             key: const ValueKey('book-start-reading-button'),
-            icon: const HugeIcon(
+            icon: HugeIcon(
               icon: HugeIcons.strokeRoundedBookOpen01,
               size: 18,
-              color: Colors.white,
+              color: context.appBackground,
             ),
             label: Text(
               hasStarted
@@ -1284,8 +1287,8 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
               style: const TextStyle(fontWeight: FontWeight.normal),
             ),
             style: FilledButton.styleFrom(
-              backgroundColor: context.appAccent,
-              foregroundColor: Colors.white,
+              backgroundColor: context.appTextPrimary,
+              foregroundColor: context.appBackground,
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -1481,7 +1484,6 @@ class _ChapterCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = Theme.of(context).colorScheme.primary;
     return FutureBuilder<ChapterManifest?>(
       future: manifestStore.load(bookId, chapterId),
       builder: (context, snapshot) {
@@ -1552,11 +1554,7 @@ class _ChapterCard extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    _ChapterBadge(
-                      number: chapterNumber,
-                      current: highlighted,
-                      accent: accent,
-                    ),
+                    _ChapterBadge(number: chapterNumber, current: highlighted),
                     const SizedBox(width: 14),
                     Expanded(
                       child: Column(
@@ -1567,9 +1565,7 @@ class _ChapterCard extends StatelessWidget {
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              color: highlighted
-                                  ? accent
-                                  : context.appTextPrimary,
+                              color: context.appTextPrimary,
                               fontSize: 17,
                               height: 1.25,
                               fontWeight: FontWeight.normal,
@@ -1595,9 +1591,12 @@ class _ChapterCard extends StatelessWidget {
                                 ),
                                 value: playbackProgress,
                                 minHeight: 3,
-                                backgroundColor: context.appSurfaceHighlight,
+                                backgroundColor: context.appTextPrimary
+                                    .withValues(alpha: 0.12),
                                 valueColor: AlwaysStoppedAnimation<Color>(
-                                  accent,
+                                  context.appTextPrimary.withValues(
+                                    alpha: 0.72,
+                                  ),
                                 ),
                               ),
                             ),
@@ -1703,24 +1702,18 @@ class _ChapterCard extends StatelessWidget {
 class _ChapterBadge extends StatelessWidget {
   final int number;
   final bool current;
-  final Color accent;
 
-  const _ChapterBadge({
-    required this.number,
-    required this.current,
-    required this.accent,
-  });
+  const _ChapterBadge({required this.number, required this.current});
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       width: 44,
       height: 44,
       decoration: BoxDecoration(
         color: current
-            ? accent
-            : accent.withValues(alpha: isDark ? 0.16 : 0.12),
+            ? context.appTextPrimary
+            : context.appTextPrimary.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(10),
       ),
       alignment: Alignment.center,
@@ -1728,12 +1721,12 @@ class _ChapterBadge extends StatelessWidget {
           ? AppIcon(
               AppIcons.audioWave01,
               size: 20,
-              color: Theme.of(context).colorScheme.onPrimary,
+              color: context.appBackground,
             )
           : Text(
               '$number',
               style: TextStyle(
-                color: accent,
+                color: context.appTextPrimary.withValues(alpha: 0.72),
                 fontSize: 15,
                 fontWeight: FontWeight.normal,
               ),

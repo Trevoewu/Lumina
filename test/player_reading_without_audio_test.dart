@@ -12,6 +12,7 @@ import 'package:lumina/core/providers.dart';
 import 'package:lumina/core/theme.dart';
 import 'package:lumina/data/database/app_database.dart';
 import 'package:lumina/domain/models/chapter_manifest.dart';
+import 'package:lumina/domain/models/audio_text_timing.dart';
 import 'package:lumina/presentation/screens/album/album_screen.dart';
 import 'package:lumina/presentation/screens/player/player_screen.dart';
 import 'package:lumina/presentation/screens/settings/tts_service_screen.dart';
@@ -414,15 +415,15 @@ void main() {
     expect(audioHandler.skippedQueueIndex, 1);
 
     await audioHandler.seek(const Duration(seconds: 45));
-    await tester.tap(find.byKey(const ValueKey('player-forward-30-seconds')));
+    await tester.tap(find.byKey(const ValueKey('player-forward-three-lines')));
     await tester.pumpAndSettle();
-    expect(audioHandler.soughtPosition, const Duration(seconds: 75));
+    expect(audioHandler.soughtPosition, const Duration(seconds: 45));
 
-    await tester.tap(find.byKey(const ValueKey('player-backward-10-seconds')));
+    await tester.tap(find.byKey(const ValueKey('player-backward-one-line')));
     await tester.pumpAndSettle();
     expect(find.text('Queue Chapter Two'), findsOneWidget);
     expect(audioHandler.skippedQueueIndex, 1);
-    expect(audioHandler.soughtPosition, const Duration(seconds: 65));
+    expect(audioHandler.soughtPosition, const Duration(seconds: 45));
   });
 
   testWidgets(
@@ -1259,7 +1260,7 @@ void main() {
       chapterId: 'seek-chapter',
       bookId: 'seek-book',
       paragraphIndex: 0,
-      content: 'Seekable text.',
+      content: 'Opening sentence. Seekable text.',
     );
     await database.replaceBookData(
       book: book,
@@ -1279,6 +1280,18 @@ void main() {
           audioFile: 'seek-chapter/seek-paragraph.mp3',
           durationMs: 1329000,
           state: ParagraphAudioState.ready,
+          timings: [
+            AudioTextTiming(
+              text: 'Opening sentence.',
+              startMs: 0,
+              endMs: 797400,
+            ),
+            AudioTextTiming(
+              text: 'Seekable text.',
+              startMs: 797400,
+              endMs: 1329000,
+            ),
+          ],
         ),
       ],
     );
@@ -1315,6 +1328,13 @@ void main() {
     expect(slider.value, closeTo(0.6, 0.001));
     expect(audioHandler.seekCalls, 0);
 
+    // Cache growth can change the duration while the finger is down. The
+    // displayed target must retain the timeline captured at drag start.
+    audioHandler.changeChapterDuration(const Duration(minutes: 24));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('13:17'), findsOneWidget);
+    slider = tester.widget<Slider>(sliderFinder);
     slider.onChangeEnd!(0.6);
     await tester.pump();
     expect(audioHandler.seekCalls, 1);
@@ -1324,9 +1344,50 @@ void main() {
     );
     expect(tester.widget<Slider>(sliderFinder).value, closeTo(0.6, 0.001));
 
+    audioHandler.deferSeekPositionEvent = true;
     audioHandler.pendingSeek!.complete();
     await tester.pump();
-    expect(tester.widget<Slider>(sliderFinder).value, closeTo(0.6, 0.001));
+    expect(find.text('13:17'), findsOneWidget);
+    expect(
+      tester.widget<Slider>(sliderFinder).value,
+      closeTo(797400 / 1440000, 0.001),
+    );
+
+    // Exercise real pointer events, including the enlarged touch area and
+    // release before the next position event. Callback-only tests miss this.
+    for (final distance in [55.0, -80.0, 30.0]) {
+      final rect = tester.getRect(sliderFinder);
+      final gesture = await tester.startGesture(
+        Offset(rect.center.dx, rect.top + 5),
+      );
+      await tester.pump(const Duration(milliseconds: 160));
+      await gesture.moveBy(Offset(distance, 0));
+      await tester.pump();
+      await gesture.moveBy(Offset(distance / 2, 0));
+      await tester.pump();
+      final preview = tester
+          .widgetList<Text>(
+            find.descendant(
+              of: find.byKey(const ValueKey('player-playback-controls')),
+              matching: find.byType(Text),
+            ),
+          )
+          .firstWhere(
+            (text) => RegExp(r'^\d+:\d{2}$').hasMatch(text.data ?? ''),
+          );
+      final parts = preview.data!.split(':').map(int.parse).toList();
+      final previewSeconds = parts[0] * 60 + parts[1];
+      await gesture.up();
+      await tester.pump();
+      expect(audioHandler.soughtPosition!.inSeconds, previewSeconds);
+      expect(find.text(preview.data!), findsOneWidget);
+    }
+    await tester.tap(find.byKey(const ValueKey('player-backward-one-line')));
+    await tester.pump();
+    expect(audioHandler.soughtPosition, Duration.zero);
+    await tester.tap(find.byKey(const ValueKey('player-forward-three-lines')));
+    await tester.pump();
+    expect(audioHandler.soughtPosition, const Duration(milliseconds: 797400));
   });
 
   test('audiobook chapter position prefers per-chapter progress', () {
@@ -1812,11 +1873,17 @@ class _TestAudioHandler extends BaseAudioHandler implements LuminaAudioHandler {
   int? skippedQueueIndex;
   Duration? soughtPosition;
   Completer<void>? pendingSeek;
+  bool deferSeekPositionEvent = false;
   Completer<void>? pendingLoadChapter;
   Duration? loadedInitialPosition;
   bool _disposed = false;
 
   bool get hasChapterPositionListener => _chapterPositionController.hasListener;
+
+  void changeChapterDuration(Duration duration) {
+    _chapterDuration = duration;
+    playbackState.add(playbackState.value.copyWith(playing: false));
+  }
 
   void startLoadedChapter({
     required String bookId,
@@ -2014,6 +2081,7 @@ class _TestAudioHandler extends BaseAudioHandler implements LuminaAudioHandler {
     soughtPosition = position;
     await pendingSeek?.future;
     _position = position;
+    if (deferSeekPositionEvent) return;
     _positionController.add(position);
     _chapterPositionController.add(position);
   }
