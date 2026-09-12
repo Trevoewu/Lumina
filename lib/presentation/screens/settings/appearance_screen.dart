@@ -1,6 +1,7 @@
 import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import '../../widgets/reading_adjustment_slider.dart';
+import '../../widgets/subtitle_line.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/app_design_tokens.dart';
@@ -129,15 +130,19 @@ class AppearanceScreen extends ConsumerWidget {
                   title: context.tr('字幕句间距', 'Subtitle spacing', '字幕の間隔'),
                   value: '${appearance.subtitleGap.round()} pt',
                 ),
-                Slider(
-                  key: const ValueKey('subtitle-spacing-slider'),
+                ReadingAdjustmentSlider(
+                  sliderKey: const ValueKey('subtitle-spacing-slider'),
+                  label: context.tr('字幕句间距', 'Subtitle spacing', '字幕の間隔'),
+                  thumb: '${appearance.subtitleGap.round()}',
+                  leading: context.tr('紧', 'T', '狭'),
+                  trailing: context.tr('松', 'L', '広'),
                   min: 20,
                   max: 80,
                   divisions: 12,
                   value: appearance.subtitleGap,
-                  label: '${appearance.subtitleGap.round()} pt',
                   onChanged: controller.setSubtitleGap,
                 ),
+                const SizedBox(height: 12),
                 Text(
                   context.tr(
                     '增大间距可减少同屏字幕；当前句保持相同字号。',
@@ -151,65 +156,76 @@ class AppearanceScreen extends ConsumerWidget {
                   value: '${(24 * appearance.fontScale).round()} pt',
                 ),
                 const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Text(
-                      'A',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.normal,
-                        color: scheme.onSurfaceVariant,
-                      ),
-                    ),
-                    Expanded(
-                      child: Slider(
-                        min: 16 / 24,
-                        max: 40 / 24,
-                        divisions: 24,
-                        value: appearance.fontScale.clamp(16 / 24, 40 / 24),
-                        onChanged: (v) {
-                          if (v != appearance.fontScale) {
-                            HapticFeedback.selectionClick();
-                            controller.setFontScale(v);
-                          }
-                        },
-                      ),
-                    ),
-                    Text(
-                      'A',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.normal,
-                        color: scheme.onSurface,
-                      ),
-                    ),
-                  ],
+                ReadingAdjustmentSlider(
+                  sliderKey: const ValueKey('appearance-font-slider'),
+                  label: context.tr('字号', 'Text Size', '文字サイズ'),
+                  thumb: '${(24 * appearance.fontScale).round()}',
+                  leading: 'A',
+                  trailing: 'A',
+                  fontEnds: true,
+                  min: 16 / 24,
+                  max: 40 / 24,
+                  divisions: 24,
+                  value: appearance.fontScale.clamp(16 / 24, 40 / 24),
+                  onChanged: controller.setFontScale,
                 ),
                 const SizedBox(height: 8),
-                DecoratedBox(
+                Text(
+                  context.tr(
+                    '字体与字号用于阅读正文和播放器字幕；句间距仅用于字幕。',
+                    'Font and size apply to reading and subtitles; spacing applies only to subtitles.',
+                    'フォントとサイズは本文と字幕に、間隔は字幕に適用されます。',
+                  ),
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 16),
+                _BlockHeader(
+                  title: context.tr('字幕预览', 'Subtitle preview', '字幕プレビュー'),
+                  value: context.tr('可滚动', 'Scroll to preview', 'スクロール可'),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  height: 280,
+                  clipBehavior: Clip.hardEdge,
                   decoration: BoxDecoration(
                     color: scheme.onSurface.withValues(alpha: 0.04),
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 15,
-                    ),
-                    child: Text(
-                      context.tr(
-                        '复原力不是天赋，而是一次次刻意选择累积出来的东西。',
-                        'The quick brown fox jumps over the lazy dog.',
-                        'レジリエンスは才能ではなく、選択の積み重ねです。',
-                      ),
-                      style: TextStyle(
-                        fontSize: 17 * appearance.fontScale,
-                        height: 1.65,
-                        color: scheme.onSurface.withValues(alpha: 0.7),
-                        fontFamily: appearance.fontOption.fontFamily,
-                        fontFamilyFallback:
-                            appearance.fontOption.fontFamilyFallback,
-                      ),
+                  child: SingleChildScrollView(
+                    key: const ValueKey('subtitle-preview'),
+                    primary: false,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (final (index, sentence) in const [
+                          'Every story begins with a single word.',
+                          '每一个故事，都从一个词开始。',
+                          'Take your time and listen to the next sentence.',
+                          '放慢脚步，听见文字里的世界。',
+                        ].indexed)
+                          SubtitleLine(
+                            gap: appearance.subtitleGap,
+                            child: Text(
+                              sentence,
+                              style:
+                                  subtitleTextStyle(
+                                    context,
+                                    color: scheme.onSurface.withValues(
+                                      alpha: index == 1 ? 1 : 0.46,
+                                    ),
+                                    fontScale: appearance.fontScale,
+                                    focusMode: true,
+                                  ).copyWith(
+                                    fontFamily:
+                                        appearance.fontOption.fontFamily,
+                                    fontFamilyFallback: appearance
+                                        .fontOption
+                                        .fontFamilyFallback,
+                                  ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ),

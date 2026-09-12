@@ -86,6 +86,57 @@ void main() {
   });
 
   group('AppearanceScreen Widget Rendering', () {
+    for (final brightness in Brightness.values) {
+      testWidgets(
+        'subtitle preview responds to size and spacing in $brightness',
+        (tester) async {
+          tester.view.physicalSize = const Size(430, 2400);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          await tester.pumpWidget(
+            ProviderScope(
+              overrides: [
+                appIconGatewayProvider.overrideWithValue(_FakeAppIconGateway()),
+              ],
+              child: MaterialApp(
+                theme: ThemeData(brightness: brightness),
+                home: const AppearanceScreen(),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          final sentence = find.text('Every story begins with a single word.');
+          await tester.ensureVisible(sentence);
+          await tester.pumpAndSettle();
+          final initialSize = tester.widget<Text>(sentence).style!.fontSize!;
+          final sizeSlider = tester.widget<Slider>(
+            find.byKey(const ValueKey('appearance-font-slider')),
+          );
+          sizeSlider.onChanged!(40 / 24);
+          await tester.pumpAndSettle();
+          expect(
+            tester.widget<Text>(sentence).style!.fontSize,
+            greaterThan(initialSize),
+          );
+          final second = find.text('每一个故事，都从一个词开始。');
+          final initialDistance =
+              tester.getTopLeft(second).dy - tester.getTopLeft(sentence).dy;
+          tester
+              .widget<Slider>(
+                find.byKey(const ValueKey('subtitle-spacing-slider')),
+              )
+              .onChanged!(80);
+          await tester.pumpAndSettle();
+          expect(
+            tester.getTopLeft(second).dy - tester.getTopLeft(sentence).dy,
+            greaterThan(initialDistance),
+          );
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+
     testWidgets(
       'renders Theme switch and both Light & Dark Theme palette cards',
       (tester) async {

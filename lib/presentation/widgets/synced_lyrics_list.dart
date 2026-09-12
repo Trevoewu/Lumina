@@ -1,3 +1,4 @@
+import 'subtitle_line.dart';
 import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'dart:async';
 import 'dart:math' as math;
@@ -1139,6 +1140,7 @@ class SyncedLyricsList extends StatefulWidget {
   final double scrollSpeed;
   final bool sweepEnabled;
   final double subtitleGap;
+  final double fontScale;
 
   const SyncedLyricsList({
     super.key,
@@ -1156,6 +1158,7 @@ class SyncedLyricsList extends StatefulWidget {
     this.scrollSpeed = 1.0,
     this.sweepEnabled = true,
     this.subtitleGap = 40,
+    this.fontScale = 1,
   });
 
   @override
@@ -1270,6 +1273,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
     }
     if (oldWidget.expanded != widget.expanded ||
         oldWidget.subtitleGap != widget.subtitleGap ||
+        oldWidget.fontScale != widget.fontScale ||
         oldWidget.focusMode != widget.focusMode ||
         oldWidget.virtualized != widget.virtualized) {
       _invalidateVirtualMetrics();
@@ -2414,18 +2418,11 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
           alignment: Alignment.centerLeft,
           duration: const Duration(milliseconds: 260),
           curve: Curves.easeOutCubic,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOutCubic,
-            padding: EdgeInsets.symmetric(
-              vertical: _lyricLineVerticalPadding / 2,
-            ),
-            decoration: BoxDecoration(
-              color: pressed
-                  ? context.appSurfaceHighlight.withValues(alpha: 0.22)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(8),
-            ),
+          child: SubtitleLine(
+            gap: widget.subtitleGap,
+            backgroundColor: pressed
+                ? context.appSurfaceHighlight.withValues(alpha: 0.22)
+                : Colors.transparent,
             child: text,
           ),
         ),
@@ -2675,18 +2672,12 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
 
   /// Playback changes emphasis, never font metrics or line wrapping.
   TextStyle _lineTextStyle({required Color color, bool highlighted = false}) {
-    return TextStyle(
-      fontSize: widget.focusMode
-          ? 21
-          : widget.expanded
-          ? 22
-          : 18,
-      fontWeight: FontWeight.normal,
+    return subtitleTextStyle(
+      context,
       color: color,
-      height: 1.5,
-      letterSpacing: 0,
-      fontFamily: context.appDesign.readingFontFamily,
-      fontFamilyFallback: context.appDesign.readingFontFamilyFallback,
+      fontScale: widget.fontScale,
+      focusMode: widget.focusMode,
+      expanded: widget.expanded,
     );
   }
 

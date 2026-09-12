@@ -3683,6 +3683,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       }
 
       final lyrics = SyncedLyricsList(
+        fontScale: ref.watch(
+          appearanceControllerProvider.select((s) => s.fontScale),
+        ),
         subtitleGap: ref.watch(
           appearanceControllerProvider.select((s) => s.subtitleGap),
         ),
@@ -3759,6 +3762,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     ),
                   )
                 : SyncedLyricsList(
+                    fontScale: ref.watch(
+                      appearanceControllerProvider.select((s) => s.fontScale),
+                    ),
                     subtitleGap: ref.watch(
                       appearanceControllerProvider.select((s) => s.subtitleGap),
                     ),
@@ -3802,6 +3808,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           );
         }
         return SyncedLyricsList(
+          fontScale: ref.watch(
+            appearanceControllerProvider.select((s) => s.fontScale),
+          ),
           subtitleGap: ref.watch(
             appearanceControllerProvider.select((s) => s.subtitleGap),
           ),
