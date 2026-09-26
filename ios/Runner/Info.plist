@@ -8,72 +8,6 @@
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
 	<string>Lumina</string>
-	<key>CFBundleExecutable</key>
-	<string>$(EXECUTABLE_NAME)</string>
-	<key>CFBundleIdentifier</key>
-	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
-	<key>CFBundleInfoDictionaryVersion</key>
-	<string>6.0</string>
-	<key>CFBundleName</key>
-	<string>lumina</string>
-	<key>CFBundlePackageType</key>
-	<string>APPL</string>
-	<key>CFBundleShortVersionString</key>
-	<string>$(FLUTTER_BUILD_NAME)</string>
-	<key>CFBundleSignature</key>
-	<string>????</string>
-	<key>CFBundleVersion</key>
-	<string>$(FLUTTER_BUILD_NUMBER)</string>
-	<key>CFBundleIcons</key>
-	<dict>
-		<key>CFBundlePrimaryIcon</key>
-		<dict>
-			<key>CFBundleIconName</key>
-			<string>AppIcon</string>
-		</dict>
-		<key>CFBundleAlternateIcons</key>
-		<dict>
-			<key>a1</key>
-			<dict><key>CFBundleIconName</key><string>AppIconA1</string></dict>
-			<key>a2</key>
-			<dict><key>CFBundleIconName</key><string>AppIconA2</string></dict>
-			<key>b1</key>
-			<dict><key>CFBundleIconName</key><string>AppIconB1</string></dict>
-			<key>b2</key>
-			<dict><key>CFBundleIconName</key><string>AppIconB2</string></dict>
-			<key>c1</key>
-			<dict><key>CFBundleIconName</key><string>AppIconC1</string></dict>
-			<key>c2</key>
-			<dict><key>CFBundleIconName</key><string>AppIconC2</string></dict>
-		</dict>
-	</dict>
-	<key>CFBundleIcons~ipad</key>
-	<dict>
-		<key>CFBundlePrimaryIcon</key>
-		<dict>
-			<key>CFBundleIconName</key>
-			<string>AppIcon</string>
-		</dict>
-		<key>CFBundleAlternateIcons</key>
-		<dict>
-			<key>a1</key>
-			<dict><key>CFBundleIconName</key><string>AppIconA1</string></dict>
-			<key>a2</key>
-			<dict><key>CFBundleIconName</key><string>AppIconA2</string></dict>
-			<key>b1</key>
-			<dict><key>CFBundleIconName</key><string>AppIconB1</string></dict>
-			<key>b2</key>
-			<dict><key>CFBundleIconName</key><string>AppIconB2</string></dict>
-			<key>c1</key>
-			<dict><key>CFBundleIconName</key><string>AppIconC1</string></dict>
-			<key>c2</key>
-			<dict><key>CFBundleIconName</key><string>AppIconC2</string></dict>
-		</dict>
-	</dict>
-	<key>LSRequiresIPhoneOS</key>
-	<true/>
-	<key>LSSupportsOpeningDocumentsInPlace</key>
-	<false/>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
@@ -89,6 +23,108 @@
 			</array>
 		</dict>
 	</array>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIcons</key>
+	<dict>
+		<key>CFBundleAlternateIcons</key>
+		<dict>
+			<key>a1</key>
+			<dict>
+				<key>CFBundleIconName</key>
+				<string>AppIconA1</string>
+			</dict>
+			<key>a2</key>
+			<dict>
+				<key>CFBundleIconName</key>
+				<string>AppIconA2</string>
+			</dict>
+			<key>b1</key>
+			<dict>
+				<key>CFBundleIconName</key>
+				<string>AppIconB1</string>
+			</dict>
+			<key>b2</key>
+			<dict>
+				<key>CFBundleIconName</key>
+				<string>AppIconB2</string>
+			</dict>
+			<key>c1</key>
+			<dict>
+				<key>CFBundleIconName</key>
+				<string>AppIconC1</string>
+			</dict>
+			<key>c2</key>
+			<dict>
+				<key>CFBundleIconName</key>
+				<string>AppIconC2</string>
+			</dict>
+		</dict>
+		<key>CFBundlePrimaryIcon</key>
+		<dict>
+			<key>CFBundleIconName</key>
+			<string>AppIcon</string>
+		</dict>
+	</dict>
+	<key>CFBundleIcons~ipad</key>
+	<dict>
+		<key>CFBundleAlternateIcons</key>
+		<dict>
+			<key>a1</key>
+			<dict>
+				<key>CFBundleIconName</key>
+				<string>AppIconA1</string>
+			</dict>
+			<key>a2</key>
+			<dict>
+				<key>CFBundleIconName</key>
+				<string>AppIconA2</string>
+			</dict>
+			<key>b1</key>
+			<dict>
+				<key>CFBundleIconName</key>
+				<string>AppIconB1</string>
+			</dict>
+			<key>b2</key>
+			<dict>
+				<key>CFBundleIconName</key>
+				<string>AppIconB2</string>
+			</dict>
+			<key>c1</key>
+			<dict>
+				<key>CFBundleIconName</key>
+				<string>AppIconC1</string>
+			</dict>
+			<key>c2</key>
+			<dict>
+				<key>CFBundleIconName</key>
+				<string>AppIconC2</string>
+			</dict>
+		</dict>
+		<key>CFBundlePrimaryIcon</key>
+		<dict>
+			<key>CFBundleIconName</key>
+			<string>AppIcon</string>
+		</dict>
+	</dict>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>lumina</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(FLUTTER_BUILD_NAME)</string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
+	<key>CFBundleVersion</key>
+	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<false/>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -133,5 +169,13 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>需要访问相册以导入本地音频书、电子书文件或选择书籍封面。</string>
+	<key>NSCameraUsageDescription</key>
+	<string>需要访问相机以拍摄书籍封面或扫描功能。</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>需要使用位置信息以优化语言及本地化服务。</string>
 </dict>
 </plist>

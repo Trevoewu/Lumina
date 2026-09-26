@@ -34,7 +34,9 @@ class VoicePreviewController {
     final samplePath = voice.samplePath?.trim();
     if (previewUrl != null && previewUrl.isNotEmpty) {
       await _player.setUrl(previewUrl);
-    } else if (samplePath != null && samplePath.isNotEmpty) {
+    } else if (samplePath != null &&
+        samplePath.isNotEmpty &&
+        File(samplePath).existsSync()) {
       await _player.setFilePath(samplePath);
     } else {
       final provider = registry.get(voice.providerId);
@@ -70,6 +72,19 @@ class VoicePreviewController {
   }
 
   String _previewText(TtsVoice voice) {
+    if (voice.providerId == 'gpt_sovits') {
+      if (voice.id == 'vertin_gentle') {
+        return "You are a careful reader. I'll help you out, don't worry. This is a voice preview.";
+      }
+      return "Hello, Timekeeper. This is Vertin, and this is a voice preview.";
+    }
+
+    final isEnglishOnly =
+        voice.languages.contains('en') && !voice.languages.contains('zh');
+    if (isEnglishOnly) {
+      return 'Hello, this is a voice preview.';
+    }
+
     final name = voice.name.trim();
     return name.isEmpty ? '这是一段音色试听。' : '你好，我是$name。这是一段音色试听。';
   }

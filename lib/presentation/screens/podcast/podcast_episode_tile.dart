@@ -66,11 +66,6 @@ class _PodcastEpisodeTileState extends ConsumerState<PodcastEpisodeTile> {
       if (date.isNotEmpty) date,
       if (duration.isNotEmpty) duration,
     ].join(' · ');
-    final progress = resolvedEpisode.durationMs <= 0
-        ? 0.0
-        : (resolvedEpisode.playbackPositionMs / resolvedEpisode.durationMs)
-              .clamp(0.0, 1.0)
-              .toDouble();
 
     return SwipeActionRow(
       key: ValueKey('podcast-episode-swipe-${resolvedEpisode.id}'),
@@ -132,18 +127,6 @@ class _PodcastEpisodeTileState extends ConsumerState<PodcastEpisodeTile> {
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(color: context.appTextSecondary),
-                        ),
-                      ],
-                      if (resolvedEpisode.playbackPositionMs > 0 &&
-                          !resolvedEpisode.isPlayed) ...[
-                        const SizedBox(height: 9),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(2),
-                          child: LinearProgressIndicator(
-                            value: progress,
-                            minHeight: 3,
-                            backgroundColor: context.appSurfaceHighlight,
-                          ),
                         ),
                       ],
                     ],

@@ -9,6 +9,7 @@ import '../tts/models/tts_model.dart';
 import '../tts/models/tts_voice.dart';
 import '../tts/provider_registry.dart';
 import '../tts/providers/fish_audio_api_tts_provider.dart';
+import '../tts/providers/gpt_sovits_tts_provider.dart';
 import '../tts/providers/minimax_tts_provider.dart';
 import '../tts/tts_provider.dart';
 import 'providers.dart';
@@ -578,6 +579,7 @@ class TtsSettingsController extends AsyncNotifier<TtsSettingsState> {
     return switch (provider) {
       FishAudioApiTtsProvider value => await value.apiKey,
       MinimaxTtsProvider value => await value.apiKey,
+      GptSovitsTtsProvider value => await value.endpoint,
       _ => null,
     };
   }
@@ -601,6 +603,10 @@ class TtsSettingsController extends AsyncNotifier<TtsSettingsState> {
         trimmed.isEmpty
             ? await value.clearApiKey()
             : await value.setApiKey(trimmed);
+      case GptSovitsTtsProvider value:
+        trimmed.isEmpty
+            ? await value.clearEndpoint()
+            : await value.setEndpoint(trimmed);
       default:
         return;
     }
@@ -794,6 +800,9 @@ Future<bool> _readTtsProviderConfiguration(TtsProvider provider) async {
   }
   if (provider is MinimaxTtsProvider) {
     return (await provider.apiKey)?.trim().isNotEmpty == true;
+  }
+  if (provider is GptSovitsTtsProvider) {
+    return (await provider.endpoint).trim().isNotEmpty;
   }
   return provider.validate();
 }

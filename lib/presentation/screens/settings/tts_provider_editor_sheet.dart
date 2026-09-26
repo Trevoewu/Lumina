@@ -65,6 +65,8 @@ class _TtsProviderEditorSheetState
     final provider = ref.read(providerRegistryProvider).get(widget.providerId);
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
 
+    final isGptSovits = widget.providerId == 'gpt_sovits';
+
     return Padding(
       padding: EdgeInsets.only(bottom: bottomInset),
       child: SingleChildScrollView(
@@ -82,18 +84,32 @@ class _TtsProviderEditorSheetState
             ),
             const SizedBox(height: 7),
             Text(
-              context.tr(
-                '密钥只保存在本机钥匙串，模型与音色通过接口实时获取。',
-                'The key stays in this device\'s keychain; models and voices are pulled from the API.',
-                'キーは端末のキーチェーンにのみ保存され、モデルと音声はAPIから取得します。',
-              ),
+              isGptSovits
+                  ? context.tr(
+                      '本地模型推理服务。模型权重与推理计算完全在本地设备，生成的音频自动存入本地离线缓存。',
+                      'Local model inference. Weights and compute stay on your hardware, audio is cached locally.',
+                      'ローカルモデル推論サービス。音声はローカルに保存されます。',
+                    )
+                  : context.tr(
+                      '密钥只保存在本机钥匙串，模型与音色通过接口实时获取。',
+                      'The key stays in this device\'s keychain; models and voices are pulled from the API.',
+                      'キーは端末のキーチェーンにのみ保存され、モデルと音声はAPI从取得します。',
+                    ),
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: scheme.onSurfaceVariant,
                 height: 1.55,
               ),
             ),
 
-            const SettingsSectionLabel(title: 'API Key'),
+            SettingsSectionLabel(
+              title: isGptSovits
+                  ? context.tr(
+                      '本地服务地址 (Local Server URL)',
+                      'Local Server URL',
+                      'ローカルサーバーURL',
+                    )
+                  : 'API Key',
+            ),
             if (_loading)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 16),
@@ -125,7 +141,7 @@ class _TtsProviderEditorSheetState
                     enabledBorder: InputBorder.none,
                     focusedBorder: InputBorder.none,
                     contentPadding: EdgeInsets.zero,
-                    hintText: 'sk-...',
+                    hintText: isGptSovits ? 'http://172.26.19.56:9880' : 'sk-...',
                     hintStyle: TextStyle(
                       color: scheme.onSurface.withValues(alpha: 0.3),
                       fontFamily: 'monospace',

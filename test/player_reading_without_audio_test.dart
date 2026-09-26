@@ -1733,12 +1733,12 @@ void main() {
     expect(find.textContaining('Read by'), findsNothing);
     expect(find.text('1. Open Immediately'), findsNothing);
     expect(find.text('Open Immediately'), findsOneWidget);
-    final chapterProgress = tester.widget<LinearProgressIndicator>(
+    expect(
       find.byKey(
         const ValueKey('book-chapter-playback-progress-navigation-chapter'),
       ),
+      findsNothing,
     );
-    expect(chapterProgress.value, 0.5);
     expect(find.byIcon(Icons.arrow_circle_down_outlined), findsNothing);
     expect(
       find.byWidgetPredicate(

@@ -379,7 +379,9 @@ class _TtsProviderCard extends StatelessWidget {
 
   String _meta(BuildContext context) {
     if (!card.configured) {
-      return context.tr('未配置 API Key', 'No API key yet', 'APIキー未設定');
+      return card.id == 'gpt_sovits'
+          ? context.tr('未配置本地服务', 'No local service yet', 'ローカル未設定')
+          : context.tr('未配置 API Key', 'No API key yet', 'APIキー未設定');
     }
     final parts = <String>[
       card.selectedModelId ?? context.tr('未选择模型', 'No model', 'モデル未選択'),
@@ -436,6 +438,12 @@ class _Tag extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final displayLabel = switch (label) {
+      'Cloud service' => context.tr('云端服务', 'Cloud service', 'クラウドサービス'),
+      'On-device service' || 'Local model' =>
+          context.tr('本地模型', 'Local model', 'ローカルモデル'),
+      _ => label,
+    };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
@@ -443,7 +451,7 @@ class _Tag extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
-        label,
+        displayLabel,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
           fontFamily: 'monospace',
           color: scheme.onSurfaceVariant,

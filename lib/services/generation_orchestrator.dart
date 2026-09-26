@@ -1310,63 +1310,104 @@ List<String> splitTextForTts(String text, int maxChars, {int? hardMaxChars}) {
       hardMaxChars ??
       (maxChars <= 1000 ? (maxChars * 4).clamp(maxChars, 4000) : maxChars);
 
-  final sentences = trimmed
-      .split(RegExp(r'(?<=[。！？!?；;\n])'))
-      .map((s) => s.trim())
-      .where((s) => s.isNotEmpty)
-      .toList();
+  // 标点：[。！？!?；;\n] 或 英文句号 (避开数字小数、常见英文缩写)
+  // 跟随闭合引号/括号以及可选的后续空格，完整保留句末符号与自然间距
+  final pattern = RegExp(
+    r"""([。！？!?；;\n]|(?<!\b(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|vs|etc|i\.e|e\.g|[A-Z])|\d)\.(?!\d))[”"’'\)\]]*\s*""",
+  );
+
+  final sentences = <String>[];
+  var start = 0;
+  for (final match in pattern.allMatches(trimmed)) {
+    final end = match.end;
+    final piece = trimmed.substring(start, end);
+    if (piece.trim().isNotEmpty) {
+      sentences.add(piece);
+    }
+    start = end;
+  }
+  if (start < trimmed.length) {
+    final tail = trimmed.substring(start);
+    if (tail.trim().isNotEmpty) {
+      sentences.add(tail);
+    }
+  }
 
   final out = <String>[];
   final buffer = StringBuffer();
 
   for (final sentence in sentences) {
-    if (buffer.isNotEmpty && buffer.length + sentence.length > maxChars) {
-      out.add(buffer.toString());
+    final sentenceTrimmed = sentence.trim();
+    if (buffer.isNotEmpty && buffer.length + sentenceTrimmed.length > maxChars) {
+      final chunk = buffer.toString().trim();
+      if (chunk.isNotEmpty) out.add(chunk);
       buffer.clear();
     }
 
-    if (sentence.length > hardLimit) {
-      out.addAll(_splitOversizedSentence(sentence, hardLimit));
+    if (sentenceTrimmed.length > hardLimit) {
+      if (buffer.isNotEmpty) {
+        final chunk = buffer.toString().trim();
+        if (chunk.isNotEmpty) out.add(chunk);
+        buffer.clear();
+      }
+      out.addAll(_splitOversizedSentence(sentenceTrimmed, hardLimit));
       continue;
     }
 
     buffer.write(sentence);
   }
 
-  if (buffer.isNotEmpty) out.add(buffer.toString());
+  if (buffer.isNotEmpty) {
+    final chunk = buffer.toString().trim();
+    if (chunk.isNotEmpty) out.add(chunk);
+  }
   return out;
 }
 
 List<String> _splitOversizedSentence(String sentence, int hardLimit) {
-  final parts = sentence
-      .split(RegExp(r'(?<=[，,、：:])|\s+'))
-      .map((s) => s.trim())
-      .where((s) => s.isNotEmpty)
-      .toList();
+  // 识别从句弱边界标点（逗号、冒号、破折号）或连续空白，同时保留标点与空格
+  final pattern = RegExp(r'([，,、：:—–-]|\s+)\s*');
+  final parts = <String>[];
+  var start = 0;
+  for (final match in pattern.allMatches(sentence)) {
+    final end = match.end;
+    final piece = sentence.substring(start, end);
+    if (piece.isNotEmpty) parts.add(piece);
+    start = end;
+  }
+  if (start < sentence.length) {
+    final tail = sentence.substring(start);
+    if (tail.isNotEmpty) parts.add(tail);
+  }
 
   if (parts.length <= 1) {
-    return _hardSplit(sentence, hardLimit);
+    return _hardSplit(sentence.trim(), hardLimit);
   }
 
   final out = <String>[];
   final buffer = StringBuffer();
   for (final part in parts) {
-    if (part.length > hardLimit) {
+    if (part.trim().length > hardLimit) {
       if (buffer.isNotEmpty) {
-        out.add(buffer.toString());
+        final chunk = buffer.toString().trim();
+        if (chunk.isNotEmpty) out.add(chunk);
         buffer.clear();
       }
-      out.addAll(_hardSplit(part, hardLimit));
+      out.addAll(_hardSplit(part.trim(), hardLimit));
       continue;
     }
 
     if (buffer.isNotEmpty && buffer.length + part.length > hardLimit) {
-      out.add(buffer.toString());
+      final chunk = buffer.toString().trim();
+      if (chunk.isNotEmpty) out.add(chunk);
       buffer.clear();
     }
     buffer.write(part);
   }
-  if (buffer.isNotEmpty) out.add(buffer.toString());
+  if (buffer.isNotEmpty) {
+    final chunk = buffer.toString().trim();
+    if (chunk.isNotEmpty) out.add(chunk);
+  }
   return out;
 }
 

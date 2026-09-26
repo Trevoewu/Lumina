@@ -48,6 +48,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    expect(find.byType(LinearProgressIndicator), findsNothing);
 
     var row = find.byKey(const ValueKey('podcast-episode-swipe-swipe-episode'));
     await tester.drag(row, const Offset(-300, 0));

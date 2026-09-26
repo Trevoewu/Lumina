@@ -4,6 +4,7 @@ import '../core/database_provider.dart';
 import '../data/settings/provider_selection_repository.dart';
 import 'api_key_store.dart';
 import '../tts/providers/fish_audio_api_tts_provider.dart';
+import '../tts/providers/gpt_sovits_tts_provider.dart';
 import '../tts/providers/minimax_tts_provider.dart';
 import '../tts/tts_provider.dart';
 
@@ -37,9 +38,15 @@ class ProviderRegistry {
       apiKeyStore: apiKeyStore,
       modelSelectionReader: selections?.selectedTtsModel,
     );
+    final gptSovits = GptSovitsTtsProvider(
+      settingReader: settingReader,
+      settingWriter: settingWriter,
+      modelSelectionReader: selections?.selectedTtsModel,
+    );
 
     _providers[fishApi.id] = fishApi;
     _providers[minimax.id] = minimax;
+    _providers[gptSovits.id] = gptSovits;
   }
 
   /// 所有已注册的 Provider。

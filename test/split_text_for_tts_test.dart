@@ -27,5 +27,51 @@ void main() {
       final chunks = splitTextForTts(text, 4000);
       expect(chunks.map((chunk) => chunk.length), [4000, 1001]);
     });
+
+    test('splits English sentences by periods and preserves inter-sentence spaces', () {
+      const text =
+          'It was a bright cold day in April. The clocks were striking thirteen. Winston slipped inside.';
+      final chunks = splitTextForTts(text, 50);
+      expect(chunks, [
+        'It was a bright cold day in April.',
+        'The clocks were striking thirteen.',
+        'Winston slipped inside.',
+      ]);
+    });
+
+    test('keeps dialogue quotes attached to preceding sentences', () {
+      const text =
+          '"Is that you, Winston?" asked Mrs. Parsons. '
+          '"Yes, it is," he answered.';
+      final chunks = splitTextForTts(text, 50);
+      expect(chunks, [
+        '"Is that you, Winston?" asked Mrs. Parsons.',
+        '"Yes, it is," he answered.',
+      ]);
+    });
+
+    test('does not break on abbreviations or decimal numbers', () {
+      const text =
+          'Dr. Watson visited H. G. Wells at 3.14 PM. It was a pleasant meeting.';
+      final chunks = splitTextForTts(text, 50);
+      expect(chunks, [
+        'Dr. Watson visited H. G. Wells at 3.14 PM.',
+        'It was a pleasant meeting.',
+      ]);
+    });
+
+    test('preserves whitespace between words when splitting oversized sentences', () {
+      const longSentence =
+          'The hallway smelt of boiled cabbage and old rag mats, '
+          'and at one end of it a coloured poster, too large for indoor display, '
+          'had been tacked to the wall, depicting simply an enormous face.';
+      final chunks = splitTextForTts(longSentence, 50, hardMaxChars: 100);
+      expect(chunks.length, greaterThan(1));
+      for (final chunk in chunks) {
+        expect(chunk.contains('Thehallway'), isFalse);
+        expect(chunk.contains('boiledcabbage'), isFalse);
+        expect(chunk.contains(' '), isTrue);
+      }
+    });
   });
 }

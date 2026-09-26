@@ -19,6 +19,18 @@ import '../../widgets/podcast_expandable_description.dart';
 import 'podcast_episode_screen.dart';
 import 'podcast_episode_tile.dart';
 
+enum PodcastEpisodeSortOrder {
+  newestFirst,
+  oldestFirst;
+
+  String label(BuildContext context) => switch (this) {
+    PodcastEpisodeSortOrder.newestFirst =>
+      context.tr('从新到旧', 'Newest first', '新しい順'),
+    PodcastEpisodeSortOrder.oldestFirst =>
+      context.tr('从旧到新', 'Oldest first', '古い順'),
+  };
+}
+
 class PodcastShowScreen extends ConsumerStatefulWidget {
   final String showId;
 
@@ -31,6 +43,7 @@ class PodcastShowScreen extends ConsumerStatefulWidget {
 class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
   late Future<PodcastShow?> _showFuture;
   bool _refreshing = false;
+  PodcastEpisodeSortOrder _sortOrder = PodcastEpisodeSortOrder.newestFirst;
 
   @override
   void initState() {
@@ -174,12 +187,19 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
               PodcastExpandableDescription(text: show.description),
             ],
             SizedBox(height: design.spaceXl),
-            Text(
-              context.tr('所有单集', 'All episodes', 'すべてのエピソード'),
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: context.appTextPrimary,
-                fontWeight: FontWeight.w800,
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    context.tr('所有单集', 'All episodes', 'すべてのエピソード'),
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: context.appTextPrimary,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                if (episodes.isNotEmpty) _buildSortMenu(context),
+              ],
             ),
             const SizedBox(height: 8),
             if (episodes.isEmpty)
@@ -196,7 +216,7 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
                 ),
               )
             else
-              for (final episode in episodes)
+              for (final episode in _applySort(episodes))
                 PodcastEpisodeTile(
                   episode: episode,
                   enableSwipeActions: true,
@@ -276,5 +296,103 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
 
   void _openEpisode(String episodeId) {
     openPodcastEpisodePlayer(context, episodeId: episodeId);
+  }
+
+  List<PodcastEpisode> _applySort(List<PodcastEpisode> episodes) {
+    if (episodes.isEmpty) return episodes;
+    final list = List<PodcastEpisode>.of(episodes);
+    switch (_sortOrder) {
+      case PodcastEpisodeSortOrder.newestFirst:
+        list.sort((a, b) {
+          final cmp = b.publishedAt.compareTo(a.publishedAt);
+          if (cmp != 0) return cmp;
+          return a.id.compareTo(b.id);
+        });
+      case PodcastEpisodeSortOrder.oldestFirst:
+        list.sort((a, b) {
+          final cmp = a.publishedAt.compareTo(b.publishedAt);
+          if (cmp != 0) return cmp;
+          return a.id.compareTo(b.id);
+        });
+    }
+    return list;
+  }
+
+  Widget _buildSortMenu(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return PopupMenuButton<PodcastEpisodeSortOrder>(
+      key: const ValueKey('podcast-episodes-sort-button'),
+      tooltip: context.tr('排序', 'Sort', '並び替え'),
+      position: PopupMenuPosition.under,
+      color: scheme.surfaceContainer,
+      surfaceTintColor: Colors.transparent,
+      constraints: const BoxConstraints(minWidth: 160, maxWidth: 220),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(context.appDesign.radiusSmall),
+      ),
+      initialValue: _sortOrder,
+      onSelected: (order) {
+        if (_sortOrder != order) {
+          setState(() => _sortOrder = order);
+        }
+      },
+      itemBuilder: (context) => [
+        for (final order in PodcastEpisodeSortOrder.values)
+          PopupMenuItem(
+            key: ValueKey('sort-order-${order.name}'),
+            value: order,
+            child: _sortMenuItem(
+              label: order.label(context),
+              selected: _sortOrder == order,
+            ),
+          ),
+      ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _sortOrder.label(context),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: context.appTextSecondary,
+              ),
+            ),
+            const SizedBox(width: 4),
+            AppIcon(
+              AppIcons.arrowUpDown,
+              size: 16,
+              color: context.appTextSecondary,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _sortMenuItem({required String label, required bool selected}) {
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        SizedBox(
+          width: 24,
+          child: selected
+              ? AppIcon(AppIcons.tick02, size: 18, color: scheme.primary)
+              : null,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontWeight: selected ? FontWeight.w700 : FontWeight.normal,
+              color: selected ? scheme.primary : context.appTextPrimary,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }

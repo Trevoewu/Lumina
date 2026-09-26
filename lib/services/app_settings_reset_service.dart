@@ -2,6 +2,7 @@ import '../data/database/app_database.dart';
 import '../data/dictionary/openai_compatible_explanation_provider.dart';
 import '../tts/provider_registry.dart';
 import '../tts/providers/fish_audio_api_tts_provider.dart';
+import '../tts/providers/gpt_sovits_tts_provider.dart';
 import '../tts/providers/minimax_tts_provider.dart';
 
 class AppSettingsResetService {
@@ -22,6 +23,8 @@ class AppSettingsResetService {
           await value.clearApiKey();
         case MinimaxTtsProvider value:
           await value.clearApiKey();
+        case GptSovitsTtsProvider value:
+          await value.clearEndpoint();
       }
     }
     await llmProvider.clearAllConfiguration();

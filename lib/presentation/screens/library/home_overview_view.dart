@@ -329,31 +329,14 @@ class _HomeOverviewContentState extends State<_HomeOverviewContent> {
   }
 }
 
-class _HeroBlock extends ConsumerWidget {
+class _HeroBlock extends StatelessWidget {
   final _HomeEntry entry;
 
   const _HeroBlock({required this.entry});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final ink = context.appTextPrimary;
-    final handlerAsync = ref.watch(luminaAudioHandlerProvider);
-    final handler = handlerAsync.asData?.value;
-    final mediaItem = handler?.mediaItem.valueOrNull;
-    final playbackState = handler?.playbackState.valueOrNull;
-    final isCurrentMedia =
-        mediaItem != null && (mediaItem.title == entry.title);
-    final isPlaying = isCurrentMedia && (playbackState?.playing ?? false);
-
-    void handlePlayPause() {
-      if (isPlaying) {
-        handler?.pause();
-      } else if (isCurrentMedia) {
-        handler?.play();
-      } else {
-        entry.onTap();
-      }
-    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -365,104 +348,90 @@ class _HeroBlock extends ConsumerWidget {
           behavior: HitTestBehavior.opaque,
           onTap: entry.onTap,
           onLongPress: entry.onLongPress,
-          child: Row(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _EntryArtwork(entry: entry, size: 104, borderRadius: 14),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        entry.title,
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 22,
-                          height: 1.22,
-                          fontWeight: FontWeight.normal,
-                          letterSpacing: -0.33,
-                          color: ink,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        entry.subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w400,
-                          color: ink.withValues(alpha: 0.45),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      Text(
-                        entry.heroPosition,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: technicalTextStyle(
-                          context,
-                          size: 12.5,
-                          alpha: 0.45,
-                          weight: FontWeight.w400,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            _PlayButton(onTap: handlePlayPause, isPlaying: isPlaying),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
+              Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _ProgressTrack(
-                    value: entry.progress,
-                    height: 4,
-                    trackAlpha: 0.14,
-                  ),
-                  const SizedBox(height: 9),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          entry.heroLeft,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: technicalTextStyle(
-                            context,
-                            size: 12,
-                            alpha: 0.4,
+                  _EntryArtwork(entry: entry, size: 104, borderRadius: 14),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            entry.title,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 22,
+                              height: 1.22,
+                              fontWeight: FontWeight.normal,
+                              letterSpacing: -0.33,
+                              color: ink,
+                            ),
                           ),
-                        ),
+                          const SizedBox(height: 6),
+                          Text(
+                            entry.subtitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w400,
+                              color: ink.withValues(alpha: 0.45),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          Text(
+                            entry.heroPosition,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: technicalTextStyle(
+                              context,
+                              size: 12.5,
+                              alpha: 0.45,
+                              weight: FontWeight.w400,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 10),
-                      Text(
-                        entry.heroRight,
-                        maxLines: 1,
-                        style: technicalTextStyle(
-                          context,
-                          size: 12,
-                          alpha: 0.4,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ],
               ),
-            ),
-          ],
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      entry.heroLeft,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: technicalTextStyle(
+                        context,
+                        size: 12,
+                        alpha: 0.4,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    entry.heroRight,
+                    maxLines: 1,
+                    style: technicalTextStyle(
+                      context,
+                      size: 12,
+                      alpha: 0.4,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -521,17 +490,6 @@ class _FeedRow extends StatelessWidget {
                       ),
                     ),
                   ],
-                  if (entry.progress > 0) ...[
-                    const SizedBox(height: 9),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 150),
-                      child: _ProgressTrack(
-                        value: entry.progress,
-                        height: 3,
-                        trackAlpha: 0.10,
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -586,67 +544,6 @@ class _EntryArtwork extends StatelessWidget {
   }
 }
 
-class _PlayButton extends StatelessWidget {
-  final VoidCallback onTap;
-  final bool isPlaying;
-
-  const _PlayButton({required this.onTap, this.isPlaying = false});
-
-  @override
-  Widget build(BuildContext context) {
-    final ink = context.appTextPrimary;
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        key: const ValueKey('home-overview-hero-play'),
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: SizedBox(
-          width: 44,
-          height: 44,
-          child: Center(
-            child: AppIcon(
-              isPlaying ? AppIcons.pause : AppIcons.play,
-              size: 34,
-              color: ink,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ProgressTrack extends StatelessWidget {
-  final double value;
-  final double height;
-  final double trackAlpha;
-
-  const _ProgressTrack({
-    required this.value,
-    required this.height,
-    required this.trackAlpha,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final ink = context.appTextPrimary;
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(height),
-      child: SizedBox(
-        height: height,
-        child: LinearProgressIndicator(
-          value: value.clamp(0.0, 1.0),
-          minHeight: height,
-          backgroundColor: ink.withValues(alpha: trackAlpha),
-          valueColor: AlwaysStoppedAnimation<Color>(ink),
-        ),
-      ),
-    );
-  }
-}
 
 class _HairlineDivider extends StatelessWidget {
   const _HairlineDivider();

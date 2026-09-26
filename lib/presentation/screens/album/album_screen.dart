@@ -1581,26 +1581,6 @@ class _ChapterCard extends StatelessWidget {
                               style: metaStyle,
                             ),
                           ],
-                          if (inProgress) ...[
-                            const SizedBox(height: 9),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(2),
-                              child: LinearProgressIndicator(
-                                key: ValueKey(
-                                  'book-chapter-playback-progress-$chapterId',
-                                ),
-                                value: playbackProgress,
-                                minHeight: 3,
-                                backgroundColor: context.appTextPrimary
-                                    .withValues(alpha: 0.12),
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  context.appTextPrimary.withValues(
-                                    alpha: 0.72,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
                         ],
                       ),
                     ),
