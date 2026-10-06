@@ -587,7 +587,7 @@ void main() {
         expect(actionsRect.right, lessThanOrEqualTo(coverRect.right));
         expect(actionsRect.bottom, closeTo(coverRect.bottom, 0.1));
         expect(artworkRect.center.dx, closeTo(coverRect.center.dx, 0.1));
-        expect(artworkRect.width, closeTo(artworkRect.height, 0.1));
+        expect(artworkRect.width, closeTo(artworkRect.height * 2 / 3, 0.5));
         final artworkViewport = tester.getRect(
           find.byKey(const ValueKey('player-landscape-artwork-viewport')),
         );
@@ -892,7 +892,7 @@ void main() {
       final compactArtwork = tester.getSize(
         find.byKey(const ValueKey('player-artwork')),
       );
-      expect(compactArtwork, const Size.square(320));
+      expect(compactArtwork, const Size(200, 300));
 
       // Inline mode preserves scroll position; normalize only the screenshot.
       tester
@@ -982,7 +982,7 @@ void main() {
       );
       expect(
         tester.getSize(find.byKey(const ValueKey('player-artwork'))),
-        const Size.square(320),
+        const Size(200, 300),
       );
 
       await tester.pumpWidget(const SizedBox.shrink());

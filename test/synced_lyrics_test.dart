@@ -1398,6 +1398,118 @@ void main() {
       expect(find.text('Transcript segment 0.'), findsNothing);
     },
   );
+  testWidgets(
+    'focus mode pins the playing sentence to the reading line and marks it',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 500);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final handler = _VirtualLyricsAudioHandler(
+        paragraphId: 'streaming',
+        initialPosition: const Duration(milliseconds: 12500),
+      );
+      addTearDown(handler.dispose);
+
+      await tester.pumpWidget(
+        _growingTranscript(
+          handler,
+          _streamedTranscriptLines(40),
+          focusMode: true,
+          chapterTitle: 'Chapter 3',
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final virtualList = find.byKey(
+        const ValueKey('synced-lyrics-virtualized-list'),
+      );
+      final listTop = tester.getTopLeft(virtualList).dy;
+      final readingLine = listTop + 500 * 0.3;
+      expect(
+        _lyricLineTop(tester, virtualList, 'Transcript segment 12.'),
+        closeTo(readingLine, 1),
+      );
+
+      final marker = find.byKey(const ValueKey('synced-lyrics-active-marker'));
+      expect(marker, findsOneWidget);
+      expect(tester.getTopLeft(marker).dy, closeTo(readingLine + 4, 1));
+      expect(
+        tester.getTopLeft(marker).dx,
+        lessThan(tester.getTopLeft(virtualList).dx + 24),
+      );
+      expect(find.text('Chapter 3'), findsOneWidget);
+      // The player's back button row floats over the top of the transcript.
+      expect(
+        tester.getTopLeft(find.text('Chapter 3')).dy - listTop,
+        greaterThanOrEqualTo(kMinInteractiveDimension),
+      );
+
+      // Advancing playback lands the next sentence on the same line.
+      handler.currentPosition = const Duration(milliseconds: 13500);
+      handler.playbackState.add(
+        handler.playbackState.value.copyWith(updatePosition: handler.position),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        _lyricLineTop(tester, virtualList, 'Transcript segment 13.'),
+        closeTo(readingLine, 1),
+      );
+    },
+  );
+
+  testWidgets('focus mode offers a way back after dragging away', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 500);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final handler = _VirtualLyricsAudioHandler(
+      paragraphId: 'streaming',
+      initialPosition: const Duration(milliseconds: 12500),
+    );
+    addTearDown(handler.dispose);
+
+    await tester.pumpWidget(
+      _growingTranscript(
+        handler,
+        _streamedTranscriptLines(40),
+        focusMode: true,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final virtualList = find.byKey(
+      const ValueKey('synced-lyrics-virtualized-list'),
+    );
+    final readingLine = tester.getTopLeft(virtualList).dy + 500 * 0.3;
+    final returnButton = find.byKey(
+      const ValueKey('synced-lyrics-return-to-current'),
+    );
+    double opacity() => tester
+        .widget<AnimatedOpacity>(
+          find.ancestor(
+            of: returnButton,
+            matching: find.byType(AnimatedOpacity),
+          ),
+        )
+        .opacity;
+    expect(opacity(), 0);
+
+    await tester.drag(virtualList, const Offset(0, -600));
+    await tester.pumpAndSettle();
+    expect(opacity(), 1);
+
+    await tester.tap(returnButton);
+    await tester.pumpAndSettle();
+    expect(opacity(), 0);
+    expect(
+      _lyricLineTop(tester, virtualList, 'Transcript segment 12.'),
+      closeTo(readingLine, 1),
+    );
+    await tester.pump(const Duration(seconds: 4));
+  });
 }
 
 List<String> _streamedTranscriptLines(int count) => [
@@ -1448,6 +1560,8 @@ Widget _growingTranscript(
   List<String> lines, {
   bool scrollingEnabled = true,
   ValueNotifier<Duration?>? previewPosition,
+  bool focusMode = false,
+  String? chapterTitle,
 }) {
   final timings = [
     for (var index = 0; index < lines.length; index++)
@@ -1496,6 +1610,8 @@ Widget _growingTranscript(
           handler: handler,
           playbackEnabled: true,
           expanded: true,
+          focusMode: focusMode,
+          chapterTitle: chapterTitle,
           virtualized: true,
         ),
       ),

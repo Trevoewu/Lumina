@@ -47,6 +47,7 @@ import '../../widgets/app_glass_controls.dart';
 import '../../widgets/app_control_buttons.dart';
 import '../../widgets/airplay_route_picker_button.dart';
 import '../../widgets/book_cover.dart';
+import '../../widgets/book_style_cover.dart';
 import '../../widgets/podcast_artwork.dart';
 import '../../widgets/podcast_link_text.dart';
 import '../../widgets/synced_lyrics_list.dart';
@@ -2411,7 +2412,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             constraints.biggest.shortestSide * 0.82,
                           ),
                         ),
-                        borderRadius: design.radiusLarge,
                         showShadow: false,
                       ),
                     ),
@@ -2468,16 +2468,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 )
               : SizedBox.expand(
                   key: const ValueKey('player-landscape-transcript'),
-                  child: _buildTranscriptEdgeFade(
-                    child: _buildSyncedLyrics(
-                      chapterId: chapterId,
-                      handler: handler,
-                      manifest: manifest,
-                      playbackEnabled: selectedLoaded,
-                      expanded: true,
-                      focusMode: true,
-                      listKey: ValueKey('transcript-focus:$chapterId'),
-                    ),
+                  child: _buildSyncedLyrics(
+                    chapterId: chapterId,
+                    handler: handler,
+                    manifest: manifest,
+                    playbackEnabled: selectedLoaded,
+                    expanded: true,
+                    focusMode: true,
+                    listKey: ValueKey('transcript-focus:$chapterId'),
                   ),
                 ),
         ),
@@ -2501,9 +2499,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       0.0,
       constraints.maxWidth - pageInset * 2,
     );
+    // The cover is a portrait book, sized by its height and kept to about
+    // 60% of the page width so the title and controls sit higher.
     final artworkSize = math.min(
-      availableArtworkWidth,
-      compact ? 260.0 : 320.0,
+      availableArtworkWidth * 0.6 / BookStyleCover.bookAspectRatio,
+      compact ? 230.0 : 300.0,
     );
     final viewportContentHeight = math.max(360.0, constraints.maxHeight);
 
@@ -2576,7 +2576,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                       artworkConstraints,
                                       artworkSize,
                                     ),
-                                    borderRadius: design.radiusLarge,
                                   ),
                                 );
                               },
@@ -2672,9 +2671,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       0.0,
       constraints.maxWidth - pageInset * 2,
     );
+    // The cover is a portrait book, sized by its height and kept to about
+    // 60% of the page width so the title and controls sit higher.
     final artworkSize = math.min(
-      availableArtworkWidth,
-      compact ? 260.0 : 320.0,
+      availableArtworkWidth * 0.6 / BookStyleCover.bookAspectRatio,
+      compact ? 230.0 : 300.0,
     );
     final viewportContentHeight = math.max(360.0, constraints.maxHeight);
 
@@ -2746,7 +2747,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                       artworkConstraints,
                                       artworkSize,
                                     ),
-                                    borderRadius: design.radiusLarge,
                                   ),
                                 );
                               },
@@ -2935,16 +2935,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     child: _transcriptPageActive
         ? SizedBox.expand(
             key: const ValueKey('player-inline-transcript'),
-            child: _buildTranscriptEdgeFade(
-              child: _buildSyncedLyrics(
-                chapterId: chapterId,
-                handler: handler,
-                manifest: manifest,
-                playbackEnabled: selectedLoaded,
-                expanded: true,
-                focusMode: true,
-                listKey: ValueKey('transcript-focus:$chapterId'),
-              ),
+            child: _buildSyncedLyrics(
+              chapterId: chapterId,
+              handler: handler,
+              manifest: manifest,
+              playbackEnabled: selectedLoaded,
+              expanded: true,
+              focusMode: true,
+              listKey: ValueKey('transcript-focus:$chapterId'),
             ),
           )
         : KeyedSubtree(
@@ -2952,50 +2950,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             child: cover,
           ),
   );
-
-  Widget _buildTranscriptEdgeFade({required Widget child}) {
-    final theme = Theme.of(context);
-    final top = theme.colorScheme.surfaceContainer;
-    final bottom = theme.colorScheme.surface;
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        RepaintBoundary(child: child),
-        IgnorePointer(
-          child: Column(
-            children: [
-              Expanded(
-                flex: 14,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [top, top.withValues(alpha: 0)],
-                    ),
-                  ),
-                ),
-              ),
-              const Spacer(flex: 56),
-              Expanded(
-                flex: 23,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [bottom.withValues(alpha: 0), bottom],
-                    ),
-                  ),
-                ),
-              ),
-              const Spacer(flex: 7),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
 
   Widget _buildTranscriptChromeBand({
     required bool fromTop,
@@ -3572,56 +3526,61 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     ),
   );
 
-  Widget _buildArtwork(
-    double size, {
-    required double borderRadius,
-    bool showShadow = true,
-  }) {
-    final compactArtwork = size <= 96;
+  /// [height] is a book cover's height; its width follows the book aspect.
+  /// Podcast art stays square at a size that sits in the same space.
+  Widget _buildArtwork(double height, {bool showShadow = true}) {
+    if (_isPodcast) {
+      final side = (height * 0.8).floorToDouble();
+      return RepaintBoundary(
+        key: const ValueKey('player-artwork-repaint-boundary'),
+        child: SizedBox.square(
+          key: const ValueKey('player-artwork'),
+          dimension: side,
+          child: BookStyleCover.square(
+            size: side,
+            showShadow: showShadow,
+            artwork: PodcastArtwork(
+              imageUrl:
+                  _podcastEpisode?.imageUrl ?? widget.podcast?.show.imageUrl,
+              size: side,
+              borderRadius: 0,
+            ),
+          ),
+        ),
+      );
+    }
+    final width = height * BookStyleCover.bookAspectRatio;
     return RepaintBoundary(
       key: const ValueKey('player-artwork-repaint-boundary'),
-      child: SizedBox.square(
+      child: SizedBox(
         key: const ValueKey('player-artwork'),
-        dimension: size,
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(borderRadius),
-            boxShadow: showShadow
-                ? [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.46),
-                      blurRadius: compactArtwork ? 16 : 32,
-                      spreadRadius: compactArtwork ? 0 : 2,
-                      offset: Offset(0, compactArtwork ? 6 : 16),
-                    ),
-                  ]
-                : null,
+        width: width,
+        height: height,
+        child: BookStyleCover(
+          height: height,
+          showShadow: showShadow,
+          artwork: BookCover(
+            coverPath: widget.book.coverPath,
+            iconSize: width * 0.32,
+            borderRadius: 0,
           ),
-          child: _isPodcast
-              ? PodcastArtwork(
-                  imageUrl:
-                      _podcastEpisode?.imageUrl ??
-                      widget.podcast?.show.imageUrl,
-                  size: size,
-                  borderRadius: borderRadius,
-                )
-              : BookCover(
-                  coverPath: widget.book.coverPath,
-                  iconSize: size * 0.32,
-                  borderRadius: borderRadius,
-                ),
         ),
       ),
     );
   }
 
+  /// The largest cover height up to [targetHeight] that fits [constraints]
+  /// at the book aspect, rounded down to whole device pixels.
   double _pixelAlignedArtworkSize(
     BoxConstraints constraints,
-    double targetSize,
+    double targetHeight,
   ) {
     final pixelRatio = MediaQuery.devicePixelRatioOf(context);
-    final availableSize = math.min(constraints.maxWidth, constraints.maxHeight);
-    return (math.min(targetSize, availableSize) * pixelRatio).floorToDouble() /
+    final available = math.min(
+      constraints.maxHeight,
+      constraints.maxWidth / BookStyleCover.bookAspectRatio,
+    );
+    return (math.min(targetHeight, available) * pixelRatio).floorToDouble() /
         pixelRatio;
   }
 

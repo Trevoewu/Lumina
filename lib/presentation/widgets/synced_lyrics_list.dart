@@ -25,6 +25,10 @@ import 'dictionary_lookup_sheet.dart';
 const syncedLyricsSweepLeadMs = 80;
 const syncedLyricsSweepFeatherEm = 0.5;
 
+/// Alpha of the not-yet-spoken words of the playing sentence. It sits well
+/// above every other line, so the current sentence reads as one block.
+const syncedLyricsUnspokenAlpha = 0.6;
+
 /// `playing` is user intent and remains true while just_audio is buffering.
 bool syncedLyricsAudioIsAdvancing(PlaybackState state) =>
     state.playing && state.processingState == AudioProcessingState.ready;
@@ -1032,7 +1036,9 @@ class _LyricSweepPainter extends CustomPainter {
     final painter = TextPainter(
       text: TextSpan(
         text: line.text,
-        style: style.copyWith(color: bright.withValues(alpha: 0.46)),
+        style: style.copyWith(
+          color: bright.withValues(alpha: syncedLyricsUnspokenAlpha),
+        ),
       ),
       textDirection: textDirection,
       textScaler: textScaler,
@@ -1232,6 +1238,10 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
   bool _pointerDidDrag = false;
   String? _pressedLineId;
   bool _manuallyScrolling = false;
+
+  /// The reader dragged the transcript away from the playing sentence and has
+  /// not come back yet; focus mode offers a way back while this holds.
+  bool _awayFromCurrent = false;
   bool _tickerModeEnabled = true;
   bool get _selectionActive =>
       _wordSelectionLineId != null || _selectedText.isNotEmpty;
@@ -1504,24 +1514,9 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
       _animateToVirtualizedLine(lineId, force: force);
       return;
     }
-    final lineContext = _lineKeys[lineId]?.currentContext;
-    final renderObject = lineContext?.findRenderObject();
-    if (renderObject == null || !renderObject.attached) return;
-
+    final target = _restingOffsetFor(lineId);
+    if (target == null) return;
     final position = _scrollController.position;
-    final viewport = RenderAbstractViewport.of(renderObject);
-    final target = viewport
-        .getOffsetToReveal(
-          renderObject,
-          widget.focusMode
-              ? 0.34
-              : widget.expanded
-              ? 0.24
-              : 0.18,
-        )
-        .offset
-        .clamp(position.minScrollExtent, position.maxScrollExtent)
-        .toDouble();
     final distance = (target - position.pixels).abs();
     final tolerance = math.max(16.0, position.viewportDimension * 0.04);
     if (!force && distance <= tolerance) return;
@@ -1541,21 +1536,63 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
     }
 
     final position = _scrollController.position;
-    final alignment = widget.focusMode
-        ? 0.34
-        : widget.expanded
-        ? 0.24
-        : 0.18;
-    final extent = _virtualLineExtents[index];
-    final itemStart = _virtualTopPadding + _virtualLineOffsets[index];
-    final target =
-        (itemStart - (position.viewportDimension - extent) * alignment)
-            .clamp(position.minScrollExtent, position.maxScrollExtent)
-            .toDouble();
+    final target = _virtualLineTarget(
+      index,
+      position.viewportDimension,
+    ).clamp(position.minScrollExtent, position.maxScrollExtent).toDouble();
     final distance = (target - position.pixels).abs();
     final tolerance = math.max(12.0, position.viewportDimension * 0.035);
     if (!force && distance <= tolerance) return;
     _scrollToTarget(target, distance: distance, lineId: lineId, force: force);
+  }
+
+  /// Focus mode pins the first row of the active sentence to one fixed height
+  /// instead of centring the whole sentence, so the eye returns to the same
+  /// place every time regardless of how long the sentence wraps.
+  static const _readingLineFraction = 0.3;
+
+  double _readingLineTarget(double slotTopOffset, double viewportDimension) =>
+      slotTopOffset +
+      _lyricLineVerticalPadding / 2 -
+      viewportDimension * _readingLineFraction;
+
+  double _virtualLineTarget(int index, double viewportDimension) {
+    final itemStart = _virtualTopPadding + _virtualLineOffsets[index];
+    if (widget.focusMode) {
+      return _readingLineTarget(itemStart, viewportDimension);
+    }
+    final alignment = widget.expanded ? 0.24 : 0.18;
+    final extent = _virtualLineExtents[index];
+    return itemStart - (viewportDimension - extent) * alignment;
+  }
+
+  /// Where the list would rest with [lineId] on the reading line, or null
+  /// while that line has no exact geometry yet.
+  double? _restingOffsetFor(String lineId) {
+    if (!_scrollController.hasClients) return null;
+    final position = _scrollController.position;
+    double? target;
+    if (widget.virtualized) {
+      final index = _lineIndexById[lineId];
+      if (index == null || index >= _virtualMeasuredCount) return null;
+      target = _virtualLineTarget(index, position.viewportDimension);
+    } else {
+      final renderObject = _lineKeys[lineId]?.currentContext
+          ?.findRenderObject();
+      if (renderObject == null || !renderObject.attached) return null;
+      final viewport = RenderAbstractViewport.of(renderObject);
+      target = widget.focusMode
+          ? _readingLineTarget(
+              viewport.getOffsetToReveal(renderObject, 0).offset,
+              position.viewportDimension,
+            )
+          : viewport
+                .getOffsetToReveal(renderObject, widget.expanded ? 0.24 : 0.18)
+                .offset;
+    }
+    return target
+        .clamp(position.minScrollExtent, position.maxScrollExtent)
+        .toDouble();
   }
 
   void _scrollToTarget(
@@ -1565,6 +1602,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
     required bool force,
   }) {
     if (!_scrollController.hasClients) return;
+    _setAwayFromCurrent(false);
     final position = _scrollController.position;
     final largeMove =
         force || distance > math.max(position.viewportDimension, 1.0) * 1.25;
@@ -2005,8 +2043,19 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
       _manualScrollResume?.cancel();
       _stopAutomaticScroll();
       _manuallyScrolling = true;
+      _setAwayFromCurrent(true);
     } else if (notification is ScrollEndNotification && _manuallyScrolling) {
       _manualScrollResume?.cancel();
+      // Dragging back onto the playing sentence by hand is a return as well.
+      final activeLineId = _activeLineId;
+      final resting = activeLineId == null
+          ? null
+          : _restingOffsetFor(activeLineId);
+      if (resting != null &&
+          (resting - notification.metrics.pixels).abs() <=
+              notification.metrics.viewportDimension * 0.15) {
+        _setAwayFromCurrent(false);
+      }
       _manualScrollResume = Timer(const Duration(seconds: 3), () {
         if (!mounted) return;
         _manuallyScrolling = false;
@@ -2020,6 +2069,19 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
       });
     }
     return false;
+  }
+
+  void _setAwayFromCurrent(bool value) {
+    if (_awayFromCurrent == value || !mounted) return;
+    setState(() => _awayFromCurrent = value);
+  }
+
+  void _returnToCurrent() {
+    _manualScrollResume?.cancel();
+    _manuallyScrolling = false;
+    _setAwayFromCurrent(false);
+    final activeLineId = _activeLineId;
+    if (activeLineId != null) _scrollTo(activeLineId, force: true);
   }
 
   Widget _buildSelectionMenu(
@@ -2274,7 +2336,150 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
       },
       child: NotificationListener<ScrollNotification>(
         onNotification: _handleScrollNotification,
-        child: scrollable,
+        child: widget.focusMode ? _buildFocusFrame(scrollable) : scrollable,
+      ),
+    );
+  }
+
+  /// Focus mode frames the transcript with edge fades, a chapter label pinned
+  /// above the reading line and a way back to the playing sentence.
+  Widget _buildFocusFrame(Widget scrollable) {
+    final design = context.appDesign;
+    final theme = Theme.of(context);
+    final top = theme.colorScheme.surfaceContainer;
+    final bottom = theme.colorScheme.surface;
+    final chapterTitle = widget.chapterTitle?.trim() ?? '';
+    final horizontal = _lyricsPadding().left;
+    final showReturn =
+        _awayFromCurrent && widget.scrollingEnabled && _activeLineId != null;
+    // The player's back/more row floats over the top of the transcript, so
+    // the label starts below it and the top fade stays solid behind both
+    // before it opens onto the text.
+    final labelTop = kMinInteractiveDimension + design.spaceXs;
+    final solidHeight = labelTop + 30;
+    const fadeHeight = 48.0;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        RepaintBoundary(child: scrollable),
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          height: solidHeight + fadeHeight,
+          child: IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [top, top, top.withValues(alpha: 0)],
+                  stops: [0, solidHeight / (solidHeight + fadeHeight), 1],
+                ),
+              ),
+            ),
+          ),
+        ),
+        IgnorePointer(
+          child: Column(
+            children: [
+              const Spacer(flex: 70),
+              Expanded(
+                flex: 23,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [bottom.withValues(alpha: 0), bottom],
+                    ),
+                  ),
+                ),
+              ),
+              const Spacer(flex: 7),
+            ],
+          ),
+        ),
+        if (chapterTitle.isNotEmpty)
+          Positioned(
+            key: const ValueKey('synced-lyrics-chapter-label'),
+            left: horizontal,
+            right: horizontal,
+            top: labelTop,
+            child: IgnorePointer(
+              child: Text(
+                chapterTitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0.2,
+                  color: context.appTextSecondary,
+                ),
+              ),
+            ),
+          ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: design.spaceLg,
+          child: Center(
+            child: IgnorePointer(
+              ignoring: !showReturn,
+              child: AnimatedOpacity(
+                opacity: showReturn ? 1 : 0,
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOutCubic,
+                child: AnimatedSlide(
+                  offset: showReturn ? Offset.zero : const Offset(0, 0.3),
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeOutCubic,
+                  child: _buildReturnToCurrentButton(),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildReturnToCurrentButton() {
+    final design = context.appDesign;
+    final accent = context.appAccent;
+    return Material(
+      key: const ValueKey('synced-lyrics-return-to-current'),
+      color: context.appSurface,
+      elevation: 2,
+      shadowColor: Colors.black.withValues(alpha: 0.18),
+      shape: StadiumBorder(
+        side: BorderSide(color: accent.withValues(alpha: 0.28)),
+      ),
+      child: InkWell(
+        customBorder: const StadiumBorder(),
+        onTap: _returnToCurrent,
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: design.spaceLg,
+            vertical: design.spaceSm,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AppIcon(AppIcons.target02, size: 16, color: accent),
+              SizedBox(width: design.spaceSm),
+              Text(
+                context.tr('回到当前', 'Back to current', '現在位置に戻る'),
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: accent,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -2311,7 +2516,7 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
     return EdgeInsets.fromLTRB(
       horizontal,
       widget.focusMode
-          ? context.appDesign.spaceXxl * 3
+          ? context.appDesign.spaceXxl * 4
           : context.appDesign.spaceSm,
       horizontal,
       widget.focusMode
@@ -2507,12 +2712,47 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
             backgroundColor: pressed
                 ? context.appSurfaceHighlight.withValues(alpha: 0.22)
                 : Colors.transparent,
-            child: text,
+            child: widget.focusMode && enabled
+                ? _withActiveMarker(text, visible: highlighted)
+                : text,
           ),
         ),
       ),
     );
     return frame;
+  }
+
+  /// A short accent rule in the left gutter beside the playing sentence. It
+  /// is laid out outside the text box so marking a line never reflows it.
+  Widget _withActiveMarker(Widget text, {required bool visible}) {
+    final gutter = _lyricsPadding().left;
+    const width = 3.0;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        text,
+        Positioned(
+          left: -(gutter + width) / 2,
+          top: 4,
+          bottom: 4,
+          width: width,
+          child: AnimatedOpacity(
+            opacity: visible ? 1 : 0,
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            child: DecoratedBox(
+              key: visible
+                  ? const ValueKey('synced-lyrics-active-marker')
+                  : null,
+              decoration: BoxDecoration(
+                color: context.appAccent,
+                borderRadius: BorderRadius.circular(width),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildLyricText(
@@ -2584,13 +2824,13 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
     // equally dim text. The far end is clamped well above zero because a
     // transcript is read, not glanced at.
     if (widget.focusMode && !passed && distanceFromActive > 0) {
-      final alpha = math.max(0.2, 0.56 - distanceFromActive * 0.09);
+      final alpha = math.max(0.18, 0.36 - distanceFromActive * 0.05);
       return primaryTextColor.withValues(alpha: alpha);
     }
     final alpha = passed
         ? 0.22
         : widget.focusMode
-        ? 0.56
+        ? 0.36
         : widget.expanded
         ? 0.42
         : 0.3;
@@ -2616,7 +2856,9 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
       );
     }
     final progress = _wordProgress(word, positionMs);
-    final inactive = primaryTextColor.withValues(alpha: 0.46);
+    final inactive = primaryTextColor.withValues(
+      alpha: syncedLyricsUnspokenAlpha,
+    );
     return Color.lerp(inactive, primaryTextColor, progress)!;
   }
 
