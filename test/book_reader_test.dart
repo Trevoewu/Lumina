@@ -311,13 +311,13 @@ void main() {
       expect(find.byKey(const Key('reader-appearance-panel')), findsOneWidget);
       await tester.tap(find.byKey(const Key('reader-font-menu')));
       await tester.pumpAndSettle();
-      expect(find.text('Georgia'), findsOneWidget);
+      expect(find.text('Literata'), findsOneWidget);
       expect(find.text('Menlo'), findsOneWidget);
 
-      // Tap Georgia
+      // Tap Literata
       await tester.tap(
         find.ancestor(
-          of: find.text('Georgia'),
+          of: find.text('Literata'),
           matching: find.byWidgetPredicate((w) => w is PopupMenuEntry),
         ),
       );

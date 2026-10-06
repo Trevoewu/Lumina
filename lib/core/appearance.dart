@@ -44,11 +44,14 @@ class AppearanceFontOption {
 
 const appearanceFontOptions = [
   AppearanceFontOption(id: 'system', label: 'System', fontFamily: null),
+  // Literata ships with the app and is a variable font, so the serif option
+  // can render the transcript's in-between weight; Georgia only has regular
+  // and bold. The id stays 'serif' so a saved choice carries over.
   AppearanceFontOption(
     id: 'serif',
-    label: 'Georgia',
-    fontFamily: 'Georgia',
-    fontFamilyFallback: ['Literata'],
+    label: 'Literata',
+    fontFamily: 'Literata',
+    fontFamilyFallback: ['Georgia'],
   ),
   AppearanceFontOption(
     id: 'athelas',

@@ -58,13 +58,13 @@ void main() {
   test('reading font options use bundled font families', () {
     expect(appearanceFontOptions.map((option) => option.fontFamily), [
       null,
-      'Georgia',
+      'Literata',
       'Athelas',
       'Menlo',
     ]);
     expect(appearanceFontOptions.map((option) => option.fontFamilyFallback), [
       null,
-      ['Literata'],
+      ['Georgia'],
       ['Georgia', 'Literata'],
       ['JetBrainsMono'],
     ]);
