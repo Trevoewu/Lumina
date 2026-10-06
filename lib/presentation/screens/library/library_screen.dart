@@ -435,38 +435,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   Future<void> _showAddPodcastDialog() async {
     if (_addingPodcast) return;
-    final controller = TextEditingController();
     final feedUrl = await showDialog<String>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(context.tr('添加 Podcast', 'Add podcast', 'ポッドキャストを追加')),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          keyboardType: TextInputType.url,
-          textInputAction: TextInputAction.done,
-          autocorrect: false,
-          decoration: InputDecoration(
-            labelText: 'RSS URL',
-            hintText: 'https://example.com/feed.xml',
-            prefixIcon: const AppIcon(AppIcons.rss),
-          ),
-          onSubmitted: (value) => Navigator.pop(dialogContext, value.trim()),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text(context.tr('取消', 'Cancel', 'キャンセル')),
-          ),
-          FilledButton(
-            onPressed: () =>
-                Navigator.pop(dialogContext, controller.text.trim()),
-            child: Text(context.tr('订阅', 'Subscribe', '購読')),
-          ),
-        ],
-      ),
+      builder: (_) => const _AddPodcastDialog(),
     );
-    controller.dispose();
     if (!mounted || feedUrl == null || feedUrl.isEmpty) return;
 
     setState(() => _addingPodcast = true);
@@ -1497,4 +1469,52 @@ class _BookCard extends StatelessWidget {
       onLongPress: onLongPress,
     );
   }
+}
+
+/// Owns its text controller so the controller outlives the dialog's exit
+/// animation. Disposing it as soon as `showDialog` returns tore the field
+/// down while it was still fading out and focused.
+class _AddPodcastDialog extends StatefulWidget {
+  const _AddPodcastDialog();
+
+  @override
+  State<_AddPodcastDialog> createState() => _AddPodcastDialogState();
+}
+
+class _AddPodcastDialogState extends State<_AddPodcastDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(context.tr('添加 Podcast', 'Add podcast', 'ポッドキャストを追加')),
+    content: TextField(
+      controller: _controller,
+      autofocus: true,
+      keyboardType: TextInputType.url,
+      textInputAction: TextInputAction.done,
+      autocorrect: false,
+      decoration: InputDecoration(
+        labelText: 'RSS URL',
+        hintText: 'https://example.com/feed.xml',
+        prefixIcon: const AppIcon(AppIcons.rss),
+      ),
+      onSubmitted: (value) => Navigator.pop(context, value.trim()),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: Text(context.tr('取消', 'Cancel', 'キャンセル')),
+      ),
+      FilledButton(
+        onPressed: () => Navigator.pop(context, _controller.text.trim()),
+        child: Text(context.tr('订阅', 'Subscribe', '購読')),
+      ),
+    ],
+  );
 }

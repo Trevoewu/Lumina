@@ -509,6 +509,42 @@ void main() {
     expect(find.text('RSS URL'), findsOneWidget);
   });
 
+  testWidgets('cancelling the RSS dialog closes it cleanly', (tester) async {
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          podcastIndexRepositoryProvider.overrideWithValue(
+            _FakePodcastIndexRepository(),
+          ),
+          podcastRepositoryProvider.overrideWithValue(
+            _FakePodcastRepository(database),
+          ),
+        ],
+        child: const MaterialApp(home: LibraryScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('home-section-podcasts')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Paste RSS feed URL'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'https://example.com/feed');
+    await tester.tap(find.text('Cancel'));
+    // Step through the dialog's exit animation frame by frame: the text
+    // field is still on screen while it fades out.
+    for (var frame = 0; frame < 20; frame++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await tester.pumpAndSettle();
+
+    expect(find.text('RSS URL'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('discover tab searches Podcast Index', (tester) async {
     final database = AppDatabase.forTesting(NativeDatabase.memory());
     addTearDown(database.close);
