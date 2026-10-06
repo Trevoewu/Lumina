@@ -313,7 +313,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                     context.tr('选取使用的音色', 'Choose a voice', '使用する音声を選択'),
                     style: const TextStyle(
                       fontSize: 20,
-                      fontWeight: FontWeight.normal,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
@@ -778,7 +778,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                   context.tr('修改旁白', 'Change narrator', 'ナレーターを変更'),
                   style: const TextStyle(
                     fontSize: 20,
-                    fontWeight: FontWeight.normal,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
@@ -887,7 +887,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                 context.tr('隐藏章节', 'Hidden chapters', '非表示の章'),
                 style: const TextStyle(
                   fontSize: 20,
-                  fontWeight: FontWeight.normal,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
@@ -1056,7 +1056,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                           style: Theme.of(context).textTheme.titleLarge
                               ?.copyWith(
                                 color: context.appTextPrimary,
-                                fontWeight: FontWeight.normal,
+                                fontWeight: FontWeight.w600,
                               ),
                         ),
                         SizedBox(height: design.spaceSm),
@@ -1158,7 +1158,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   color: context.appTextPrimary,
-                  fontWeight: FontWeight.normal,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
               SizedBox(height: design.spaceSm),
@@ -1197,7 +1197,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                   context.tr('使用的音色', 'VOICE', '使用する音声'),
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: context.appTextSecondary,
-                    fontWeight: FontWeight.normal,
+                    fontWeight: FontWeight.w500,
                     letterSpacing: 1.1,
                   ),
                 ),
@@ -1284,7 +1284,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
               hasStarted
                   ? context.tr('继续阅读', 'Continue Reading', '続きを読む')
                   : context.tr('开始阅读', 'Start Reading', '読み始める'),
-              style: const TextStyle(fontWeight: FontWeight.normal),
+              style: const TextStyle(fontWeight: FontWeight.w500),
             ),
             style: FilledButton.styleFrom(
               backgroundColor: context.appTextPrimary,
@@ -1308,7 +1308,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
             ),
             label: Text(
               context.tr('听书', 'Listen', '聴く'),
-              style: const TextStyle(fontWeight: FontWeight.normal),
+              style: const TextStyle(fontWeight: FontWeight.w500),
             ),
             style: OutlinedButton.styleFrom(
               foregroundColor: context.appTextPrimary,
@@ -1568,7 +1568,7 @@ class _ChapterCard extends StatelessWidget {
                               color: context.appTextPrimary,
                               fontSize: 17,
                               height: 1.25,
-                              fontWeight: FontWeight.normal,
+                              fontWeight: FontWeight.w600,
                               letterSpacing: -0.3,
                             ),
                           ),

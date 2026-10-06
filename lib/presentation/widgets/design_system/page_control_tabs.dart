@@ -111,7 +111,7 @@ class _PageControlTab extends StatelessWidget {
                 curve: Curves.easeOut,
                 style: TextStyle(
                   fontSize: 16,
-                  fontWeight: selected ? FontWeight.w800 : FontWeight.normal,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
                   color: selected ? ink : ink.withValues(alpha: 0.35),
                 ),
                 child: Text(label),

@@ -478,7 +478,7 @@ class _FetchButton extends StatelessWidget {
                       )
                     : context.tr('获取模型列表', 'Fetch model list', 'モデル一覧を取得'),
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.normal,
+                  fontWeight: FontWeight.w500,
                   color: foreground,
                 ),
               ),
@@ -557,7 +557,7 @@ class _SaveButton extends StatelessWidget {
                 : Text(
                     label,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.normal,
+                      fontWeight: FontWeight.w500,
                       color: enabled
                           ? scheme.surface
                           : scheme.onSurface.withValues(alpha: 0.3),

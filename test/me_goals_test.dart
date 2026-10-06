@@ -40,10 +40,14 @@ void main() {
     expect(find.text('20'), findsOneWidget);
     expect(find.text('/ 30 MIN'), findsOneWidget);
     expect(find.text('10 min to go'), findsOneWidget);
-    for (final label in ['20', '10 min to go', 'Adjust goal']) {
+    for (final (label, weight) in [
+      ('20', FontWeight.w600),
+      ('10 min to go', FontWeight.w500),
+      ('Adjust goal', FontWeight.w500),
+    ]) {
       expect(
         tester.widget<Text>(find.text(label)).style?.fontWeight,
-        FontWeight.normal,
+        weight,
         reason: label,
       );
     }
@@ -51,10 +55,13 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('me-adjust-goals')));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('me-goals-sheet')), findsOneWidget);
-    for (final label in ['Save goals', '15']) {
+    for (final (label, weight) in [
+      ('Save goals', FontWeight.w500),
+      ('15', FontWeight.normal),
+    ]) {
       expect(
         tester.widget<Text>(find.text(label)).style?.fontWeight,
-        FontWeight.normal,
+        weight,
         reason: label,
       );
     }

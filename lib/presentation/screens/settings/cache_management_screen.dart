@@ -128,7 +128,7 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                       ? context.tr('取消全选', 'Deselect all', 'すべて解除')
                       : context.tr('全选', 'Select all', 'すべて選択'),
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    fontWeight: FontWeight.normal,
+                    fontWeight: FontWeight.w500,
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
@@ -584,7 +584,7 @@ class _SummaryCard extends StatelessWidget {
                   Text(
                     parts.first,
                     style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                      fontWeight: FontWeight.normal,
+                      fontWeight: FontWeight.w600,
                       height: 1,
                       letterSpacing: -1,
                     ),
@@ -599,7 +599,7 @@ class _SummaryCard extends StatelessWidget {
                         '${parts.length > 1 ? parts[1] : 'B'} 使用中',
                       ),
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.normal,
+                        fontWeight: FontWeight.w600,
                         color: scheme.onSurfaceVariant,
                       ),
                     ),
@@ -774,7 +774,7 @@ class _EntryRow extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.normal,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                     if (entry.meta.isNotEmpty) ...[
@@ -936,7 +936,7 @@ class _DeleteBar extends StatelessWidget {
                                   overflow: TextOverflow.ellipsis,
                                   style: Theme.of(context).textTheme.titleMedium
                                       ?.copyWith(
-                                        fontWeight: FontWeight.normal,
+                                        fontWeight: FontWeight.w500,
                                         color: scheme.onError,
                                       ),
                                 ),

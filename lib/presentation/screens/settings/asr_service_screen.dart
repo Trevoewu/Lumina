@@ -90,7 +90,7 @@ class AsrServiceScreen extends ConsumerWidget {
                           '${data.chunkSeconds} 秒',
                         ),
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.normal,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
@@ -245,7 +245,7 @@ class _AsrModelCard extends StatelessWidget {
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: Theme.of(context).textTheme.titleMedium
-                                      ?.copyWith(fontWeight: FontWeight.normal),
+                                      ?.copyWith(fontWeight: FontWeight.w600),
                                 ),
                               ),
                               const SizedBox(width: 8),
@@ -306,7 +306,7 @@ class _AsrModelCard extends StatelessWidget {
         child: Text(
           percent,
           style: Theme.of(context).textTheme.labelLarge?.copyWith(
-            fontWeight: FontWeight.normal,
+            fontWeight: FontWeight.w500,
             color: scheme.onSurfaceVariant,
           ),
         ),
@@ -325,7 +325,7 @@ class _AsrModelCard extends StatelessWidget {
             child: Text(
               context.tr('下载', 'Download', 'ダウンロード'),
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                fontWeight: FontWeight.normal,
+                fontWeight: FontWeight.w500,
                 color: scheme.onPrimary,
               ),
             ),

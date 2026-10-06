@@ -845,7 +845,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
         style: TextStyle(
           color: context.appTextSecondary,
           fontSize: 13,
-          fontWeight: FontWeight.normal,
+          fontWeight: FontWeight.w500,
         ),
       ),
     );
@@ -1113,7 +1113,7 @@ class _ResultTile extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
             color: context.appTextPrimary,
-            fontWeight: FontWeight.normal,
+            fontWeight: FontWeight.w500,
           ),
         ),
         subtitle: Text(

@@ -349,7 +349,7 @@ class _PreviewEpisodeTile extends StatelessWidget {
                     episode.title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.normal),
+                    style: const TextStyle(fontWeight: FontWeight.w500),
                   ),
                   const SizedBox(height: 5),
                   Text(
@@ -416,7 +416,7 @@ class _PreviewError extends StatelessWidget {
               'Unable to load podcast feed',
               '番組フィードを読み込めません',
             ),
-            style: const TextStyle(fontWeight: FontWeight.normal),
+            style: const TextStyle(fontWeight: FontWeight.w500),
           ),
           const SizedBox(height: 6),
           Text(

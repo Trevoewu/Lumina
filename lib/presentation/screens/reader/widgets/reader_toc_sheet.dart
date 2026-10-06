@@ -206,7 +206,7 @@ class _ReaderTocSheetState extends State<_ReaderTocSheet> {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 15,
-                              fontWeight: FontWeight.normal,
+                              fontWeight: FontWeight.w500,
                               color: isCurrent
                                   ? context.appAccent
                                   : context.appTextPrimary,

@@ -503,7 +503,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.normal,
+                            fontWeight: FontWeight.w600,
                             color: theme.colorScheme.onSurface,
                           ),
                         ),
@@ -660,7 +660,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
       child: Text(
         context.tr('查词', 'Dictionary', '辞書'),
         style: theme.textTheme.titleSmall?.copyWith(
-          fontWeight: FontWeight.normal,
+          fontWeight: FontWeight.w600,
           color: theme.colorScheme.onSurface,
         ),
       ),
@@ -675,7 +675,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
       child: Text(
         context.tr('我的', 'Me', 'マイページ'),
         style: theme.textTheme.titleSmall?.copyWith(
-          fontWeight: FontWeight.normal,
+          fontWeight: FontWeight.w600,
           color: theme.colorScheme.onSurface,
         ),
       ),

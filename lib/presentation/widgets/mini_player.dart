@@ -142,7 +142,7 @@ class MiniPlayer extends ConsumerWidget {
                                             color: Theme.of(
                                               context,
                                             ).colorScheme.onSurface,
-                                            fontWeight: FontWeight.normal,
+                                            fontWeight: FontWeight.w500,
                                           ),
                                     ),
                                     const SizedBox(height: 2),

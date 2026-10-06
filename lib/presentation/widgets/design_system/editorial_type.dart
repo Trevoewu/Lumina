@@ -6,7 +6,7 @@ import '../../../core/app_colors.dart';
 /// design: tracked out, low contrast, never larger than the content it labels.
 TextStyle kickerTextStyle(BuildContext context) => TextStyle(
   fontSize: 10.5,
-  fontWeight: FontWeight.normal,
+  fontWeight: FontWeight.w500,
   letterSpacing: 1.26,
   color: context.appTextPrimary.withValues(alpha: 0.35),
 );

@@ -116,7 +116,7 @@ class _PodcastEpisodeTileState extends ConsumerState<PodcastEpisodeTile> {
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(
                               color: context.appTextPrimary,
-                              fontWeight: FontWeight.normal,
+                              fontWeight: FontWeight.w500,
                             ),
                       ),
                       if (metadata.isNotEmpty) ...[

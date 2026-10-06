@@ -174,7 +174,7 @@ class _ProviderCard extends StatelessWidget {
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: Theme.of(context).textTheme.titleMedium
-                                      ?.copyWith(fontWeight: FontWeight.normal),
+                                      ?.copyWith(fontWeight: FontWeight.w600),
                                 ),
                               ),
                               const SizedBox(width: 8),
@@ -236,7 +236,7 @@ class _ProviderCard extends StatelessWidget {
                               : context.tr('刷新列表', 'Refresh list', '一覧を更新'),
                           style: Theme.of(context).textTheme.labelMedium
                               ?.copyWith(
-                                fontWeight: FontWeight.normal,
+                                fontWeight: FontWeight.w500,
                                 color: card.refreshing
                                     ? scheme.onSurface.withValues(alpha: 0.3)
                                     : scheme.onSurfaceVariant,
@@ -424,7 +424,7 @@ class _AddProviderButton extends StatelessWidget {
               Text(
                 label,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.normal,
+                  fontWeight: FontWeight.w500,
                   color: scheme.onSurface.withValues(alpha: 0.5),
                 ),
               ),

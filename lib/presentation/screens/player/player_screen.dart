@@ -3237,7 +3237,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     style: Theme.of(sheetContext).textTheme.titleMedium
                         ?.copyWith(
                           color: sheetContext.appTextPrimary,
-                          fontWeight: FontWeight.normal,
+                          fontWeight: FontWeight.w600,
                         ),
                   ),
                 ),
@@ -3432,7 +3432,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               color: context.appTextPrimary,
-              fontWeight: FontWeight.normal,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ),
@@ -3599,7 +3599,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   color: context.appTextPrimary,
-                  fontWeight: FontWeight.normal,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
               SizedBox(height: design.spaceXs),
@@ -3686,7 +3686,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: context.appTextPrimary,
-                    fontWeight: FontWeight.normal,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 if (!_transcribingPodcast) ...[
@@ -4269,6 +4269,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 _fmt(displayPosition),
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: progressLabelColor,
+                  fontWeight: FontWeight.w500,
                   fontFeatures: const [FontFeature.tabularFigures()],
                 ),
               ),
@@ -4276,6 +4277,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 remainingLabel,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: progressLabelColor,
+                  fontWeight: FontWeight.w500,
                   fontFeatures: const [FontFeature.tabularFigures()],
                 ),
               ),
@@ -4606,7 +4608,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                               style: Theme.of(context).textTheme.titleLarge
                                   ?.copyWith(
                                     color: context.appTextPrimary,
-                                    fontWeight: FontWeight.normal,
+                                    fontWeight: FontWeight.w600,
                                   ),
                             ),
                             SizedBox(height: design.spaceXs),
@@ -4667,7 +4669,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 color: context.appTextPrimary,
-                                fontWeight: FontWeight.normal,
+                                fontWeight: FontWeight.w500,
                                 fontSize: 14.5,
                               ),
                             ),
@@ -5027,7 +5029,7 @@ class _WhisperModelSetupSheetState extends State<_WhisperModelSetupSheet> {
                           '文字起こしモデルをダウンロード',
                         ),
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.normal,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                       SizedBox(height: design.spaceXs),

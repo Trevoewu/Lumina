@@ -199,7 +199,7 @@ class PodcastDiscoverSectionState
                                         .titleSmall
                                         ?.copyWith(
                                           color: context.appTextPrimary,
-                                          fontWeight: FontWeight.normal,
+                                          fontWeight: FontWeight.w500,
                                         ),
                                   ),
                                   if (podcast.author case final author?

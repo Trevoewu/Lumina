@@ -61,7 +61,7 @@ class BookListCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       color: context.appTextPrimary,
-                      fontWeight: FontWeight.normal,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                   if (details.isNotEmpty) ...[

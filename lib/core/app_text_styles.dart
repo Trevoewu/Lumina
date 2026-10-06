@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 class AppTextStyles {
   /// UI typography intentionally uses the platform system font. Reading
   /// typography is applied only by content widgets through AppDesignTokens.
-  /// Only headings and selected page/rail navigation may override w400.
+  ///
+  /// Three weights carry the hierarchy: w600 for titles, w500 for labels,
+  /// controls and small captions, w400 for body, metadata and reading text.
   static const TextTheme textTheme = TextTheme(
     headlineLarge: TextStyle(
       fontSize: 34,
@@ -15,27 +17,27 @@ class AppTextStyles {
     headlineMedium: TextStyle(
       fontSize: 22,
       height: 1.25,
-      fontWeight: FontWeight.normal,
+      fontWeight: FontWeight.w600,
     ),
     headlineSmall: TextStyle(
       fontSize: 18,
       height: 1.2,
-      fontWeight: FontWeight.normal,
+      fontWeight: FontWeight.w600,
     ),
     titleLarge: TextStyle(
       fontSize: 22,
       height: 1.25,
-      fontWeight: FontWeight.normal,
+      fontWeight: FontWeight.w600,
     ),
     titleMedium: TextStyle(
       fontSize: 16,
       height: 1.3,
-      fontWeight: FontWeight.normal,
+      fontWeight: FontWeight.w600,
     ),
     titleSmall: TextStyle(
       fontSize: 14,
       height: 1.3,
-      fontWeight: FontWeight.normal,
+      fontWeight: FontWeight.w500,
     ),
     bodyLarge: TextStyle(
       fontSize: 16,
@@ -50,17 +52,17 @@ class AppTextStyles {
     labelLarge: TextStyle(
       fontSize: 14,
       height: 1.3,
-      fontWeight: FontWeight.w400,
+      fontWeight: FontWeight.w500,
     ),
     labelMedium: TextStyle(
       fontSize: 12,
       height: 1.3,
-      fontWeight: FontWeight.normal,
+      fontWeight: FontWeight.w500,
     ),
     labelSmall: TextStyle(
       fontSize: 11,
       height: 1.3,
-      fontWeight: FontWeight.normal,
+      fontWeight: FontWeight.w500,
     ),
     bodySmall: TextStyle(
       fontSize: 12,

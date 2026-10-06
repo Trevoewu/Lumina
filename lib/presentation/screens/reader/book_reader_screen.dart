@@ -702,7 +702,7 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.normal,
+                    fontWeight: FontWeight.w500,
                     color: theme.colorScheme.onSurface,
                     fontSize: 13,
                     height: 1.2,
@@ -712,7 +712,7 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
                   Text(
                     '${currentIndex + 1} / $totalCount',
                     style: theme.textTheme.labelSmall?.copyWith(
-                      fontWeight: FontWeight.normal,
+                      fontWeight: FontWeight.w500,
                       color: theme.colorScheme.onSurface.withValues(
                         alpha: 0.55,
                       ),
@@ -983,7 +983,7 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
                                     style: TextStyle(
                                       fontSize: 13,
                                       letterSpacing: 1.5,
-                                      fontWeight: FontWeight.normal,
+                                      fontWeight: FontWeight.w500,
                                       color: context.appTextSecondary,
                                     ),
                                   ),
@@ -994,7 +994,7 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
                                       .textTheme
                                       .headlineMedium
                                       ?.copyWith(
-                                        fontWeight: FontWeight.normal,
+                                        fontWeight: FontWeight.w600,
                                         color: context.appTextPrimary,
                                         height: 1.25,
                                       ),
@@ -1210,7 +1210,7 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
                         icon: const AppIcon(AppIcons.target02, size: 18),
                         label: Text(
                           context.tr('回到朗读处', 'Back to audio', '朗読位置へ'),
-                          style: const TextStyle(fontWeight: FontWeight.normal),
+                          style: const TextStyle(fontWeight: FontWeight.w500),
                         ),
                         onPressed: () {
                           setState(() => _userScrolledAway = false);

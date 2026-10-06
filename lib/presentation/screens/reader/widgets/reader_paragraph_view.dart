@@ -124,7 +124,7 @@ class ReaderParagraphView extends ConsumerWidget {
                     context.tr('正在朗读', 'Reading aloud', '朗読中'),
                     style: TextStyle(
                       fontSize: 11,
-                      fontWeight: FontWeight.normal,
+                      fontWeight: FontWeight.w500,
                       color: accent,
                     ),
                   ),

@@ -154,7 +154,7 @@ class _GutendexBookDetailScreenState
                       style: TextStyle(
                         color: context.appTextPrimary,
                         fontSize: 24,
-                        fontWeight: FontWeight.normal,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -211,7 +211,7 @@ class _GutendexBookDetailScreenState
               style: TextStyle(
                 color: context.appTextPrimary,
                 fontSize: 18,
-                fontWeight: FontWeight.normal,
+                fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(height: 10),
@@ -335,7 +335,7 @@ class _ImportProgressButton extends StatelessWidget {
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.86),
                     fontSize: 16,
-                    fontWeight: FontWeight.normal,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],

@@ -7,7 +7,7 @@ import 'package:lumina/presentation/widgets/design_system/settings_components.da
 
 void main() {
   for (final dark in [false, true]) {
-    testWidgets('controls and settings use regular weight (dark: $dark)', (
+    testWidgets('controls and settings follow the weight scale (dark: $dark)', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -48,11 +48,10 @@ void main() {
         ).style.merge(text.style).fontWeight;
       }
 
+      // Labels and controls are w500; body copy and values stay regular.
       for (final label in [
         'Podcasts',
         'Provider name',
-        'Provider description',
-        '20 MB',
         'Ready',
         'Save',
         'Download',
@@ -60,6 +59,9 @@ void main() {
         'Confirm',
         'Tag',
       ]) {
+        expect(weight(label), FontWeight.w500, reason: label);
+      }
+      for (final label in ['Provider description', '20 MB']) {
         expect(weight(label), FontWeight.normal, reason: label);
       }
       expect(weight('Books'), FontWeight.w800);

@@ -250,7 +250,7 @@ class AppTheme {
         style: FilledButton.styleFrom(
           backgroundColor: accentColor,
           foregroundColor: Colors.black,
-          textStyle: const TextStyle(fontWeight: FontWeight.normal),
+          textStyle: const TextStyle(fontWeight: FontWeight.w500),
           padding: EdgeInsets.symmetric(
             horizontal: tokens.spaceXl,
             vertical: tokens.spaceMd,
@@ -262,17 +262,17 @@ class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          textStyle: const TextStyle(fontWeight: FontWeight.normal),
+          textStyle: const TextStyle(fontWeight: FontWeight.w500),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          textStyle: const TextStyle(fontWeight: FontWeight.normal),
+          textStyle: const TextStyle(fontWeight: FontWeight.w500),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          textStyle: const TextStyle(fontWeight: FontWeight.normal),
+          textStyle: const TextStyle(fontWeight: FontWeight.w500),
         ),
       ),
       sliderTheme: SliderThemeData(

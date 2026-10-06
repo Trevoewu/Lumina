@@ -124,7 +124,7 @@ class ReaderAudioBar extends ConsumerWidget {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 14,
-                              fontWeight: FontWeight.normal,
+                              fontWeight: FontWeight.w500,
                               color: context.appTextPrimary,
                             ),
                           ),

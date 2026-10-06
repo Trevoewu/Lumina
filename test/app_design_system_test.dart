@@ -39,7 +39,7 @@ void main() {
     );
     expect(theme.textTheme.headlineLarge?.fontWeight, FontWeight.w700);
     expect(theme.textTheme.headlineSmall?.fontSize, 18);
-    expect(theme.textTheme.headlineSmall?.fontWeight, FontWeight.normal);
+    expect(theme.textTheme.headlineSmall?.fontWeight, FontWeight.w600);
     expect(chipShape.borderRadius, BorderRadius.circular(tokens.radiusSmall));
     expect(
       buttonPadding,

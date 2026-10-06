@@ -352,7 +352,7 @@ class _SettingActionRow extends StatelessWidget {
             title,
             style: TextStyle(
               fontSize: 15,
-              fontWeight: FontWeight.normal,
+              fontWeight: FontWeight.w500,
               color: scheme.onSurface,
             ),
           ),
@@ -423,7 +423,7 @@ class _FontChoice extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  fontWeight: FontWeight.normal,
+                  fontWeight: FontWeight.w500,
                   color: selected ? scheme.onSurface : scheme.onSurfaceVariant,
                 ),
               ),
@@ -737,7 +737,7 @@ class _ThemePaletteCard extends StatelessWidget {
             label,
             style: TextStyle(
               fontSize: 15,
-              fontWeight: FontWeight.normal,
+              fontWeight: FontWeight.w500,
               color: Theme.of(context).colorScheme.onSurface,
             ),
           ),

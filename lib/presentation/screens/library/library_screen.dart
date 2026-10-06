@@ -531,7 +531,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 context.tr('你的书架空空如也', 'Your library is empty', '本棚は空です'),
                 style: TextStyle(
                   fontSize: 22,
-                  fontWeight: FontWeight.normal,
+                  fontWeight: FontWeight.w600,
                   color: context.appTextPrimary,
                 ),
               ),
@@ -571,7 +571,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     : AppIcon(AppIcons.fileUpload),
                 label: Text(
                   _importing ? '导入中...' : '导入书籍',
-                  style: TextStyle(fontWeight: FontWeight.normal),
+                  style: TextStyle(fontWeight: FontWeight.w500),
                 ),
               ),
             ],
@@ -1187,7 +1187,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                       style: TextStyle(
                         color: context.appTextPrimary,
                         fontSize: 20,
-                        fontWeight: FontWeight.normal,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 16),

@@ -197,7 +197,7 @@ class _HomeOverviewContentState extends State<_HomeOverviewContent> {
                       context.tr('全部', 'See all', 'すべて表示'),
                       style: TextStyle(
                         fontSize: 13,
-                        fontWeight: FontWeight.normal,
+                        fontWeight: FontWeight.w500,
                         color: Theme.of(context).colorScheme.primary,
                       ),
                     ),
@@ -369,7 +369,7 @@ class _HeroBlock extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 22,
                               height: 1.22,
-                              fontWeight: FontWeight.normal,
+                              fontWeight: FontWeight.w600,
                               letterSpacing: -0.33,
                               color: ink,
                             ),
@@ -472,7 +472,7 @@ class _FeedRow extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 15.5,
                       height: 1.3,
-                      fontWeight: FontWeight.normal,
+                      fontWeight: FontWeight.w500,
                       color: ink,
                     ),
                   ),
@@ -665,7 +665,7 @@ class _StartRow extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 15.5,
                       height: 1.3,
-                      fontWeight: FontWeight.normal,
+                      fontWeight: FontWeight.w500,
                       color: ink,
                     ),
                   ),

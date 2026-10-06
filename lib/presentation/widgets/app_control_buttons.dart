@@ -62,7 +62,7 @@ class AppControlTextButton extends StatelessWidget {
           padding: EdgeInsets.zero,
           minimumSize: const Size(44, 44),
           foregroundColor: color,
-          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.normal),
+          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
         ),
         child: Text(label),
       ),

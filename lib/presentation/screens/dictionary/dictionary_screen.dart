@@ -900,7 +900,7 @@ class _FavoriteWordCard extends StatelessWidget {
                                 entry.word,
                                 style: TextStyle(
                                   fontSize: 21,
-                                  fontWeight: FontWeight.normal,
+                                  fontWeight: FontWeight.w600,
                                   letterSpacing: -0.21,
                                   color: ink,
                                 ),
@@ -1009,7 +1009,7 @@ class _HistoryRow extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 16,
-                              fontWeight: FontWeight.normal,
+                              fontWeight: FontWeight.w500,
                               color: ink,
                             ),
                           ),
@@ -1112,7 +1112,7 @@ class _SuggestionRow extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.normal,
+                      fontWeight: FontWeight.w500,
                       color: ink,
                     ),
                   ),

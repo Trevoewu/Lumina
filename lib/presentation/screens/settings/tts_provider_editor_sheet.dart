@@ -196,7 +196,7 @@ class _TtsProviderEditorSheetState
                             context.tr('保存', 'Save', '保存'),
                             style: Theme.of(context).textTheme.titleMedium
                                 ?.copyWith(
-                                  fontWeight: FontWeight.normal,
+                                  fontWeight: FontWeight.w600,
                                   color: scheme.surface,
                                 ),
                           ),

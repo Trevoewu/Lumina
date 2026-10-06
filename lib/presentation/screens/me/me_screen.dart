@@ -446,7 +446,7 @@ class _TodayCard extends StatelessWidget {
                               style: TextStyle(
                                 fontSize: 30,
                                 height: 1,
-                                fontWeight: FontWeight.normal,
+                                fontWeight: FontWeight.w600,
                                 letterSpacing: -0.6,
                                 color: ink,
                               ),
@@ -490,7 +490,7 @@ class _TodayCard extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 21,
                             height: 1.3,
-                            fontWeight: FontWeight.normal,
+                            fontWeight: FontWeight.w500,
                             letterSpacing: -0.21,
                             color: ink,
                           ),
@@ -541,7 +541,7 @@ class _TodayCard extends StatelessWidget {
                                   context.tr('调整目标', 'Adjust goal', '目標を調整'),
                                   style: TextStyle(
                                     fontSize: 12.5,
-                                    fontWeight: FontWeight.normal,
+                                    fontWeight: FontWeight.w500,
                                     color: ink.withValues(alpha: 0.5),
                                   ),
                                 ),
@@ -667,7 +667,7 @@ class _YearBooksCard extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 40,
                   height: 1,
-                  fontWeight: FontWeight.normal,
+                  fontWeight: FontWeight.w600,
                   letterSpacing: -1.2,
                   color: ink,
                 ),
@@ -876,7 +876,7 @@ class _StatCard extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 26,
                   height: 1,
-                  fontWeight: FontWeight.normal,
+                  fontWeight: FontWeight.w600,
                   letterSpacing: -0.52,
                   color: ink,
                 ),
@@ -1014,7 +1014,7 @@ class _BadgeCard extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: 14,
-                  fontWeight: FontWeight.normal,
+                  fontWeight: FontWeight.w500,
                   color: ink,
                 ),
               ),
@@ -1362,7 +1362,7 @@ class _GoalsSheet extends ConsumerWidget {
                         context.tr('保存目标', 'Save goals', '目標を保存'),
                         style: TextStyle(
                           fontSize: 16,
-                          fontWeight: FontWeight.normal,
+                          fontWeight: FontWeight.w500,
                           color: Theme.of(context).colorScheme.onPrimary,
                         ),
                       ),
@@ -1395,7 +1395,7 @@ class _GoalRow extends StatelessWidget {
           value,
           style: TextStyle(
             fontSize: 19,
-            fontWeight: FontWeight.normal,
+            fontWeight: FontWeight.w600,
             color: context.appTextPrimary,
           ),
         ),
