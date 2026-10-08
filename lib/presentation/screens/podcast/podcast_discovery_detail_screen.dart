@@ -16,6 +16,7 @@ import '../../widgets/podcast_expandable_description.dart';
 import 'podcast_episode_screen.dart';
 import 'podcast_formatters.dart';
 import 'podcast_show_screen.dart';
+import '../search/search_links.dart';
 
 class PodcastDiscoveryDetailScreen extends ConsumerStatefulWidget {
   final PodcastIndexPodcast podcast;
@@ -167,6 +168,8 @@ class _PodcastDiscoveryDetailScreenState
   Widget build(BuildContext context) {
     return CollapsingPageScaffold(
       title: widget.podcast.title,
+      // The show card below carries the title.
+      showTitle: false,
       showBackButton: true,
       body: FutureBuilder<ParsedPodcastFeed>(
         future: _previewFuture,
@@ -214,11 +217,8 @@ class _PodcastDiscoveryDetailScreenState
                     ),
                   ),
                   if (author != null && author.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      author,
-                      style: TextStyle(color: context.appTextSecondary),
-                    ),
+                    const SizedBox(height: 4),
+                    AuthorSearchLink(author: author),
                   ],
                   const SizedBox(height: 16),
                   FilledButton.icon(
@@ -249,7 +249,10 @@ class _PodcastDiscoveryDetailScreenState
         ),
         if (_categoriesFor(preview).isNotEmpty) ...[
           SizedBox(height: design.spaceMd),
-          PodcastCategoryChips(categories: _categoriesFor(preview)),
+          PodcastCategoryChips(
+            categories: _categoriesFor(preview),
+            onSelected: (category) => openSearchFor(context, category),
+          ),
         ],
         if (preview != null && preview.description.isNotEmpty) ...[
           SizedBox(height: design.spaceLg),

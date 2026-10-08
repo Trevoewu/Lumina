@@ -10,6 +10,9 @@ import 'package:lumina/data/book_sources/librivox_repository.dart';
 import 'package:lumina/data/database/app_database.dart';
 import 'package:lumina/data/podcasts/podcast_index_repository.dart';
 import 'package:lumina/presentation/screens/search/search_history.dart';
+import 'package:lumina/presentation/screens/search/search_links.dart';
+import 'package:lumina/presentation/widgets/app_back_button.dart';
+import 'package:lumina/presentation/widgets/podcast_category_chips.dart';
 import 'package:lumina/presentation/screens/search/search_screen.dart';
 
 void main() {
@@ -180,6 +183,59 @@ void main() {
     await tester.tapAt(const Offset(200, 900));
     await tester.pump();
     expect(focused(), isFalse);
+  });
+
+  testWidgets('a tapped author or tag opens Search for it', (tester) async {
+    tester.view.physicalSize = const Size(390, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          gutendexRepositoryProvider.overrideWithValue(gutendex),
+          librivoxRepositoryProvider.overrideWithValue(librivox),
+          podcastIndexRepositoryProvider.overrideWithValue(podcastIndex),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.lightTheme(),
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Column(
+                children: [
+                  const AuthorSearchLink(author: 'Austen, Jane'),
+                  PodcastCategoryChips(
+                    categories: const ['Science'],
+                    onSelected: (term) => openSearchFor(context, term),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('author-search-link')));
+    await tester.pumpAndSettle();
+    // Searched the way the name is written on a cover, with a way back.
+    expect(gutendex.queries, ['Jane Austen']);
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const ValueKey('search-field')))
+          .controller!
+          .text,
+      'Jane Austen',
+    );
+    expect(find.byType(AppBackButton), findsOneWidget);
+
+    await tester.tap(find.byType(AppBackButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('podcast-category-Science')));
+    await tester.pumpAndSettle();
+    expect(podcastIndex.queries.last, 'Science');
+    expect(await SearchHistory(database).load(), ['Science', 'Jane Austen']);
   });
 }
 

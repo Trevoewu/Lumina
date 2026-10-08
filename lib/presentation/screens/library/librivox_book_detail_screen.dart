@@ -13,6 +13,7 @@ import '../../../data/database/app_database.dart' as drift_db;
 import '../../widgets/collapsing_page_scaffold.dart';
 import '../../widgets/disk_cached_network_image.dart';
 import '../album/album_screen.dart';
+import '../search/search_links.dart';
 
 class LibrivoxBookDetailScreen extends ConsumerStatefulWidget {
   final LibrivoxBook book;
@@ -137,14 +138,8 @@ class _LibrivoxBookDetailScreenState
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      book.authorLabel,
-                      style: TextStyle(
-                        color: context.appTextSecondary,
-                        fontSize: 16,
-                      ),
-                    ),
+                    const SizedBox(height: 4),
+                    AuthorSearchLink(author: book.authorLabel, fontSize: 16),
                     const SizedBox(height: 16),
                     Wrap(
                       spacing: 8,

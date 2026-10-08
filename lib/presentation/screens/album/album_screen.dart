@@ -38,6 +38,7 @@ import '../../widgets/voice_selection_card.dart';
 import '../player/player_screen.dart';
 import '../reader/book_reader_screen.dart';
 import '../settings/voice_preview_controller.dart';
+import '../search/search_links.dart';
 
 class AlbumScreen extends ConsumerStatefulWidget {
   final drift_db.Book book;
@@ -1162,13 +1163,14 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                 ),
               ),
               SizedBox(height: design.spaceSm),
-              Text(
-                widget.book.author ??
-                    context.tr('未知作者', 'Unknown author', '著者不明'),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: context.appTextSecondary),
-              ),
+              if (widget.book.author?.trim() case final author?
+                  when author.isNotEmpty)
+                AuthorSearchLink(author: author)
+              else
+                Text(
+                  context.tr('未知作者', 'Unknown author', '著者不明'),
+                  style: TextStyle(color: context.appTextSecondary),
+                ),
               if (_isStreamingAudiobook) ...[
                 SizedBox(height: design.spaceLg),
                 Row(

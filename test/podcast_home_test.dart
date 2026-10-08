@@ -422,9 +422,16 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    // The show card carries the title; the page header does not repeat it.
+    expect(find.text('Tagged Show'), findsOneWidget);
     expect(find.text('Comedy'), findsOneWidget);
     expect(find.text('News'), findsOneWidget);
     expect(find.text('Podcast'), findsOneWidget);
+    // Genres are tappable searches.
+    expect(
+      find.byKey(const ValueKey('podcast-category-Comedy')),
+      findsOneWidget,
+    );
     expect(
       tester
           .widget<PodcastEpisodeTile>(find.byType(PodcastEpisodeTile))

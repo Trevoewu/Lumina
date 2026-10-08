@@ -31,6 +31,7 @@ import '../library/gutendex_book_detail_screen.dart';
 import '../library/librivox_book_detail_screen.dart';
 import '../podcast/podcast_discovery_detail_screen.dart';
 import 'search_history.dart';
+import 'search_links.dart';
 
 /// Rows a source shows before "Show all".
 const _collapsedRows = 3;
@@ -42,7 +43,11 @@ const _collapsedRows = 3;
 /// interest in: recent searches and the authors and podcast genres in their
 /// own library.
 class SearchScreen extends ConsumerStatefulWidget {
-  const SearchScreen({super.key});
+  /// Set when Search is opened from a tapped author or tag: the page is
+  /// pushed with a back button and starts with that query.
+  final String? initialQuery;
+
+  const SearchScreen({super.key, this.initialQuery});
 
   @override
   ConsumerState<SearchScreen> createState() => _SearchScreenState();
@@ -68,6 +73,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void initState() {
     super.initState();
     unawaited(_loadContext());
+    if (widget.initialQuery case final term?) {
+      _controller.text = term;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _runQuery(term);
+        unawaited(_remember(term));
+      });
+    }
   }
 
   @override
@@ -205,6 +218,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
     return CollapsingPageScaffold(
       title: context.tr('搜索', 'Search', '検索'),
+      showBackButton: widget.initialQuery != null,
       body: Column(
         children: [
           Padding(
@@ -634,7 +648,7 @@ class _SearchContext {
       shortcuts: [
         ..._mostFrequent([
           for (final book in books)
-            if (book.kind != 'podcast') ?_searchableAuthor(book.author),
+            if (book.kind != 'podcast') ?searchableAuthor(book.author),
         ], 6),
         ..._mostFrequent([
           for (final show in shows)
@@ -668,18 +682,6 @@ class _SearchContext {
     importedGutendex: importedGutendex,
     importedLibrivox: importedLibrivox,
   );
-
-  /// Catalogs such as Gutenberg store "Austen, Jane", which other sources
-  /// do not match; searches use the name the way it is written on a cover.
-  static String? _searchableAuthor(String? author) {
-    final name = author?.trim() ?? '';
-    if (name.isEmpty) return null;
-    final parts = name.split(',');
-    if (parts.length != 2) return name;
-    final last = parts[0].trim();
-    final first = parts[1].trim();
-    return first.isEmpty ? last : '$first $last';
-  }
 
   static List<String> _mostFrequent(List<String> values, int count) {
     final counts = <String, int>{};

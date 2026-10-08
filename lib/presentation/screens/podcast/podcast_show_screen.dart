@@ -18,6 +18,7 @@ import '../../widgets/podcast_category_chips.dart';
 import '../../widgets/podcast_expandable_description.dart';
 import 'podcast_episode_screen.dart';
 import 'podcast_episode_tile.dart';
+import '../search/search_links.dart';
 
 enum PodcastEpisodeSortOrder {
   newestFirst,
@@ -84,6 +85,8 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
         final show = snapshot.data;
         return CollapsingPageScaffold(
           title: show?.title ?? context.tr('Podcast', 'Podcast', 'ポッドキャスト'),
+          // The show card below carries the title.
+          showTitle: false,
           showBackButton: true,
           actions: show == null
               ? const []
@@ -159,11 +162,8 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
                             ),
                       ),
                       if (show.author != null && show.author!.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          show.author!,
-                          style: TextStyle(color: context.appTextSecondary),
-                        ),
+                        const SizedBox(height: 4),
+                        AuthorSearchLink(author: show.author!),
                       ],
                       const SizedBox(height: 16),
                       FilledButton.icon(
@@ -180,7 +180,10 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
             ),
             if (categories.isNotEmpty) ...[
               SizedBox(height: design.spaceMd),
-              PodcastCategoryChips(categories: categories),
+              PodcastCategoryChips(
+                categories: categories,
+                onSelected: (category) => openSearchFor(context, category),
+              ),
             ],
             if (show.description.isNotEmpty) ...[
               SizedBox(height: design.spaceLg),
