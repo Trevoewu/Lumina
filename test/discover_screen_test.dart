@@ -62,7 +62,17 @@ void main() {
           expect(tester.takeException(), isNull);
 
           if (!leaveScreen) {
-            expect(find.text(error.toString()), findsOneWidget);
+            // The reader sees what happened, not the exception text.
+            expect(find.textContaining('DioException'), findsNothing);
+            expect(
+              find.text(
+                audiobook
+                    ? "Couldn't connect. Check your connection and try again."
+                    : 'The server is taking too long to respond. '
+                          'Try again in a moment.',
+              ),
+              findsOneWidget,
+            );
             expect(find.byType(CircularProgressIndicator), findsNothing);
             await tester.tap(find.text('Retry'));
             await tester.pump();

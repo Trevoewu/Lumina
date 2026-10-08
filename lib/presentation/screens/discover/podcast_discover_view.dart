@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/app_colors.dart';
 import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
+import '../../../core/user_facing_error.dart';
 import '../../../data/database/app_database.dart';
 import '../../../data/podcasts/podcast_index_repository.dart';
 import '../../widgets/podcast_artwork.dart';
@@ -141,7 +142,7 @@ class _PodcastDiscoverViewState extends ConsumerState<PodcastDiscoverView> {
         }
         if (snapshot.hasError) {
           return _PodcastIndexError(
-            message: snapshot.error.toString(),
+            message: userFacingErrorMessage(context, snapshot.error!),
             onRetry: _retry,
           );
         }

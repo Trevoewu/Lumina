@@ -9,6 +9,7 @@ import '../../../core/app_colors.dart';
 import '../../../core/app_design_tokens.dart';
 import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
+import '../../../core/user_facing_error.dart';
 import '../../../data/book_sources/gutendex_repository.dart';
 import '../../../data/book_sources/librivox_repository.dart';
 import '../../../data/database/app_database.dart' as drift_db;
@@ -63,7 +64,9 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
     _loadForScope();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      ref.read(discoverSearchControllerProvider.notifier).updateValue(_controller);
+      ref
+          .read(discoverSearchControllerProvider.notifier)
+          .updateValue(_controller);
       ref.read(discoverSearchHandlerProvider.notifier).updateValue(_runSearch);
     });
   }
@@ -121,12 +124,23 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
     // Handle both outcomes on this observer; FutureBuilder receives the original
     // future so it can still display failures without an unhandled error branch.
     unawaited(
-      future.then<void>((data) {
-        if (mounted && identical(_onlineFuture, future)) {
-          _onlinePages = data.pages;
-        }
-        finishSearch();
-      }, onError: (Object error, StackTrace stackTrace) => finishSearch()),
+      future.then<void>(
+        (data) {
+          if (mounted && identical(_onlineFuture, future)) {
+            _onlinePages = data.pages;
+          }
+          finishSearch();
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          AppLogger.warning(
+            'Discover',
+            '公版书搜索失败',
+            error: error,
+            stackTrace: stackTrace,
+          );
+          finishSearch();
+        },
+      ),
     );
     return future;
   }
@@ -142,12 +156,23 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
     // Handle both outcomes on this observer; FutureBuilder receives the original
     // future so it can still display failures without an unhandled error branch.
     unawaited(
-      future.then<void>((data) {
-        if (mounted && identical(_librivoxFuture, future)) {
-          _librivoxPages = data.pages;
-        }
-        finishSearch();
-      }, onError: (Object error, StackTrace stackTrace) => finishSearch()),
+      future.then<void>(
+        (data) {
+          if (mounted && identical(_librivoxFuture, future)) {
+            _librivoxPages = data.pages;
+          }
+          finishSearch();
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          AppLogger.warning(
+            'Discover',
+            'LibriVox 搜索失败',
+            error: error,
+            stackTrace: stackTrace,
+          );
+          finishSearch();
+        },
+      ),
     );
     return future;
   }
@@ -298,19 +323,27 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
     final design = context.appDesign;
     final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
     // Podcast 范围有自己的加载指示，这里只反映书籍类检索的进度。
-    final searching = switch (_scope) {
-      DiscoverScope.audiobooks => _librivoxSearching,
-      DiscoverScope.onlineBooks => _onlineSearching,
-      DiscoverScope.podcasts => false,
-      DiscoverScope.library => _localSearching,
-    };
+    // With an empty query the shelf below is loading its default picks and
+    // shows its own placeholder; a spinner in the field would claim a search
+    // is running when the reader never typed one.
+    final searching =
+        _controller.text.trim().isNotEmpty &&
+        switch (_scope) {
+          DiscoverScope.audiobooks => _librivoxSearching,
+          DiscoverScope.onlineBooks => _onlineSearching,
+          DiscoverScope.podcasts => false,
+          DiscoverScope.library => _localSearching,
+        };
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       ref.read(discoverSearchingProvider.notifier).updateValue(searching);
     });
 
-    final hasPersistentToolbar = MacosPersistentToolbarScope.hasToolbar(context);
-    final desktopToolbar = !hasPersistentToolbar && MacosPageToolbarScope.maybeOf(context) != null;
+    final hasPersistentToolbar = MacosPersistentToolbarScope.hasToolbar(
+      context,
+    );
+    final desktopToolbar =
+        !hasPersistentToolbar && MacosPageToolbarScope.maybeOf(context) != null;
     final selector = PageControlTabs<DiscoverScope>(
       key: const ValueKey('discover-scope-selector'),
       labels: {
@@ -458,7 +491,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
         }
         if (snapshot.hasError) {
           return _OnlineErrorState(
-            message: snapshot.error.toString(),
+            message: userFacingErrorMessage(context, snapshot.error!),
             onRetry: _runSearch,
           );
         }
@@ -484,7 +517,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
         }
         if (snapshot.hasError) {
           return _OnlineErrorState(
-            message: snapshot.error.toString(),
+            message: userFacingErrorMessage(context, snapshot.error!),
             onRetry: _runSearch,
           );
         }

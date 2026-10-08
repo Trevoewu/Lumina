@@ -6,6 +6,7 @@ import '../../../core/app_colors.dart';
 import '../../../core/app_design_tokens.dart';
 import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
+import '../../../core/user_facing_error.dart';
 import '../../../data/podcasts/podcast_index_repository.dart';
 import '../../../data/podcasts/podcast_repository.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
@@ -420,7 +421,7 @@ class _PreviewError extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            error.toString(),
+            userFacingErrorMessage(context, error),
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
