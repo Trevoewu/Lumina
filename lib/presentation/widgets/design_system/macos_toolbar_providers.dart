@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Navigation section in the Home (Library) tab.
-enum HomeSection { all, books, podcasts }
+/// The two shelves in the Library tab.
+enum LibrarySection { books, podcasts }
 
 class AppToolbarStateNotifier<T> extends Notifier<T> {
   AppToolbarStateNotifier(this._initial);
@@ -17,14 +17,20 @@ class AppToolbarStateNotifier<T> extends Notifier<T> {
   }
 }
 
-/// Active section in Home.
-final homeSectionProvider =
-    NotifierProvider<AppToolbarStateNotifier<HomeSection>, HomeSection>(
-      () => AppToolbarStateNotifier<HomeSection>(HomeSection.all),
+/// Active shelf in the Library tab.
+final librarySectionProvider =
+    NotifierProvider<AppToolbarStateNotifier<LibrarySection>, LibrarySection>(
+      () => AppToolbarStateNotifier<LibrarySection>(LibrarySection.books),
     );
 
 /// Callback to trigger the Add Action from the persistent top bar in Home.
 final homeAddActionProvider =
+    NotifierProvider<AppToolbarStateNotifier<VoidCallback?>, VoidCallback?>(
+      () => AppToolbarStateNotifier<VoidCallback?>(null),
+    );
+
+/// Callback to trigger the Add Action from the persistent top bar in Library.
+final libraryAddActionProvider =
     NotifierProvider<AppToolbarStateNotifier<VoidCallback?>, VoidCallback?>(
       () => AppToolbarStateNotifier<VoidCallback?>(null),
     );

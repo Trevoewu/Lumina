@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hugeicons/hugeicons.dart';
 
-enum AppNavigationSymbol { home, search, dictionary }
+enum AppNavigationSymbol { home, library, dictionary, search }
 
 /// A shared 24-point outline family using HugeIcons Stroke / Rounded style
 /// for desktop navigation. Color and size follow the surrounding IconTheme.
@@ -22,6 +22,7 @@ class AppNavigationIcon extends StatelessWidget {
 
     final iconData = switch (symbol) {
       AppNavigationSymbol.home => HugeIcons.strokeRoundedHome01,
+      AppNavigationSymbol.library => HugeIcons.strokeRoundedLibrary,
       AppNavigationSymbol.search => HugeIcons.strokeRoundedSearch01,
       AppNavigationSymbol.dictionary => HugeIcons.strokeRoundedBookOpen01,
     };

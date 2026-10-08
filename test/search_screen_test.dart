@@ -155,7 +155,7 @@ void main() {
     expect(find.byKey(const ValueKey('search-recent-moby')), findsNothing);
   });
 
-  testWidgets('the keyboard opens on request and closes on scroll', (
+  testWidgets('the keyboard closes on scroll and on a tap outside', (
     tester,
   ) async {
     await database.upsertBook(_book('one', 'Persuasion', 'Jane Austen'));
@@ -163,9 +163,7 @@ void main() {
     final field = find.byKey(const ValueKey('search-field'));
     bool focused() => tester.widget<TextField>(field).focusNode!.hasFocus;
 
-    // The tab bar's search button asks the page for the keyboard.
-    final container = ProviderScope.containerOf(tester.element(field));
-    container.read(searchFieldFocusRequestProvider.notifier).request();
+    await tester.tap(field);
     await tester.pump();
     expect(focused(), isTrue);
 

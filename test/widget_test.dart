@@ -89,7 +89,7 @@ void main() {
     );
     expect(find.byIcon(Icons.home), findsNothing);
     expect(find.byIcon(Icons.home_outlined), findsNothing);
-    for (final name in ['home', 'search', 'dictionary']) {
+    for (final name in ['home', 'library', 'dictionary', 'search']) {
       final icon = find.byWidgetPredicate(
         (widget) => widget is CNIcon &&
             widget.imageAsset?.assetPath == 'assets/ui_icons/$name@3x.png',
@@ -232,7 +232,8 @@ void main() {
     expect(find.byKey(const ValueKey('home-overview-hero')), findsOneWidget);
     expect(find.textContaining('25% read'), findsOneWidget);
 
-    await tester.tap(find.byKey(const ValueKey('home-section-books')));
+    // Books live on the Library tab now.
+    await tester.tap(find.text('Library'));
     await tester.pumpAndSettle();
     bookCard = find.byType(BookListCard);
     expect(
@@ -273,8 +274,8 @@ void main() {
     expect(find.text('Home'), findsWidgets);
     expect(find.byType(CNTabBar), findsOneWidget);
     final navigationBar = tester.widget<CNTabBar>(find.byType(CNTabBar));
-    // Home, Discover and Dictionary; Settings opens from Home.
-    expect(navigationBar.items, hasLength(3));
+    // Home, Library, Dictionary and Search; Settings opens from Home.
+    expect(navigationBar.items, hasLength(4));
     expect(navigationBar.currentIndex, 0);
 
     await tester.tap(find.byKey(const ValueKey('home-settings-action')));

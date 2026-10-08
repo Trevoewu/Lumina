@@ -26,42 +26,41 @@ import 'package:lumina/services/lumina_audio_handler.dart';
 import 'package:lumina/services/sleep_timer_service.dart';
 
 void main() {
-  testWidgets(
-    'home section tabs mark the active section with ink, not accent',
-    (tester) async {
-      const accent = Color(0xFFFF6B6B);
-      final database = AppDatabase.forTesting(NativeDatabase.memory());
-      addTearDown(database.close);
+  testWidgets('library shelf tabs mark the active shelf with ink, not accent', (
+    tester,
+  ) async {
+    const accent = Color(0xFFFF6B6B);
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
 
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [appDatabaseProvider.overrideWithValue(database)],
-          child: MaterialApp(
-            theme: AppTheme.darkTheme(accentColor: accent),
-            home: const LibraryScreen(),
-          ),
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [appDatabaseProvider.overrideWithValue(database)],
+        child: MaterialApp(
+          theme: AppTheme.darkTheme(accentColor: accent),
+          home: const LibraryScreen.library(),
         ),
-      );
-      await tester.pumpAndSettle();
+      ),
+    );
+    await tester.pumpAndSettle();
 
-      final tabContext = tester.element(
-        find.byKey(const ValueKey('home-section-all')),
-      );
-      final colors = Theme.of(tabContext).colorScheme;
+    final tabContext = tester.element(
+      find.byKey(const ValueKey('library-section-books')),
+    );
+    final colors = Theme.of(tabContext).colorScheme;
 
-      expect(colors.surfaceTint, accent);
-      expect(colors.secondaryContainer, isNot(const Color(0xFF1DB954)));
-      expect(_tabStyle(tester, 'all').color, colors.onSurface);
-      expect(_tabStyle(tester, 'all').fontWeight, FontWeight.w800);
-      expect(_tabStyle(tester, 'books').color, isNot(accent));
-      expect(_tabStyle(tester, 'books').fontWeight, FontWeight.w600);
+    expect(colors.surfaceTint, accent);
+    expect(colors.secondaryContainer, isNot(const Color(0xFF1DB954)));
+    expect(_tabStyle(tester, 'books').color, colors.onSurface);
+    expect(_tabStyle(tester, 'books').fontWeight, FontWeight.w800);
+    expect(_tabStyle(tester, 'podcasts').color, isNot(accent));
+    expect(_tabStyle(tester, 'podcasts').fontWeight, FontWeight.w500);
 
-      await tester.tap(find.byKey(const ValueKey('home-section-books')));
-      await tester.pumpAndSettle();
-      expect(_tabStyle(tester, 'books').fontWeight, FontWeight.w800);
-      expect(_tabStyle(tester, 'all').fontWeight, FontWeight.w600);
-    },
-  );
+    await tester.tap(find.byKey(const ValueKey('library-section-podcasts')));
+    await tester.pumpAndSettle();
+    expect(_tabStyle(tester, 'podcasts').fontWeight, FontWeight.w800);
+    expect(_tabStyle(tester, 'books').fontWeight, FontWeight.w500);
+  });
 
   testWidgets('home header stays fixed through full all-page scrolls', (
     tester,
@@ -90,7 +89,7 @@ void main() {
             ).copyWith(padding: const EdgeInsets.only(top: 44)),
             child: child!,
           ),
-          home: const LibraryScreen(),
+          home: const LibraryScreen.home(),
         ),
       ),
     );
@@ -118,29 +117,11 @@ void main() {
     expect(find.byType(BookListCard), findsNothing);
     expect(_overviewRows(), findsNWidgets(6));
     expect(find.byKey(const ValueKey('home-overview-see-all')), findsOneWidget);
+    // Home is the overview alone; the shelves moved to the Library tab.
+    expect(find.byKey(const ValueKey('home-title')), findsOneWidget);
     expect(
-      find.descendant(
-        of: find.byKey(const ValueKey('home-section-selector')),
-        matching: find.byWidgetPredicate(
-          (widget) =>
-              widget is Scrollable &&
-              (widget.axisDirection == AxisDirection.left ||
-                  widget.axisDirection == AxisDirection.right),
-        ),
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(
-        of: find.byKey(const ValueKey('home-section-pages')),
-        matching: find.byWidgetPredicate(
-          (widget) =>
-              widget is Scrollable &&
-              (widget.axisDirection == AxisDirection.left ||
-                  widget.axisDirection == AxisDirection.right),
-        ),
-      ),
-      findsOneWidget,
+      find.byKey(const ValueKey('library-section-selector')),
+      findsNothing,
     );
     final fixedTop = tester.getTopLeft(header).dy;
     expect(fixedTop, 44);
@@ -177,17 +158,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(_overviewRows(), findsNWidgets(12));
     expect(find.byKey(const ValueKey('home-overview-see-all')), findsNothing);
-
-    await tester.tap(find.byKey(const ValueKey('home-section-books')));
-    await tester.pumpAndSettle();
-    expect(find.byType(BookListCard), findsNWidgets(5));
-    expect(find.byType(Card), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('home swipes in order from all to books to podcast', (
-    tester,
-  ) async {
+  testWidgets('library swipes between books and podcasts', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -205,7 +179,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.darkTheme(),
-          home: const LibraryScreen(),
+          home: const LibraryScreen.library(),
         ),
       ),
     );
@@ -213,12 +187,8 @@ void main() {
 
     bool isSelected(String section) => _tabSelected(tester, section);
 
-    final pages = find.byKey(const ValueKey('home-section-pages'));
+    final pages = find.byKey(const ValueKey('library-section-pages'));
     expect(pages, findsOneWidget);
-    expect(isSelected('all'), isTrue);
-
-    await tester.drag(pages, const Offset(-330, 0));
-    await tester.pumpAndSettle();
     expect(isSelected('books'), isTrue);
 
     await tester.drag(pages, const Offset(-330, 0));
@@ -259,14 +229,12 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.darkTheme(),
-          home: const LibraryScreen(),
+          home: const LibraryScreen.library(),
         ),
       ),
     );
     await tester.pumpAndSettle();
-    final pages = find.byKey(const ValueKey('home-section-pages'));
-    await tester.drag(pages, const Offset(-330, 0));
-    await tester.pumpAndSettle();
+    final pages = find.byKey(const ValueKey('library-section-pages'));
     await tester.drag(pages, const Offset(-330, 0));
     await tester.pumpAndSettle();
 
@@ -475,7 +443,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
-  testWidgets('home switches to podcast without adding a bottom tab', (
+  testWidgets('library switches to podcasts without adding a bottom tab', (
     tester,
   ) async {
     final database = AppDatabase.forTesting(NativeDatabase.memory());
@@ -491,15 +459,18 @@ void main() {
             _FakePodcastRepository(database),
           ),
         ],
-        child: const MaterialApp(home: LibraryScreen()),
+        child: const MaterialApp(home: LibraryScreen.library()),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const ValueKey('home-section-selector')), findsOneWidget);
-    expect(find.text('Podcast'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('library-section-selector')),
+      findsOneWidget,
+    );
+    expect(find.text('Podcasts'), findsOneWidget);
 
-    await tester.tap(find.byKey(const ValueKey('home-section-podcasts')));
+    await tester.tap(find.byKey(const ValueKey('library-section-podcasts')));
     await tester.pumpAndSettle();
 
     expect(find.text('Add your first podcast'), findsOneWidget);
@@ -527,11 +498,11 @@ void main() {
             _FakePodcastRepository(database),
           ),
         ],
-        child: const MaterialApp(home: LibraryScreen()),
+        child: const MaterialApp(home: LibraryScreen.library()),
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('home-section-podcasts')));
+    await tester.tap(find.byKey(const ValueKey('library-section-podcasts')));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Paste RSS feed URL'));
@@ -625,7 +596,7 @@ Finder _overviewRows() => find.byWidgetPredicate((widget) {
 TextStyle _tabStyle(WidgetTester tester, String section) => tester
     .widget<AnimatedDefaultTextStyle>(
       find.descendant(
-        of: find.byKey(ValueKey('home-section-$section')),
+        of: find.byKey(ValueKey('library-section-$section')),
         matching: find.byType(AnimatedDefaultTextStyle),
       ),
     )

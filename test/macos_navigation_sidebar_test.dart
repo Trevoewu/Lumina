@@ -165,8 +165,11 @@ void main() {
       );
       expect(toggleFinder, findsOneWidget);
 
+      // The Library tab puts its Books / Podcasts tabs in the toolbar.
+      await tester.tap(find.text('书架'));
+      await tester.pumpAndSettle();
       final selector = find.byKey(
-        const ValueKey('home-section-selector-desktop'),
+        const ValueKey('library-section-selector-desktop'),
       );
       expect(selector, findsOneWidget);
       expect(tester.getTopLeft(selector).dy, 0);
@@ -304,11 +307,11 @@ void main() {
         await tester.pumpWidget(buildTestApp());
         await tester.pumpAndSettle();
 
-        // Navigation rail contains exactly 3 top destinations
+        // Navigation rail contains exactly 4 top destinations
         final railFinder = find.byType(NavigationRail);
         expect(railFinder, findsOneWidget);
         NavigationRail rail = tester.widget<NavigationRail>(railFinder);
-        expect(rail.destinations.length, equals(3));
+        expect(rail.destinations.length, equals(4));
         expect(rail.selectedIndex, equals(0));
 
         // Bottom profile card exists
@@ -863,8 +866,7 @@ void main() {
         await tester.pumpWidget(buildTestApp());
         await tester.pumpAndSettle();
 
-        // Initially on root Home: All/Books/Podcast switcher and + button are present
-        expect(find.byKey(const ValueKey('home-section-selector-desktop')), findsOneWidget);
+        // Initially on root Home: the + button is present
         expect(find.byKey(const ValueKey('home-add-action-desktop')), findsOneWidget);
         expect(find.byKey(const ValueKey('reader-prev-chapter-button')), findsNothing);
         expect(find.byKey(const ValueKey('reader-next-chapter-button')), findsNothing);
@@ -884,8 +886,7 @@ void main() {
         await tester.pump(const Duration(milliseconds: 700));
         await tester.pumpAndSettle();
 
-        // 1. Verify All/Books/Podcast tabs and + button are HIDDEN in top persistent bar
-        expect(find.byKey(const ValueKey('home-section-selector-desktop')), findsNothing);
+        // 1. Verify the + button is HIDDEN in top persistent bar
         expect(find.byKey(const ValueKey('home-add-action-desktop')), findsNothing);
 
         // 2. Verify reader controls are rendered in the top persistent toolbar
@@ -934,7 +935,6 @@ void main() {
         await tester.pumpAndSettle();
 
         // 9. Verify root Home controls are restored
-        expect(find.byKey(const ValueKey('home-section-selector-desktop')), findsOneWidget);
         expect(find.byKey(const ValueKey('home-add-action-desktop')), findsOneWidget);
 
         await tester.pumpWidget(const SizedBox.shrink());

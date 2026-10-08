@@ -12,6 +12,7 @@ void main() {
   testWidgets('generate native HugeIcons assets', (tester) async {
     const icons = {
       'home': HugeIcons.strokeRoundedHome01,
+      'library': HugeIcons.strokeRoundedLibrary,
       'search': HugeIcons.strokeRoundedSearch01,
       'dictionary': HugeIcons.strokeRoundedBookOpen01,
       'more': HugeIcons.strokeRoundedMoreHorizontal,

@@ -35,11 +35,11 @@ import '../../widgets/design_system/macos_toolbar_providers.dart';
 
 enum _HomeAddAction { importBook, addPodcast }
 
-class HomeSectionSelector extends StatelessWidget {
-  final HomeSection selected;
-  final ValueChanged<HomeSection> onSelected;
+class LibrarySectionSelector extends StatelessWidget {
+  final LibrarySection selected;
+  final ValueChanged<LibrarySection> onSelected;
 
-  const HomeSectionSelector({
+  const LibrarySectionSelector({
     super.key,
     required this.selected,
     required this.onSelected,
@@ -47,34 +47,55 @@ class HomeSectionSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PageControlTabs<HomeSection>(
-      key: const ValueKey('home-section-selector'),
+    return PageControlTabs<LibrarySection>(
+      key: const ValueKey('library-section-selector'),
       labels: {
-        HomeSection.all: context.tr('全部', 'All', 'すべて'),
-        HomeSection.books: context.tr('书籍', 'Books', '本'),
-        HomeSection.podcasts: 'Podcast',
+        LibrarySection.books: context.tr('书籍', 'Books', '本'),
+        LibrarySection.podcasts: context.tr('播客', 'Podcasts', 'ポッドキャスト'),
       },
       selected: selected,
       onSelected: onSelected,
-      itemKey: (section) => ValueKey('home-section-${section.name}'),
+      itemKey: (section) => ValueKey('library-section-${section.name}'),
     );
   }
 }
 
-/// 书架首页。
+/// Bumped whenever the shelves change. Home and Library are separate
+/// screens, so a book imported from one has to reload the other too.
+final libraryRevisionProvider = NotifierProvider<LibraryRevision, int>(
+  LibraryRevision.new,
+);
+
+class LibraryRevision extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void bump() => state++;
+}
+
+/// The Home and Library tabs. They share the import, subscribe and book
+/// actions, so one screen serves both: Home is the overview of everything,
+/// Library holds the Books and Podcasts shelves.
 class LibraryScreen extends ConsumerStatefulWidget {
-  const LibraryScreen({super.key});
+  /// True for the Home tab, false for the Library tab.
+  final bool overview;
+
+  const LibraryScreen.home({super.key}) : overview = true;
+
+  const LibraryScreen.library({super.key}) : overview = false;
 
   @override
   ConsumerState<LibraryScreen> createState() => _LibraryScreenState();
 }
 
 class _LibraryScreenState extends ConsumerState<LibraryScreen> {
+  /// Shared revision plus this screen's own count of shared-file imports.
   int _reloadToken = 0;
+  int _incomingImports = 0;
   int _lastIncomingImportEventId = 0;
   bool _importing = false;
   bool _addingPodcast = false;
-  HomeSection _section = HomeSection.all;
+  LibrarySection _section = LibrarySection.books;
   final Set<String> _coverBackfillStarted = {};
   final Map<String, _BookCacheProgress> _bookCacheProgress = {};
   Future<_LibraryBooksData>? _booksDataFuture;
@@ -87,11 +108,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   @override
   void initState() {
     super.initState();
-    _section = ref.read(homeSectionProvider);
+    if (!widget.overview) _section = ref.read(librarySectionProvider);
     _sectionPageController = PageController(initialPage: _section.index);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      ref.read(homeAddActionProvider.notifier).updateValue(_handleAddAction);
+      final addAction = widget.overview
+          ? homeAddActionProvider
+          : libraryAddActionProvider;
+      ref.read(addAction.notifier).updateValue(_handleAddAction);
     });
   }
 
@@ -106,8 +130,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen<HomeSection>(homeSectionProvider, (previous, next) {
-      if (next != _section) {
+    ref.listen<LibrarySection>(librarySectionProvider, (previous, next) {
+      if (!widget.overview && next != _section) {
         _selectSection(next);
       }
     });
@@ -116,8 +140,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     if (incomingImport.phase == IncomingBookImportPhase.succeeded &&
         incomingImport.eventId != _lastIncomingImportEventId) {
       _lastIncomingImportEventId = incomingImport.eventId;
-      _reloadToken++;
+      _incomingImports++;
     }
+    _reloadToken = ref.watch(libraryRevisionProvider) + _incomingImports;
     final db = ref.watch(appDatabaseProvider);
     final accent = Theme.of(context).colorScheme.primary;
     final design = context.appDesign;
@@ -134,28 +159,46 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         child: Row(
           children: [
             Expanded(
-              child: HomeSectionSelector(
-                selected: _section,
-                onSelected: _selectSection,
-              ),
+              child: widget.overview
+                  ? Padding(
+                      padding: EdgeInsets.only(left: inset + 6),
+                      child: Text(
+                        context.tr('主页', 'Home', 'ホーム'),
+                        key: const ValueKey('home-title'),
+                        style: TextStyle(
+                          fontSize: 32,
+                          height: 1.1,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.8,
+                          color: context.appTextPrimary,
+                        ),
+                      ),
+                    )
+                  : LibrarySectionSelector(
+                      selected: _section,
+                      onSelected: _selectSection,
+                    ),
             ),
-            IconButton(
-              key: const ValueKey('home-settings-action'),
-              tooltip: context.tr('设置', 'Settings', '設定'),
-              onPressed: _openSettings,
-              icon: HugeIcon(
-                icon: AppIcons.settings02,
-                size: 22,
-                color: context.appTextPrimary,
+            if (widget.overview)
+              IconButton(
+                key: const ValueKey('home-settings-action'),
+                tooltip: context.tr('设置', 'Settings', '設定'),
+                onPressed: _openSettings,
+                icon: HugeIcon(
+                  icon: AppIcons.settings02,
+                  size: 22,
+                  color: context.appTextPrimary,
+                ),
               ),
-            ),
             IconButton(
-              key: const ValueKey('home-add-action'),
-              tooltip: _section == HomeSection.podcasts
-                  ? context.tr('添加 Podcast', 'Add podcast', 'ポッドキャストを追加')
-                  : _section == HomeSection.books
-                  ? context.tr('导入书籍', 'Import book', '本をインポート')
-                  : context.tr('添加内容', 'Add content', 'コンテンツを追加'),
+              key: ValueKey(
+                widget.overview ? 'home-add-action' : 'library-add-action',
+              ),
+              tooltip: widget.overview
+                  ? context.tr('添加内容', 'Add content', 'コンテンツを追加')
+                  : _section == LibrarySection.podcasts
+                  ? context.tr('添加播客', 'Add podcast', 'ポッドキャストを追加')
+                  : context.tr('导入书籍', 'Import book', '本をインポート'),
               onPressed: _importing || _addingPodcast ? null : _handleAddAction,
               icon: _importing || _addingPodcast
                   ? SizedBox(
@@ -186,36 +229,39 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           children: [
             if (!hasPersistentToolbar) header,
             Expanded(
-              child: PageView(
-                key: const ValueKey('home-section-pages'),
-                controller: _sectionPageController,
-                onPageChanged: (index) {
-                  final section = HomeSection.values[index];
-                  if (section != _section) {
-                    setState(() => _section = section);
-                    ref.read(homeSectionProvider.notifier).updateValue(section);
-                  }
-                },
-                children: [
-                  _KeepAliveHomeSection(
-                    child: HomeOverviewView(
+              child: widget.overview
+                  ? HomeOverviewView(
                       reloadToken: _reloadToken,
                       scrollController: _overviewScrollController,
                       onImportBook: () => _importBook(context),
                       onAddPodcast: _showAddPodcastDialog,
                       onBookLongPress: _showBookActions,
                       onOpenBook: _openBook,
+                    )
+                  : PageView(
+                      key: const ValueKey('library-section-pages'),
+                      controller: _sectionPageController,
+                      onPageChanged: (index) {
+                        final section = LibrarySection.values[index];
+                        if (section != _section) {
+                          setState(() => _section = section);
+                          ref
+                              .read(librarySectionProvider.notifier)
+                              .updateValue(section);
+                        }
+                      },
+                      children: [
+                        _KeepAliveHomeSection(
+                          child: _buildBooks(db, inset, design),
+                        ),
+                        _KeepAliveHomeSection(
+                          child: PodcastLibraryView(
+                            scrollController: _podcastsScrollController,
+                            onAddPodcast: _showAddPodcastDialog,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  _KeepAliveHomeSection(child: _buildBooks(db, inset, design)),
-                  _KeepAliveHomeSection(
-                    child: PodcastLibraryView(
-                      scrollController: _podcastsScrollController,
-                      onAddPodcast: _showAddPodcastDialog,
-                    ),
-                  ),
-                ],
-              ),
             ),
           ],
         ),
@@ -223,14 +269,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     );
   }
 
-  void _selectSection(HomeSection section) {
+  void _reloadShelves() => ref.read(libraryRevisionProvider.notifier).bump();
+
+  void _selectSection(LibrarySection section) {
     if (section == _section) return;
     setState(() => _section = section);
-    ref.read(homeSectionProvider.notifier).updateValue(section);
+    ref.read(librarySectionProvider.notifier).updateValue(section);
     _animateToSection(section);
   }
 
-  void _animateToSection(HomeSection section) {
+  void _animateToSection(LibrarySection section) {
     if (!_sectionPageController.hasClients) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !_sectionPageController.hasClients) return;
@@ -254,16 +302,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 
   void _handleAddAction() {
+    if (widget.overview) {
+      _showAddContentSheet();
+      return;
+    }
     switch (_section) {
-      case HomeSection.all:
-        _showAddContentSheet();
-        break;
-      case HomeSection.books:
+      case LibrarySection.books:
         _importBook(context);
-        break;
-      case HomeSection.podcasts:
+      case LibrarySection.podcasts:
         _showAddPodcastDialog();
-        break;
     }
   }
 
@@ -337,7 +384,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     await Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (_) => AlbumScreen(book: book)));
-    if (mounted) setState(() => _reloadToken++);
+    if (mounted) _reloadShelves();
   }
 
   void _showBookActions(drift_db.Book book) {
@@ -392,7 +439,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   Future<void> _setBookReadStatus(drift_db.Book book, bool isRead) async {
     await ref.read(appDatabaseProvider).updateBookReadStatus(book.id, isRead);
     if (!mounted) return;
-    setState(() => _reloadToken++);
+    _reloadShelves();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -464,8 +511,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           .read(podcastRepositoryProvider)
           .subscribe(feedUrl);
       if (!mounted) return;
-      setState(() => _reloadToken++);
-      _selectSection(HomeSection.podcasts);
+      _reloadShelves();
+      if (!widget.overview) _selectSection(LibrarySection.podcasts);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -514,7 +561,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           await ref
               .read(appDatabaseProvider)
               .updateBookCoverPath(book.id, coverPath);
-          if (mounted) setState(() => _reloadToken++);
+          if (mounted) _reloadShelves();
         } catch (error, stackTrace) {
           AppLogger.warning(
             'Library',
@@ -636,7 +683,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           .importFile(picked.path!);
 
       if (!context.mounted) return;
-      setState(() => _reloadToken++);
+      _reloadShelves();
       messenger.showSnackBar(
         SnackBar(
           content: Text(
@@ -689,7 +736,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         await ref.read(appDatabaseProvider).deleteBookCascade(book.id);
       });
       if (!mounted) return;
-      setState(() => _reloadToken++);
+      _reloadShelves();
       messenger.showSnackBar(SnackBar(content: Text('已删除《${book.title}》')));
     } catch (e, stackTrace) {
       AppLogger.error(
@@ -995,7 +1042,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('已清除《${book.title}》音频缓存')));
-      setState(() => _reloadToken++);
+      _reloadShelves();
     } catch (e, stackTrace) {
       AppLogger.error(
         'Cache',
@@ -1125,7 +1172,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       });
 
       if (!mounted) return;
-      setState(() => _reloadToken++);
+      _reloadShelves();
       messenger.showSnackBar(
         SnackBar(
           content: Text(
@@ -1330,7 +1377,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                           if (!mounted) return;
                           if (!context.mounted) return;
                           Navigator.of(context).pop();
-                          setState(() => _reloadToken++);
+                          _reloadShelves();
                         },
                       ),
                     ),
