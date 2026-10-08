@@ -1055,6 +1055,10 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
+  Future<List<ListeningDay>> getListeningDays() => (select(
+    listeningDays,
+  )..orderBy([(row) => OrderingTerm.asc(row.dateKey)])).get();
+
   Stream<List<ListeningDay>> watchListeningDays() => (select(
     listeningDays,
   )..orderBy([(row) => OrderingTerm.asc(row.dateKey)])).watch();

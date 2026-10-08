@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/app_colors.dart';
 import '../../../core/app_design_tokens.dart';
 import '../../../core/app_localizations.dart';
+import '../../../core/listening_goals.dart';
 import '../../../core/relative_time.dart';
 import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart';
@@ -14,6 +15,7 @@ import '../../widgets/design_system/editorial_type.dart';
 import '../../widgets/book_cover.dart';
 import '../../widgets/podcast_artwork.dart';
 import '../podcast/podcast_episode_screen.dart';
+import 'home_activity_card.dart';
 import '../podcast/podcast_formatters.dart';
 
 /// Number of feed rows shown before the "see all" link appears.
@@ -84,10 +86,14 @@ class _HomeOverviewViewState extends ConsumerState<HomeOverviewView> {
       database.getPodcastShows(),
       database.getRecentPodcastEpisodes(limit: 12),
       database.getFinishedChapterIndexesByBook(),
+      database.getListeningDays(),
     ]);
+    // The heat map shades days against the daily goal.
+    await ref.read(listeningGoalsProvider.notifier).load();
     final books = results[0] as List<Book>;
     final shows = results[1] as List<PodcastShow>;
     final episodes = results[2] as List<PodcastEpisode>;
+    final listeningDays = results[4] as List<ListeningDay>;
     books.sort((left, right) {
       final leftTime = left.lastReadAt > 0 ? left.lastReadAt : left.importedAt;
       final rightTime = right.lastReadAt > 0
@@ -100,6 +106,10 @@ class _HomeOverviewViewState extends ConsumerState<HomeOverviewView> {
       episodes: episodes,
       showsById: {for (final show in shows) show.id: show},
       finishedChapterIndexesByBook: results[3] as Map<String, Set<int>>,
+      dailyListeningMs: {
+        for (final day in listeningDays) day.dateKey: day.listenedMs,
+      },
+      dailyGoalMinutes: ref.read(listeningGoalsProvider).dailyMinutes,
     );
   }
 }
@@ -171,6 +181,13 @@ class _HomeOverviewContentState extends State<_HomeOverviewContent> {
         Padding(
           padding: EdgeInsets.symmetric(horizontal: gutter),
           child: _HeroBlock(entry: hero),
+        ),
+        Padding(
+          padding: EdgeInsets.fromLTRB(listGutter, 28, listGutter, 0),
+          child: HomeActivityCard(
+            dailyMs: widget.data.dailyListeningMs,
+            goalMinutes: widget.data.dailyGoalMinutes,
+          ),
         ),
         if (feed.isNotEmpty) ...[
           Padding(
@@ -749,11 +766,15 @@ class _HomeOverviewData {
   final List<PodcastEpisode> episodes;
   final Map<String, PodcastShow> showsById;
   final Map<String, Set<int>> finishedChapterIndexesByBook;
+  final Map<String, int> dailyListeningMs;
+  final int dailyGoalMinutes;
 
   const _HomeOverviewData({
     required this.books,
     required this.episodes,
     required this.showsById,
     required this.finishedChapterIndexesByBook,
+    required this.dailyListeningMs,
+    required this.dailyGoalMinutes,
   });
 }

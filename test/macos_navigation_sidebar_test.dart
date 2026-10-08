@@ -1,4 +1,3 @@
-import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -330,21 +329,21 @@ void main() {
         expect(find.textContaining('Trevor'), findsOneWidget);
         expect(find.textContaining('Free'), findsOneWidget);
 
-        // Tap bottom Me profile card
+        // The profile card opens Settings over the current tab.
         await tester.tap(profileCardFinder);
         await tester.pumpAndSettle();
-
-        // Rail selection is now null (none of the 3 rail destinations are active)
+        expect(find.byType(SettingsScreen), findsOneWidget);
         rail = tester.widget<NavigationRail>(railFinder);
-        expect(rail.selectedIndex, isNull);
+        expect(rail.selectedIndex, equals(0));
 
         // Back button in toolbar is now enabled
         final backButton = find.byKey(const ValueKey('macos-back-button'));
         expect(tester.widget<MacosToolbarButton>(backButton).onPressed, isNotNull);
 
-        // Tap back to return to Home (tab 0)
+        // Back closes Settings and leaves Home in place.
         await tester.tap(backButton);
         await tester.pumpAndSettle();
+        expect(find.byType(SettingsScreen), findsNothing);
 
         rail = tester.widget<NavigationRail>(railFinder);
         expect(rail.selectedIndex, equals(0));
@@ -405,20 +404,11 @@ void main() {
         await tester.pumpWidget(buildTestApp());
         await tester.pumpAndSettle();
 
-        // Navigate to Me tab (index 3)
-        final meProfileCard = find.byKey(
+        final profileCard = find.byKey(
           const ValueKey('sidebar-me-profile-card'),
         );
-        expect(meProfileCard, findsOneWidget);
-        await tester.tap(meProfileCard);
-        await tester.pumpAndSettle();
-
-        // Find settings button in MeScreen header and tap it
-        final settingsIcon = find.byWidgetPredicate(
-          (widget) => widget is AppIcon && widget.icon == AppIcons.settings02,
-        );
-        expect(settingsIcon, findsOneWidget);
-        await tester.tap(settingsIcon);
+        expect(profileCard, findsOneWidget);
+        await tester.tap(profileCard);
         await tester.pumpAndSettle();
 
         // SettingsScreen is displayed
@@ -433,7 +423,7 @@ void main() {
         await tester.tap(toolbarBack);
         await tester.pumpAndSettle();
 
-        // Popped back to Me screen
+        // Popped back to Home
         expect(find.byType(SettingsScreen), findsNothing);
 
         await tester.pumpWidget(const SizedBox.shrink());

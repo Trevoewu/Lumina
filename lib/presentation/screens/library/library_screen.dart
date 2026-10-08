@@ -29,6 +29,7 @@ import '../../widgets/book_list_card.dart';
 import '../../widgets/half_screen_action_sheet.dart';
 import '../album/album_screen.dart';
 import '../podcast/podcast_library_view.dart';
+import '../settings/settings_screen.dart';
 import 'home_overview_view.dart';
 import '../../widgets/design_system/macos_toolbar_providers.dart';
 
@@ -139,6 +140,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               ),
             ),
             IconButton(
+              key: const ValueKey('home-settings-action'),
+              tooltip: context.tr('设置', 'Settings', '設定'),
+              onPressed: _openSettings,
+              icon: HugeIcon(
+                icon: AppIcons.settings02,
+                size: 22,
+                color: context.appTextPrimary,
+              ),
+            ),
+            IconButton(
               key: const ValueKey('home-add-action'),
               tooltip: _section == HomeSection.podcasts
                   ? context.tr('添加 Podcast', 'Add podcast', 'ポッドキャストを追加')
@@ -232,6 +243,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       duration: const Duration(milliseconds: 260),
       curve: Curves.easeOutCubic,
     );
+  }
+
+  void _openSettings() {
+    // Settings covers the tab bar, like the other full-screen flows.
+    Navigator.of(
+      context,
+      rootNavigator: true,
+    ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
   }
 
   void _handleAddAction() {

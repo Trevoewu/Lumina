@@ -14,7 +14,6 @@ import '../screens/album/album_screen.dart';
 import '../screens/dictionary/dictionary_screen.dart';
 import '../screens/discover/discover_screen.dart';
 import '../screens/library/library_screen.dart';
-import '../screens/me/me_screen.dart';
 import '../screens/settings/settings_screen.dart';
 import 'design_system/app_navigation_icon.dart';
 import 'design_system/app_search_field.dart';
@@ -55,7 +54,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
   int _currentIndex = 0;
   final Set<int> _initializedTabs = {0};
   final List<GlobalKey<NavigatorState>> _navigatorKeys = List.generate(
-    4,
+    3,
     (_) => GlobalKey<NavigatorState>(),
   );
 
@@ -73,7 +72,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
   void initState() {
     super.initState();
     _navigatorObservers = List.generate(
-      4,
+      3,
       (_) => _TabNavigatorObserver(() {
         if (mounted) setState(() {});
       }),
@@ -134,7 +133,6 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
       0 => const LibraryScreen(),
       1 => const DiscoverScreen(),
       2 => const DictionaryScreen(),
-      3 => const MeScreen(),
       _ => const LibraryScreen(),
     };
   }
@@ -537,8 +535,6 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         return _buildDiscoverTopControls(theme, accent, topBarRef);
       case 2:
         return _buildDictionaryTopControls(theme, accent);
-      case 3:
-        return _buildMeTopControls(theme, accent);
       default:
         return const SizedBox.shrink();
     }
@@ -667,21 +663,6 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     );
   }
 
-  Widget _buildMeTopControls(ThemeData theme, Color accent) {
-    return Container(
-      height: macosTopControlsReservedHeight,
-      padding: const EdgeInsets.only(left: 14.0),
-      alignment: Alignment.centerLeft,
-      child: Text(
-        context.tr('我的', 'Me', 'マイページ'),
-        style: theme.textTheme.titleSmall?.copyWith(
-          fontWeight: FontWeight.w600,
-          color: theme.colorScheme.onSurface,
-        ),
-      ),
-    );
-  }
-
   Widget _buildSidebarColumn(ThemeData theme, Color accent) {
     final isExtended = _sidebarWidth >= 160.0;
 
@@ -750,7 +731,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     final isExtended = _sidebarWidth >= 160.0;
 
     return NavigationRail(
-      selectedIndex: _currentIndex < 3 ? _currentIndex : null,
+      selectedIndex: _currentIndex,
       onDestinationSelected: _onDestinationSelected,
       extended: isExtended,
       minWidth: 80.0,
@@ -791,7 +772,6 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
   }
 
   Widget _buildBottomMeCard(ThemeData theme, Color accent, bool isExtended) {
-    final isSelected = _currentIndex == 3;
 
     return Align(
       alignment: Alignment.topLeft,
@@ -804,12 +784,14 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
           ),
           child: _MacosProfileTile(
             key: const ValueKey('sidebar-me-profile-card'),
-            isSelected: isSelected,
+            // The profile card is now the way into Settings; it is never a
+            // selected destination of its own.
+            isSelected: false,
             isExtended: isExtended,
             accentColor: accent,
             userName: 'Trevor',
             planName: 'Free',
-            onTap: () => _onDestinationSelected(3),
+            onTap: _openSettings,
           ),
         ),
       ),
@@ -892,10 +874,6 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
               'assets/ui_icons/dictionary@3x.png',
               size: 25,
             ),
-          ),
-          CNTabBarItem(
-            label: context.tr('我的', 'Me', 'マイページ'),
-            imageAsset: const CNImageAsset('assets/ui_icons/me@3x.png', size: 25),
           ),
         ],
       ),

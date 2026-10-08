@@ -89,7 +89,7 @@ void main() {
     );
     expect(find.byIcon(Icons.home), findsNothing);
     expect(find.byIcon(Icons.home_outlined), findsNothing);
-    for (final name in ['home', 'discover', 'dictionary', 'me']) {
+    for (final name in ['home', 'discover', 'dictionary']) {
       final icon = find.byWidgetPredicate(
         (widget) => widget is CNIcon &&
             widget.imageAsset?.assetPath == 'assets/ui_icons/$name@3x.png',
@@ -273,20 +273,11 @@ void main() {
     expect(find.text('Home'), findsWidgets);
     expect(find.byType(CNTabBar), findsOneWidget);
     final navigationBar = tester.widget<CNTabBar>(find.byType(CNTabBar));
-    expect(navigationBar.items, hasLength(4));
+    // Home, Discover and Dictionary; Settings opens from Home.
+    expect(navigationBar.items, hasLength(3));
     expect(navigationBar.currentIndex, 0);
 
-    await tester.tap(
-      find.byWidgetPredicate(
-        (widget) =>
-            widget is CNIcon &&
-            widget.imageAsset?.assetPath == 'assets/ui_icons/me@3x.png',
-      ),
-    );
-    await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text('Me'), findsWidgets);
-    expect(find.text('TODAY'), findsOneWidget);
-    await tester.tap(find.byTooltip('Settings'));
+    await tester.tap(find.byKey(const ValueKey('home-settings-action')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
@@ -328,15 +319,7 @@ void main() {
       ),
     );
     await tester.pump(const Duration(milliseconds: 400));
-    await tester.tap(
-      find.byWidgetPredicate(
-        (widget) =>
-            widget is CNIcon &&
-            widget.imageAsset?.assetPath == 'assets/ui_icons/me@3x.png',
-      ),
-    );
-    await tester.pump(const Duration(milliseconds: 300));
-    await tester.tap(find.byTooltip('Settings'));
+    await tester.tap(find.byKey(const ValueKey('home-settings-action')));
     await tester.pumpAndSettle();
 
     final settingsScrollable = find.byType(Scrollable).last;
@@ -378,15 +361,7 @@ void main() {
       ),
     );
     await tester.pump(const Duration(milliseconds: 500));
-    await tester.tap(
-      find.byWidgetPredicate(
-        (widget) =>
-            widget is CNIcon &&
-            widget.imageAsset?.assetPath == 'assets/ui_icons/me@3x.png',
-      ),
-    );
-    await tester.pump(const Duration(milliseconds: 300));
-    await tester.tap(find.byTooltip('Settings'));
+    await tester.tap(find.byKey(const ValueKey('home-settings-action')));
     await tester.pumpAndSettle();
 
     expect(find.text('System'), findsOneWidget);

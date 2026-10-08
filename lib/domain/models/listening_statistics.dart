@@ -94,3 +94,13 @@ DateTime? parseDateKey(String value) {
   if (year == null || month == null || day == null) return null;
   return DateTime(year, month, day);
 }
+
+String formatListeningTime(int milliseconds) {
+  if (milliseconds <= 0) return '0m';
+  final duration = Duration(milliseconds: milliseconds);
+  final hours = duration.inHours;
+  final minutes = duration.inMinutes.remainder(60);
+  if (hours > 0) return '${hours}h ${minutes}m';
+  if (duration.inMinutes > 0) return '${duration.inMinutes}m';
+  return '<1m';
+}
