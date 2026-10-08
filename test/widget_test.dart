@@ -512,7 +512,7 @@ void main() {
     final providerSettings = find.byKey(
       const ValueKey('llm-provider-settings'),
     );
-    await tester.drag(find.byType(ListView), const Offset(0, -300));
+    await tester.ensureVisible(providerSettings);
     await tester.pumpAndSettle();
     await tester.tap(providerSettings);
     await tester.pumpAndSettle();
