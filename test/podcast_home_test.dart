@@ -360,6 +360,16 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(PlayerScreen), findsOneWidget);
     expect(handler.playCalled, isTrue);
+
+    // The show name under the episode leads to all of the show's episodes.
+    await tester.tap(find.byKey(const ValueKey('player-show-link')));
+    await tester.pumpAndSettle();
+    expect(find.byType(PodcastShowScreen), findsOneWidget);
+    expect(find.text('All episodes'), findsOneWidget);
+    await tester.tap(find.byType(AppBackButton).last);
+    await tester.pumpAndSettle();
+    expect(find.byType(PlayerScreen), findsOneWidget);
+
     final previewShow = await database.getPodcastShowByFeedUrl(
       'https://discover.example.com/feed.xml',
     );
@@ -426,12 +436,10 @@ void main() {
     expect(find.text('Tagged Show'), findsOneWidget);
     expect(find.text('Comedy'), findsOneWidget);
     expect(find.text('News'), findsOneWidget);
-    expect(find.text('Podcast'), findsOneWidget);
+    // "Podcast" says nothing about the show, so it is not shown as a genre.
+    expect(find.text('Podcast'), findsNothing);
     // Genres are tappable searches.
-    expect(
-      find.byKey(const ValueKey('podcast-category-Comedy')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey('tag-Comedy')), findsOneWidget);
     expect(
       tester
           .widget<PodcastEpisodeTile>(find.byType(PodcastEpisodeTile))

@@ -11,7 +11,7 @@ import '../../../data/podcasts/podcast_index_repository.dart';
 import '../../../data/podcasts/podcast_repository.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
 import '../../widgets/podcast_artwork.dart';
-import '../../widgets/podcast_category_chips.dart';
+import '../../widgets/tag_chips.dart';
 import '../../widgets/podcast_expandable_description.dart';
 import 'podcast_episode_screen.dart';
 import 'podcast_formatters.dart';
@@ -217,8 +217,11 @@ class _PodcastDiscoveryDetailScreenState
                     ),
                   ),
                   if (author != null && author.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    AuthorSearchLink(author: author),
+                    const SizedBox(height: 8),
+                    Text(
+                      author,
+                      style: TextStyle(color: context.appTextSecondary),
+                    ),
                   ],
                   const SizedBox(height: 16),
                   FilledButton.icon(
@@ -249,8 +252,8 @@ class _PodcastDiscoveryDetailScreenState
         ),
         if (_categoriesFor(preview).isNotEmpty) ...[
           SizedBox(height: design.spaceMd),
-          PodcastCategoryChips(
-            categories: _categoriesFor(preview),
+          TagChips(
+            tags: _categoriesFor(preview),
             onSelected: (category) => openSearchFor(context, category),
           ),
         ],
@@ -308,7 +311,7 @@ class _PodcastDiscoveryDetailScreenState
     ]) {
       if (seen.add(category.toLowerCase())) categories.add(category);
     }
-    return categories;
+    return meaningfulPodcastCategories(categories);
   }
 }
 

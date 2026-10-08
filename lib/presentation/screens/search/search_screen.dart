@@ -652,10 +652,9 @@ class _SearchContext {
         ], 6),
         ..._mostFrequent([
           for (final show in shows)
-            for (final genre in decodePodcastCategories(show.categoriesJson))
-              // Some feeds file themselves under "Podcasts", which says
-              // nothing about what they are.
-              if (genre.toLowerCase() != 'podcasts') genre,
+            ...meaningfulPodcastCategories(
+              decodePodcastCategories(show.categoriesJson),
+            ),
         ], 4),
       ],
       shows: shows,

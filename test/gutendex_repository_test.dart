@@ -2,6 +2,25 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lumina/data/book_sources/gutendex_repository.dart';
 
 void main() {
+  test('subject headings become short, distinct tags', () {
+    final book = GutendexBook.fromJson({
+      'id': 1342,
+      'title': 'Pride and Prejudice',
+      'subjects': [
+        'Courtship -- Fiction',
+        'England -- Fiction',
+        'England -- Social life and customs -- 19th century -- Fiction',
+        'Love stories',
+      ],
+    });
+
+    expect(book.subjectTags, ['Courtship', 'England', 'Love stories']);
+    expect(
+      GutendexBook.fromJson({'id': 1, 'title': 'x'}).subjectTags,
+      isEmpty,
+    );
+  });
+
   test('GutendexBook maps API metadata and import eligibility', () {
     final book = GutendexBook.fromJson({
       'id': 11,

@@ -112,6 +112,21 @@ class GutendexBook {
 
   bool get isPublicDomain => copyright == false;
 
+  /// Short subject tags. Gutenberg subjects are Library of Congress headings
+  /// such as "England -- Social life and customs -- Fiction"; the leading
+  /// heading is the part worth showing and searching for.
+  List<String> get subjectTags {
+    final raw = rawJson['subjects'];
+    if (raw is! List) return const [];
+    final seen = <String>{};
+    return [
+      for (final subject in raw.whereType<String>())
+        if (subject.split(' -- ').first.trim() case final tag
+            when tag.isNotEmpty && seen.add(tag.toLowerCase()))
+          tag,
+    ];
+  }
+
   String? get epubUrl {
     final exact = formats['application/epub+zip'];
     if (exact != null) return exact;

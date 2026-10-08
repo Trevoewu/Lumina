@@ -7,7 +7,6 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hugeicons/hugeicons.dart';
 
 import '../../../core/app_colors.dart';
 import '../../../core/app_design_tokens.dart';
@@ -37,8 +36,6 @@ import '../../widgets/swipe_action_row.dart';
 import '../../widgets/voice_selection_card.dart';
 import '../player/player_screen.dart';
 import '../reader/book_reader_screen.dart';
-import '../settings/voice_preview_controller.dart';
-import '../search/search_links.dart';
 
 class AlbumScreen extends ConsumerStatefulWidget {
   final drift_db.Book book;
@@ -57,8 +54,6 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
   bool _didScrollToInitialChapter = false;
   late Future<String?> _bookIntroductionFuture;
   late Future<_AlbumChapterData> _chapterDataFuture;
-  late Future<_BookVoiceData?> _bookVoiceFuture;
-  VoicePreviewController? _voicePreview;
   String? _selectedBookVoiceId;
   _AlbumChapterData? _chapterData;
   late String? _currentChapterId;
@@ -76,9 +71,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     _macosTrailingNotifier = ref.read(macosToolbarTrailingProvider.notifier);
     _bookIntroductionFuture = _loadBookIntroduction();
     _chapterDataFuture = _loadChapterData(ref.read(appDatabaseProvider));
-    _bookVoiceFuture = _isStreamingAudiobook
-        ? Future<_BookVoiceData?>.value(null)
-        : _loadBookVoice();
+    if (!_isStreamingAudiobook) unawaited(_ensureBookVoice());
     _currentChapterId = widget.book.currentChapterId;
     _currentParagraphIndex = widget.book.currentParagraphIndex;
     _playbackOffsetMs = widget.book.playbackOffsetMs;
@@ -90,7 +83,6 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
 
   @override
   void dispose() {
-    _voicePreview?.dispose();
     Future.microtask(() {
       _macosTrailingNotifier?.updateValue(null);
     });
@@ -134,9 +126,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       _chapterData = null;
       _chapterDataFuture = _loadChapterData(ref.read(appDatabaseProvider));
       _didScrollToInitialChapter = false;
-      _bookVoiceFuture = _isStreamingAudiobook
-          ? Future<_BookVoiceData?>.value(null)
-          : _loadBookVoice();
+      if (!_isStreamingAudiobook) unawaited(_ensureBookVoice());
     }
 
     if (oldWidget.book.id != widget.book.id ||
@@ -245,7 +235,10 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     });
   }
 
-  Future<_BookVoiceData?> _loadBookVoice() async {
+  /// Picks the voice this book is read in (its saved choice, else one that
+  /// matches its language) and stores it, so playback and whole-book caching
+  /// agree. The book page no longer offers a picker for it.
+  Future<void> _ensureBookVoice() async {
     final provider = ref.read(activeTtsProviderProvider);
     final database = ref.read(appDatabaseProvider);
     final savedVoices = await database.getVoicesByProvider(provider.id);
@@ -260,7 +253,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
         ))
           voice,
     ];
-    if (voices.isEmpty) return null;
+    if (voices.isEmpty) return;
 
     final stored = _findVoice(voices, widget.book.voiceId);
     final language =
@@ -281,11 +274,6 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     if (widget.book.voiceId != selected.id) {
       await database.updateBookMetadata(widget.book.id, voiceId: selected.id);
     }
-    return _BookVoiceData(
-      providerName: provider.displayName,
-      voices: voices,
-      selectedVoiceId: selected.id,
-    );
   }
 
   TtsVoice? _findVoice(Iterable<TtsVoice> voices, String? id) {
@@ -293,78 +281,6 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     return voices
         .where((voice) => voice.id == id || voice.providerVoiceId == id)
         .firstOrNull;
-  }
-
-  Future<void> _showBookVoicePicker(_BookVoiceData data) async {
-    await showAppSheet<void>(
-      context: context,
-      builder: (sheetContext) => StatefulBuilder(
-        builder: (sheetContext, setSheetState) => SafeArea(
-          top: false,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.72,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
-                  child: Text(
-                    context.tr('选取使用的音色', 'Choose a voice', '使用する音声を選択'),
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                Flexible(
-                  child: ListView(
-                    shrinkWrap: true,
-                    padding: const EdgeInsets.fromLTRB(22, 0, 22, 20),
-                    children: [
-                      for (final voice in data.voices)
-                        VoiceSelectionCard(
-                          voice: voice,
-                          selected: data.selectedVoiceId == voice.id,
-                          playing: _voicePreview?.playingVoiceId == voice.id,
-                          subtitle:
-                              voiceLanguageLabel(voice) ?? data.providerName,
-                          onTap: () =>
-                              _saveBookVoice(sheetContext, data, voice),
-                          onPreview: () async {
-                            _voicePreview ??= VoicePreviewController(
-                              ref.read(providerRegistryProvider),
-                            );
-                            await _voicePreview!.toggle(voice);
-                            if (sheetContext.mounted) setSheetState(() {});
-                          },
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _saveBookVoice(
-    BuildContext sheetContext,
-    _BookVoiceData data,
-    TtsVoice voice,
-  ) async {
-    await ref
-        .read(appDatabaseProvider)
-        .updateBookMetadata(widget.book.id, voiceId: voice.id);
-    if (!mounted || !sheetContext.mounted) return;
-    setState(() {
-      _selectedBookVoiceId = voice.id;
-      _bookVoiceFuture = Future.value(data.copyWith(selectedVoiceId: voice.id));
-    });
-    Navigator.of(sheetContext).pop();
   }
 
   Future<_AlbumChapterData> _loadChapterData(
@@ -1046,9 +962,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _buildBookHeader(),
-                        SizedBox(height: design.spaceLg),
-                        _buildActionButtons(chapters),
+                        _buildBookHeader(chapters),
                         SizedBox(height: design.spaceLg),
                         _buildBookIntroduction(),
                         SizedBox(height: design.spaceXxl),
@@ -1134,7 +1048,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     );
   }
 
-  Widget _buildBookHeader() {
+  Widget _buildBookHeader(List<drift_db.Chapter> chapters) {
     final design = context.appDesign;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1163,16 +1077,15 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                 ),
               ),
               SizedBox(height: design.spaceSm),
-              if (widget.book.author?.trim() case final author?
-                  when author.isNotEmpty)
-                AuthorSearchLink(author: author)
-              else
-                Text(
-                  context.tr('未知作者', 'Unknown author', '著者不明'),
-                  style: TextStyle(color: context.appTextSecondary),
-                ),
+              Text(
+                widget.book.author ??
+                    context.tr('未知作者', 'Unknown author', '著者不明'),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: context.appTextSecondary),
+              ),
               if (_isStreamingAudiobook) ...[
-                SizedBox(height: design.spaceLg),
+                SizedBox(height: design.spaceSm),
                 Row(
                   children: [
                     AppIcon(
@@ -1193,140 +1106,28 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
                     ),
                   ],
                 ),
-              ] else ...[
-                SizedBox(height: design.spaceLg),
-                Text(
-                  context.tr('使用的音色', 'VOICE', '使用する音声'),
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: context.appTextSecondary,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: 1.1,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                FutureBuilder<_BookVoiceData?>(
-                  future: _bookVoiceFuture,
-                  builder: (context, snapshot) {
-                    final data = snapshot.data;
-                    if (data == null) {
-                      return SizedBox(
-                        height: 44,
-                        child:
-                            snapshot.connectionState == ConnectionState.waiting
-                            ? Align(
-                                alignment: Alignment.centerLeft,
-                                child: AppIcon(
-                                  AppIcons.aiVoice,
-                                  size: 22,
-                                  color: context.appTextSecondary,
-                                ),
-                              )
-                            : Align(
-                                alignment: Alignment.centerLeft,
-                                child: Text(
-                                  context.tr(
-                                    '没有可用音色',
-                                    'No voice available',
-                                    '利用できる音声がありません',
-                                  ),
-                                  style: TextStyle(
-                                    color: context.appTextSecondary,
-                                  ),
-                                ),
-                              ),
-                      );
-                    }
-                    final selected = data.voices
-                        .where((voice) => voice.id == data.selectedVoiceId)
-                        .firstOrNull;
-                    if (selected == null) return const SizedBox.shrink();
-                    return Material(
-                      key: const ValueKey('book-voice-selector'),
-                      color: Theme.of(context).colorScheme.surfaceContainer,
-                      borderRadius: BorderRadius.circular(12),
-                      clipBehavior: Clip.antiAlias,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        child: VoiceSelectionCard(
-                          voice: selected,
-                          selected: true,
-                          playing: false,
-                          subtitle:
-                              voiceLanguageLabel(selected) ?? data.providerName,
-                          onTap: () => _showBookVoicePicker(data),
+              ],
+              const SizedBox(height: 16),
+              // The same play button as a podcast page: picks up where the
+              // reader left off, or starts at the first chapter.
+              FilledButton.icon(
+                key: const ValueKey('book-play-button'),
+                onPressed: chapters.isEmpty
+                    ? null
+                    : () => _openChapter(
+                        chapters.firstWhere(
+                          (chapter) => chapter.id == _currentChapterId,
+                          orElse: () => chapters.first,
                         ),
                       ),
-                    );
-                  },
+                icon: const AppIcon(AppIcons.play),
+                label: Text(
+                  _currentChapterId != null
+                      ? context.tr('继续播放', 'Resume', '続きを再生')
+                      : context.tr('播放', 'Play', '再生'),
                 ),
-              ],
+              ),
             ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildActionButtons(List<drift_db.Chapter> chapters) {
-    if (chapters.isEmpty) return const SizedBox.shrink();
-    final hasStarted = _currentChapterId != null;
-    final scheme = Theme.of(context).colorScheme;
-
-    return Row(
-      children: [
-        Expanded(
-          child: FilledButton.icon(
-            key: const ValueKey('book-start-reading-button'),
-            icon: HugeIcon(
-              icon: HugeIcons.strokeRoundedBookOpen01,
-              size: 18,
-              color: context.appBackground,
-            ),
-            label: Text(
-              hasStarted
-                  ? context.tr('继续阅读', 'Continue Reading', '続きを読む')
-                  : context.tr('开始阅读', 'Start Reading', '読み始める'),
-              style: const TextStyle(fontWeight: FontWeight.w500),
-            ),
-            style: FilledButton.styleFrom(
-              backgroundColor: context.appTextPrimary,
-              foregroundColor: context.appBackground,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            onPressed: () => _openReader(),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: OutlinedButton.icon(
-            key: const ValueKey('book-listen-button'),
-            icon: HugeIcon(
-              icon: HugeIcons.strokeRoundedHeadphones,
-              size: 18,
-              color: context.appTextPrimary,
-            ),
-            label: Text(
-              context.tr('听书', 'Listen', '聴く'),
-              style: const TextStyle(fontWeight: FontWeight.w500),
-            ),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: context.appTextPrimary,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              side: BorderSide(color: scheme.onSurface.withValues(alpha: 0.2)),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            onPressed: () {
-              final target = chapters.firstWhere(
-                (c) => c.id == _currentChapterId,
-                orElse: () => chapters.first,
-              );
-              _openChapter(target);
-            },
           ),
         ),
       ],
@@ -1402,24 +1203,6 @@ class _AlbumChapterData {
     this.progressByChapterId =
         const <String, drift_db.ChapterPlaybackProgress>{},
   });
-}
-
-class _BookVoiceData {
-  final String providerName;
-  final List<TtsVoice> voices;
-  final String selectedVoiceId;
-
-  const _BookVoiceData({
-    required this.providerName,
-    required this.voices,
-    required this.selectedVoiceId,
-  });
-
-  _BookVoiceData copyWith({String? selectedVoiceId}) => _BookVoiceData(
-    providerName: providerName,
-    voices: voices,
-    selectedVoiceId: selectedVoiceId ?? this.selectedVoiceId,
-  );
 }
 
 class _ChapterCard extends StatelessWidget {

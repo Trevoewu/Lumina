@@ -14,7 +14,7 @@ import '../../../data/database/app_database.dart';
 import '../../../data/podcasts/podcast_repository.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
 import '../../widgets/podcast_artwork.dart';
-import '../../widgets/podcast_category_chips.dart';
+import '../../widgets/tag_chips.dart';
 import '../../widgets/podcast_expandable_description.dart';
 import 'podcast_episode_screen.dart';
 import 'podcast_episode_tile.dart';
@@ -136,7 +136,9 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
     final database = ref.watch(appDatabaseProvider);
     final design = context.appDesign;
     final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
-    final categories = decodePodcastCategories(show.categoriesJson);
+    final categories = meaningfulPodcastCategories(
+      decodePodcastCategories(show.categoriesJson),
+    );
     return StreamBuilder<List<PodcastEpisode>>(
       stream: database.watchPodcastEpisodes(show.id),
       builder: (context, snapshot) {
@@ -162,8 +164,11 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
                             ),
                       ),
                       if (show.author != null && show.author!.isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        AuthorSearchLink(author: show.author!),
+                        const SizedBox(height: 8),
+                        Text(
+                          show.author!,
+                          style: TextStyle(color: context.appTextSecondary),
+                        ),
                       ],
                       const SizedBox(height: 16),
                       FilledButton.icon(
@@ -180,8 +185,8 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
             ),
             if (categories.isNotEmpty) ...[
               SizedBox(height: design.spaceMd),
-              PodcastCategoryChips(
-                categories: categories,
+              TagChips(
+                tags: categories,
                 onSelected: (category) => openSearchFor(context, category),
               ),
             ],

@@ -363,6 +363,14 @@ ParsedPodcastFeed parsePodcastFeed(String source, {required String feedUrl}) {
   );
 }
 
+/// Some feeds file themselves under "Podcast(s)", which says nothing about
+/// what a show is, so it is left out wherever genres are shown.
+List<String> meaningfulPodcastCategories(Iterable<String> categories) => [
+  for (final category in categories)
+    if (!const {'podcast', 'podcasts'}.contains(category.toLowerCase()))
+      category,
+];
+
 List<String> decodePodcastCategories(String? source) {
   if (source == null || source.trim().isEmpty) return const [];
   try {

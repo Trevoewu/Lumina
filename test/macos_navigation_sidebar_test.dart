@@ -878,10 +878,16 @@ void main() {
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 700));
 
-        // From AlbumScreen, tap "Start Reading" button to open BookReaderScreen
-        final startReadingFinder = find.byKey(const ValueKey('book-start-reading-button'));
-        expect(startReadingFinder, findsOneWidget);
-        await tester.tap(startReadingFinder);
+        // From AlbumScreen, open the first chapter's actions and read it
+        final firstChapter = find.byWidgetPredicate(
+          (widget) =>
+              widget.key is ValueKey<String> &&
+              (widget.key! as ValueKey<String>).value.startsWith('book-chapter-') &&
+              !(widget.key! as ValueKey<String>).value.startsWith('book-chapter-swipe-'),
+        ).first;
+        await tester.longPress(firstChapter);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('阅读此章'));
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 700));
         await tester.pumpAndSettle();

@@ -54,6 +54,7 @@ import '../../widgets/podcast_link_text.dart';
 import '../../widgets/synced_lyrics_list.dart';
 import '../../widgets/transcript_slider_track.dart';
 import '../../widgets/subtitle_seek_points.dart';
+import '../podcast/podcast_show_screen.dart';
 import '../reader/book_reader_screen.dart';
 import '../settings/dictionary_explanation_service_screen.dart';
 import '../settings/tts_service_screen.dart';
@@ -3604,15 +3605,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 ),
               ),
               SizedBox(height: design.spaceXs),
-              Text(
-                widget.book.author ??
-                    context.tr('未知作者', 'Unknown Author', '著者不明'),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: context.appTextSecondary,
+              if (widget.podcast case final podcast?)
+                _buildShowLink(podcast.show)
+              else
+                Text(
+                  widget.book.author ??
+                      context.tr('未知作者', 'Unknown Author', '著者不明'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: context.appTextSecondary,
+                  ),
                 ),
-              ),
             ],
           ),
         ),
@@ -3624,6 +3628,48 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           onPressed: () {},
         ),
       ],
+    );
+  }
+
+  /// The show name under an episode title opens the show, so the rest of
+  /// its episodes are one tap away; Back returns to the player.
+  Widget _buildShowLink(drift_db.PodcastShow show) {
+    final style = Theme.of(
+      context,
+    ).textTheme.bodyLarge?.copyWith(color: context.appTextSecondary);
+    return Semantics(
+      link: true,
+      child: InkWell(
+        key: const ValueKey('player-show-link'),
+        borderRadius: BorderRadius.circular(6),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => PodcastShowScreen(showId: show.id),
+          ),
+        ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 32),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  show.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: style,
+                ),
+              ),
+              const SizedBox(width: 2),
+              AppIcon(
+                AppIcons.arrowRight01,
+                size: 16,
+                color: context.appTextSecondary,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

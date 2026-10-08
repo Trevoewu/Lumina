@@ -12,7 +12,7 @@ import 'package:lumina/data/podcasts/podcast_index_repository.dart';
 import 'package:lumina/presentation/screens/search/search_history.dart';
 import 'package:lumina/presentation/screens/search/search_links.dart';
 import 'package:lumina/presentation/widgets/app_back_button.dart';
-import 'package:lumina/presentation/widgets/podcast_category_chips.dart';
+import 'package:lumina/presentation/widgets/tag_chips.dart';
 import 'package:lumina/presentation/screens/search/search_screen.dart';
 
 void main() {
@@ -185,7 +185,9 @@ void main() {
     expect(focused(), isFalse);
   });
 
-  testWidgets('a tapped author or tag opens Search for it', (tester) async {
+  testWidgets('a tapped tag opens Search for it with a way back', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(390, 1400);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -202,14 +204,9 @@ void main() {
           theme: AppTheme.lightTheme(),
           home: Builder(
             builder: (context) => Scaffold(
-              body: Column(
-                children: [
-                  const AuthorSearchLink(author: 'Austen, Jane'),
-                  PodcastCategoryChips(
-                    categories: const ['Science'],
-                    onSelected: (term) => openSearchFor(context, term),
-                  ),
-                ],
+              body: TagChips(
+                tags: const ['Science'],
+                onSelected: (term) => openSearchFor(context, term),
               ),
             ),
           ),
@@ -217,25 +214,21 @@ void main() {
       ),
     );
 
-    await tester.tap(find.byKey(const ValueKey('author-search-link')));
+    await tester.tap(find.byKey(const ValueKey('tag-Science')));
     await tester.pumpAndSettle();
-    // Searched the way the name is written on a cover, with a way back.
-    expect(gutendex.queries, ['Jane Austen']);
+    expect(podcastIndex.queries, ['Science']);
     expect(
       tester
           .widget<TextField>(find.byKey(const ValueKey('search-field')))
           .controller!
           .text,
-      'Jane Austen',
+      'Science',
     );
-    expect(find.byType(AppBackButton), findsOneWidget);
+    expect(await SearchHistory(database).load(), ['Science']);
 
     await tester.tap(find.byType(AppBackButton));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('podcast-category-Science')));
-    await tester.pumpAndSettle();
-    expect(podcastIndex.queries.last, 'Science');
-    expect(await SearchHistory(database).load(), ['Science', 'Jane Austen']);
+    expect(find.byKey(const ValueKey('tag-Science')), findsOneWidget);
   });
 }
 

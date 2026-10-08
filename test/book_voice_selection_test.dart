@@ -111,9 +111,7 @@ void main() {
     expect(row, findsNothing);
   });
 
-  testWidgets('book defaults to and saves a voice matching its language', (
-    tester,
-  ) async {
+  testWidgets('book still saves a voice matching its language', (tester) async {
     tester.view.physicalSize = const Size(430, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -168,18 +166,18 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const ValueKey('book-voice-selector')), findsOneWidget);
-    expect(find.text('Chinese Voice'), findsOneWidget);
+    // The page no longer shows a picker, but playback and caching still get
+    // a voice that matches the book's language.
+    expect(find.byKey(const ValueKey('book-voice-selector')), findsNothing);
+    // One play button, as on a podcast page; reading is a per-chapter action.
+    expect(find.byKey(const ValueKey('book-play-button')), findsOneWidget);
+    expect(find.text('Play'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('book-start-reading-button')),
+      findsNothing,
+    );
+    expect(find.byKey(const ValueKey('book-listen-button')), findsNothing);
     expect((await database.getBook(book.id))?.voiceId, 'zh-voice');
-
-    await tester.tap(find.byKey(const ValueKey('book-voice-selector')));
-    await tester.pumpAndSettle();
-    expect(find.text('Choose a voice'), findsOneWidget);
-    await tester.tap(find.text('English Voice'));
-    await tester.pumpAndSettle();
-
-    expect((await database.getBook(book.id))?.voiceId, 'en-voice');
-    expect(find.text('English Voice'), findsOneWidget);
   });
 }
 
