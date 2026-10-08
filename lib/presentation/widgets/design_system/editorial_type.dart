@@ -3,12 +3,13 @@ import 'package:flutter/material.dart';
 import '../../../core/app_colors.dart';
 
 /// Small uppercase section label ("LATEST", "生词本 · 6") from the Lumina
-/// design: tracked out, low contrast, never larger than the content it labels.
+/// design: tracked out, secondary ink, never larger than the content it labels.
+/// Size and tracking set it apart; its colour still has to clear 4.5:1.
 TextStyle kickerTextStyle(BuildContext context) => TextStyle(
   fontSize: 10.5,
   fontWeight: FontWeight.w500,
   letterSpacing: 1.26,
-  color: context.appTextPrimary.withValues(alpha: 0.35),
+  color: context.appTextSecondary,
 );
 
 /// Technical text — time codes, durations, phonetics, counts. Tabular figures

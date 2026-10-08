@@ -143,9 +143,7 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
             child: Text(
               context.tr('已清空', 'Empty', '空です'),
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurface.withValues(alpha: 0.3),
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ),

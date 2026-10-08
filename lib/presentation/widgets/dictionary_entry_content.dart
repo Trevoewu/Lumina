@@ -73,7 +73,7 @@ class _DictionaryEntryContentState extends State<DictionaryEntryContent> {
                 onPressed: widget.onFavorite,
                 icon: AppIcon(
                   widget.favorite ? AppIcons.bookmark01 : AppIcons.bookmark02,
-                  color: widget.favorite ? ink : ink.withValues(alpha: 0.28),
+                  color: widget.favorite ? ink : context.appTextSecondary,
                 ),
               ),
           ],
@@ -170,7 +170,7 @@ class _DictionaryEntryContentState extends State<DictionaryEntryContent> {
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
-                          color: ink.withValues(alpha: 0.45),
+                          color: context.appTextSecondary,
                         ),
                       ),
                       const SizedBox(width: 6),
@@ -180,7 +180,7 @@ class _DictionaryEntryContentState extends State<DictionaryEntryContent> {
                         child: AppIcon(
                           AppIcons.arrowDown01,
                           size: 17,
-                          color: ink.withValues(alpha: 0.45),
+                          color: context.appTextSecondary,
                         ),
                       ),
                     ],
@@ -405,7 +405,7 @@ class _ContextCard extends StatelessWidget {
                 child: AppIcon(
                   AppIcons.bookOpen02,
                   size: 18,
-                  color: ink.withValues(alpha: 0.45),
+                  color: context.appTextSecondary,
                 ),
               ),
               const SizedBox(width: 11),
@@ -633,7 +633,7 @@ class _SourceFooter extends StatelessWidget {
           AppIcon(
             AppIcons.linkSquare02,
             size: 15,
-            color: context.appTextPrimary.withValues(alpha: 0.35),
+            color: context.appTextSecondary,
           ),
         ],
       ),

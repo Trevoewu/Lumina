@@ -393,7 +393,7 @@ class _HeroBlock extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w400,
-                              color: ink.withValues(alpha: 0.45),
+                              color: context.appTextSecondary,
                             ),
                           ),
                           const SizedBox(height: 14),
@@ -677,7 +677,7 @@ class _StartRow extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 13,
                       height: 1.35,
-                      color: ink.withValues(alpha: 0.45),
+                      color: context.appTextSecondary,
                     ),
                   ),
                 ],

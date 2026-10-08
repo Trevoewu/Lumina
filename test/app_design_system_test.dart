@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,6 +9,47 @@ import 'package:lumina/core/appearance.dart';
 import 'package:lumina/core/theme.dart';
 
 void main() {
+  test('button text follows the accent it sits on', () {
+    double contrast(Color a, Color b) {
+      final la = a.computeLuminance(), lb = b.computeLuminance();
+      return (math.max(la, lb) + 0.05) / (math.min(la, lb) + 0.05);
+    }
+
+    for (final accent in const [
+      AppColors.defaultAccent,
+      Color(0xFF1B3A6B),
+      Color(0xFFF2C14E),
+      Color(0xFF7A1F3D),
+    ]) {
+      for (final theme in [
+        AppTheme.lightTheme(accentColor: accent),
+        AppTheme.darkTheme(accentColor: accent),
+      ]) {
+        final onAccent = theme.colorScheme.onPrimary;
+        expect(contrast(onAccent, accent), greaterThanOrEqualTo(4.5));
+        expect(
+          theme.filledButtonTheme.style?.foregroundColor?.resolve({}),
+          onAccent,
+        );
+      }
+    }
+  });
+
+  test('secondary text stays readable on the page background', () {
+    double contrast(Color a, Color b) {
+      final la = a.computeLuminance(), lb = b.computeLuminance();
+      return (math.max(la, lb) + 0.05) / (math.min(la, lb) + 0.05);
+    }
+
+    for (final theme in [AppTheme.lightTheme(), AppTheme.darkTheme()]) {
+      final scheme = theme.colorScheme;
+      expect(
+        contrast(scheme.onSurfaceVariant, scheme.surface),
+        greaterThanOrEqualTo(4.5),
+      );
+    }
+  });
+
   test('100% text size uses the previous 85% visual baseline', () {
     expect(const AppearanceSettings().fontScale, 1.0);
     expect(appTextScaleBaseline, 0.85);
@@ -50,7 +93,7 @@ void main() {
     );
     expect(tokens.dividerThickness, 1.0);
     expect(theme.dividerTheme.color, AppColors.darkDivider);
-    expect(theme.dividerTheme.color, const Color(0xFF1C1C1C));
+    expect(theme.dividerTheme.color, AppColors.darkDivider);
     expect(AppTheme.lightTheme().dividerTheme.color, AppColors.divider);
     expect(theme.dividerTheme.thickness, 1.0);
   });

@@ -415,17 +415,13 @@ class _AddProviderButton extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              AppIcon(
-                AppIcons.add01,
-                size: 17,
-                color: scheme.onSurface.withValues(alpha: 0.45),
-              ),
+              AppIcon(AppIcons.add01, size: 17, color: scheme.onSurfaceVariant),
               const SizedBox(width: 8),
               Text(
                 label,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w500,
-                  color: scheme.onSurface.withValues(alpha: 0.5),
+                  color: scheme.onSurfaceVariant,
                 ),
               ),
             ],

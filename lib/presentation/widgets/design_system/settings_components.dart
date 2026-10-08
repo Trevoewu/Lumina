@@ -179,18 +179,14 @@ class _SegmentButton extends StatelessWidget {
                 AppIcon(
                   icon,
                   size: 15,
-                  color: selected
-                      ? scheme.surface
-                      : scheme.onSurface.withValues(alpha: 0.55),
+                  color: selected ? scheme.surface : scheme.onSurfaceVariant,
                 ),
                 const SizedBox(width: 7),
                 Text(
                   label,
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
                     fontWeight: FontWeight.w500,
-                    color: selected
-                        ? scheme.surface
-                        : scheme.onSurface.withValues(alpha: 0.55),
+                    color: selected ? scheme.surface : scheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -238,9 +234,7 @@ class SettingsChip extends StatelessWidget {
             textAlign: expand ? TextAlign.center : TextAlign.start,
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
               fontWeight: FontWeight.w500,
-              color: selected
-                  ? scheme.surface
-                  : scheme.onSurface.withValues(alpha: 0.55),
+              color: selected ? scheme.surface : scheme.onSurfaceVariant,
             ),
           ),
         ),

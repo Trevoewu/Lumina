@@ -121,17 +121,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final accent = Theme.of(context).colorScheme.primary;
     final design = context.appDesign;
     final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
-    final hasPersistentToolbar = MacosPersistentToolbarScope.hasToolbar(context);
+    final hasPersistentToolbar = MacosPersistentToolbarScope.hasToolbar(
+      context,
+    );
 
     final header = Material(
       key: const ValueKey('home-fixed-header'),
       color: context.appBackground,
       child: Padding(
-        padding: EdgeInsets.only(
-          top: 8,
-          bottom: 2,
-          right: design.spaceXs,
-        ),
+        padding: EdgeInsets.only(top: 8, bottom: 2, right: design.spaceXs),
         child: Row(
           children: [
             Expanded(
@@ -549,7 +547,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               FilledButton.icon(
                 style: FilledButton.styleFrom(
                   backgroundColor: accent,
-                  foregroundColor: Colors.black,
+                  foregroundColor: Theme.of(context).colorScheme.onPrimary,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 28,
                     vertical: 14,
@@ -560,12 +558,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 ),
                 onPressed: _importing ? null : () => _importBook(context),
                 icon: _importing
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: Colors.black,
+                          color: Theme.of(context).colorScheme.onPrimary,
                         ),
                       )
                     : AppIcon(AppIcons.fileUpload),

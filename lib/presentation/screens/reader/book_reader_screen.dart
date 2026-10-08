@@ -1054,7 +1054,9 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
                                     ),
                                     style: FilledButton.styleFrom(
                                       backgroundColor: context.appAccent,
-                                      foregroundColor: Colors.white,
+                                      foregroundColor: Theme.of(
+                                        context,
+                                      ).colorScheme.onPrimary,
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(12),
                                       ),
@@ -1205,7 +1207,9 @@ class _BookReaderScreenState extends ConsumerState<BookReaderScreen> {
                       opacity: _userScrolledAway ? 1.0 : 0.0,
                       child: FloatingActionButton.extended(
                         backgroundColor: context.appAccent,
-                        foregroundColor: Colors.white,
+                        foregroundColor: Theme.of(
+                          context,
+                        ).colorScheme.onPrimary,
                         elevation: 4,
                         icon: const AppIcon(AppIcons.target02, size: 18),
                         label: Text(

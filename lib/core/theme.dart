@@ -39,6 +39,16 @@ class AppTheme {
     isDark: false,
   );
 
+  /// Black or white, whichever contrasts more with [background]. A plain
+  /// luminance cut-off at 0.5 picked white for mid-tone accents such as the
+  /// default green, where black reads far better.
+  static Color _readableOn(Color background) {
+    final luminance = background.computeLuminance();
+    final againstBlack = (luminance + 0.05) / 0.05;
+    final againstWhite = 1.05 / (luminance + 0.05);
+    return againstBlack >= againstWhite ? Colors.black : Colors.white;
+  }
+
   static ThemeData _buildTheme(
     ColorScheme baseScheme, {
     Color? backgroundColor,
@@ -55,8 +65,8 @@ class AppTheme {
     final surfaceContainer = isDark
         ? Color.lerp(bg, Colors.white, 0.08)!
         : (bg.computeLuminance() > 0.9
-            ? Colors.white
-            : Color.lerp(bg, Colors.white, 0.5)!);
+              ? Colors.white
+              : Color.lerp(bg, Colors.white, 0.5)!);
     final surfaceContainerHighest = isDark
         ? Color.lerp(bg, Colors.white, 0.14)!
         : Color.lerp(bg, Colors.black, 0.06)!;
@@ -69,9 +79,7 @@ class AppTheme {
       accentColor.withValues(alpha: 0.16),
       bg,
     );
-    final onAccent = accentColor.computeLuminance() > 0.5
-        ? Colors.black
-        : Colors.white;
+    final onAccent = _readableOn(accentColor);
 
     final colorScheme = baseScheme.copyWith(
       surface: bg,
@@ -249,7 +257,7 @@ class AppTheme {
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           backgroundColor: accentColor,
-          foregroundColor: Colors.black,
+          foregroundColor: onAccent,
           textStyle: const TextStyle(fontWeight: FontWeight.w500),
           padding: EdgeInsets.symmetric(
             horizontal: tokens.spaceXl,

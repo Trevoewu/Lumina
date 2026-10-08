@@ -59,7 +59,7 @@ class AppSearchField extends StatelessWidget {
           AppIcon(
             AppIcons.search01,
             size: compact ? 16 : 19,
-            color: ink.withValues(alpha: 0.45),
+            color: context.appTextSecondary,
           ),
           SizedBox(width: compact ? 7 : 11),
           Expanded(
@@ -83,7 +83,7 @@ class AppSearchField extends StatelessWidget {
                 hintText: hintText,
                 hintStyle: TextStyle(
                   fontSize: compact ? 13 : 16,
-                  color: ink.withValues(alpha: 0.32),
+                  color: context.appTextSecondary,
                 ),
               ),
             ),

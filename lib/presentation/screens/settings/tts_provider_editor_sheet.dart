@@ -141,9 +141,11 @@ class _TtsProviderEditorSheetState
                     enabledBorder: InputBorder.none,
                     focusedBorder: InputBorder.none,
                     contentPadding: EdgeInsets.zero,
-                    hintText: isGptSovits ? 'http://172.26.19.56:9880' : 'sk-...',
+                    hintText: isGptSovits
+                        ? 'http://172.26.19.56:9880'
+                        : 'sk-...',
                     hintStyle: TextStyle(
-                      color: scheme.onSurface.withValues(alpha: 0.3),
+                      color: scheme.onSurfaceVariant,
                       fontFamily: 'monospace',
                     ),
                   ),

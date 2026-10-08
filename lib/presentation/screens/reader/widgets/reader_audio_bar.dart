@@ -201,15 +201,17 @@ class ReaderAudioBar extends ConsumerWidget {
                   ] else ...[
                     FilledButton.icon(
                       onPressed: onStartListening,
-                      icon: const HugeIcon(
+                      icon: HugeIcon(
                         icon: HugeIcons.strokeRoundedHeadphones,
                         size: 16,
-                        color: Colors.white,
+                        color: Theme.of(context).colorScheme.onPrimary,
                       ),
                       label: Text(context.tr('听书', 'Listen', '聴く')),
                       style: FilledButton.styleFrom(
                         backgroundColor: accent,
-                        foregroundColor: Colors.white,
+                        foregroundColor: Theme.of(
+                          context,
+                        ).colorScheme.onPrimary,
                         visualDensity: VisualDensity.compact,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),

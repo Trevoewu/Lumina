@@ -29,7 +29,9 @@ class AppColors {
 
   /// 分割线与边界颜色
   static const Color divider = Color(0xFFE3E3E1);
-  static const Color darkDivider = Color(0xFF1C1C1C);
+
+  /// About 1.5:1 against [background]: quiet, but still visible.
+  static const Color darkDivider = Color(0xFF333333);
 
   /// 根据这些颜色生成 ColorScheme
   static const ColorScheme darkColorScheme = ColorScheme.dark(

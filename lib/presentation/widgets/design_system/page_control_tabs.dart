@@ -51,7 +51,8 @@ class PageControlTabs<T> extends StatelessWidget {
     final design = context.appDesign;
     final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
     final values = labels.keys.toList(growable: false);
-    final effectiveHeight = height ?? 38.0;
+    // 44pt keeps every tab at the minimum touch target height.
+    final effectiveHeight = height ?? 44.0;
     final effectivePadding =
         padding ?? EdgeInsets.fromLTRB(inset + 6, 0, design.spaceXs, 0);
 
@@ -112,7 +113,7 @@ class _PageControlTab extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
-                  color: selected ? ink : ink.withValues(alpha: 0.35),
+                  color: selected ? ink : context.appTextSecondary,
                 ),
                 child: Text(label),
               ),

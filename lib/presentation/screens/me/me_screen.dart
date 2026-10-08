@@ -278,10 +278,7 @@ class _Header extends StatelessWidget {
                   '${summary.currentStreak}-day streak · $hours h total',
                   '${summary.currentStreak}日連続 · 合計$hours時間',
                 ),
-                style: TextStyle(
-                  fontSize: 14,
-                  color: ink.withValues(alpha: 0.42),
-                ),
+                style: TextStyle(fontSize: 14, color: context.appTextSecondary),
               ),
             ],
           ),
@@ -318,14 +315,20 @@ class _SquareIconButton extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        child: Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            color: ink.withValues(alpha: 0.06),
-            borderRadius: BorderRadius.circular(13),
+        // The chip stays 38pt; the surrounding box makes the touch target 44.
+        child: SizedBox.square(
+          dimension: 44,
+          child: Center(
+            child: Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: ink.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: AppIcon(icon, size: 19, color: ink),
+            ),
           ),
-          child: AppIcon(icon, size: 19, color: ink),
         ),
       ),
     );
@@ -511,7 +514,7 @@ class _TodayCard extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 13.5,
                             height: 1.5,
-                            color: ink.withValues(alpha: 0.45),
+                            color: context.appTextSecondary,
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -534,7 +537,7 @@ class _TodayCard extends StatelessWidget {
                                 AppIcon(
                                   AppIcons.arrowUpRight01,
                                   size: 13,
-                                  color: ink.withValues(alpha: 0.5),
+                                  color: context.appTextSecondary,
                                 ),
                                 const SizedBox(width: 5),
                                 Text(
@@ -542,7 +545,7 @@ class _TodayCard extends StatelessWidget {
                                   style: TextStyle(
                                     fontSize: 12.5,
                                     fontWeight: FontWeight.w500,
-                                    color: ink.withValues(alpha: 0.5),
+                                    color: context.appTextSecondary,
                                   ),
                                 ),
                               ],
@@ -680,7 +683,7 @@ class _YearBooksCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.normal,
-                    color: ink.withValues(alpha: 0.42),
+                    color: context.appTextSecondary,
                   ),
                 ),
               ),
@@ -726,7 +729,7 @@ class _YearBooksCard extends StatelessWidget {
               AppIcon(
                 AppIcons.clock01,
                 size: 14,
-                color: ink.withValues(alpha: 0.35),
+                color: context.appTextSecondary,
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -735,7 +738,7 @@ class _YearBooksCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 13,
                     height: 1.45,
-                    color: ink.withValues(alpha: 0.45),
+                    color: context.appTextSecondary,
                   ),
                 ),
               ),
@@ -888,7 +891,7 @@ class _StatCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.normal,
-                    color: ink.withValues(alpha: 0.38),
+                    color: context.appTextSecondary,
                   ),
                 ),
               ],
@@ -1257,7 +1260,7 @@ class _GoalsSheet extends ConsumerWidget {
                     style: TextStyle(
                       fontSize: 13.5,
                       height: 1.5,
-                      color: ink.withValues(alpha: 0.45),
+                      color: context.appTextSecondary,
                     ),
                   ),
                   const SizedBox(height: 26),
@@ -1342,7 +1345,7 @@ class _GoalsSheet extends ConsumerWidget {
                       style: TextStyle(
                         fontSize: 13.5,
                         height: 1.55,
-                        color: ink.withValues(alpha: 0.5),
+                        color: context.appTextSecondary,
                       ),
                     ),
                   ),
@@ -1434,9 +1437,7 @@ class _GoalChip extends StatelessWidget {
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.normal,
-            color: selected
-                ? context.appBackground
-                : ink.withValues(alpha: 0.55),
+            color: selected ? context.appBackground : context.appTextSecondary,
           ),
         ),
       ),
@@ -1497,14 +1498,19 @@ class _StepButton extends StatelessWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: Container(
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          color: ink.withValues(alpha: 0.06),
-          borderRadius: BorderRadius.circular(13),
+      child: SizedBox.square(
+        dimension: 44,
+        child: Center(
+          child: Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: ink.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: AppIcon(icon, size: 18, color: ink),
+          ),
         ),
-        child: AppIcon(icon, size: 18, color: ink),
       ),
     );
   }

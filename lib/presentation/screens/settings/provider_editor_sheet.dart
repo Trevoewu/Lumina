@@ -417,7 +417,7 @@ class _Field extends StatelessWidget {
           contentPadding: EdgeInsets.zero,
           hintText: hint,
           hintStyle: TextStyle(
-            color: scheme.onSurface.withValues(alpha: 0.3),
+            color: scheme.onSurfaceVariant,
             fontFamily: mono ? 'monospace' : null,
           ),
         ),

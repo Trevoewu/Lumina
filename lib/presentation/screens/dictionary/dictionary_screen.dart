@@ -178,7 +178,7 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
                     ),
                     style: TextStyle(
                       fontSize: 14,
-                      color: context.appTextPrimary.withValues(alpha: 0.42),
+                      color: context.appTextSecondary,
                     ),
                   ),
                 ],
@@ -250,7 +250,7 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
     return [
       if (favorites.isNotEmpty) ...[
         Padding(
-          padding: EdgeInsets.fromLTRB(gutter, 30, gutter, 0),
+          padding: EdgeInsets.fromLTRB(gutter, 17, gutter, 0),
           child: _SectionHeaderRow(
             label: context.tr(
               '生词本 · ${_favorites.length}',
@@ -262,7 +262,7 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
           ),
         ),
         Padding(
-          padding: EdgeInsets.fromLTRB(listGutter, 12, listGutter, 0),
+          padding: EdgeInsets.fromLTRB(listGutter, 0, listGutter, 0),
           child: Column(
             children: [
               for (final favorite in favorites)
@@ -285,14 +285,14 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
         ),
       if (_recent.isNotEmpty) ...[
         Padding(
-          padding: EdgeInsets.fromLTRB(gutter, 22, gutter, 0),
+          padding: EdgeInsets.fromLTRB(gutter, 9, gutter, 0),
           child: _SectionHeaderRow(
             label: context.tr('最近查过', 'RECENT', '最近の検索'),
             onSeeAll: () => _openCollection(_DictionaryCollectionKind.history),
           ),
         ),
         Padding(
-          padding: EdgeInsets.fromLTRB(gutter, 4, gutter, 0),
+          padding: EdgeInsets.fromLTRB(gutter, 0, gutter, 0),
           child: Column(
             children: [
               for (final result in _recent)
@@ -337,9 +337,7 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
               'Results are saved on this device',
               '検索結果はこの端末に保存されます',
             ),
-            style: TextStyle(
-              color: context.appTextPrimary.withValues(alpha: 0.45),
-            ),
+            style: TextStyle(color: context.appTextSecondary),
           ),
         ],
       ),
@@ -707,7 +705,7 @@ class _DictionaryWordScreenState extends ConsumerState<DictionaryWordScreen> {
                                 size: 20,
                                 color: _favorite
                                     ? ink
-                                    : ink.withValues(alpha: 0.28),
+                                    : context.appTextSecondary,
                               ),
                             ),
                           ),
@@ -807,8 +805,6 @@ class _SectionHeaderRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ink = context.appTextPrimary;
-
     return Row(
       crossAxisAlignment: CrossAxisAlignment.baseline,
       textBaseline: TextBaseline.alphabetic,
@@ -817,23 +813,31 @@ class _SectionHeaderRow extends StatelessWidget {
         GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: onSeeAll,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                context.tr('全部', 'All', 'すべて'),
-                style: TextStyle(
-                  fontSize: 13,
-                  color: ink.withValues(alpha: 0.45),
-                ),
+          // A 44pt-tall target around the small link; the sections pull their
+          // spacing in to absorb the extra height.
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
+            child: Padding(
+              padding: const EdgeInsets.only(left: 12),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    context.tr('全部', 'All', 'すべて'),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: context.appTextSecondary,
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                  AppIcon(
+                    AppIcons.arrowRight01,
+                    size: 16,
+                    color: context.appTextSecondary,
+                  ),
+                ],
               ),
-              const SizedBox(width: 2),
-              AppIcon(
-                AppIcons.arrowRight01,
-                size: 16,
-                color: ink.withValues(alpha: 0.35),
-              ),
-            ],
+            ),
           ),
         ),
       ],
@@ -1040,7 +1044,7 @@ class _HistoryRow extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 13.5,
-                          color: ink.withValues(alpha: 0.45),
+                          color: context.appTextSecondary,
                         ),
                       ),
                     ],
@@ -1099,7 +1103,7 @@ class _SuggestionRow extends StatelessWidget {
             AppIcon(
               entry == null ? AppIcons.compass : AppIcons.search01,
               size: 17,
-              color: ink.withValues(alpha: 0.3),
+              color: context.appTextSecondary,
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -1124,7 +1128,7 @@ class _SuggestionRow extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 13,
-                        color: ink.withValues(alpha: 0.45),
+                        color: context.appTextSecondary,
                       ),
                     ),
                   ],
@@ -1169,7 +1173,7 @@ class _BookmarkButton extends StatelessWidget {
         child: AppIcon(
           favorite ? AppIcons.bookmark01 : AppIcons.bookmark02,
           size: 19,
-          color: favorite ? ink : ink.withValues(alpha: 0.28),
+          color: favorite ? ink : context.appTextSecondary,
         ),
       ),
     );
@@ -1197,7 +1201,7 @@ class _MetaChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            AppIcon(icon, size: 13, color: ink.withValues(alpha: 0.4)),
+            AppIcon(icon, size: 13, color: context.appTextSecondary),
             const SizedBox(width: 6),
           ],
           Flexible(
