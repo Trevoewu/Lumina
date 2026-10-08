@@ -89,7 +89,7 @@ void main() {
     );
     expect(find.byIcon(Icons.home), findsNothing);
     expect(find.byIcon(Icons.home_outlined), findsNothing);
-    for (final name in ['home', 'discover', 'dictionary']) {
+    for (final name in ['home', 'search', 'dictionary']) {
       final icon = find.byWidgetPredicate(
         (widget) => widget is CNIcon &&
             widget.imageAsset?.assetPath == 'assets/ui_icons/$name@3x.png',

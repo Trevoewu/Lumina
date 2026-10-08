@@ -12,16 +12,13 @@ import '../../core/providers.dart';
 import '../../services/incoming_book_import_controller.dart';
 import '../screens/album/album_screen.dart';
 import '../screens/dictionary/dictionary_screen.dart';
-import '../screens/discover/discover_screen.dart';
 import '../screens/library/library_screen.dart';
+import '../screens/search/search_screen.dart';
 import '../screens/settings/settings_screen.dart';
 import 'design_system/app_navigation_icon.dart';
-import 'design_system/app_search_field.dart';
 import 'design_system/macos_toolbar_providers.dart';
 import 'design_system/macos_window_toolbar.dart';
 import 'design_system/page_control_tabs.dart';
-import 'design_system/page_toolbar_search.dart';
-import '../screens/discover/discover_scope.dart';
 import 'mini_player.dart';
 
 /// Scope provided by AppScaffold to allow child widgets (like MiniPlayer)
@@ -131,7 +128,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
   Widget _rootPageFor(int index) {
     return switch (index) {
       0 => const LibraryScreen(),
-      1 => const DiscoverScreen(),
+      1 => const SearchScreen(),
       2 => const DictionaryScreen(),
       _ => const LibraryScreen(),
     };
@@ -532,7 +529,10 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
       case 0:
         return _buildHomeTopControls(theme, accent, topBarRef);
       case 1:
-        return _buildDiscoverTopControls(theme, accent, topBarRef);
+        return _buildTitleTopControls(
+          theme,
+          context.tr('搜索', 'Search', '検索'),
+        );
       case 2:
         return _buildDictionaryTopControls(theme, accent);
       default:
@@ -585,66 +585,19 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     );
   }
 
-  Widget _buildDiscoverTopControls(
-    ThemeData theme,
-    Color accent,
-    WidgetRef topBarRef,
-  ) {
-    final currentScope = topBarRef.watch(discoverScopeProvider);
-    final searchController = topBarRef.watch(discoverSearchControllerProvider);
-    final searching = topBarRef.watch(discoverSearchingProvider);
-    final onSearch = topBarRef.watch(discoverSearchHandlerProvider);
-
-    final tabs = PageControlTabs<DiscoverScope>(
-      key: const ValueKey('discover-scope-selector-desktop'),
+  /// The Search page carries its own field, so the toolbar only names it.
+  Widget _buildTitleTopControls(ThemeData theme, String title) {
+    return Container(
       height: macosTopControlsReservedHeight,
-      padding: const EdgeInsets.only(left: 12.0),
-      labels: {
-        for (final scope in [
-          DiscoverScope.onlineBooks,
-          DiscoverScope.audiobooks,
-          DiscoverScope.podcasts,
-          DiscoverScope.library,
-        ])
-          scope: scope.label(context),
-      },
-      selected: currentScope,
-      itemKey: (scope) => ValueKey('discover-scope-${scope.name}'),
-      onSelected: (scope) {
-        ref.read(discoverScopeProvider.notifier).updateValue(scope);
-      },
-    );
-
-    if (searchController == null) {
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(child: tabs),
-        ],
-      );
-    }
-
-    Widget buildSearch(bool autofocus) => AppSearchField(
-      fieldKey: const ValueKey('discover-search-field-desktop'),
-      controller: searchController,
-      onChanged: (val) {
-        if (onSearch != null) onSearch();
-      },
-      autofocus: autofocus,
-      compact: true,
-      autocorrect: currentScope != DiscoverScope.podcasts,
-      enableSuggestions: currentScope != DiscoverScope.podcasts,
-      loading: searching,
-      onSubmitted: (_) {
-        if (onSearch != null) onSearch();
-      },
-      onSearch: onSearch ?? () {},
-      hintText: currentScope.hintText(context),
-    );
-
-    return PageToolbarSearch(
-      tabs: tabs,
-      searchBuilder: buildSearch,
+      padding: const EdgeInsets.only(left: 14.0),
+      alignment: Alignment.centerLeft,
+      child: Text(
+        title,
+        style: theme.textTheme.titleSmall?.copyWith(
+          fontWeight: FontWeight.w600,
+          color: theme.colorScheme.onSurface,
+        ),
+      ),
     );
   }
 
@@ -760,8 +713,8 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
           label: Text(context.tr('主页', 'Home', 'ホーム')),
         ),
         NavigationRailDestination(
-          icon: const AppNavigationIcon(AppNavigationSymbol.discover),
-          label: Text(context.tr('发现', 'Discover', '発見')),
+          icon: const AppNavigationIcon(AppNavigationSymbol.search),
+          label: Text(context.tr('搜索', 'Search', '検索')),
         ),
         NavigationRailDestination(
           icon: const AppNavigationIcon(AppNavigationSymbol.dictionary),
@@ -862,9 +815,9 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
             ),
           ),
           CNTabBarItem(
-            label: context.tr('发现', 'Discover', '発見'),
+            label: context.tr('搜索', 'Search', '検索'),
             imageAsset: const CNImageAsset(
-              'assets/ui_icons/discover@3x.png',
+              'assets/ui_icons/search@3x.png',
               size: 25,
             ),
           ),

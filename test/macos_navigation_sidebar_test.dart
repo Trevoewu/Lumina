@@ -222,25 +222,15 @@ void main() {
       expect(tester.widget<MacosToolbarButton>(backButton).onPressed, isNull);
       expect(tester.widget<MacosToolbarButton>(forwardButton).onPressed, isNull);
 
-      // Switch to tab 1 ("发现" / Discover)
-      await tester.tap(find.text('发现'));
+      // Switch to tab 1 ("搜索" / Search)
+      await tester.tap(find.text('搜索'));
       await tester.pumpAndSettle();
 
       expect(tester.widget<MacosToolbarButton>(backButton).onPressed, isNotNull);
       expect(tester.widget<MacosToolbarButton>(forwardButton).onPressed, isNull);
 
-      final selector = find.byKey(const ValueKey('discover-scope-selector-desktop'));
-      expect(tester.getTopLeft(selector).dy, greaterThanOrEqualTo(0));
-      expect(
-        tester.getBottomLeft(selector).dy,
-        lessThanOrEqualTo(macosTopControlsReservedHeight),
-      );
-      expect(
-        tester
-            .getTopLeft(find.byKey(const ValueKey('discover-search-field-desktop')))
-            .dy,
-        lessThan(macosTopControlsReservedHeight),
-      );
+      // The page carries its own search field below the toolbar.
+      expect(find.byKey(const ValueKey('search-field')), findsOneWidget);
 
       // Tap back button
       await tester.tap(backButton);
@@ -253,7 +243,7 @@ void main() {
       await tester.tap(forwardButton);
       await tester.pumpAndSettle();
 
-      // Forwarded back to tab 1 ("发现")
+      // Forwarded back to tab 1 ("搜索")
       expect(tester.widget<MacosToolbarButton>(backButton).onPressed, isNotNull);
       expect(tester.widget<MacosToolbarButton>(forwardButton).onPressed, isNull);
     });

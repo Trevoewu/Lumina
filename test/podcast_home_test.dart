@@ -12,9 +12,10 @@ import 'package:lumina/core/theme.dart';
 import 'package:lumina/data/database/app_database.dart';
 import 'package:lumina/data/podcasts/podcast_index_repository.dart';
 import 'package:lumina/data/book_sources/gutendex_repository.dart';
+import 'package:lumina/data/book_sources/librivox_repository.dart';
 import 'package:lumina/data/podcasts/podcast_repository.dart';
 import 'package:lumina/domain/models/chapter_manifest.dart';
-import 'package:lumina/presentation/screens/discover/discover_screen.dart';
+import 'package:lumina/presentation/screens/search/search_screen.dart';
 import 'package:lumina/presentation/screens/library/library_screen.dart';
 import 'package:lumina/presentation/screens/player/player_screen.dart';
 import 'package:lumina/presentation/screens/podcast/podcast_episode_tile.dart';
@@ -310,7 +311,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
-  testWidgets('discover tab recommends podcasts and previews an episode', (
+  testWidgets('search recommends podcasts and previews an episode', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -332,6 +333,9 @@ void main() {
           gutendexRepositoryProvider.overrideWithValue(
             _EmptyGutendexRepository(),
           ),
+          librivoxRepositoryProvider.overrideWithValue(
+            _EmptyLibrivoxRepository(),
+          ),
           podcastIndexRepositoryProvider.overrideWithValue(
             _FakePodcastIndexRepository(),
           ),
@@ -343,14 +347,14 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.darkTheme(),
-          home: const DiscoverScreen(),
+          home: const SearchScreen(),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Podcasts'));
-    await tester.pumpAndSettle();
+    // With subscriptions in the library, the empty search page recommends
+    // shows like them.
     expect(
       find.byKey(const ValueKey('podcast-discover-section')),
       findsOneWidget,
@@ -555,6 +559,9 @@ void main() {
           gutendexRepositoryProvider.overrideWithValue(
             _EmptyGutendexRepository(),
           ),
+          librivoxRepositoryProvider.overrideWithValue(
+            _EmptyLibrivoxRepository(),
+          ),
           podcastIndexRepositoryProvider.overrideWithValue(
             _FakePodcastIndexRepository(),
           ),
@@ -562,22 +569,19 @@ void main() {
             _FakePodcastRepository(database),
           ),
         ],
-        child: const MaterialApp(home: DiscoverScreen()),
+        child: const MaterialApp(home: SearchScreen()),
       ),
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Podcasts'));
-    await tester.pumpAndSettle();
-    expect(find.text('Powered by Podcast Index'), findsOneWidget);
-
     await tester.enterText(
-      find.byKey(const ValueKey('discover-search-field')),
+      find.byKey(const ValueKey('search-field')),
       'flutter',
     );
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pumpAndSettle();
     expect(find.text('Flutter Example Show'), findsOneWidget);
+    expect(find.text('Powered by Podcast Index'), findsOneWidget);
     expect(find.text('Follow'), findsNothing);
 
     await tester.tap(find.text('Flutter Example Show'));
@@ -590,8 +594,17 @@ void main() {
 
     await tester.tap(find.byType(AppBackButton));
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('discover-search-field')), findsOneWidget);
+    expect(find.byKey(const ValueKey('search-field')), findsOneWidget);
   });
+}
+
+class _EmptyLibrivoxRepository extends LibrivoxRepository {
+  @override
+  Future<LibrivoxSearchResult> search({
+    required String query,
+    int page = 1,
+    int pageSize = 20,
+  }) async => const LibrivoxSearchResult(books: [], hasMore: false);
 }
 
 class _EmptyGutendexRepository extends GutendexRepository {
