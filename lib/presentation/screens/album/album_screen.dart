@@ -71,7 +71,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
     _macosTrailingNotifier = ref.read(macosToolbarTrailingProvider.notifier);
     _bookIntroductionFuture = _loadBookIntroduction();
     _chapterDataFuture = _loadChapterData(ref.read(appDatabaseProvider));
-    if (!_isStreamingAudiobook) unawaited(_ensureBookVoice());
+    if (!_isStreamingAudiobook) unawaited(_ensureBookVoiceSafely());
     _currentChapterId = widget.book.currentChapterId;
     _currentParagraphIndex = widget.book.currentParagraphIndex;
     _playbackOffsetMs = widget.book.playbackOffsetMs;
@@ -126,7 +126,7 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       _chapterData = null;
       _chapterDataFuture = _loadChapterData(ref.read(appDatabaseProvider));
       _didScrollToInitialChapter = false;
-      if (!_isStreamingAudiobook) unawaited(_ensureBookVoice());
+      if (!_isStreamingAudiobook) unawaited(_ensureBookVoiceSafely());
     }
 
     if (oldWidget.book.id != widget.book.id ||
@@ -233,6 +233,22 @@ class _AlbumScreenState extends ConsumerState<AlbumScreen> {
       _chapterData = chapterData;
       _chapterDataFuture = Future<_AlbumChapterData>.value(chapterData);
     });
+  }
+
+  /// Nothing on the page waits for the voice, so a provider that cannot list
+  /// its voices (no API key, no network) is logged rather than surfaced;
+  /// playback resolves a voice again when it starts.
+  Future<void> _ensureBookVoiceSafely() async {
+    try {
+      await _ensureBookVoice();
+    } catch (error, stackTrace) {
+      AppLogger.warning(
+        'Voice',
+        '书籍默认音色加载失败 book=${widget.book.id}',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
   }
 
   /// Picks the voice this book is read in (its saved choice, else one that
