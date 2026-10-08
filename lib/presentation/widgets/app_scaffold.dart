@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:cupertino_native_better/cupertino_native.dart';
+import 'package:cupertino_native_better/style/tab_bar_search_item.dart';
 import 'package:hugeicons/hugeicons.dart';
 
 import '../../core/app_colors.dart';
@@ -798,39 +799,103 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
           );
         },
       ),
-      // CNTabBar embeds a UIKit tab bar on iOS 26 and falls back to a Flutter
-      // CupertinoTabBar elsewhere. Both paths use the same HugeIcons assets.
-      bottomNavigationBar: CNTabBar(
-        currentIndex: _currentIndex,
-        onTap: _onDestinationSelected,
-        tint: Theme.of(context).colorScheme.primary,
-        items: [
-          CNTabBarItem(
-            label: context.tr('主页', 'Home', 'ホーム'),
-            imageAsset: const CNImageAsset(
-              // UIKit recognizes @3x as 75 pixels / 3 = 25 points.
-              // A Flutter 3.0x directory alone does not set UIImage.scale.
-              'assets/ui_icons/home@3x.png',
-              size: 25,
-            ),
-          ),
-          CNTabBarItem(
-            label: context.tr('搜索', 'Search', '検索'),
-            imageAsset: const CNImageAsset(
-              'assets/ui_icons/search@3x.png',
-              size: 25,
-            ),
-          ),
-          CNTabBarItem(
-            label: context.tr('查词', 'Dictionary', '辞書'),
-            imageAsset: const CNImageAsset(
-              'assets/ui_icons/dictionary@3x.png',
-              size: 25,
-            ),
-          ),
-        ],
+      bottomNavigationBar: _buildMobileTabBar(),
+    );
+  }
+
+  /// Content navigators: 0 Home, 1 Search, 2 Dictionary.
+  static const _searchTab = 1;
+  static const _dictionaryTab = 2;
+
+  /// The tab that was showing before Search opened, which the iOS 26 bar
+  /// keeps highlighted while Search has the screen.
+  int _lastBrowseTab = 0;
+
+  // CNTabBar embeds a UIKit tab bar on iOS 26 and falls back to a Flutter
+  // CupertinoTabBar elsewhere. Both paths use the same HugeIcons assets.
+  Widget _buildMobileTabBar() {
+    final tint = Theme.of(context).colorScheme.primary;
+    final home = CNTabBarItem(
+      label: context.tr('主页', 'Home', 'ホーム'),
+      imageAsset: const CNImageAsset(
+        // UIKit recognizes @3x as 75 pixels / 3 = 25 points.
+        // A Flutter 3.0x directory alone does not set UIImage.scale.
+        'assets/ui_icons/home@3x.png',
+        size: 25,
       ),
     );
+    final dictionary = CNTabBarItem(
+      label: context.tr('查词', 'Dictionary', '辞書'),
+      imageAsset: const CNImageAsset(
+        'assets/ui_icons/dictionary@3x.png',
+        size: 25,
+      ),
+    );
+
+    if (defaultTargetPlatform == TargetPlatform.iOS &&
+        PlatformVersion.shouldUseNativeGlass) {
+      // iOS 26: Search is the floating Liquid Glass button beside the tabs.
+      // The package's native button only reports the tap; the Search page
+      // keeps its own field, so recents and shortcuts can fill it.
+      final browseTab = _currentIndex == _searchTab
+          ? _lastBrowseTab
+          : _currentIndex;
+      // This bar variant only draws SF Symbols, so it uses the system
+      // equivalents of the HugeIcons tab images.
+      return CNTabBar(
+        currentIndex: browseTab == _dictionaryTab ? 1 : 0,
+        onTap: (index) =>
+            _onDestinationSelected(index == 0 ? 0 : _dictionaryTab),
+        tint: tint,
+        items: [
+          CNTabBarItem(
+            label: home.label,
+            icon: const CNSymbol('house'),
+            activeIcon: const CNSymbol('house.fill'),
+          ),
+          CNTabBarItem(
+            label: dictionary.label,
+            icon: const CNSymbol('book'),
+            activeIcon: const CNSymbol('book.fill'),
+          ),
+        ],
+        searchItem: CNTabBarSearchItem(
+          label: context.tr('搜索', 'Search', '検索'),
+          placeholder: context.tr('搜索', 'Search', '検索'),
+          automaticallyActivatesSearch: false,
+          onSearchActiveChanged: (active) {
+            if (active) _openSearch();
+          },
+        ),
+      );
+    }
+
+    // Older systems have no native search button; the package's stand-in
+    // would add a second field to the bar, so Search stays a plain tab.
+    return CNTabBar(
+      currentIndex: _currentIndex,
+      onTap: _onDestinationSelected,
+      tint: tint,
+      items: [
+        home,
+        CNTabBarItem(
+          label: context.tr('搜索', 'Search', '検索'),
+          imageAsset: const CNImageAsset(
+            'assets/ui_icons/search@3x.png',
+            size: 25,
+          ),
+        ),
+        dictionary,
+      ],
+    );
+  }
+
+  void _openSearch() {
+    _onDestinationSelected(_searchTab);
+    // The page may only be built this frame, so ask for the keyboard after.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.read(searchFieldFocusRequestProvider.notifier).request();
+    });
   }
 
   // ── Shared: tab content (IndexedStack + per-tab navigators) ───────────────
@@ -869,6 +934,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
       _forwardTabHistory.clear();
       _initializedTabs.add(index);
       _currentIndex = index;
+      if (index != _searchTab) _lastBrowseTab = index;
     });
   }
 }

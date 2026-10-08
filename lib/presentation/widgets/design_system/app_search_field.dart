@@ -18,6 +18,7 @@ class AppSearchField extends StatelessWidget {
   final bool autofocus;
   final bool autocorrect;
   final bool enableSuggestions;
+  final FocusNode? focusNode;
 
   const AppSearchField({
     super.key,
@@ -32,6 +33,7 @@ class AppSearchField extends StatelessWidget {
     this.autofocus = false,
     this.autocorrect = true,
     this.enableSuggestions = true,
+    this.focusNode,
   });
 
   @override
@@ -66,12 +68,17 @@ class AppSearchField extends StatelessWidget {
             child: TextField(
               key: fieldKey,
               controller: controller,
+              focusNode: focusNode,
               autofocus: autofocus,
               autocorrect: autocorrect,
               enableSuggestions: enableSuggestions,
               textInputAction: TextInputAction.search,
               onChanged: onChanged,
               onSubmitted: loading ? null : onSubmitted,
+              // Phones only dismiss the keyboard from inside the field, so a
+              // tap anywhere else has to do it.
+              onTapOutside: (_) =>
+                  FocusManager.instance.primaryFocus?.unfocus(),
               style: TextStyle(fontSize: compact ? 13 : 16, color: ink),
               decoration: InputDecoration(
                 isCollapsed: true,

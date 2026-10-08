@@ -35,6 +35,18 @@ import 'search_history.dart';
 /// Rows a source shows before "Show all".
 const _collapsedRows = 3;
 
+/// Bumped when something outside the page, such as the tab bar's search
+/// button, asks Search to take the keyboard.
+final searchFieldFocusRequestProvider =
+    NotifierProvider<SearchFieldFocusRequest, int>(SearchFieldFocusRequest.new);
+
+class SearchFieldFocusRequest extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void request() => state++;
+}
+
 /// The Search tab: one query across the reader's library, LibriVox
 /// audiobooks, Gutenberg books and Podcast Index, grouped by source.
 ///
@@ -50,6 +62,7 @@ class SearchScreen extends ConsumerStatefulWidget {
 
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   final _controller = TextEditingController();
+  final _fieldFocus = FocusNode();
   Timer? _debounce;
   String _query = '';
   _SearchContext _context = _SearchContext.empty;
@@ -73,6 +86,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void dispose() {
     _debounce?.cancel();
     _controller.dispose();
+    _fieldFocus.dispose();
     super.dispose();
   }
 
@@ -198,6 +212,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<int>(searchFieldFocusRequestProvider, (_, _) {
+      _fieldFocus.requestFocus();
+    });
     final design = context.appDesign;
     final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
 
@@ -215,6 +232,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             child: AppSearchField(
               fieldKey: const ValueKey('search-field'),
               controller: _controller,
+              focusNode: _fieldFocus,
               onChanged: _onChanged,
               onSubmitted: (value) {
                 _runQuery(value);
@@ -248,6 +266,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
     return ListView(
       key: const ValueKey('search-idle'),
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: EdgeInsets.only(
         top: 8,
         bottom: MediaQuery.paddingOf(context).bottom + 24,
@@ -338,6 +357,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
     return ListView(
       key: ValueKey('search-results-$query'),
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: EdgeInsets.only(
         top: 4,
         bottom: MediaQuery.paddingOf(context).bottom + 24,

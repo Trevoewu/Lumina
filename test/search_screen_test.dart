@@ -154,6 +154,35 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('search-recent-moby')), findsNothing);
   });
+
+  testWidgets('the keyboard opens on request and closes on scroll', (
+    tester,
+  ) async {
+    await database.upsertBook(_book('one', 'Persuasion', 'Jane Austen'));
+    await pumpSearch(tester);
+    final field = find.byKey(const ValueKey('search-field'));
+    bool focused() => tester.widget<TextField>(field).focusNode!.hasFocus;
+
+    // The tab bar's search button asks the page for the keyboard.
+    final container = ProviderScope.containerOf(tester.element(field));
+    container.read(searchFieldFocusRequestProvider.notifier).request();
+    await tester.pump();
+    expect(focused(), isTrue);
+
+    await tester.drag(
+      find.byKey(const ValueKey('search-idle')),
+      const Offset(0, -200),
+    );
+    await tester.pumpAndSettle();
+    expect(focused(), isFalse);
+
+    await tester.tap(field);
+    await tester.pump();
+    expect(focused(), isTrue);
+    await tester.tapAt(const Offset(200, 900));
+    await tester.pump();
+    expect(focused(), isFalse);
+  });
 }
 
 Book _book(String id, String title, String author) => Book(
