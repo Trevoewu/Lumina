@@ -8,6 +8,7 @@ import '../../../core/app_localizations.dart';
 import '../../../core/relative_time.dart';
 import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart';
+import '../../../services/playback_progress_service.dart';
 import '../../widgets/book_card_metadata.dart';
 import '../../widgets/design_system/editorial_type.dart';
 import '../../widgets/book_cover.dart';
@@ -278,9 +279,13 @@ class _HomeOverviewContentState extends State<_HomeOverviewContent> {
     for (final episode in data.episodes) {
       final show = data.showsById[episode.showId];
       final duration = Duration(milliseconds: episode.durationMs);
-      final position = Duration(milliseconds: episode.playbackPositionMs);
+      final position = podcastResumePosition(episode);
+      final finished = episode.isPlayed;
+      // A finished episode is not something to continue, so it never takes
+      // the hero slot ahead of one that is actually in progress.
       final started =
-          episode.lastPlayedAt > 0 || episode.playbackPositionMs > 0;
+          !finished &&
+          (episode.lastPlayedAt > 0 || episode.playbackPositionMs > 0);
       final remaining = duration - position;
       entries.add(
         _HomeEntry(
@@ -288,10 +293,14 @@ class _HomeOverviewContentState extends State<_HomeOverviewContent> {
           subtitle: show?.title ?? 'Podcast',
           meta: _durationLabel(context, episode.durationMs),
           when: relativeTimeLabel(context, episode.publishedAt),
-          heroKicker: started
+          heroKicker: finished
+              ? context.tr('再听一遍', 'LISTEN AGAIN', 'もう一度聴く')
+              : started
               ? context.tr('继续收听', 'CONTINUE LISTENING', '続きを聴く')
               : context.tr('开始收听', 'START LISTENING', '聴き始める'),
-          heroPosition: episode.durationMs > 0
+          heroPosition: finished
+              ? _durationLabel(context, episode.durationMs)
+              : episode.durationMs > 0
               ? '${formatPlaybackTime(position)} / '
                     '${formatPlaybackTime(duration)}'
               : relativeTimeLabel(context, episode.publishedAt),
@@ -307,7 +316,9 @@ class _HomeOverviewContentState extends State<_HomeOverviewContent> {
                   '残り ${formatPlaybackTime(remaining)}',
                 )
               : _durationLabel(context, episode.durationMs),
-          progress: episode.durationMs <= 0
+          progress: finished
+              ? 1
+              : episode.durationMs <= 0
               ? 0
               : (episode.playbackPositionMs / episode.durationMs).clamp(
                   0.0,
@@ -316,7 +327,7 @@ class _HomeOverviewContentState extends State<_HomeOverviewContent> {
           isPodcast: true,
           remoteImageUrl: episode.imageUrl,
           started: started,
-          sortKey: started && episode.lastPlayedAt > 0
+          sortKey: episode.lastPlayedAt > 0
               ? episode.lastPlayedAt
               : episode.publishedAt,
           onTap: () => openPodcastEpisodePlayer(context, episodeId: episode.id),
@@ -411,22 +422,14 @@ class _HeroBlock extends StatelessWidget {
                       entry.heroLeft,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: technicalTextStyle(
-                        context,
-                        size: 12,
-                        alpha: 0.4,
-                      ),
+                      style: technicalTextStyle(context, size: 12, alpha: 0.4),
                     ),
                   ),
                   const SizedBox(width: 10),
                   Text(
                     entry.heroRight,
                     maxLines: 1,
-                    style: technicalTextStyle(
-                      context,
-                      size: 12,
-                      alpha: 0.4,
-                    ),
+                    style: technicalTextStyle(context, size: 12, alpha: 0.4),
                   ),
                 ],
               ),
@@ -543,7 +546,6 @@ class _EntryArtwork extends StatelessWidget {
     );
   }
 }
-
 
 class _HairlineDivider extends StatelessWidget {
   const _HairlineDivider();

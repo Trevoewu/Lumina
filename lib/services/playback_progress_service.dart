@@ -14,6 +14,13 @@ bool isPodcastEpisodePlayed({
       positionMs / durationMs >= 0.95;
 }
 
+/// Where opening an episode picks up. A finished episode keeps its last
+/// position on disk, but resuming there would end it again within seconds,
+/// so it starts over instead.
+Duration podcastResumePosition(PodcastEpisode episode) => episode.isPlayed
+    ? Duration.zero
+    : Duration(milliseconds: episode.playbackPositionMs);
+
 /// Persists the active audiobook position while playback continues globally.
 class PlaybackProgressService {
   static const _minimumWriteInterval = Duration(seconds: 5);

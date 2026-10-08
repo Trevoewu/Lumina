@@ -37,6 +37,7 @@ import '../../../services/book_playback_queue.dart';
 import '../../../services/generation_orchestrator.dart';
 import '../../../services/generation_task_store.dart';
 import '../../../services/lumina_audio_handler.dart';
+import '../../../services/playback_progress_service.dart';
 import '../../../services/podcast_transcription_service.dart';
 import '../../../services/sleep_timer_service.dart';
 import '../../../tts/models/tts_voice.dart';
@@ -1493,7 +1494,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           ),
       ],
       initialEpisodeId: selected.id,
-      initialPosition: Duration(milliseconds: selected.playbackPositionMs),
+      initialPosition: podcastResumePosition(selected),
     );
   }
 
@@ -3883,6 +3884,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
+  /// What the transport shows before the selected item reaches the player,
+  /// so opening a half-heard episode does not flash 00:00 until it loads.
+  Duration get _unloadedPosition => switch (_podcastEpisode) {
+    final episode? => podcastResumePosition(episode),
+    null => Duration.zero,
+  };
+
   Widget _buildReactiveControls({
     required LuminaAudioHandler handler,
     required Duration fallbackDuration,
@@ -3923,7 +3931,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       context,
                       handler,
                       playing,
-                      selectedLoaded ? handler.chapterPosition : Duration.zero,
+                      selectedLoaded
+                          ? handler.chapterPosition
+                          : _unloadedPosition,
                       duration,
                       manifest: manifest,
                       selectedLoaded: selectedLoaded,

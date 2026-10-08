@@ -9,6 +9,30 @@ import 'package:lumina/services/lumina_audio_handler.dart';
 import 'package:lumina/services/playback_progress_service.dart';
 
 void main() {
+  test('a finished podcast episode reopens from the start', () {
+    const episode = PodcastEpisode(
+      id: 'episode',
+      showId: 'show',
+      guid: 'guid',
+      title: 'Episode',
+      description: '',
+      audioUrl: 'https://example.com/episode.mp3',
+      publishedAt: 0,
+      durationMs: 100000,
+      playbackPositionMs: 62000,
+      lastPlayedAt: 1,
+      isPlayed: false,
+      transcriptStatus: 'none',
+      transcriptProgressMs: 0,
+    );
+
+    expect(podcastResumePosition(episode), const Duration(milliseconds: 62000));
+    expect(
+      podcastResumePosition(episode.copyWith(isPlayed: true)),
+      Duration.zero,
+    );
+  });
+
   test('manually finished audiobook chapters stay finished', () async {
     final database = AppDatabase.forTesting(NativeDatabase.memory());
     addTearDown(database.close);
