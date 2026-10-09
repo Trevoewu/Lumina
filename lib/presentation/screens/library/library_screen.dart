@@ -31,6 +31,7 @@ import '../album/album_screen.dart';
 import '../podcast/podcast_library_view.dart';
 import '../settings/settings_screen.dart';
 import 'home_overview_view.dart';
+import 'saved_shelf_view.dart';
 import '../../widgets/design_system/macos_toolbar_providers.dart';
 
 enum _HomeAddAction { importBook, addPodcast }
@@ -52,6 +53,7 @@ class LibrarySectionSelector extends StatelessWidget {
       labels: {
         LibrarySection.books: context.tr('书籍', 'Books', '本'),
         LibrarySection.podcasts: context.tr('播客', 'Podcasts', 'ポッドキャスト'),
+        LibrarySection.saved: context.tr('收藏', 'Saved', '保存済み'),
       },
       selected: selected,
       onSelected: onSelected,
@@ -104,6 +106,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   final ScrollController _overviewScrollController = ScrollController();
   final ScrollController _booksScrollController = ScrollController();
   final ScrollController _podcastsScrollController = ScrollController();
+  final ScrollController _savedScrollController = ScrollController();
 
   @override
   void initState() {
@@ -125,6 +128,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     _overviewScrollController.dispose();
     _booksScrollController.dispose();
     _podcastsScrollController.dispose();
+    _savedScrollController.dispose();
     super.dispose();
   }
 
@@ -196,9 +200,23 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               ),
               tooltip: widget.overview
                   ? context.tr('添加内容', 'Add content', 'コンテンツを追加')
-                  : _section == LibrarySection.podcasts
-                  ? context.tr('添加播客', 'Add podcast', 'ポッドキャストを追加')
-                  : context.tr('导入书籍', 'Import book', '本をインポート'),
+                  : switch (_section) {
+                      LibrarySection.books => context.tr(
+                        '导入书籍',
+                        'Import book',
+                        '本をインポート',
+                      ),
+                      LibrarySection.podcasts => context.tr(
+                        '添加播客',
+                        'Add podcast',
+                        'ポッドキャストを追加',
+                      ),
+                      LibrarySection.saved => context.tr(
+                        '添加内容',
+                        'Add content',
+                        'コンテンツを追加',
+                      ),
+                    },
               onPressed: _importing || _addingPodcast ? null : _handleAddAction,
               icon: _importing || _addingPodcast
                   ? SizedBox(
@@ -260,6 +278,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                             onAddPodcast: _showAddPodcastDialog,
                           ),
                         ),
+                        _KeepAliveHomeSection(
+                          child: SavedShelfView(
+                            reloadToken: _reloadToken,
+                            scrollController: _savedScrollController,
+                            onOpenBook: _openBook,
+                            onChanged: _reloadShelves,
+                          ),
+                        ),
                       ],
                     ),
             ),
@@ -311,6 +337,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         _importBook(context);
       case LibrarySection.podcasts:
         _showAddPodcastDialog();
+      case LibrarySection.saved:
+        _showAddContentSheet();
     }
   }
 

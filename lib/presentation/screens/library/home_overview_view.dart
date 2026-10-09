@@ -308,7 +308,7 @@ class _HomeOverviewContentState extends State<_HomeOverviewContent> {
         _HomeEntry(
           title: episode.title,
           subtitle: show?.title ?? 'Podcast',
-          meta: _durationLabel(context, episode.durationMs),
+          meta: localizedPodcastDuration(context, episode.durationMs),
           when: relativeTimeLabel(context, episode.publishedAt),
           heroKicker: finished
               ? context.tr('再听一遍', 'LISTEN AGAIN', 'もう一度聴く')
@@ -316,7 +316,7 @@ class _HomeOverviewContentState extends State<_HomeOverviewContent> {
               ? context.tr('继续收听', 'CONTINUE LISTENING', '続きを聴く')
               : context.tr('开始收听', 'START LISTENING', '聴き始める'),
           heroPosition: finished
-              ? _durationLabel(context, episode.durationMs)
+              ? localizedPodcastDuration(context, episode.durationMs)
               : episode.durationMs > 0
               ? '${formatPlaybackTime(position)} / '
                     '${formatPlaybackTime(duration)}'
@@ -332,7 +332,7 @@ class _HomeOverviewContentState extends State<_HomeOverviewContent> {
                   '${formatPlaybackTime(remaining)} left',
                   '残り ${formatPlaybackTime(remaining)}',
                 )
-              : _durationLabel(context, episode.durationMs),
+              : localizedPodcastDuration(context, episode.durationMs),
           progress: finished
               ? 1
               : episode.durationMs <= 0
@@ -713,16 +713,6 @@ class _StartRow extends StatelessWidget {
 }
 
 /// Locale-aware episode length, matching [relativeTimeLabel] beside it.
-String _durationLabel(BuildContext context, int milliseconds) {
-  if (milliseconds <= 0) return '';
-  if (context.usesChinese) return formatPodcastDuration(milliseconds);
-  final duration = Duration(milliseconds: milliseconds);
-  final hours = duration.inHours;
-  final minutes = duration.inMinutes.remainder(60);
-  if (hours > 0) return minutes == 0 ? '${hours}h' : '${hours}h ${minutes}m';
-  return '${duration.inMinutes.clamp(1, 9999)} min';
-}
-
 class _HomeEntry {
   final String title;
   final String subtitle;

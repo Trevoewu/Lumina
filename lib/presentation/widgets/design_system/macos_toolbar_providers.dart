@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// The two shelves in the Library tab.
-enum LibrarySection { books, podcasts }
+/// The shelves in the Library tab.
+enum LibrarySection { books, podcasts, saved }
 
 class AppToolbarStateNotifier<T> extends Notifier<T> {
   AppToolbarStateNotifier(this._initial);

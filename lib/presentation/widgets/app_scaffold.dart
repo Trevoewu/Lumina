@@ -556,6 +556,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
       labels: {
         LibrarySection.books: context.tr('书籍', 'Books', '本'),
         LibrarySection.podcasts: context.tr('播客', 'Podcasts', 'ポッドキャスト'),
+        LibrarySection.saved: context.tr('收藏', 'Saved', '保存済み'),
       },
       selected: currentSection,
       onSelected: (section) {
@@ -579,7 +580,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         inLibrary ? 'library-add-action-desktop' : 'home-add-action-desktop',
       ),
       size: 26.0,
-      tooltip: !inLibrary
+      tooltip: !inLibrary || currentSection == LibrarySection.saved
           ? context.tr('添加内容', 'Add content', 'コンテンツを追加')
           : currentSection == LibrarySection.podcasts
           ? context.tr('添加播客', 'Add podcast', 'ポッドキャストを追加')

@@ -361,6 +361,24 @@ void main() {
     expect(find.byType(PlayerScreen), findsOneWidget);
     expect(handler.playCalled, isTrue);
 
+    // The heart saves the episode that is playing.
+    for (var round = 0; round < 4; round++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 20)),
+      );
+      await tester.pump(const Duration(milliseconds: 20));
+    }
+    await tester.tap(find.byKey(const ValueKey('player-save-button')));
+    for (var round = 0; round < 4; round++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 20)),
+      );
+      await tester.pump(const Duration(milliseconds: 20));
+    }
+    expect(find.byTooltip('Remove from Saved'), findsOneWidget);
+    final saved = await tester.runAsync(database.getSavedItems);
+    expect(saved!.single.kind, 'episode');
+
     // The show name under the episode leads to all of the show's episodes.
     await tester.tap(find.byKey(const ValueKey('player-show-link')));
     await tester.pumpAndSettle();

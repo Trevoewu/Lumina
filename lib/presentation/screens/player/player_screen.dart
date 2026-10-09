@@ -54,6 +54,7 @@ import '../../widgets/podcast_link_text.dart';
 import '../../widgets/synced_lyrics_list.dart';
 import '../../widgets/transcript_slider_track.dart';
 import '../../widgets/subtitle_seek_points.dart';
+import '../library/library_screen.dart';
 import '../podcast/podcast_show_screen.dart';
 import '../reader/book_reader_screen.dart';
 import '../settings/dictionary_explanation_service_screen.dart';
@@ -3621,13 +3622,61 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           ),
         ),
         SizedBox(width: design.spaceMd),
-        IconButton(
-          tooltip: context.tr('收藏', 'Save', '保存'),
-          icon: const AppIcon(AppIcons.favourite),
-          color: context.appTextPrimary,
-          onPressed: () {},
-        ),
+        _buildSaveButton(),
       ],
+    );
+  }
+
+  /// What the heart saves: the episode playing, or the book.
+  ({String kind, String id}) get _saveTarget => _isPodcast
+      ? (kind: 'episode', id: (_podcastEpisode ?? widget.podcast!.episode).id)
+      : (kind: 'book', id: widget.book.id);
+
+  /// Saved state per item, so switching episodes in the playlist shows the
+  /// right heart without waiting on the database again.
+  final Map<String, bool> _savedByItem = {};
+
+  Widget _buildSaveButton() {
+    final target = _saveTarget;
+    final key = '${target.kind}:${target.id}';
+    final saved = _savedByItem[key];
+    if (saved == null) {
+      unawaited(
+        ref.read(appDatabaseProvider).isSaved(target.kind, target.id).then((
+          value,
+        ) {
+          if (mounted) setState(() => _savedByItem[key] = value);
+        }),
+      );
+    }
+    final accent = Theme.of(context).colorScheme.primary;
+    final isSaved = saved ?? false;
+    return IconButton(
+      key: const ValueKey('player-save-button'),
+      tooltip: isSaved
+          ? context.tr('取消收藏', 'Remove from Saved', '保存を解除')
+          : context.tr('收藏', 'Save', '保存'),
+      isSelected: isSaved,
+      onPressed: saved == null
+          ? null
+          : () async {
+              setState(() => _savedByItem[key] = !isSaved);
+              await ref
+                  .read(appDatabaseProvider)
+                  .setSaved(target.kind, target.id, !isSaved);
+              ref.read(libraryRevisionProvider.notifier).bump();
+            },
+      // The icon set only has an outlined heart; the saved state lays a
+      // filled one in the accent under the same outline.
+      icon: isSaved
+          ? Stack(
+              alignment: Alignment.center,
+              children: [
+                Icon(Icons.favorite, size: 19, color: accent),
+                AppIcon(AppIcons.favourite, color: accent),
+              ],
+            )
+          : AppIcon(AppIcons.favourite, color: context.appTextPrimary),
     );
   }
 

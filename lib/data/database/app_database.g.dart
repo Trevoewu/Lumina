@@ -11943,6 +11943,268 @@ class GenerationTaskChunksCompanion
   }
 }
 
+class $SavedItemsTable extends SavedItems
+    with TableInfo<$SavedItemsTable, SavedItem> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SavedItemsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _itemIdMeta = const VerificationMeta('itemId');
+  @override
+  late final GeneratedColumn<String> itemId = GeneratedColumn<String>(
+    'item_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _savedAtMeta = const VerificationMeta(
+    'savedAt',
+  );
+  @override
+  late final GeneratedColumn<int> savedAt = GeneratedColumn<int>(
+    'saved_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [kind, itemId, savedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'saved_items';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SavedItem> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('item_id')) {
+      context.handle(
+        _itemIdMeta,
+        itemId.isAcceptableOrUnknown(data['item_id']!, _itemIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_itemIdMeta);
+    }
+    if (data.containsKey('saved_at')) {
+      context.handle(
+        _savedAtMeta,
+        savedAt.isAcceptableOrUnknown(data['saved_at']!, _savedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_savedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {kind, itemId};
+  @override
+  SavedItem map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SavedItem(
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      itemId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}item_id'],
+      )!,
+      savedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}saved_at'],
+      )!,
+    );
+  }
+
+  @override
+  $SavedItemsTable createAlias(String alias) {
+    return $SavedItemsTable(attachedDatabase, alias);
+  }
+}
+
+class SavedItem extends DataClass implements Insertable<SavedItem> {
+  /// 'book' or 'episode'.
+  final String kind;
+  final String itemId;
+  final int savedAt;
+  const SavedItem({
+    required this.kind,
+    required this.itemId,
+    required this.savedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['kind'] = Variable<String>(kind);
+    map['item_id'] = Variable<String>(itemId);
+    map['saved_at'] = Variable<int>(savedAt);
+    return map;
+  }
+
+  SavedItemsCompanion toCompanion(bool nullToAbsent) {
+    return SavedItemsCompanion(
+      kind: Value(kind),
+      itemId: Value(itemId),
+      savedAt: Value(savedAt),
+    );
+  }
+
+  factory SavedItem.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SavedItem(
+      kind: serializer.fromJson<String>(json['kind']),
+      itemId: serializer.fromJson<String>(json['itemId']),
+      savedAt: serializer.fromJson<int>(json['savedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'kind': serializer.toJson<String>(kind),
+      'itemId': serializer.toJson<String>(itemId),
+      'savedAt': serializer.toJson<int>(savedAt),
+    };
+  }
+
+  SavedItem copyWith({String? kind, String? itemId, int? savedAt}) => SavedItem(
+    kind: kind ?? this.kind,
+    itemId: itemId ?? this.itemId,
+    savedAt: savedAt ?? this.savedAt,
+  );
+  SavedItem copyWithCompanion(SavedItemsCompanion data) {
+    return SavedItem(
+      kind: data.kind.present ? data.kind.value : this.kind,
+      itemId: data.itemId.present ? data.itemId.value : this.itemId,
+      savedAt: data.savedAt.present ? data.savedAt.value : this.savedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SavedItem(')
+          ..write('kind: $kind, ')
+          ..write('itemId: $itemId, ')
+          ..write('savedAt: $savedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(kind, itemId, savedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SavedItem &&
+          other.kind == this.kind &&
+          other.itemId == this.itemId &&
+          other.savedAt == this.savedAt);
+}
+
+class SavedItemsCompanion extends UpdateCompanion<SavedItem> {
+  final Value<String> kind;
+  final Value<String> itemId;
+  final Value<int> savedAt;
+  final Value<int> rowid;
+  const SavedItemsCompanion({
+    this.kind = const Value.absent(),
+    this.itemId = const Value.absent(),
+    this.savedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SavedItemsCompanion.insert({
+    required String kind,
+    required String itemId,
+    required int savedAt,
+    this.rowid = const Value.absent(),
+  }) : kind = Value(kind),
+       itemId = Value(itemId),
+       savedAt = Value(savedAt);
+  static Insertable<SavedItem> custom({
+    Expression<String>? kind,
+    Expression<String>? itemId,
+    Expression<int>? savedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (kind != null) 'kind': kind,
+      if (itemId != null) 'item_id': itemId,
+      if (savedAt != null) 'saved_at': savedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SavedItemsCompanion copyWith({
+    Value<String>? kind,
+    Value<String>? itemId,
+    Value<int>? savedAt,
+    Value<int>? rowid,
+  }) {
+    return SavedItemsCompanion(
+      kind: kind ?? this.kind,
+      itemId: itemId ?? this.itemId,
+      savedAt: savedAt ?? this.savedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (itemId.present) {
+      map['item_id'] = Variable<String>(itemId.value);
+    }
+    if (savedAt.present) {
+      map['saved_at'] = Variable<int>(savedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SavedItemsCompanion(')
+          ..write('kind: $kind, ')
+          ..write('itemId: $itemId, ')
+          ..write('savedAt: $savedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -11972,6 +12234,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   );
   late final $GenerationTaskChunksTable generationTaskChunks =
       $GenerationTaskChunksTable(this);
+  late final $SavedItemsTable savedItems = $SavedItemsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -11995,6 +12258,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     aiMessages,
     generationTasks,
     generationTaskChunks,
+    savedItems,
   ];
 }
 
@@ -17729,6 +17993,165 @@ typedef $$GenerationTaskChunksTableProcessedTableManager =
       GenerationTaskChunk,
       PrefetchHooks Function()
     >;
+typedef $$SavedItemsTableCreateCompanionBuilder =
+    SavedItemsCompanion Function({
+      required String kind,
+      required String itemId,
+      required int savedAt,
+      Value<int> rowid,
+    });
+typedef $$SavedItemsTableUpdateCompanionBuilder =
+    SavedItemsCompanion Function({
+      Value<String> kind,
+      Value<String> itemId,
+      Value<int> savedAt,
+      Value<int> rowid,
+    });
+
+class $$SavedItemsTableFilterComposer
+    extends Composer<_$AppDatabase, $SavedItemsTable> {
+  $$SavedItemsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get itemId => $composableBuilder(
+    column: $table.itemId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get savedAt => $composableBuilder(
+    column: $table.savedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$SavedItemsTableOrderingComposer
+    extends Composer<_$AppDatabase, $SavedItemsTable> {
+  $$SavedItemsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get itemId => $composableBuilder(
+    column: $table.itemId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get savedAt => $composableBuilder(
+    column: $table.savedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$SavedItemsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SavedItemsTable> {
+  $$SavedItemsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get itemId =>
+      $composableBuilder(column: $table.itemId, builder: (column) => column);
+
+  GeneratedColumn<int> get savedAt =>
+      $composableBuilder(column: $table.savedAt, builder: (column) => column);
+}
+
+class $$SavedItemsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SavedItemsTable,
+          SavedItem,
+          $$SavedItemsTableFilterComposer,
+          $$SavedItemsTableOrderingComposer,
+          $$SavedItemsTableAnnotationComposer,
+          $$SavedItemsTableCreateCompanionBuilder,
+          $$SavedItemsTableUpdateCompanionBuilder,
+          (
+            SavedItem,
+            BaseReferences<_$AppDatabase, $SavedItemsTable, SavedItem>,
+          ),
+          SavedItem,
+          PrefetchHooks Function()
+        > {
+  $$SavedItemsTableTableManager(_$AppDatabase db, $SavedItemsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SavedItemsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SavedItemsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SavedItemsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> kind = const Value.absent(),
+                Value<String> itemId = const Value.absent(),
+                Value<int> savedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SavedItemsCompanion(
+                kind: kind,
+                itemId: itemId,
+                savedAt: savedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String kind,
+                required String itemId,
+                required int savedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => SavedItemsCompanion.insert(
+                kind: kind,
+                itemId: itemId,
+                savedAt: savedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$SavedItemsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SavedItemsTable,
+      SavedItem,
+      $$SavedItemsTableFilterComposer,
+      $$SavedItemsTableOrderingComposer,
+      $$SavedItemsTableAnnotationComposer,
+      $$SavedItemsTableCreateCompanionBuilder,
+      $$SavedItemsTableUpdateCompanionBuilder,
+      (SavedItem, BaseReferences<_$AppDatabase, $SavedItemsTable, SavedItem>),
+      SavedItem,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -17772,4 +18195,6 @@ class $AppDatabaseManager {
       $$GenerationTasksTableTableManager(_db, _db.generationTasks);
   $$GenerationTaskChunksTableTableManager get generationTaskChunks =>
       $$GenerationTaskChunksTableTableManager(_db, _db.generationTaskChunks);
+  $$SavedItemsTableTableManager get savedItems =>
+      $$SavedItemsTableTableManager(_db, _db.savedItems);
 }

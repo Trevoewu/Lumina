@@ -44,7 +44,9 @@ class _PodcastLatestEpisodesScreenState
   Future<void> _openEpisode(String episodeId) async {
     await openPodcastEpisodePlayer(context, episodeId: episodeId);
     if (!mounted) return;
-    setState(() => _dataFuture = _load());
+    setState(() {
+      _dataFuture = _load();
+    });
   }
 
   @override

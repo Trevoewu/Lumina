@@ -158,6 +158,17 @@ class CostRecords extends Table {
 }
 
 /// 每日真实收听时长。日期使用设备本地时区的 YYYY-MM-DD。
+/// Books and podcast episodes saved with the heart in the player.
+class SavedItems extends Table {
+  /// 'book' or 'episode'.
+  TextColumn get kind => text()();
+  TextColumn get itemId => text()();
+  IntColumn get savedAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {kind, itemId};
+}
+
 class ListeningDays extends Table {
   TextColumn get dateKey => text()();
   IntColumn get listenedMs => integer().withDefault(const Constant(0))();
@@ -415,6 +426,7 @@ class GenerationTaskChunks extends Table {
     AiMessages,
     GenerationTasks,
     GenerationTaskChunks,
+    SavedItems,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -425,7 +437,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e) : _repairPathsOnOpen = false;
 
   @override
-  int get schemaVersion => 19;
+  int get schemaVersion => 20;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -566,6 +578,9 @@ class AppDatabase extends _$AppDatabase {
       if (from < 19) {
         await m.createTable(hiddenPodcastEpisodes);
       }
+      if (from < 20) {
+        await m.createTable(savedItems);
+      }
     },
     beforeOpen: (_) async {
       if (_repairPathsOnOpen) {
@@ -574,6 +589,35 @@ class AppDatabase extends _$AppDatabase {
       }
     },
   );
+
+  // ── Saved ──
+
+  Future<bool> isSaved(String kind, String itemId) async =>
+      await (select(savedItems)
+            ..where((row) => row.kind.equals(kind) & row.itemId.equals(itemId)))
+          .getSingleOrNull() !=
+      null;
+
+  Future<void> setSaved(String kind, String itemId, bool saved) async {
+    if (saved) {
+      await into(savedItems).insertOnConflictUpdate(
+        SavedItemsCompanion.insert(
+          kind: kind,
+          itemId: itemId,
+          savedAt: DateTime.now().millisecondsSinceEpoch,
+        ),
+      );
+    } else {
+      await (delete(savedItems)
+            ..where((row) => row.kind.equals(kind) & row.itemId.equals(itemId)))
+          .go();
+    }
+  }
+
+  /// Newest first.
+  Future<List<SavedItem>> getSavedItems() =>
+      (select(savedItems)..orderBy([(row) => OrderingTerm.desc(row.savedAt)]))
+          .get();
 
   // ── 书籍 ──
 

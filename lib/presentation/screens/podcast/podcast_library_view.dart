@@ -286,9 +286,9 @@ class _PodcastEmptyState extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               context.tr(
-                '到「发现」标签页搜索节目，或在这里粘贴 RSS 地址；订阅后可后台播放并用本地 Whisper 生成字幕。',
-                'Find shows in the Discover tab, or paste an RSS feed here, then play in the background and create transcripts with local Whisper.',
-                '「発見」タブで番組を探すか、ここにRSSフィードを貼り付けてください。購読後はバックグラウンド再生やローカルWhisperによる文字起こしを利用できます。',
+                '到「搜索」标签页搜索节目，或在这里粘贴 RSS 地址；订阅后可后台播放并用本地 Whisper 生成字幕。',
+                'Find shows in the Search tab, or paste an RSS feed here, then play in the background and create transcripts with local Whisper.',
+                '「検索」タブで番組を探すか、ここにRSSフィードを貼り付けてください。購読後はバックグラウンド再生やローカルWhisperによる文字起こしを利用できます。',
               ),
               textAlign: TextAlign.center,
               style: TextStyle(color: context.appTextSecondary),
