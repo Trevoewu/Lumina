@@ -990,22 +990,25 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 1));
 
-    // A running job shows its progress, pause and restart on the transcript
-    // itself rather than in the more menu.
+    // With text to read, nothing sits over the transcript; the run's
+    // controls are in the more menu.
     expect(
       find.byKey(const ValueKey('podcast-transcription-bar')),
-      findsOneWidget,
+      findsNothing,
     );
+    expect(find.text('First cached chunk.'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('player-more-menu')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(
-      find.byKey(const ValueKey('transcription-progress')),
+      find.byKey(const ValueKey('player-menu-transcription-restart')),
       findsOneWidget,
     );
-    expect(find.byKey(const ValueKey('transcription-restart')), findsOneWidget);
-    final pauseButton = find.byTooltip('Pause');
+    final pauseButton = find.byKey(
+      const ValueKey('player-menu-transcription-pause'),
+    );
     expect(pauseButton, findsOneWidget);
 
-    await tester.ensureVisible(pauseButton);
-    await tester.pump();
     await tester.tap(pauseButton);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
@@ -1016,6 +1019,108 @@ void main() {
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump(const Duration(milliseconds: 1));
+  });
+
+  testWidgets('before any text arrives the empty transcript shows progress', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final handler = _PodcastTestAudioHandler();
+    final sleepTimer = SleepTimerService();
+    final service = _FakeTranscriptionService(database, 'episode-empty');
+    addTearDown(database.close);
+    addTearDown(handler.dispose);
+    addTearDown(sleepTimer.dispose);
+    addTearDown(service.dispose);
+    await _insertPodcast(
+      database,
+      episodeId: 'episode-empty',
+      transcriptStatus: 'running',
+    );
+
+    await tester.pumpWidget(
+      _podcastApp(
+        database: database,
+        handler: handler,
+        sleepTimer: sleepTimer,
+        service: service,
+        episodeId: 'episode-empty',
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    final transcriptToggle = find.byKey(
+      const ValueKey('player-transcript-toggle'),
+    );
+    await tester.ensureVisible(transcriptToggle);
+    await tester.tap(transcriptToggle);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // Nothing to read yet, so the run's progress and controls fill the
+    // empty transcript.
+    expect(
+      find.byKey(const ValueKey('podcast-transcription-bar')),
+      findsOneWidget,
+    );
+    expect(find.byTooltip('Pause'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump(const Duration(milliseconds: 1));
+  });
+
+  testWidgets('a run cut off part way offers to resume from the menu', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final handler = _PodcastTestAudioHandler();
+    final sleepTimer = SleepTimerService();
+    // Nothing is running now: the app closed while this episode was going.
+    final service = _FakeTranscriptionService(database, null);
+    addTearDown(database.close);
+    addTearDown(handler.dispose);
+    addTearDown(sleepTimer.dispose);
+    addTearDown(service.dispose);
+    await _insertPodcast(
+      database,
+      episodeId: 'episode-cut-off',
+      transcriptStatus: 'running',
+      transcriptJson: '[{"text":"Got this far.","startMs":0,"endMs":1200}]',
+      transcriptProgressMs: 30000,
+    );
+
+    await tester.pumpWidget(
+      _podcastApp(
+        database: database,
+        handler: handler,
+        sleepTimer: sleepTimer,
+        service: service,
+        episodeId: 'episode-cut-off',
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('player-more-menu')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('player-menu-transcription-resume')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('player-menu-transcription-pause')),
+      findsNothing,
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));
   });
 
@@ -1681,12 +1786,20 @@ void main() {
     await tester.tap(transcriptToggle);
     await tester.pumpAndSettle();
 
-    // The cached chunks are kept, so the bar offers to continue the run.
+    // The cached chunks are kept and readable; the more menu offers to
+    // continue the run.
     expect(
       find.byKey(const ValueKey('podcast-transcription-bar')),
+      findsNothing,
+    );
+    await tester.tap(find.byKey(const ValueKey('player-more-menu')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('player-menu-transcription-resume')),
       findsOneWidget,
     );
-    expect(find.byTooltip('Resume'), findsOneWidget);
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pumpAndSettle();
     expect(find.text('First cached chunk.'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());

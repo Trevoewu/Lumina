@@ -158,12 +158,20 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('book-transcript-start')), findsNothing);
-      // A paused run shows its progress and a resume button on the transcript.
+      // The paused run's text is readable with nothing over it; the more
+      // menu offers to resume.
       expect(
         find.byKey(const ValueKey('book-transcription-bar')),
+        findsNothing,
+      );
+      await tester.tap(find.byKey(const ValueKey('player-more-menu')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('player-menu-transcription-resume')),
         findsOneWidget,
       );
-      expect(find.byTooltip('Resume'), findsOneWidget);
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
       expect(
         find.textContaining('The recorded story begins.', findRichText: true),
         findsWidgets,

@@ -3473,7 +3473,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     itemBuilder: (context) {
       if (_isPodcast) {
         final episode = _podcastEpisode ?? widget.podcast!.episode;
+        final transcription = _podcastTranscriptionMenuItems(episode);
         return [
+          ...transcription,
+          if (transcription.isNotEmpty) const PopupMenuDivider(),
           PopupMenuItem(
             key: const ValueKey('player-menu-go-to-show'),
             value: 'show',
@@ -3497,7 +3500,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           ),
         ];
       }
+      final transcription = _bookTranscriptionMenuItems();
       return [
+        ...transcription,
+        if (transcription.isNotEmpty) const PopupMenuDivider(),
         PopupMenuItem(
           key: const ValueKey('player-menu-go-to-book'),
           value: 'book',
@@ -3516,6 +3522,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     },
     onSelected: (action) {
       switch (action) {
+        case 'tx_pause':
+          unawaited(_pausePodcastTranscription());
+        case 'tx_resume':
+          unawaited(_startPodcastTranscription(pausePlayback: false));
+        case 'tx_restart':
+          unawaited(_restartPodcastTranscription());
+        case 'book_tx_pause':
+          unawaited(_pauseBookTranscription());
+        case 'book_tx_resume':
+          unawaited(_startBookTranscription());
         case 'show':
           Navigator.of(context).push(
             MaterialPageRoute<void>(
@@ -3560,6 +3576,81 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       }
     },
   );
+
+  /// Transcription controls for reading while it runs in the background.
+  /// Each appears only while it applies.
+  List<PopupMenuEntry<String>> _podcastTranscriptionMenuItems(
+    drift_db.PodcastEpisode episode,
+  ) {
+    final running = _transcribingPodcast;
+    // A run that stopped part way (paused, failed or cut off when the app
+    // closed) continues from where it got to.
+    final paused =
+        !running &&
+        episode.transcriptStatus != 'complete' &&
+        episode.transcriptProgressMs > 0;
+    final hasTranscript = (_podcastTranscript?.timingCount ?? 0) > 0;
+    return [
+      if (running)
+        PopupMenuItem(
+          key: const ValueKey('player-menu-transcription-pause'),
+          value: 'tx_pause',
+          enabled: !_pausingPodcastTranscription,
+          child: Text(
+            _pausingPodcastTranscription
+                ? context.tr(
+                    '正在暂停转写…',
+                    'Pausing transcription…',
+                    '文字起こしを一時停止中…',
+                  )
+                : context.tr('暂停转写', 'Pause transcription', '文字起こしを一時停止'),
+          ),
+        )
+      else if (paused)
+        PopupMenuItem(
+          key: const ValueKey('player-menu-transcription-resume'),
+          value: 'tx_resume',
+          child: Text(context.tr('继续转写', 'Resume transcription', '文字起こしを再開')),
+        ),
+      if (running || paused || hasTranscript)
+        PopupMenuItem(
+          key: const ValueKey('player-menu-transcription-restart'),
+          value: 'tx_restart',
+          enabled: !_pausingPodcastTranscription,
+          child: Text(
+            context.tr('重新转写', 'Start transcript over', '文字起こしをやり直す'),
+          ),
+        ),
+    ];
+  }
+
+  List<PopupMenuEntry<String>> _bookTranscriptionMenuItems() {
+    if (!_isRecordedBook) return const [];
+    final running = _bookAsrRunning;
+    final state = _bookAsrState;
+    final paused =
+        !running &&
+        state?.transcriptStatus == podcastTranscriptPausedStatus &&
+        state!.transcriptProgressMs > 0;
+    return [
+      if (running)
+        PopupMenuItem(
+          key: const ValueKey('player-menu-transcription-pause'),
+          value: 'book_tx_pause',
+          enabled:
+              !_bookAsrPausing &&
+              ref.read(podcastTranscriptionServiceProvider).activeEpisodeId ==
+                  _selectedAudiobookChapter?.id,
+          child: Text(context.tr('暂停转写', 'Pause transcription', '文字起こしを一時停止')),
+        )
+      else if (paused)
+        PopupMenuItem(
+          key: const ValueKey('player-menu-transcription-resume'),
+          value: 'book_tx_resume',
+          child: Text(context.tr('继续转写', 'Resume transcription', '文字起こしを再開')),
+        ),
+    ];
+  }
 
   /// The book's finished state, as changed from this player's menu.
   bool? _bookReadOverride;
@@ -3767,10 +3858,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     required bool focusMode,
     required Key listKey,
   }) {
+    // Once there is text, the transcript has the page to itself: the
+    // dashed part of the playback bar shows how far transcription has got,
+    // and its controls sit in the more menu.
     if (_isPodcast) {
-      final episode = _podcastEpisode ?? widget.podcast!.episode;
-      final bar = _buildPodcastTranscriptionBar(episode);
-      final body = _buildPodcastTranscriptBody(
+      return _buildPodcastTranscriptBody(
         handler: handler,
         manifest: manifest,
         playbackEnabled: playbackEnabled,
@@ -3778,19 +3870,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         focusMode: focusMode,
         listKey: listKey,
       );
-      return bar == null
-          ? body
-          : Column(
-              children: [
-                bar,
-                Expanded(child: body),
-              ],
-            );
     }
 
     if (_isRecordedBook) {
-      final bar = _buildBookTranscriptionBar();
-      final body = _buildRecordedBookTranscriptBody(
+      return _buildRecordedBookTranscriptBody(
         chapterId: chapterId,
         handler: handler,
         manifest: manifest,
@@ -3799,14 +3882,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         focusMode: focusMode,
         listKey: listKey,
       );
-      return bar == null
-          ? body
-          : Column(
-              children: [
-                bar,
-                Expanded(child: body),
-              ],
-            );
     }
     return _buildGeneratedTranscriptBody(
       chapterId: chapterId,
@@ -3819,8 +3894,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
-  /// Shown above the transcript while an episode is being transcribed or
-  /// has a paused run: how far it got, and pause/resume and restart.
+  /// Shown in the empty transcript while an episode is being transcribed or
+  /// has a paused run with nothing to read yet: how far it got, and
+  /// pause/resume and restart.
   Widget? _buildPodcastTranscriptionBar(drift_db.PodcastEpisode episode) {
     final running = _transcribingPodcast;
     final paused = _transcriptPaused(episode);
@@ -3842,7 +3918,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
-  /// The same bar for a narrated book chapter, which can pause and resume.
+  /// The same, for a narrated book chapter, which can pause and resume.
   Widget? _buildBookTranscriptionBar() {
     final running = _bookAsrRunning;
     final state = _bookAsrState;
@@ -3933,7 +4009,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                if (!_transcribingPodcast) ...[
+                if (_buildPodcastTranscriptionBar(episode) case final bar?)
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 360),
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: bar,
+                    ),
+                  )
+                else ...[
                   const SizedBox(height: 12),
                   FilledButton.icon(
                     onPressed: _startPodcastTranscription,
@@ -4038,7 +4122,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 12),
-                          if (!running)
+                          if (_buildBookTranscriptionBar() case final bar?)
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 360),
+                              child: bar,
+                            )
+                          else
                             FilledButton.icon(
                               key: const ValueKey('book-transcript-start'),
                               onPressed: _startBookTranscription,
