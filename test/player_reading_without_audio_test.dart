@@ -404,8 +404,10 @@ void main() {
         of: find.byKey(const ValueKey('player-inline-playlist')),
         matching: find.text('Queue Chapter One'),
       ),
-      findsNothing,
+      findsOneWidget,
+      reason: 'the chapter playing is listed and marked, not left out',
     );
+    expect(find.textContaining('Now playing'), findsOneWidget);
     expect(find.text('Queue Chapter Two'), findsOneWidget);
     expect(find.text('Queue Chapter Three'), findsOneWidget);
 

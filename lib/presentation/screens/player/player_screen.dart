@@ -214,11 +214,15 @@ class _PlaylistEntry {
   final Widget leading;
   final Future<void> Function() onTap;
 
+  /// The item playing now, listed in place and marked rather than left out.
+  final bool current;
+
   const _PlaylistEntry({
     required this.title,
     required this.subtitle,
     required this.leading,
     required this.onTap,
+    this.current = false,
   });
 }
 
@@ -4774,6 +4778,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _playlistPageActive = !_playlistPageActive;
       if (!_playlistPageActive) return;
       _transcriptPageActive = false;
+      _playlistScrolledToCurrent = false;
       _playlistFuture = _isPodcast
           ? Future.value(_podcastPlaylistEntries(handler))
           : _bookPlaylistEntries(handler);
@@ -4802,12 +4807,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final currentIndex = data.episodes.indexWhere(
       (episode) => episode.id == currentId,
     );
-    final nextEpisodes = currentIndex < 0
+    // What is playing, then what follows it.
+    final episodes = currentIndex < 0
         ? data.episodes
-        : data.episodes.skip(currentIndex + 1).toList(growable: false);
+        : data.episodes.skip(currentIndex).toList(growable: false);
     return [
-      for (final episode in nextEpisodes)
+      for (final episode in episodes)
         _PlaylistEntry(
+          current: episode.id == currentId,
           title: episode.title,
           // The show is already named above the list.
           subtitle: localizedPodcastDuration(context, episode.durationMs),
@@ -4816,13 +4823,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             size: 50,
             borderRadius: 11,
           ),
-          onTap: () => _selectPodcastEpisode(handler, episode),
+          onTap: () async {
+            if (episode.id != currentId) {
+              await _selectPodcastEpisode(handler, episode);
+            }
+          },
         ),
     ];
   }
 
-  /// Every other chapter in the book is offered. Selecting an uncached chapter
-  /// starts the same cache-and-play flow as opening it from the album page.
+  /// Every chapter in order, the current one marked. Selecting an uncached
+  /// chapter starts the same cache-and-play flow as opening it from the
+  /// album page.
   Future<List<_PlaylistEntry>> _bookPlaylistEntries(
     LuminaAudioHandler handler,
   ) async {
@@ -4832,9 +4844,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final currentId = _selectedAudiobookChapter?.id ?? handler.currentChapterId;
     final entries = <_PlaylistEntry>[];
     for (final chapter in chapters) {
-      if (chapter.id == currentId) continue;
+      final current = chapter.id == currentId;
       entries.add(
         _PlaylistEntry(
+          current: current,
           title: chapter.title,
           subtitle: widget.book.title,
           leading: BookCover(
@@ -4842,12 +4855,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             iconSize: 18,
             borderRadius: 11,
           ),
-          onTap: () => _selectAudiobookChapter(handler, chapter),
+          onTap: () async {
+            if (!current) await _selectAudiobookChapter(handler, chapter);
+          },
         ),
       );
     }
     return entries;
   }
+
+  final _currentPlaylistItemKey = GlobalKey();
+  bool _playlistScrolledToCurrent = false;
 
   Widget _buildInlinePlaylist() {
     final design = context.appDesign;
@@ -4900,6 +4918,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   return const Center(child: CircularProgressIndicator());
                 }
                 final entries = snapshot.data!;
+                // A long book can be playing chapter 30; open on it.
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  final current = _currentPlaylistItemKey.currentContext;
+                  final item = current?.findRenderObject();
+                  if (current == null ||
+                      item == null ||
+                      _playlistScrolledToCurrent) {
+                    return;
+                  }
+                  _playlistScrolledToCurrent = true;
+                  // Only the list moves: Scrollable.ensureVisible would also
+                  // scroll the player page and slide the header under the
+                  // back button.
+                  unawaited(
+                    Scrollable.of(current).position.ensureVisible(item),
+                  );
+                });
                 if (entries.isEmpty) {
                   return Center(
                     child: Text(
@@ -4921,9 +4956,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   separatorBuilder: (_, _) => SizedBox(height: design.spaceXs),
                   itemBuilder: (context, index) {
                     final entry = entries[index];
+                    final accent = Theme.of(context).colorScheme.primary;
                     return Material(
+                      key: entry.current ? _currentPlaylistItemKey : null,
                       color: Colors.transparent,
                       child: ListTile(
+                        selected: entry.current,
+                        selectedTileColor: accent.withValues(alpha: 0.08),
+                        trailing: entry.current
+                            ? AppIcon(
+                                AppIcons.audioWave01,
+                                size: 20,
+                                color: accent,
+                              )
+                            : null,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(
                             design.radiusMedium,
@@ -4944,7 +4990,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           ),
                         ),
                         subtitle: Text(
-                          entry.subtitle,
+                          entry.current
+                              ? [
+                                  context.tr('正在播放', 'Now playing', '再生中'),
+                                  if (entry.subtitle.isNotEmpty) entry.subtitle,
+                                ].join(' · ')
+                              : entry.subtitle,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(

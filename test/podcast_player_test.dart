@@ -1198,6 +1198,15 @@ void main() {
       find.byKey(const ValueKey('player-inline-playlist')),
       findsOneWidget,
     );
+    // The episode playing leads the list, marked.
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('player-inline-playlist')),
+        matching: find.text('The Episode Playing Now'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Now playing'), findsOneWidget);
     final transcriptToggle = find.byKey(
       const ValueKey('player-transcript-toggle'),
     );
