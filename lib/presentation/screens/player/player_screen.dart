@@ -52,6 +52,7 @@ import '../../widgets/book_style_cover.dart';
 import '../../widgets/podcast_artwork.dart';
 import '../../widgets/podcast_link_text.dart';
 import '../../widgets/synced_lyrics_list.dart';
+import '../../widgets/now_playing_indicator.dart';
 import '../../widgets/transcript_slider_track.dart';
 import '../../widgets/subtitle_seek_points.dart';
 import '../album/album_screen.dart';
@@ -4953,6 +4954,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     return entries;
   }
 
+  /// Moves while audio plays and holds still when paused.
+  Widget _buildNowPlayingIndicator(Color color) {
+    final handler = ref.read(luminaAudioHandlerProvider).asData?.value;
+    if (handler == null) {
+      return NowPlayingIndicator(animating: false, color: color);
+    }
+    return StreamBuilder<bool>(
+      stream: handler.playbackState.map((state) => state.playing).distinct(),
+      initialData: handler.playbackState.value.playing,
+      builder: (context, snapshot) => NowPlayingIndicator(
+        animating: snapshot.data ?? false,
+        color: color,
+      ),
+    );
+  }
+
   final _currentPlaylistItemKey = GlobalKey();
   bool _playlistScrolledToCurrent = false;
 
@@ -5053,11 +5070,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         selected: entry.current,
                         selectedTileColor: accent.withValues(alpha: 0.08),
                         trailing: entry.current
-                            ? AppIcon(
-                                AppIcons.audioWave01,
-                                size: 20,
-                                color: accent,
-                              )
+                            ? _buildNowPlayingIndicator(accent)
                             : null,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(

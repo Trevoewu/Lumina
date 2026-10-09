@@ -74,5 +74,11 @@ import UIKit
         withId: "lumina/airplay_route_picker"
       )
     }
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "NowPlayingSymbol") {
+      registrar.register(
+        NowPlayingSymbolFactory(),
+        withId: "lumina/now_playing_symbol"
+      )
+    }
   }
 }

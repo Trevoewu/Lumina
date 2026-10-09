@@ -145,10 +145,10 @@ class _SavedShelfViewState extends ConsumerState<SavedShelfView> {
               trailing: remove,
               onTap: () async {
                 await openPodcastEpisodePlayer(context, episodeId: episode.id);
-                if (mounted)
-                  setState(() {
-                    _entries = _load();
-                  });
+                if (!mounted) return;
+                setState(() {
+                  _entries = _load();
+                });
               },
             );
           },
