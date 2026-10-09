@@ -56,6 +56,7 @@ import '../../widgets/transcript_slider_track.dart';
 import '../../widgets/subtitle_seek_points.dart';
 import '../album/album_screen.dart';
 import '../library/library_screen.dart';
+import '../podcast/podcast_formatters.dart';
 import '../podcast/podcast_show_screen.dart';
 import '../reader/book_reader_screen.dart';
 import '../settings/dictionary_explanation_service_screen.dart';
@@ -495,6 +496,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   double _readingScrollSpeed = 1.0;
   bool _lyricSweepEnabled = true;
   bool _transcriptPageActive = false;
+
+  /// The cover area shows what plays next, swapped in place like the
+  /// transcript; at most one of the two is on at a time.
+  bool _playlistPageActive = false;
+  Future<List<_PlaylistEntry>>? _playlistFuture;
   bool _landscapeTranscriptActive = true;
   drift_db.Chapter? _activeAudiobookChapter;
   int _audiobookSelectionRevision = 0;
@@ -627,7 +633,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     required String chapterTitle,
   }) async {
     if (!mounted || (!_isPodcast && chapterId == null)) return;
-    setState(() => _transcriptPageActive = !_transcriptPageActive);
+    setState(() {
+      _transcriptPageActive = !_transcriptPageActive;
+      if (_transcriptPageActive) _playlistPageActive = false;
+    });
   }
 
   void _setStreamPlaybackRequested(bool value) {
@@ -2365,6 +2374,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
+  /// The back / more bar floats over the top of the page. The cover's area
+  /// starts below it, so the cover is centred in the space that can be seen
+  /// rather than in one that runs up under the bar.
+  double get _floatingTopBarHeight {
+    if (MacosPersistentToolbarScope.hasToolbar(context)) return 0;
+    return Theme.of(context).platform == TargetPlatform.macOS
+        ? macosTopControlsReservedHeight
+        : kMinInteractiveDimension;
+  }
+
   Widget _buildLandscapePlayerBody({
     required LuminaAudioHandler handler,
     required Duration duration,
@@ -2551,7 +2570,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     selectedLoaded: selectedLoaded,
                     cover: Padding(
                       key: const ValueKey('book-cover-focus-viewport'),
-                      padding: EdgeInsets.symmetric(horizontal: pageInset),
+                      padding: EdgeInsets.fromLTRB(
+                        pageInset,
+                        _floatingTopBarHeight,
+                        pageInset,
+                        0,
+                      ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -2722,7 +2746,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     selectedLoaded: _isSelectedChapterLoaded(handler),
                     cover: Padding(
                       key: const ValueKey('podcast-cover-focus-viewport'),
-                      padding: EdgeInsets.symmetric(horizontal: pageInset),
+                      padding: EdgeInsets.fromLTRB(
+                        pageInset,
+                        _floatingTopBarHeight,
+                        pageInset,
+                        0,
+                      ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -2920,7 +2949,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     switchOutCurve: Curves.easeOut,
     layoutBuilder: (current, previous) =>
         Stack(fit: StackFit.expand, children: [...previous, ?current]),
-    child: _transcriptPageActive
+    child: _playlistPageActive
+        ? SizedBox.expand(
+            key: const ValueKey('player-inline-playlist'),
+            child: _buildInlinePlaylist(),
+          )
+        : _transcriptPageActive
         ? SizedBox.expand(
             key: const ValueKey('player-inline-transcript'),
             child: _buildSyncedLyrics(
@@ -4674,7 +4708,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         context,
         key: const ValueKey('player-playlist-toggle'),
         icon: AppIcons.leftToRightListBullet,
-        tooltip: context.tr('列表', 'Playlist', '再生リスト'),
+        tooltip: _playlistPageActive
+            ? context.tr('返回封面', 'Back to cover', '表紙に戻る')
+            : context.tr('列表', 'Playlist', '再生リスト'),
+        chip: true,
+        active: _playlistPageActive,
         onPressed: () => _showPlaylist(handler),
       ),
     ],
@@ -4729,21 +4767,32 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     color: active ? context.appAccent : context.appTextSecondary,
   );
 
+  /// Swaps the cover for what plays next, or back again.
   Future<void> _showPlaylist(LuminaAudioHandler handler) async {
     if (!mounted) return;
-    final entries = _isPodcast
-        ? _podcastPlaylistEntries(handler)
-        : await _bookPlaylistEntries(handler);
-    if (!mounted) return;
-    final source = _isPodcast ? widget.podcast!.show.title : widget.book.title;
-    final emptyLabel = _isPodcast
-        ? context.tr('没有更多单集', 'No more episodes', 'これ以上エピソードはありません')
-        : context.tr('没有更多章节', 'No more chapters', 'これ以上章はありません');
-    await _showPlaylistSheet(
-      entries: entries,
-      source: source,
-      emptyLabel: emptyLabel,
-    );
+    setState(() {
+      _playlistPageActive = !_playlistPageActive;
+      if (!_playlistPageActive) return;
+      _transcriptPageActive = false;
+      _playlistFuture = _isPodcast
+          ? Future.value(_podcastPlaylistEntries(handler))
+          : _bookPlaylistEntries(handler);
+    });
+    // The list takes the cover's place at the top of the page; bring it into
+    // view if the page was scrolled down to the cards below the controls.
+    if (_playlistPageActive &&
+        _playerScrollController.hasClients &&
+        _playerScrollController.offset > 0) {
+      unawaited(
+        _playerScrollController.animateTo(
+          0,
+          duration: MediaQuery.disableAnimationsOf(context)
+              ? const Duration(milliseconds: 1)
+              : const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic,
+        ),
+      );
+    }
   }
 
   /// The remaining episodes after the one playing.
@@ -4760,9 +4809,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       for (final episode in nextEpisodes)
         _PlaylistEntry(
           title: episode.title,
-          subtitle:
-              '${data.show.title} · '
-              '${_fmt(Duration(milliseconds: episode.durationMs))}',
+          // The show is already named above the list.
+          subtitle: localizedPodcastDuration(context, episode.durationMs),
           leading: PodcastArtwork(
             imageUrl: episode.imageUrl ?? data.show.imageUrl,
             size: 50,
@@ -4801,139 +4849,125 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     return entries;
   }
 
-  Future<void> _showPlaylistSheet({
-    required List<_PlaylistEntry> entries,
-    required String source,
-    required String emptyLabel,
-  }) async {
+  Widget _buildInlinePlaylist() {
     final design = context.appDesign;
+    final source = _isPodcast ? widget.podcast!.show.title : widget.book.title;
+    final emptyLabel = _isPodcast
+        ? context.tr('没有更多单集', 'No more episodes', 'これ以上エピソードはありません')
+        : context.tr('没有更多章节', 'No more chapters', 'これ以上章はありません');
+    final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
 
-    await showAppSheet<void>(
-      context: context,
-      builder: (sheetContext) {
-        final maxHeight = MediaQuery.sizeOf(sheetContext).height * 0.62;
-        return Container(
-          constraints: BoxConstraints(maxHeight: maxHeight),
-          decoration: BoxDecoration(
-            color: context.appSurface,
-            borderRadius: BorderRadius.vertical(
-              top: Radius.circular(design.radiusLarge + 10),
+    return Padding(
+      padding: EdgeInsets.only(top: _floatingTopBarHeight),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              inset,
+              design.spaceSm,
+              inset,
+              design.spaceMd,
             ),
-          ),
-          child: SafeArea(
-            top: false,
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    design.spaceLg,
-                    0,
-                    design.spaceLg,
-                    design.spaceMd,
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              context.tr('接下来播放', 'Up next', '次に再生'),
-                              style: Theme.of(context).textTheme.titleLarge
-                                  ?.copyWith(
-                                    color: context.appTextPrimary,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                            ),
-                            SizedBox(height: design.spaceXs),
-                            Text(
-                              source,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: context.appTextSecondary,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                Text(
+                  context.tr('接下来播放', 'Up next', '次に再生'),
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: context.appTextPrimary,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-                if (entries.isEmpty)
-                  Padding(
-                    padding: EdgeInsets.symmetric(vertical: design.spaceXxl),
+                SizedBox(height: design.spaceXs),
+                Text(
+                  source,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: context.appTextSecondary,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: FutureBuilder<List<_PlaylistEntry>>(
+              future: _playlistFuture,
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final entries = snapshot.data!;
+                if (entries.isEmpty) {
+                  return Center(
                     child: Text(
                       emptyLabel,
                       style: TextStyle(color: context.appTextSecondary),
                     ),
-                  )
-                else
-                  Flexible(
-                    child: ListView.separated(
-                      shrinkWrap: true,
-                      physics: const BouncingScrollPhysics(),
-                      padding: EdgeInsets.fromLTRB(
-                        design.spaceSm,
-                        0,
-                        design.spaceSm,
-                        design.spaceLg,
-                      ),
-                      itemCount: entries.length,
-                      separatorBuilder: (_, _) =>
-                          SizedBox(height: design.spaceXs),
-                      itemBuilder: (context, index) {
-                        final entry = entries[index];
-                        return Material(
-                          color: Colors.transparent,
-                          child: ListTile(
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(
-                                design.radiusMedium,
-                              ),
-                            ),
-                            leading: SizedBox.square(
-                              dimension: 50,
-                              child: entry.leading,
-                            ),
-                            title: Text(
-                              entry.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: context.appTextPrimary,
-                                fontWeight: FontWeight.w500,
-                                fontSize: 14.5,
-                              ),
-                            ),
-                            subtitle: Text(
-                              entry.subtitle,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: context.appTextSecondary,
-                                fontSize: 12.5,
-                              ),
-                            ),
-                            onTap: () async {
-                              await entry.onTap();
-                              if (sheetContext.mounted) {
-                                Navigator.of(sheetContext).pop();
-                              }
-                            },
-                          ),
-                        );
-                      },
-                    ),
+                  );
+                }
+                return ListView.separated(
+                  key: const ValueKey('player-inline-playlist-list'),
+                  physics: const BouncingScrollPhysics(),
+                  padding: EdgeInsets.fromLTRB(
+                    inset - design.spaceSm,
+                    0,
+                    inset - design.spaceSm,
+                    design.spaceLg,
                   ),
-              ],
+                  itemCount: entries.length,
+                  separatorBuilder: (_, _) => SizedBox(height: design.spaceXs),
+                  itemBuilder: (context, index) {
+                    final entry = entries[index];
+                    return Material(
+                      color: Colors.transparent,
+                      child: ListTile(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(
+                            design.radiusMedium,
+                          ),
+                        ),
+                        leading: SizedBox.square(
+                          dimension: 50,
+                          child: entry.leading,
+                        ),
+                        title: Text(
+                          entry.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: context.appTextPrimary,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 14.5,
+                          ),
+                        ),
+                        subtitle: Text(
+                          entry.subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: context.appTextSecondary,
+                            fontSize: 12.5,
+                          ),
+                        ),
+                        // Picking something to play returns to its cover.
+                        onTap: () async {
+                          await entry.onTap();
+                          if (mounted) {
+                            setState(() => _playlistPageActive = false);
+                          }
+                        },
+                      ),
+                    );
+                  },
+                );
+              },
             ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 

@@ -401,7 +401,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       find.descendant(
-        of: find.byType(BottomSheet),
+        of: find.byKey(const ValueKey('player-inline-playlist')),
         matching: find.text('Queue Chapter One'),
       ),
       findsNothing,

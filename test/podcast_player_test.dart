@@ -1142,7 +1142,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
-  testWidgets('the up next sheet switches the player to the tapped episode', (
+  testWidgets('the up next list switches the player to the tapped episode', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -1191,6 +1191,31 @@ void main() {
     await tester.tap(playlistToggle);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
+
+    // Up next takes the cover's place, like the transcript, and the two
+    // never show at once.
+    expect(
+      find.byKey(const ValueKey('player-inline-playlist')),
+      findsOneWidget,
+    );
+    final transcriptToggle = find.byKey(
+      const ValueKey('player-transcript-toggle'),
+    );
+    await tester.tap(transcriptToggle);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byKey(const ValueKey('player-inline-playlist')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('player-inline-transcript')),
+      findsOneWidget,
+    );
+    await tester.tap(playlistToggle);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(
+      find.byKey(const ValueKey('player-inline-transcript')),
+      findsNothing,
+    );
 
     await tester.tap(find.text('The Episode Up Next'));
     await tester.pump();
