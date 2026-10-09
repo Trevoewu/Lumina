@@ -54,6 +54,7 @@ import '../../widgets/podcast_link_text.dart';
 import '../../widgets/synced_lyrics_list.dart';
 import '../../widgets/transcript_slider_track.dart';
 import '../../widgets/subtitle_seek_points.dart';
+import '../album/album_screen.dart';
 import '../library/library_screen.dart';
 import '../podcast/podcast_show_screen.dart';
 import '../reader/book_reader_screen.dart';
@@ -506,6 +507,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   StreamSubscription? _bookAsrProgressSubscription;
   bool _bookAsrStarting = false;
   bool _bookAsrPausing = false;
+  double? _bookAsrProgress;
   int _bookAsrRefreshRevision = 0;
 
   bool get _bookAsrRunning =>
@@ -1684,8 +1686,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           if (!mounted || progress.episodeId != _selectedAudiobookChapter?.id) {
             return;
           }
-          // Refresh menu availability as the transcription service changes state.
-          setState(() {});
+          setState(() {
+            _bookAsrProgress = progress.running ? progress.progress : null;
+          });
           _refreshTranscriptPage();
         });
   }
@@ -1774,30 +1777,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
   }
 
-  List<PopupMenuEntry<String>> _bookTranscriptionEntries() => [
-    if (_bookAsrRunning || _bookAsrState?.transcriptStatus != 'complete')
-      PopupMenuItem(
-        key: ValueKey(
-          _bookAsrRunning ? 'book-transcript-pause' : 'book-transcript-resume',
-        ),
-        value: _bookAsrRunning ? 'book_pause' : 'book_resume',
-        enabled:
-            !_bookAsrPausing &&
-            (!_bookAsrRunning ||
-                ref.read(podcastTranscriptionServiceProvider).activeEpisodeId ==
-                    _selectedAudiobookChapter?.id),
-        child: Text(
-          _bookAsrRunning
-              ? context.tr('暂停字幕生成', 'Pause subtitle generation', '字幕生成を一時停止')
-              : context.tr(
-                  '生成或继续字幕',
-                  'Generate or resume subtitles',
-                  '字幕生成を開始・再開',
-                ),
-        ),
-      ),
-  ];
-
   Future<void> _startPodcastTranscription({
     bool allowSetup = true,
     bool pausePlayback = true,
@@ -1870,9 +1849,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
   }
 
+  /// Asks first, then stops a run in progress and starts the episode's
+  /// transcript over from the beginning.
   Future<void> _restartPodcastTranscription() async {
     final episode = _podcastEpisode;
-    if (episode == null || _transcribingPodcast) return;
+    if (episode == null) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -1899,6 +1880,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       ),
     );
     if (confirmed != true || !mounted) return;
+    if (_transcribingPodcast) {
+      await _pausePodcastTranscription();
+      if (!mounted || _podcastEpisode?.id != episode.id) return;
+    }
     await ref
         .read(cacheManagerProvider)
         .clearPodcastEpisodeTranscript(episode.id);
@@ -3002,42 +2987,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   /// Start/pause/redo controls for local Whisper transcription. These belong to
   /// podcasts only — a book's text ships with it and is never transcribed.
-  List<PopupMenuEntry<String>> _podcastTranscriptionEntries(
-    drift_db.PodcastEpisode episode,
-  ) {
-    final running = _transcribingPodcast;
-    final paused = _transcriptPaused(episode);
-    final hasTranscript = (_podcastTranscript?.timingCount ?? 0) > 0;
-    return [
-      PopupMenuItem<String>(
-        key: ValueKey(
-          running ? 'podcast-transcript-pause' : 'podcast-transcript-restart',
-        ),
-        value: running
-            ? 'pause'
-            : paused || !hasTranscript
-            ? 'start'
-            : 'restart',
-        enabled: !_pausingPodcastTranscription,
-        child: Text(
-          _pausingPodcastTranscription
-              ? context.tr(
-                  '正在暂停字幕生成…',
-                  'Pausing subtitle generation…',
-                  '字幕生成を一時停止中…',
-                )
-              : running
-              ? context.tr('暂停字幕生成', 'Pause subtitle generation', '字幕生成を一時停止')
-              : paused
-              ? context.tr('继续字幕生成', 'Resume subtitle generation', '字幕生成を再開')
-              : hasTranscript
-              ? context.tr('重新生成字幕', 'Regenerate subtitles', '字幕を再生成')
-              : context.tr('生成字幕', 'Generate subtitles', '字幕を生成'),
-        ),
-      ),
-    ];
-  }
-
   /// Summary and chat share the currently selected content and prerequisites.
   Widget _buildAiCard({
     required LuminaAudioHandler handler,
@@ -3478,56 +3427,105 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
-  Widget _buildPlaybackMoreMenu() => Builder(
-    builder: (anchorContext) => AppGlassMenuButton<String>(
-      key: const ValueKey('player-more-menu'),
-      tooltip: context.tr('更多选项', 'More options', 'その他のオプション'),
-      itemBuilder: (context) => [
-        if (_transcriptPageActive && _isPodcast)
-          ..._podcastTranscriptionEntries(
-            _podcastEpisode ?? widget.podcast!.episode,
+  /// Actions that have no button of their own on the page. Speed, sleep
+  /// timer and playlist each already do.
+  Widget _buildPlaybackMoreMenu() => AppGlassMenuButton<String>(
+    key: const ValueKey('player-more-menu'),
+    tooltip: context.tr('更多选项', 'More options', 'その他のオプション'),
+    itemBuilder: (context) {
+      if (_isPodcast) {
+        final episode = _podcastEpisode ?? widget.podcast!.episode;
+        return [
+          PopupMenuItem(
+            key: const ValueKey('player-menu-go-to-show'),
+            value: 'show',
+            child: Text(context.tr('前往节目', 'Go to show', '番組へ移動')),
           ),
-        if (_transcriptPageActive && _isRecordedBook)
-          ..._bookTranscriptionEntries(),
+          PopupMenuItem(
+            key: const ValueKey('player-menu-played'),
+            value: 'played',
+            child: Text(
+              episode.isPlayed
+                  ? context.tr('标记为未听', 'Mark as unplayed', '未再生にする')
+                  : context.tr('标记为已听', 'Mark as played', '再生済みにする'),
+            ),
+          ),
+          PopupMenuItem(
+            key: const ValueKey('player-menu-copy-link'),
+            value: 'link',
+            child: Text(
+              context.tr('复制单集链接', 'Copy episode link', 'エピソードのリンクをコピー'),
+            ),
+          ),
+        ];
+      }
+      return [
         PopupMenuItem(
-          value: 'speed',
-          child: Text(context.tr('播放倍速', 'Playback speed', '再生速度')),
+          key: const ValueKey('player-menu-go-to-book'),
+          value: 'book',
+          child: Text(context.tr('前往书籍', 'Go to book', '本へ移動')),
         ),
         PopupMenuItem(
-          value: 'chapters',
-          child: Text(context.tr('章节列表', 'Playlist', '再生リスト')),
+          key: const ValueKey('player-menu-finished'),
+          value: 'finished',
+          child: Text(
+            _bookRead
+                ? context.tr('标记为未读完', 'Mark as unfinished', '未読了にする')
+                : context.tr('标记为已读完', 'Mark as finished', '読了にする'),
+          ),
         ),
-        PopupMenuItem(
-          value: 'timer',
-          child: Text(context.tr('定时关闭', 'Sleep timer', 'スリープタイマー')),
-        ),
-      ],
-      onSelected: (action) {
-        switch (action) {
-          case 'pause':
-            unawaited(_pausePodcastTranscription());
-            return;
-          case 'start':
-            unawaited(_startPodcastTranscription(pausePlayback: false));
-            return;
-          case 'restart':
-            unawaited(_restartPodcastTranscription());
-            return;
-          case 'book_pause':
-            unawaited(_pauseBookTranscription());
-            return;
-          case 'book_resume':
-            unawaited(_startBookTranscription());
-            return;
-        }
-        final handler = ref.read(luminaAudioHandlerProvider).asData?.value;
-        if (action == 'speed') _showSpeedMenu(anchorContext);
-        if (handler == null) return;
-        if (action == 'chapters') unawaited(_showPlaylist(handler));
-        if (action == 'timer') _showSleepTimerMenu(handler, anchorContext);
-      },
-    ),
+      ];
+    },
+    onSelected: (action) {
+      switch (action) {
+        case 'show':
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) =>
+                  PodcastShowScreen(showId: widget.podcast!.show.id),
+            ),
+          );
+        case 'played':
+          final episode = _podcastEpisode ?? widget.podcast!.episode;
+          unawaited(
+            ref
+                .read(appDatabaseProvider)
+                .setPodcastEpisodePlayed(episode.id, !episode.isPlayed),
+          );
+        case 'link':
+          final episode = _podcastEpisode ?? widget.podcast!.episode;
+          unawaited(Clipboard.setData(ClipboardData(text: episode.audioUrl)));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                context.tr('已复制单集链接', 'Episode link copied', 'リンクをコピーしました'),
+              ),
+            ),
+          );
+        case 'book':
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => AlbumScreen(
+                book: widget.book,
+                initialChapterId: _selectedAudiobookChapter?.id,
+              ),
+            ),
+          );
+        case 'finished':
+          final finished = !_bookRead;
+          setState(() => _bookReadOverride = finished);
+          unawaited(
+            ref
+                .read(appDatabaseProvider)
+                .updateBookReadStatus(widget.book.id, finished),
+          );
+      }
+    },
   );
+
+  /// The book's finished state, as changed from this player's menu.
+  bool? _bookReadOverride;
+  bool get _bookRead => _bookReadOverride ?? widget.book.isRead;
 
   /// [height] is a book cover's height; its width follows the book aspect.
   /// Podcast art stays square at a size that sits in the same space.
@@ -3732,6 +3730,118 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     required Key listKey,
   }) {
     if (_isPodcast) {
+      final episode = _podcastEpisode ?? widget.podcast!.episode;
+      final bar = _buildPodcastTranscriptionBar(episode);
+      final body = _buildPodcastTranscriptBody(
+        handler: handler,
+        manifest: manifest,
+        playbackEnabled: playbackEnabled,
+        expanded: expanded,
+        focusMode: focusMode,
+        listKey: listKey,
+      );
+      return bar == null
+          ? body
+          : Column(
+              children: [
+                bar,
+                Expanded(child: body),
+              ],
+            );
+    }
+
+    if (_isRecordedBook) {
+      final bar = _buildBookTranscriptionBar();
+      final body = _buildRecordedBookTranscriptBody(
+        chapterId: chapterId,
+        handler: handler,
+        manifest: manifest,
+        playbackEnabled: playbackEnabled,
+        expanded: expanded,
+        focusMode: focusMode,
+        listKey: listKey,
+      );
+      return bar == null
+          ? body
+          : Column(
+              children: [
+                bar,
+                Expanded(child: body),
+              ],
+            );
+    }
+    return _buildGeneratedTranscriptBody(
+      chapterId: chapterId,
+      handler: handler,
+      manifest: manifest,
+      playbackEnabled: playbackEnabled,
+      expanded: expanded,
+      focusMode: focusMode,
+      listKey: listKey,
+    );
+  }
+
+  /// Shown above the transcript while an episode is being transcribed or
+  /// has a paused run: how far it got, and pause/resume and restart.
+  Widget? _buildPodcastTranscriptionBar(drift_db.PodcastEpisode episode) {
+    final running = _transcribingPodcast;
+    final paused = _transcriptPaused(episode);
+    if (!running && !paused) return null;
+    final progress = running
+        ? _transcriptionProgress?.progress
+        : episode.durationMs <= 0
+        ? null
+        : (episode.transcriptProgressMs / episode.durationMs).clamp(0.0, 1.0);
+    return _TranscriptionStatusBar(
+      key: const ValueKey('podcast-transcription-bar'),
+      running: running,
+      progress: progress,
+      busy: _pausingPodcastTranscription,
+      onPauseOrResume: running
+          ? () => unawaited(_pausePodcastTranscription())
+          : () => unawaited(_startPodcastTranscription(pausePlayback: false)),
+      onRestart: () => unawaited(_restartPodcastTranscription()),
+    );
+  }
+
+  /// The same bar for a narrated book chapter, which can pause and resume.
+  Widget? _buildBookTranscriptionBar() {
+    final running = _bookAsrRunning;
+    final state = _bookAsrState;
+    final paused =
+        !running &&
+        state?.transcriptStatus == podcastTranscriptPausedStatus &&
+        state!.transcriptProgressMs > 0;
+    if (!running && !paused) return null;
+    final progress = running
+        ? _bookAsrProgress
+        : state!.durationMs <= 0
+        ? null
+        : (state.transcriptProgressMs / state.durationMs).clamp(0.0, 1.0);
+    return _TranscriptionStatusBar(
+      key: const ValueKey('book-transcription-bar'),
+      running: running,
+      progress: progress,
+      busy:
+          _bookAsrPausing ||
+          (running &&
+              ref.read(podcastTranscriptionServiceProvider).activeEpisodeId !=
+                  _selectedAudiobookChapter?.id),
+      onPauseOrResume: running
+          ? () => unawaited(_pauseBookTranscription())
+          : () => unawaited(_startBookTranscription()),
+    );
+  }
+
+  Widget _buildPodcastTranscriptBody({
+    required LuminaAudioHandler handler,
+    required ChapterManifest? manifest,
+    required bool playbackEnabled,
+    required bool expanded,
+    required bool focusMode,
+    required Key listKey,
+  }) {
+    {
       final data = widget.podcast!;
       final episode = _podcastEpisode ?? data.episode;
       final transcript = _podcastTranscript;
@@ -3842,8 +3952,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       );
       return lyrics;
     }
+  }
 
-    if (_isRecordedBook) {
+  Widget _buildRecordedBookTranscriptBody({
+    required String chapterId,
+    required LuminaAudioHandler handler,
+    required ChapterManifest? manifest,
+    required bool playbackEnabled,
+    required bool expanded,
+    required bool focusMode,
+    required Key listKey,
+  }) {
+    {
       final timings =
           manifest?.segments.firstOrNull?.timings ?? const <AudioTextTiming>[];
       final running = _bookAsrRunning;
@@ -3934,6 +4054,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         ],
       );
     }
+  }
+
+  Widget _buildGeneratedTranscriptBody({
+    required String chapterId,
+    required LuminaAudioHandler handler,
+    required ChapterManifest? manifest,
+    required bool playbackEnabled,
+    required bool expanded,
+    required bool focusMode,
+    required Key listKey,
+  }) {
     final paragraphsFuture = _audiobookParagraphsFuture ??= ref
         .read(appDatabaseProvider)
         .getParagraphs(chapterId);
@@ -5227,6 +5358,105 @@ class _WhisperModelSetupSheetState extends State<_WhisperModelSetupSheet> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Progress and controls for an on-device transcription in progress.
+class _TranscriptionStatusBar extends StatelessWidget {
+  final bool running;
+
+  /// 0–1, or null while the run cannot tell yet.
+  final double? progress;
+
+  /// True while a pause is being applied, when the buttons wait.
+  final bool busy;
+  final VoidCallback onPauseOrResume;
+
+  /// Episodes can start over; book chapters only pause and resume.
+  final VoidCallback? onRestart;
+
+  const _TranscriptionStatusBar({
+    super.key,
+    required this.running,
+    required this.progress,
+    required this.busy,
+    required this.onPauseOrResume,
+    this.onRestart,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final percent = progress == null ? null : (progress! * 100).round();
+    final label = running
+        ? percent == null
+              ? context.tr('正在生成字幕', 'Transcribing', '文字起こし中')
+              : context.tr(
+                  '正在生成字幕 · $percent%',
+                  'Transcribing · $percent%',
+                  '文字起こし中 · $percent%',
+                )
+        : context.tr(
+            '字幕生成已暂停 · ${percent ?? 0}%',
+            'Transcription paused · ${percent ?? 0}%',
+            '文字起こしを一時停止中 · ${percent ?? 0}%',
+          );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 12, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: context.appTextSecondary,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ),
+              IconButton(
+                key: const ValueKey('transcription-pause-resume'),
+                tooltip: running
+                    ? context.tr('暂停', 'Pause', '一時停止')
+                    : context.tr('继续', 'Resume', '再開'),
+                onPressed: busy ? null : onPauseOrResume,
+                icon: AppIcon(
+                  running ? AppIcons.pause : AppIcons.play,
+                  size: 20,
+                  color: context.appTextPrimary,
+                ),
+              ),
+              if (onRestart case final onRestart?)
+                IconButton(
+                  key: const ValueKey('transcription-restart'),
+                  tooltip: context.tr('重新开始', 'Start over', '最初からやり直す'),
+                  onPressed: busy ? null : onRestart,
+                  icon: AppIcon(
+                    AppIcons.refresh,
+                    size: 20,
+                    color: context.appTextPrimary,
+                  ),
+                ),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(2),
+              child: LinearProgressIndicator(
+                key: const ValueKey('transcription-progress'),
+                value: progress,
+                minHeight: 3,
+                backgroundColor: context.appSurfaceHighlight,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

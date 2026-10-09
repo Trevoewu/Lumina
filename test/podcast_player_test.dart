@@ -990,20 +990,19 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 1));
 
+    // A running job shows its progress, pause and restart on the transcript
+    // itself rather than in the more menu.
     expect(
-      find.byKey(const ValueKey('podcast-transcript-pause')),
-      findsNothing,
+      find.byKey(const ValueKey('podcast-transcription-bar')),
+      findsOneWidget,
     );
-    expect(find.byType(LinearProgressIndicator), findsNothing);
-    await tester.tap(find.byKey(const ValueKey('player-more-menu')));
-    await tester.pumpAndSettle();
-    final pauseButton = find.byKey(const ValueKey('podcast-transcript-pause'));
+    expect(
+      find.byKey(const ValueKey('transcription-progress')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('transcription-restart')), findsOneWidget);
+    final pauseButton = find.byTooltip('Pause');
     expect(pauseButton, findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('podcast-transcript-restart')),
-      findsNothing,
-      reason: 'a running job offers pause, not another start',
-    );
 
     await tester.ensureVisible(pauseButton);
     await tester.pump();
@@ -1014,15 +1013,55 @@ void main() {
     await tester.pumpAndSettle();
     expect(service.pauseCalls, 1);
     expect(pauseButton, findsNothing);
-    await tester.tap(find.byKey(const ValueKey('player-more-menu')));
-    await tester.pumpAndSettle();
-    expect(
-      find.byKey(const ValueKey('podcast-transcript-restart')),
-      findsOneWidget,
-    );
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump(const Duration(milliseconds: 1));
+  });
+
+  testWidgets('more menu holds actions with no button of their own', (
+    tester,
+  ) async {
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    final handler = _PodcastTestAudioHandler();
+    final sleepTimer = SleepTimerService();
+    final service = _FakeTranscriptionService(database, null);
+    addTearDown(database.close);
+    addTearDown(handler.dispose);
+    addTearDown(sleepTimer.dispose);
+    addTearDown(service.dispose);
+    await _insertPodcast(
+      database,
+      episodeId: 'episode-menu',
+      transcriptStatus: 'complete',
+      transcriptJson: '[{"text":"A sentence.","startMs":0,"endMs":1200}]',
+    );
+
+    await tester.pumpWidget(
+      _podcastApp(
+        database: database,
+        handler: handler,
+        sleepTimer: sleepTimer,
+        service: service,
+        episodeId: 'episode-menu',
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('player-more-menu')));
+    await tester.pumpAndSettle();
+    expect(find.text('Go to show'), findsOneWidget);
+    expect(find.text('Copy episode link'), findsOneWidget);
+    // Speed, playlist and sleep timer have buttons on the page already.
+    expect(find.text('Playback speed'), findsNothing);
+    expect(find.text('Playlist'), findsNothing);
+    expect(find.text('Sleep timer'), findsNothing);
+
+    await tester.tap(find.text('Mark as played'));
+    await tester.pumpAndSettle();
+    expect((await database.getPodcastEpisode('episode-menu'))?.isPlayed, true);
+
+    await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));
   });
 
@@ -1094,7 +1133,7 @@ void main() {
 
     expect(find.text('Transcript from the next episode.'), findsOneWidget);
     expect(
-      find.byKey(const ValueKey('podcast-transcript-pause')),
+      find.byKey(const ValueKey('podcast-transcription-bar')),
       findsNothing,
       reason: 'the ASR job still belongs to the previous episode',
     );
@@ -1608,19 +1647,12 @@ void main() {
     await tester.tap(transcriptToggle);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const ValueKey('player-more-menu')));
-    await tester.pumpAndSettle();
-    final restart = find.byKey(const ValueKey('podcast-transcript-restart'));
-    expect(restart, findsOneWidget);
+    // The cached chunks are kept, so the bar offers to continue the run.
     expect(
-      tester
-          .widget<Text>(
-            find.descendant(of: restart, matching: find.byType(Text)),
-          )
-          .data,
-      'Resume subtitle generation',
-      reason: 'the cached chunks are kept, so this continues the run',
+      find.byKey(const ValueKey('podcast-transcription-bar')),
+      findsOneWidget,
     );
+    expect(find.byTooltip('Resume'), findsOneWidget);
     expect(find.text('First cached chunk.'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
