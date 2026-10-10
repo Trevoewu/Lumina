@@ -7,6 +7,7 @@ import 'package:html/dom.dart' as html_dom;
 import 'package:html/parser.dart' as html_parser;
 import 'package:xml/xml.dart';
 
+import '../../services/app_log_service.dart';
 import '../database/app_database.dart';
 
 class PodcastImportResult {
@@ -74,6 +75,29 @@ class PodcastRepository {
     for (final show in await database.getPodcastShows()) {
       await refresh(show);
     }
+  }
+
+  /// Refreshes the subscribed shows not checked within [podcastAutoRefreshAge],
+  /// one at a time, for opening a screen without a manual refresh. A feed that
+  /// fails is logged and skipped so it cannot hold up the rest. Returns how
+  /// many shows were refreshed.
+  Future<int> refreshStale({DateTime? now}) async {
+    var refreshed = 0;
+    for (final show in await database.getPodcastShows()) {
+      if (!isPodcastShowStale(show, now: now)) continue;
+      try {
+        await refresh(show);
+        refreshed++;
+      } catch (error, stackTrace) {
+        AppLogger.warning(
+          'Podcast',
+          '自动刷新节目失败 show=${show.id}',
+          error: error,
+          stackTrace: stackTrace,
+        );
+      }
+    }
+    return refreshed;
   }
 
   Future<PodcastImportResult> storePreview(
@@ -361,6 +385,15 @@ ParsedPodcastFeed parsePodcastFeed(String source, {required String feedUrl}) {
     categories: _mergePodcastCategories(categories),
     episodes: episodes,
   );
+}
+
+/// How long a feed counts as fresh. Opening a show or the Podcasts shelf after
+/// that checks for new episodes without the reader asking.
+const podcastAutoRefreshAge = Duration(minutes: 30);
+
+bool isPodcastShowStale(PodcastShow show, {DateTime? now}) {
+  final checked = DateTime.fromMillisecondsSinceEpoch(show.lastRefreshedAt);
+  return (now ?? DateTime.now()).difference(checked) >= podcastAutoRefreshAge;
 }
 
 /// Some feeds file themselves under "Podcast(s)", which says nothing about

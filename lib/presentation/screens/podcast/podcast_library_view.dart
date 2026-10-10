@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -36,6 +38,24 @@ class _PodcastLibraryViewState extends ConsumerState<PodcastLibraryView> {
   void initState() {
     super.initState();
     _dataFuture = _loadData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_refreshStale());
+    });
+  }
+
+  /// New episodes arrive on their own: subscriptions not checked for a while
+  /// refresh in the background, quietly, when the shelf opens.
+  Future<void> _refreshStale() async {
+    if (_refreshing) return;
+    setState(() => _refreshing = true);
+    try {
+      final refreshed = await ref
+          .read(podcastRepositoryProvider)
+          .refreshStale();
+      if (refreshed > 0) _reloadData();
+    } finally {
+      if (mounted) setState(() => _refreshing = false);
+    }
   }
 
   Future<_PodcastLibraryData> _loadData() async {

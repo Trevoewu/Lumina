@@ -13,6 +13,7 @@ import '../../../core/providers.dart';
 import '../../../core/user_facing_error.dart';
 import '../../../data/database/app_database.dart';
 import '../../../data/podcasts/podcast_repository.dart';
+import '../../../services/app_log_service.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
 import '../../widgets/podcast_artwork.dart';
 import '../../widgets/tag_chips.dart';
@@ -53,6 +54,29 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
   bool _refreshing = false;
   PodcastEpisodeSortOrder _sortOrder = PodcastEpisodeSortOrder.newestFirst;
 
+  /// Episodes are read a page at a time; reaching the end asks for the next.
+  static const _pageSize = 30;
+  int _episodeLimit = _pageSize;
+  Stream<List<PodcastEpisode>>? _episodes;
+  bool _checkedFreshness = false;
+
+  /// One stream per limit and order, not one per rebuild.
+  Stream<List<PodcastEpisode>> _episodeStream(String showId) =>
+      _episodes ??= ref
+          .read(appDatabaseProvider)
+          .watchPodcastEpisodes(
+            showId,
+            limit: _episodeLimit,
+            newestFirst: _sortOrder == PodcastEpisodeSortOrder.newestFirst,
+          );
+
+  void _loadMoreEpisodes() {
+    setState(() {
+      _episodeLimit += _pageSize;
+      _episodes = null;
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -65,6 +89,13 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
         .getPodcastShow(widget.showId);
     if (show != null && show.categoriesJson == null) {
       unawaited(_enrichLegacyShow(show));
+    } else if (show != null && !_checkedFreshness && isPodcastShowStale(show)) {
+      // New episodes show up on their own; the refresh button is for when
+      // the reader wants to check again right now.
+      _checkedFreshness = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_refresh(show, quiet: true));
+      });
     }
     return show;
   }
@@ -146,110 +177,154 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
       );
     }
 
-    final database = ref.watch(appDatabaseProvider);
     final design = context.appDesign;
     final inset = design.pageInsetFor(MediaQuery.sizeOf(context).width);
     final categories = meaningfulPodcastCategories(
       decodePodcastCategories(show.categoriesJson),
     );
     return StreamBuilder<List<PodcastEpisode>>(
-      stream: database.watchPodcastEpisodes(show.id),
+      stream: _episodeStream(show.id),
       builder: (context, snapshot) {
         final episodes = snapshot.data ?? const <PodcastEpisode>[];
-        return ListView(
-          padding: EdgeInsets.fromLTRB(inset, design.spaceLg, inset, 120),
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                PodcastArtwork(imageUrl: show.imageUrl, size: 126),
-                const SizedBox(width: 18),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+        final mayHaveMore = episodes.length >= _episodeLimit;
+        final header = <Widget>[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              PodcastArtwork(imageUrl: show.imageUrl, size: 126),
+              const SizedBox(width: 18),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      show.title,
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
+                            color: context.appTextPrimary,
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                    if (show.author != null && show.author!.isNotEmpty) ...[
+                      const SizedBox(height: 8),
                       Text(
-                        show.title,
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(
-                              color: context.appTextPrimary,
-                              fontWeight: FontWeight.w800,
-                            ),
-                      ),
-                      if (show.author != null && show.author!.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          show.author!,
-                          style: TextStyle(color: context.appTextSecondary),
-                        ),
-                      ],
-                      const SizedBox(height: 16),
-                      FilledButton.icon(
-                        onPressed: episodes.isEmpty
-                            ? null
-                            : () => _openEpisode(episodes.first.id),
-                        icon: const AppIcon(AppIcons.play),
-                        label: Text(context.tr('播放最新', 'Play latest', '最新を再生')),
+                        show.author!,
+                        style: TextStyle(color: context.appTextSecondary),
                       ),
                     ],
-                  ),
+                    const SizedBox(height: 16),
+                    FilledButton.icon(
+                      onPressed: episodes.isEmpty
+                          ? null
+                          : () => _playLatest(show),
+                      icon: const AppIcon(AppIcons.play),
+                      label: Text(context.tr('播放最新', 'Play latest', '最新を再生')),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            if (categories.isNotEmpty) ...[
-              SizedBox(height: design.spaceMd),
-              TagChips(
-                tags: categories,
-                onSelected: (category) => openSearchFor(context, category),
               ),
             ],
-            if (show.description.isNotEmpty) ...[
-              SizedBox(height: design.spaceLg),
-              PodcastExpandableDescription(text: show.description),
-            ],
-            SizedBox(height: design.spaceXl),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    context.tr('所有单集', 'All episodes', 'すべてのエピソード'),
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: context.appTextPrimary,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                if (episodes.isNotEmpty) _buildSortMenu(context),
-              ],
+          ),
+          if (categories.isNotEmpty) ...[
+            SizedBox(height: design.spaceMd),
+            TagChips(
+              tags: categories,
+              onSelected: (category) => openSearchFor(context, category),
             ),
-            const SizedBox(height: 8),
-            if (episodes.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 32),
+          ],
+          if (show.description.isNotEmpty) ...[
+            SizedBox(height: design.spaceLg),
+            PodcastExpandableDescription(text: show.description),
+          ],
+          SizedBox(height: design.spaceXl),
+          Row(
+            children: [
+              Expanded(
                 child: Text(
-                  context.tr(
-                    'Feed 中没有可播放的单集',
-                    'No playable episodes',
-                    'フィードに再生できるエピソードがありません',
+                  context.tr('所有单集', 'All episodes', 'すべてのエピソード'),
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: context.appTextPrimary,
+                    fontWeight: FontWeight.w800,
                   ),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: context.appTextSecondary),
                 ),
-              )
-            else
-              for (final episode in _applySort(episodes))
-                PodcastEpisodeTile(
-                  episode: episode,
-                  enableSwipeActions: true,
-                  onTap: () => _openEpisode(episode.id),
+              ),
+              if (episodes.isNotEmpty) _buildSortMenu(context),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (episodes.isEmpty && snapshot.hasData)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 32),
+              child: Text(
+                context.tr(
+                  'Feed 中没有可播放的单集',
+                  'No playable episodes',
+                  'フィードに再生できるエピソードがありません',
                 ),
+                textAlign: TextAlign.center,
+                style: TextStyle(color: context.appTextSecondary),
+              ),
+            ),
+        ];
+        return CustomScrollView(
+          slivers: [
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(inset, design.spaceLg, inset, 0),
+              sliver: SliverList.list(children: header),
+            ),
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(inset, 0, inset, 120),
+              // Built as they scroll into view; nearing the end of what is
+              // loaded asks for the next page.
+              sliver: SliverList.builder(
+                itemCount: episodes.length + (mayHaveMore ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (index >= episodes.length) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted && episodes.length >= _episodeLimit) {
+                        _loadMoreEpisodes();
+                      }
+                    });
+                    return const Padding(
+                      key: ValueKey('podcast-episodes-loading-more'),
+                      padding: EdgeInsets.symmetric(vertical: 20),
+                      child: Center(
+                        child: SizedBox.square(
+                          dimension: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2.5),
+                        ),
+                      ),
+                    );
+                  }
+                  final episode = episodes[index];
+                  return PodcastEpisodeTile(
+                    key: ValueKey('podcast-episode-${episode.id}'),
+                    episode: episode,
+                    enableSwipeActions: true,
+                    onTap: () => _openEpisode(episode.id),
+                  );
+                },
+              ),
+            ),
           ],
         );
       },
     );
   }
 
-  Future<void> _refresh(PodcastShow show) async {
+  Future<void> _playLatest(PodcastShow show) async {
+    final latest = await ref
+        .read(appDatabaseProvider)
+        .watchPodcastEpisodes(show.id, limit: 1)
+        .first;
+    if (!mounted || latest.isEmpty) return;
+    _openEpisode(latest.first.id);
+  }
+
+  /// [quiet] is the automatic check on opening: a failure is logged, not
+  /// shown, since the reader did not ask for it.
+  Future<void> _refresh(PodcastShow show, {bool quiet = false}) async {
+    if (_refreshing) return;
     setState(() => _refreshing = true);
     try {
       await ref.read(podcastRepositoryProvider).refresh(show);
@@ -260,8 +335,15 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
               .getPodcastShow(widget.showId);
         });
       }
-    } catch (error) {
-      if (mounted) {
+    } catch (error, stackTrace) {
+      if (quiet) {
+        AppLogger.warning(
+          'Podcast',
+          '打开节目时自动刷新失败 show=${show.id}',
+          error: error,
+          stackTrace: stackTrace,
+        );
+      } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -324,26 +406,6 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
     openPodcastEpisodePlayer(context, episodeId: episodeId);
   }
 
-  List<PodcastEpisode> _applySort(List<PodcastEpisode> episodes) {
-    if (episodes.isEmpty) return episodes;
-    final list = List<PodcastEpisode>.of(episodes);
-    switch (_sortOrder) {
-      case PodcastEpisodeSortOrder.newestFirst:
-        list.sort((a, b) {
-          final cmp = b.publishedAt.compareTo(a.publishedAt);
-          if (cmp != 0) return cmp;
-          return a.id.compareTo(b.id);
-        });
-      case PodcastEpisodeSortOrder.oldestFirst:
-        list.sort((a, b) {
-          final cmp = a.publishedAt.compareTo(b.publishedAt);
-          if (cmp != 0) return cmp;
-          return a.id.compareTo(b.id);
-        });
-    }
-    return list;
-  }
-
   Widget _buildSortMenu(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return PopupMenuButton<PodcastEpisodeSortOrder>(
@@ -359,7 +421,12 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
       initialValue: _sortOrder,
       onSelected: (order) {
         if (_sortOrder != order) {
-          setState(() => _sortOrder = order);
+          // The database sorts, so a new order starts again from page one.
+          setState(() {
+            _sortOrder = order;
+            _episodeLimit = _pageSize;
+            _episodes = null;
+          });
         }
       },
       itemBuilder: (context) => [

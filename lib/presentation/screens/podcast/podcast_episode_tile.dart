@@ -135,10 +135,11 @@ class _PodcastEpisodeTileState extends ConsumerState<PodcastEpisodeTile> {
                 ),
                 if (resolvedEpisode.isPlayed) ...[
                   const SizedBox(width: 6),
+                  // A small mark beside the row, not a second focal point.
                   AppIcon(
                     AppIcons.checkmarkCircle02,
                     color: context.appTextSecondary,
-                    size: 32,
+                    size: 18,
                   ),
                 ],
                 if (_downloading) ...[

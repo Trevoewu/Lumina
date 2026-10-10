@@ -1244,7 +1244,14 @@ class AppDatabase extends _$AppDatabase {
   Future<void> upsertPodcastShow(PodcastShow show) =>
       into(podcastShows).insertOnConflictUpdate(show);
 
-  Stream<List<PodcastEpisode>> watchPodcastEpisodes(String showId) {
+  /// A show's visible episodes, newest first unless [newestFirst] is false,
+  /// and at most [limit] of them so a long-running show is read a page at a
+  /// time.
+  Stream<List<PodcastEpisode>> watchPodcastEpisodes(
+    String showId, {
+    int? limit,
+    bool newestFirst = true,
+  }) {
     final query =
         select(podcastEpisodes).join([
             leftOuterJoin(
@@ -1257,7 +1264,13 @@ class AppDatabase extends _$AppDatabase {
             podcastEpisodes.showId.equals(showId) &
                 hiddenPodcastEpisodes.episodeId.isNull(),
           )
-          ..orderBy([OrderingTerm.desc(podcastEpisodes.publishedAt)]);
+          ..orderBy([
+            newestFirst
+                ? OrderingTerm.desc(podcastEpisodes.publishedAt)
+                : OrderingTerm.asc(podcastEpisodes.publishedAt),
+            OrderingTerm.asc(podcastEpisodes.id),
+          ]);
+    if (limit != null) query.limit(limit);
     return query.watch().map(
       (rows) => [for (final row in rows) row.readTable(podcastEpisodes)],
     );
