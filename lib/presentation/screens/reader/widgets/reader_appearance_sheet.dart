@@ -144,23 +144,42 @@ class _ReaderMenu<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (usesNativeMenus) {
-      return SizedBox(
+      return AppNativeChoiceMenu<T>(
         key: menuKey,
-        height: 36,
-        child: Center(
-          child: AppNativeChoiceMenu<T>(
-            choices: options,
-            selected: value,
-            color: context.appTextPrimary,
-            // This menu sits in the appearance sheet.
-            insideModal: true,
-            onSelected: onSelected,
-          ),
-        ),
+        choices: options,
+        selected: value,
+        // This menu sits in the appearance sheet.
+        insideModal: true,
+        onSelected: onSelected,
+        child: _trigger(context),
       );
     }
     return _buildFlutter(context);
   }
+
+  /// The current choice as a pill with a chevron; the menu opens from it.
+  Widget _trigger(BuildContext context) => Container(
+    height: 36,
+    padding: const EdgeInsets.symmetric(horizontal: 8),
+    decoration: BoxDecoration(
+      color: context.appTextPrimary.withValues(alpha: .025),
+      borderRadius: BorderRadius.circular(22),
+    ),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 13),
+          ),
+        ),
+        Icon(Icons.chevron_right, size: 16, color: context.appTextSecondary),
+      ],
+    ),
+  );
 
   Widget _buildFlutter(BuildContext context) => PopupMenuButton<T>(
     key: menuKey,
@@ -176,27 +195,6 @@ class _ReaderMenu<T> extends StatelessWidget {
           ),
         )
         .toList(),
-    child: Container(
-      height: 36,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        color: context.appTextPrimary.withValues(alpha: .025),
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 13),
-            ),
-          ),
-          Icon(Icons.chevron_right, size: 16, color: context.appTextSecondary),
-        ],
-      ),
-    ),
+    child: _trigger(context),
   );
 }

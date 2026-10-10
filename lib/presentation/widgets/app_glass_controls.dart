@@ -205,16 +205,19 @@ Future<T?> showAppGlassMenu<T>({
   );
 }
 
-/// A value picker — the current choice as a button, the choices in a menu
-/// with it checked — as iOS 26's native pull-down menu. Callers keep their
-/// Flutter menu for [usesNativeMenus] being false.
+/// A value picker that opens iOS 26's native pull-down menu, with the
+/// current choice checked. The trigger keeps the app's own look ([child]):
+/// an invisible native button lies over it to take the tap and anchor the
+/// menu, since a native button's own label is drawn at the system's large
+/// size with no sign that it opens anything. Callers keep their Flutter menu
+/// for [usesNativeMenus] being false.
 class AppNativeChoiceMenu<T> extends StatelessWidget {
   const AppNativeChoiceMenu({
     super.key,
     required this.choices,
     required this.selected,
     required this.onSelected,
-    this.color,
+    required this.child,
     this.insideModal = false,
   });
 
@@ -223,8 +226,8 @@ class AppNativeChoiceMenu<T> extends StatelessWidget {
   final T selected;
   final ValueChanged<T> onSelected;
 
-  /// The button label's colour; the secondary text colour by default.
-  final Color? color;
+  /// What the reader sees: the current choice in the app's style.
+  final Widget child;
 
   /// True inside a sheet or dialog. The native button otherwise hides itself
   /// whenever any modal is open, which would include the one it sits in.
@@ -233,20 +236,31 @@ class AppNativeChoiceMenu<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final values = choices.keys.toList(growable: false);
-    return CNPopupMenuButton(
-      buttonLabel: choices[selected] ?? '',
-      buttonStyle: CNButtonStyle.plain,
-      tint: color ?? Theme.of(context).colorScheme.onSurfaceVariant,
-      height: 36,
-      shrinkWrap: true,
-      autoHideOnModal: !insideModal,
-      items: [
-        for (final value in values)
-          CNPopupMenuItem(label: choices[value]!, checked: value == selected),
+    return Stack(
+      children: [
+        child,
+        Positioned.fill(
+          child: CNPopupMenuButton(
+            buttonLabel: choices[selected] ?? '',
+            buttonStyle: CNButtonStyle.plain,
+            // Present for the tap and the menu's anchor; [child] is the look.
+            tint: Colors.transparent,
+            autoHideOnModal: !insideModal,
+            items: [
+              for (final value in values)
+                CNPopupMenuItem(
+                  label: choices[value]!,
+                  checked: value == selected,
+                ),
+            ],
+            onSelected: (index) {
+              if (index >= 0 && index < values.length) {
+                onSelected(values[index]);
+              }
+            },
+          ),
+        ),
       ],
-      onSelected: (index) {
-        if (index >= 0 && index < values.length) onSelected(values[index]);
-      },
     );
   }
 }

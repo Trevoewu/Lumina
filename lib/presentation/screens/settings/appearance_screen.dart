@@ -561,6 +561,34 @@ class _ThemePaletteCard extends StatelessWidget {
     required this.onUpdateColor,
   });
 
+  /// The current preset as a small pill; the menu opens from it.
+  Widget _presetPill(ColorScheme scheme, String label) => Container(
+      padding: const EdgeInsets.fromLTRB(12, 7, 8, 7),
+      decoration: BoxDecoration(
+        color: scheme.onSurface.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.normal,
+              color: scheme.onSurface,
+            ),
+          ),
+          const SizedBox(width: 4),
+          AppIcon(
+            AppIcons.arrowDown01,
+            size: 16,
+            color: scheme.onSurfaceVariant,
+          ),
+        ],
+      ),
+    );
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -599,8 +627,8 @@ class _ThemePaletteCard extends StatelessWidget {
                       for (final preset in presets) preset.id: preset.label,
                     },
                     selected: palette.presetId,
-                    color: scheme.onSurface,
                     onSelected: onSelectPreset,
+                    child: _presetPill(scheme, currentPreset.label),
                   )
                 else
                 PopupMenuButton<String>(
@@ -642,32 +670,7 @@ class _ThemePaletteCard extends StatelessWidget {
                         ),
                       ),
                   ],
-                  child: Container(
-                    padding: const EdgeInsets.fromLTRB(12, 7, 8, 7),
-                    decoration: BoxDecoration(
-                      color: scheme.onSurface.withValues(alpha: 0.06),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          currentPreset.label,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.normal,
-                            color: scheme.onSurface,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        AppIcon(
-                          AppIcons.arrowDown01,
-                          size: 16,
-                          color: scheme.onSurfaceVariant,
-                        ),
-                      ],
-                    ),
-                  ),
+                  child: _presetPill(scheme, currentPreset.label),
                 ),
               ],
             ),

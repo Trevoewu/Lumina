@@ -143,6 +143,7 @@ class _LanguageSettingsScreenState
               },
               selected: selected,
               onSelected: onSelected,
+              child: _menuValue(_languageLabel(selected)),
             )
           : PopupMenuButton<AppLanguage>(
         key: menuKey,

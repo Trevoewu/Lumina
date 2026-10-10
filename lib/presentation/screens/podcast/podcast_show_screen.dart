@@ -417,6 +417,28 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
   }
 
   Widget _buildSortMenu(BuildContext context) {
+    final trigger = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            _sortOrder.label(context),
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: context.appTextSecondary,
+            ),
+          ),
+          const SizedBox(width: 4),
+          AppIcon(
+            AppIcons.arrowUpDown,
+            size: 16,
+            color: context.appTextSecondary,
+          ),
+        ],
+      ),
+    );
     if (usesNativeMenus) {
       return AppNativeChoiceMenu<PodcastEpisodeSortOrder>(
         key: const ValueKey('podcast-episodes-sort-button'),
@@ -426,6 +448,7 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
         },
         selected: _sortOrder,
         onSelected: _setSortOrder,
+        child: trigger,
       );
     }
     final scheme = Theme.of(context).colorScheme;
@@ -452,28 +475,7 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
             ),
           ),
       ],
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              _sortOrder.label(context),
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: context.appTextSecondary,
-              ),
-            ),
-            const SizedBox(width: 4),
-            AppIcon(
-              AppIcons.arrowUpDown,
-              size: 16,
-              color: context.appTextSecondary,
-            ),
-          ],
-        ),
-      ),
+      child: trigger,
     );
   }
 
