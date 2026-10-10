@@ -23,6 +23,36 @@ String relativeTimeLabel(BuildContext context, int milliseconds) {
       return context.tr('$days 天前', '$days days ago', '$days日前');
     }
   }
-  return '${moment.year}-${moment.month.toString().padLeft(2, '0')}-'
-      '${moment.day.toString().padLeft(2, '0')}';
+  return shortDateLabel(context, moment);
+}
+
+const _englishMonths = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+/// "Sep 29" / "9月29日", with the year only when it is not this one, so an
+/// older date reads like the relative ones beside it rather than an ISO
+/// timestamp.
+String shortDateLabel(BuildContext context, DateTime moment) {
+  final thisYear = moment.year == DateTime.now().year;
+  final month = moment.month;
+  final day = moment.day;
+  return context.tr(
+    thisYear ? '$month月$day日' : '${moment.year}年$month月$day日',
+    thisYear
+        ? '${_englishMonths[month - 1]} $day'
+        : '${_englishMonths[month - 1]} $day, ${moment.year}',
+    thisYear ? '$month月$day日' : '${moment.year}年$month月$day日',
+  );
 }

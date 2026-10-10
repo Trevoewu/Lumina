@@ -2,38 +2,24 @@ import 'package:flutter/widgets.dart';
 
 import '../../../core/app_localizations.dart';
 
-/// [formatPodcastDuration] in the reader's language.
-String localizedPodcastDuration(BuildContext context, int milliseconds) {
-  if (milliseconds <= 0) return '';
-  if (context.usesChinese) return formatPodcastDuration(milliseconds);
-  final duration = Duration(milliseconds: milliseconds);
-  final hours = duration.inHours;
-  final minutes = duration.inMinutes.remainder(60);
-  if (hours > 0) return minutes == 0 ? '${hours}h' : '${hours}h ${minutes}m';
-  return '${duration.inMinutes.clamp(1, 9999)} min';
-}
-
-String formatPodcastDuration(int milliseconds) {
+/// An episode's length in the reader's language: "1h 35m" / "25 min",
+/// "1小时35分钟", "1時間35分".
+String formatPodcastDuration(BuildContext context, int milliseconds) {
   if (milliseconds <= 0) return '';
   final duration = Duration(milliseconds: milliseconds);
   final hours = duration.inHours;
   final minutes = duration.inMinutes.remainder(60);
-  if (hours > 0) return '$hours小时${minutes == 0 ? '' : '$minutes分钟'}';
-  return '${duration.inMinutes.clamp(1, 9999)}分钟';
-}
-
-String formatPodcastDate(int milliseconds) {
-  if (milliseconds <= 0) return '';
-  final date = DateTime.fromMillisecondsSinceEpoch(milliseconds).toLocal();
-  final now = DateTime.now();
-  final difference = now.difference(date);
-  if (!difference.isNegative && difference.inDays == 0) return '今天';
-  if (!difference.isNegative && difference.inDays == 1) return '昨天';
-  if (!difference.isNegative && difference.inDays < 7) {
-    return '${difference.inDays}天前';
+  if (hours > 0) {
+    return minutes == 0
+        ? context.tr('$hours小时', '${hours}h', '$hours時間')
+        : context.tr(
+            '$hours小时$minutes分钟',
+            '${hours}h ${minutes}m',
+            '$hours時間$minutes分',
+          );
   }
-  return '${date.year}-${date.month.toString().padLeft(2, '0')}-'
-      '${date.day.toString().padLeft(2, '0')}';
+  final total = duration.inMinutes.clamp(1, 9999);
+  return context.tr('$total分钟', '$total min', '$total分');
 }
 
 String formatPlaybackTime(Duration duration) {

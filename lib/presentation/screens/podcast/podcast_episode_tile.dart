@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/app_colors.dart';
 import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
+import '../../../core/relative_time.dart';
 import '../../../data/database/app_database.dart';
 import '../../widgets/animated_pressable_card.dart';
 import '../../widgets/half_screen_action_sheet.dart';
@@ -58,8 +59,8 @@ class _PodcastEpisodeTileState extends ConsumerState<PodcastEpisodeTile> {
   Widget build(BuildContext context) {
     if (_removedFromList) return const SizedBox.shrink();
     final resolvedEpisode = _resolvedEpisode;
-    final date = formatPodcastDate(resolvedEpisode.publishedAt);
-    final duration = formatPodcastDuration(resolvedEpisode.durationMs);
+    final date = relativeTimeLabel(context, resolvedEpisode.publishedAt);
+    final duration = formatPodcastDuration(context, resolvedEpisode.durationMs);
     final metadata = [
       if (widget.showTitle != null && widget.showTitle!.isNotEmpty)
         widget.showTitle!,

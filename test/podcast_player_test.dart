@@ -1068,6 +1068,21 @@ void main() {
       find.byKey(const ValueKey('podcast-transcription-bar')),
       findsOneWidget,
     );
+    // The stage reads in the app's language, not as the service's Chinese
+    // log text.
+    expect(find.textContaining('正在'), findsNothing);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Text &&
+            const {
+              'Preparing on-device transcription',
+              'Saving the episode audio',
+              'Transcribing on device',
+            }.contains(widget.data),
+      ),
+      findsOneWidget,
+    );
     expect(find.byTooltip('Pause'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());

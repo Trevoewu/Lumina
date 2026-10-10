@@ -308,7 +308,7 @@ class _HomeOverviewContentState extends State<_HomeOverviewContent> {
         _HomeEntry(
           title: episode.title,
           subtitle: show?.title ?? 'Podcast',
-          meta: localizedPodcastDuration(context, episode.durationMs),
+          meta: formatPodcastDuration(context, episode.durationMs),
           when: relativeTimeLabel(context, episode.publishedAt),
           heroKicker: finished
               ? context.tr('再听一遍', 'LISTEN AGAIN', 'もう一度聴く')
@@ -316,7 +316,7 @@ class _HomeOverviewContentState extends State<_HomeOverviewContent> {
               ? context.tr('继续收听', 'CONTINUE LISTENING', '続きを聴く')
               : context.tr('开始收听', 'START LISTENING', '聴き始める'),
           heroPosition: finished
-              ? localizedPodcastDuration(context, episode.durationMs)
+              ? formatPodcastDuration(context, episode.durationMs)
               : episode.durationMs > 0
               ? '${formatPlaybackTime(position)} / '
                     '${formatPlaybackTime(duration)}'
@@ -332,7 +332,7 @@ class _HomeOverviewContentState extends State<_HomeOverviewContent> {
                   '${formatPlaybackTime(remaining)} left',
                   '残り ${formatPlaybackTime(remaining)}',
                 )
-              : localizedPodcastDuration(context, episode.durationMs),
+              : formatPodcastDuration(context, episode.durationMs),
           progress: finished
               ? 1
               : episode.durationMs <= 0

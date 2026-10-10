@@ -192,7 +192,7 @@ class _SavedEpisodeRow extends StatelessWidget {
     final meta = [
       ?show?.title,
       if (episode.durationMs > 0)
-        localizedPodcastDuration(context, episode.durationMs),
+        formatPodcastDuration(context, episode.durationMs),
     ].join(' · ');
     return InkWell(
       onTap: onTap,

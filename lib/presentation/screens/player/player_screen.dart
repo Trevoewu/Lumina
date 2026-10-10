@@ -3895,6 +3895,42 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
+  /// What the run is doing, in the reader's language. The service's own
+  /// progress messages are Chinese log text, so they are not shown.
+  String _transcriptionStageLabel(PodcastTranscriptionStage? stage) =>
+      switch (stage) {
+        PodcastTranscriptionStage.preparing => context.tr(
+          '正在准备本地转写',
+          'Preparing on-device transcription',
+          '端末での文字起こしを準備中',
+        ),
+        PodcastTranscriptionStage.downloadingModel => context.tr(
+          '正在下载语音识别模型',
+          'Downloading the speech model',
+          '音声認識モデルをダウンロード中',
+        ),
+        PodcastTranscriptionStage.downloadingAudio => context.tr(
+          '正在缓存单集音频',
+          'Saving the episode audio',
+          'エピソードの音声を保存中',
+        ),
+        PodcastTranscriptionStage.paused => context.tr(
+          '转写已暂停',
+          'Transcription paused',
+          '文字起こしを一時停止中',
+        ),
+        PodcastTranscriptionStage.complete => context.tr(
+          '转写完成',
+          'Transcription finished',
+          '文字起こしが完了しました',
+        ),
+        PodcastTranscriptionStage.transcribing || null => context.tr(
+          '正在设备上转写',
+          'Transcribing on device',
+          '端末で文字起こし中',
+        ),
+      };
+
   /// Shown in the empty transcript while an episode is being transcribed or
   /// has a paused run with nothing to read yet: how far it got, and
   /// pause/resume and restart.
@@ -3988,12 +4024,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 const SizedBox(height: 10),
                 Text(
                   _transcribingPodcast
-                      ? currentProgress?.message ??
-                            context.tr(
-                              '正在本地转写',
-                              'Transcribing locally',
-                              'ローカルで文字起こし中',
-                            )
+                      ? _transcriptionStageLabel(currentProgress?.stage)
                       : paused
                       ? context.tr(
                           '转写已暂停',
@@ -4921,7 +4952,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           current: episode.id == currentId,
           title: episode.title,
           // The show is already named above the list.
-          subtitle: localizedPodcastDuration(context, episode.durationMs),
+          subtitle: formatPodcastDuration(context, episode.durationMs),
           leading: PodcastArtwork(
             imageUrl: episode.imageUrl ?? data.show.imageUrl,
             size: 50,

@@ -6,6 +6,7 @@ import '../../../core/app_colors.dart';
 import '../../../core/app_design_tokens.dart';
 import '../../../core/app_localizations.dart';
 import '../../../core/providers.dart';
+import '../../../core/user_facing_error.dart';
 import '../../../data/database/app_database.dart';
 import '../../widgets/podcast_artwork.dart';
 import 'podcast_episode_screen.dart';
@@ -199,9 +200,14 @@ class _PodcastLibraryViewState extends ConsumerState<PodcastLibraryView> {
       refreshed = true;
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('刷新失败：$error')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${context.tr('刷新失败', 'Could not refresh', '更新できませんでした')}: '
+              '${userFacingErrorMessage(context, error)}',
+            ),
+          ),
+        );
       }
     } finally {
       if (mounted) {

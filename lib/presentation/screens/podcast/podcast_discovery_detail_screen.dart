@@ -94,9 +94,14 @@ class _PodcastDiscoveryDetailScreenState
       await _openSubscribedShow(result.show.id, replace: true);
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('订阅失败：$error')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${context.tr('订阅失败', 'Could not subscribe', '購読できませんでした')}: '
+              '${userFacingErrorMessage(context, error)}',
+            ),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _subscribing = false);
@@ -331,7 +336,8 @@ class _PreviewEpisodeTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final metadata = <String>[
-      if (episode.durationMs > 0) formatPodcastDuration(episode.durationMs),
+      if (episode.durationMs > 0)
+        formatPodcastDuration(context, episode.durationMs),
       context.tr('可直接试听', 'Preview available', '試聴できます'),
     ].join(' · ');
     return InkWell(
