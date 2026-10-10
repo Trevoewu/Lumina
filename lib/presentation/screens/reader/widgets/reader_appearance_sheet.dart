@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/appearance.dart';
 import '../../../../core/app_colors.dart';
 import '../../../../core/app_localizations.dart';
+import '../../../widgets/app_glass_controls.dart';
 
 Future<void> showReaderAppearanceSheet(BuildContext context) =>
     showModalBottomSheet<void>(
@@ -141,7 +142,27 @@ class _ReaderMenu<T> extends StatelessWidget {
     required this.onSelected,
   });
   @override
-  Widget build(BuildContext context) => PopupMenuButton<T>(
+  Widget build(BuildContext context) {
+    if (usesNativeMenus) {
+      return SizedBox(
+        key: menuKey,
+        height: 36,
+        child: Center(
+          child: AppNativeChoiceMenu<T>(
+            choices: options,
+            selected: value,
+            color: context.appTextPrimary,
+            // This menu sits in the appearance sheet.
+            insideModal: true,
+            onSelected: onSelected,
+          ),
+        ),
+      );
+    }
+    return _buildFlutter(context);
+  }
+
+  Widget _buildFlutter(BuildContext context) => PopupMenuButton<T>(
     key: menuKey,
     tooltip: label,
     initialValue: value,

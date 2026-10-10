@@ -406,7 +406,28 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
     openPodcastEpisodePlayer(context, episodeId: episodeId);
   }
 
+  void _setSortOrder(PodcastEpisodeSortOrder order) {
+    if (_sortOrder == order) return;
+    // The database sorts, so a new order starts again from page one.
+    setState(() {
+      _sortOrder = order;
+      _episodeLimit = _pageSize;
+      _episodes = null;
+    });
+  }
+
   Widget _buildSortMenu(BuildContext context) {
+    if (usesNativeMenus) {
+      return AppNativeChoiceMenu<PodcastEpisodeSortOrder>(
+        key: const ValueKey('podcast-episodes-sort-button'),
+        choices: {
+          for (final order in PodcastEpisodeSortOrder.values)
+            order: order.label(context),
+        },
+        selected: _sortOrder,
+        onSelected: _setSortOrder,
+      );
+    }
     final scheme = Theme.of(context).colorScheme;
     return PopupMenuButton<PodcastEpisodeSortOrder>(
       key: const ValueKey('podcast-episodes-sort-button'),
@@ -419,16 +440,7 @@ class _PodcastShowScreenState extends ConsumerState<PodcastShowScreen> {
         borderRadius: BorderRadius.circular(context.appDesign.radiusSmall),
       ),
       initialValue: _sortOrder,
-      onSelected: (order) {
-        if (_sortOrder != order) {
-          // The database sorts, so a new order starts again from page one.
-          setState(() {
-            _sortOrder = order;
-            _episodeLimit = _pageSize;
-            _episodes = null;
-          });
-        }
-      },
+      onSelected: _setSortOrder,
       itemBuilder: (context) => [
         for (final order in PodcastEpisodeSortOrder.values)
           PopupMenuItem(

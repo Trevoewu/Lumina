@@ -7,6 +7,7 @@ import '../../../core/app_localizations.dart';
 import '../../../core/app_preferences.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
 import '../../widgets/design_system/settings_components.dart';
+import '../../widgets/app_glass_controls.dart';
 
 class LanguageSettingsScreen extends ConsumerStatefulWidget {
   const LanguageSettingsScreen({super.key});
@@ -130,8 +131,20 @@ class _LanguageSettingsScreenState
       icon: icon,
       title: title,
       subtitle: subtitle,
-      onTap: () => menuKey.currentState?.showButtonMenu(),
-      trailing: PopupMenuButton<AppLanguage>(
+      // A native menu opens from its own button only.
+      onTap: usesNativeMenus
+          ? null
+          : () => menuKey.currentState?.showButtonMenu(),
+      trailing: usesNativeMenus
+          ? AppNativeChoiceMenu<AppLanguage>(
+              choices: {
+                for (final language in AppLanguage.values)
+                  language: _languageLabel(language),
+              },
+              selected: selected,
+              onSelected: onSelected,
+            )
+          : PopupMenuButton<AppLanguage>(
         key: menuKey,
         tooltip: context.tr('选择语言', 'Choose language', '言語を選択'),
         position: PopupMenuPosition.under,

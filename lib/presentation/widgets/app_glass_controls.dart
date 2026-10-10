@@ -204,3 +204,49 @@ Future<T?> showAppGlassMenu<T>({
     items: [_GlassMenuEntries<T>(entries: items)],
   );
 }
+
+/// A value picker — the current choice as a button, the choices in a menu
+/// with it checked — as iOS 26's native pull-down menu. Callers keep their
+/// Flutter menu for [usesNativeMenus] being false.
+class AppNativeChoiceMenu<T> extends StatelessWidget {
+  const AppNativeChoiceMenu({
+    super.key,
+    required this.choices,
+    required this.selected,
+    required this.onSelected,
+    this.color,
+    this.insideModal = false,
+  });
+
+  /// Each choice and its label, in menu order.
+  final Map<T, String> choices;
+  final T selected;
+  final ValueChanged<T> onSelected;
+
+  /// The button label's colour; the secondary text colour by default.
+  final Color? color;
+
+  /// True inside a sheet or dialog. The native button otherwise hides itself
+  /// whenever any modal is open, which would include the one it sits in.
+  final bool insideModal;
+
+  @override
+  Widget build(BuildContext context) {
+    final values = choices.keys.toList(growable: false);
+    return CNPopupMenuButton(
+      buttonLabel: choices[selected] ?? '',
+      buttonStyle: CNButtonStyle.plain,
+      tint: color ?? Theme.of(context).colorScheme.onSurfaceVariant,
+      height: 36,
+      shrinkWrap: true,
+      autoHideOnModal: !insideModal,
+      items: [
+        for (final value in values)
+          CNPopupMenuItem(label: choices[value]!, checked: value == selected),
+      ],
+      onSelected: (index) {
+        if (index >= 0 && index < values.length) onSelected(values[index]);
+      },
+    );
+  }
+}

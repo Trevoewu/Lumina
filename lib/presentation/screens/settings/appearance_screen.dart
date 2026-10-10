@@ -12,6 +12,7 @@ import '../../../core/appearance.dart';
 import '../../widgets/collapsing_page_scaffold.dart';
 import '../../widgets/design_system/settings_components.dart';
 import 'app_icon_picker.dart';
+import '../../widgets/app_glass_controls.dart';
 
 class AppearanceScreen extends ConsumerWidget {
   const AppearanceScreen({super.key});
@@ -592,6 +593,16 @@ class _ThemePaletteCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 4),
                 ],
+                if (usesNativeMenus)
+                  AppNativeChoiceMenu<String>(
+                    choices: {
+                      for (final preset in presets) preset.id: preset.label,
+                    },
+                    selected: palette.presetId,
+                    color: scheme.onSurface,
+                    onSelected: onSelectPreset,
+                  )
+                else
                 PopupMenuButton<String>(
                   initialValue: palette.presetId,
                   tooltip: context.tr('选择预设', 'Select Preset', 'プリセットを選択'),
