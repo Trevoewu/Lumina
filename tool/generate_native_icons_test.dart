@@ -16,6 +16,7 @@ void main() {
       'search': HugeIcons.strokeRoundedSearch01,
       'dictionary': HugeIcons.strokeRoundedBookOpen01,
       'more': HugeIcons.strokeRoundedMoreHorizontal,
+      'timer': HugeIcons.strokeRoundedTimer01,
       'back': HugeIcons.strokeRoundedArrowLeft01,
     };
     for (final entry in icons.entries) {

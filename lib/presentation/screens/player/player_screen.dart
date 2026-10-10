@@ -7,6 +7,7 @@ import 'dart:math' as math;
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/cupertino.dart' show showCupertinoSheet;
+import 'package:cupertino_native_better/cupertino_native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/scheduler.dart';
@@ -4687,15 +4688,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Builder(
-              builder: (anchorContext) => AppControlTextButton(
-                key: const ValueKey('player-speed-toggle'),
-                tooltip: context.tr('播放倍速', 'Playback speed', '再生速度'),
-                label: '${_speed.toStringAsFixed(1)}x',
-                color: speedIsCustomized ? accent : secondaryColor,
-                onPressed: () => _showSpeedMenu(anchorContext),
+            if (usesNativeMenus)
+              _buildNativeSpeedMenu(
+                speedIsCustomized ? accent : secondaryColor,
+              )
+            else
+              Builder(
+                builder: (anchorContext) => AppControlTextButton(
+                  key: const ValueKey('player-speed-toggle'),
+                  tooltip: context.tr('播放倍速', 'Playback speed', '再生速度'),
+                  label: '${_speed.toStringAsFixed(1)}x',
+                  color: speedIsCustomized ? accent : secondaryColor,
+                  onPressed: () => _showSpeedMenu(anchorContext),
+                ),
               ),
-            ),
             IconButton(
               key: const ValueKey('player-backward-one-line'),
               tooltip: context.tr(
@@ -4775,6 +4781,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               builder: (context, timerSnapshot) {
                 final timerState =
                     timerSnapshot.data ?? const SleepTimerState.off();
+                if (usesNativeMenus) {
+                  return _buildNativeSleepTimerMenu(
+                    handler,
+                    timerState,
+                    timerState.active ? accent : secondaryColor,
+                  );
+                }
                 return Builder(
                   builder: (anchorContext) => AppControlIconButton(
                     key: const ValueKey('player-sleep-timer-toggle'),
@@ -5258,6 +5271,93 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       return '${duration.inHours}:$minutes:$seconds';
     }
     return '$minutes:$seconds';
+  }
+
+  /// Speeds offered by the native menu, which cannot hold the slider the
+  /// Flutter menu has; a speed set in between stays listed while in use.
+  static const _speedPresets = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0];
+
+  String _speedLabel(double speed) {
+    final text = speed.toStringAsFixed(2).replaceFirst(RegExp(r'0+$'), '');
+    return '${text.endsWith('.') ? text.substring(0, text.length - 1) : text}×';
+  }
+
+  Widget _buildNativeSpeedMenu(Color color) {
+    final current = (_speed * 100).round() / 100;
+    final speeds = {..._speedPresets, current}.toList()..sort();
+    return SizedBox(
+      key: const ValueKey('player-speed-toggle'),
+      width: 56,
+      height: 44,
+      child: CNPopupMenuButton(
+        buttonLabel: '${_speed.toStringAsFixed(1)}x',
+        buttonStyle: CNButtonStyle.plain,
+        tint: color,
+        height: 44,
+        items: [
+          for (final speed in speeds)
+            CNPopupMenuItem(
+              label: _speedLabel(speed),
+              checked: (speed - current).abs() < 0.001,
+            ),
+        ],
+        onSelected: (index) => unawaited(_applySpeed(speeds[index])),
+      ),
+    );
+  }
+
+  Widget _buildNativeSleepTimerMenu(
+    LuminaAudioHandler handler,
+    SleepTimerState state,
+    Color color,
+  ) {
+    final timerService = ref.read(sleepTimerServiceProvider);
+    const minutes = [15, 30, 45, 60];
+    final items = <CNPopupMenuEntry>[
+      for (final value in minutes)
+        CNPopupMenuItem(
+          label: context.tr('$value 分钟', '$value minutes', '$value分'),
+          checked:
+              state.mode == SleepTimerMode.duration &&
+              state.duration?.inMinutes == value,
+        ),
+      CNPopupMenuItem(
+        label: context.tr('本章结束', 'End of chapter', '章の終わり'),
+        checked: state.mode == SleepTimerMode.chapterEnd,
+      ),
+      if (state.active) ...[
+        const CNPopupMenuDivider(),
+        CNPopupMenuItem(label: context.tr('关闭定时', 'Turn off', 'タイマーをオフ')),
+      ],
+    ];
+    return SizedBox.square(
+      key: const ValueKey('player-sleep-timer-toggle'),
+      dimension: 44,
+      child: CNPopupMenuButton.icon(
+        buttonImageAsset: const CNImageAsset(
+          'assets/ui_icons/timer@3x.png',
+          size: 22,
+        ),
+        buttonStyle: CNButtonStyle.plain,
+        tint: color,
+        size: 44,
+        items: items,
+        onSelected: (index) {
+          if (index < minutes.length) {
+            unawaited(
+              timerService.scheduleDuration(
+                Duration(minutes: minutes[index]),
+                handler,
+              ),
+            );
+          } else if (index == minutes.length) {
+            unawaited(timerService.scheduleChapterEnd(handler));
+          } else {
+            unawaited(timerService.cancel());
+          }
+        },
+      ),
+    );
   }
 
   Future<void> _showSpeedMenu(BuildContext anchorContext) async {

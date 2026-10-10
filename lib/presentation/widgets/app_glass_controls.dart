@@ -63,7 +63,36 @@ class _AppGlassMenuButtonState<T> extends State<AppGlassMenuButton<T>> {
   final _menuKey = GlobalKey<PopupMenuButtonState<T>>();
 
   @override
-  Widget build(BuildContext context) => PopupMenuButton<T>(
+  Widget build(BuildContext context) {
+    if (usesNativeMenus) return _buildNative(context);
+    return _buildFlutter(context);
+  }
+
+  /// iOS 26's own pull-down menu: the system's animation, haptics and Liquid
+  /// Glass, drawn entirely by UIKit. The Flutter menu hosted a native glass
+  /// view inside a Material route, which stuttered as it opened.
+  Widget _buildNative(BuildContext context) {
+    final entries = widget.itemBuilder(context);
+    return SizedBox.square(
+      dimension: 44,
+      child: CNPopupMenuButton.icon(
+        buttonImageAsset: const CNImageAsset(
+          'assets/ui_icons/more@3x.png',
+          size: 22,
+        ),
+        tint: Theme.of(context).colorScheme.onSurface,
+        buttonStyle: CNButtonStyle.plain,
+        size: 44,
+        items: nativeMenuItems(entries),
+        onSelected: (index) {
+          final value = nativeMenuValue(entries, index);
+          if (value != null) widget.onSelected(value);
+        },
+      ),
+    );
+  }
+
+  Widget _buildFlutter(BuildContext context) => PopupMenuButton<T>(
     key: _menuKey,
     tooltip: widget.tooltip,
     padding: EdgeInsets.zero,
@@ -92,6 +121,40 @@ class _AppGlassMenuButtonState<T> extends State<AppGlassMenuButton<T>> {
     ),
   );
 }
+
+/// The native menu needs iOS 26; before it, the package would show an
+/// action sheet instead, so older systems keep the Flutter menu.
+bool get usesNativeMenus =>
+    defaultTargetPlatform == TargetPlatform.iOS &&
+    PlatformVersion.shouldUseNativeGlass;
+
+/// The same entries as native menu items, one for one so a selected index
+/// maps straight back. Labels come from each item's [Text].
+List<CNPopupMenuEntry> nativeMenuItems<T>(List<PopupMenuEntry<T>> entries) => [
+  for (final entry in entries)
+    if (entry is PopupMenuDivider)
+      const CNPopupMenuDivider()
+    else if (entry is PopupMenuItem<T>)
+      CNPopupMenuItem(
+        label: _labelOf(entry.child) ?? '',
+        enabled: entry.enabled,
+      )
+    else
+      const CNPopupMenuItem(label: '', enabled: false),
+];
+
+/// The value of the native item at [index], which counts dividers too.
+T? nativeMenuValue<T>(List<PopupMenuEntry<T>> entries, int index) {
+  if (index < 0 || index >= entries.length) return null;
+  final entry = entries[index];
+  return entry is PopupMenuItem<T> && entry.enabled ? entry.value : null;
+}
+
+String? _labelOf(Widget? child) => switch (child) {
+  Text(:final data?) => data,
+  Text(:final textSpan?) => textSpan.toPlainText(),
+  _ => null,
+};
 
 class _GlassMenuEntries<T> extends PopupMenuEntry<T> {
   const _GlassMenuEntries({required this.entries});
