@@ -6,15 +6,16 @@ import 'design_system/app_icon.dart';
 
 const _nowPlayingSymbolViewType = 'lumina/now_playing_symbol';
 
-/// The waveform that marks what is playing. On iOS it is the SF Symbol
-/// running the system's variable-colour effect while [animating]; elsewhere
-/// it is the app's still waveform icon.
-class NowPlayingIndicator extends StatelessWidget {
+/// A waveform for audio at work: what is playing in Up next, or a
+/// transcription getting ready. On iOS it is the SF Symbol running the
+/// system's variable-colour effect while [animating]; elsewhere it is the
+/// app's still waveform icon.
+class AnimatedWaveform extends StatelessWidget {
   final bool animating;
   final Color color;
   final double size;
 
-  const NowPlayingIndicator({
+  const AnimatedWaveform({
     super.key,
     required this.animating,
     required this.color,

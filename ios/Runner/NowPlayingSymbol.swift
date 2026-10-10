@@ -1,10 +1,10 @@
 import Flutter
 import UIKit
 
-/// The "now playing" waveform in the player's Up next list, drawn as the SF
-/// Symbol so it can run the system's variable-colour effect while audio
-/// plays. Flutter recreates the view when playback starts or stops, so the
-/// view only needs to know whether to animate.
+/// The player's waveform — what is playing in Up next, and a transcription
+/// getting ready — drawn as the SF Symbol so it can run the system's
+/// variable-colour effect. Flutter recreates the view when it should start or
+/// stop moving, so the view only needs to know whether to animate.
 final class NowPlayingSymbolFactory: NSObject, FlutterPlatformViewFactory {
   func create(
     withFrame frame: CGRect,

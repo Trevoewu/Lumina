@@ -52,7 +52,7 @@ import '../../widgets/book_style_cover.dart';
 import '../../widgets/podcast_artwork.dart';
 import '../../widgets/podcast_link_text.dart';
 import '../../widgets/synced_lyrics_list.dart';
-import '../../widgets/now_playing_indicator.dart';
+import '../../widgets/animated_waveform.dart';
 import '../../widgets/transcript_slider_track.dart';
 import '../../widgets/subtitle_seek_points.dart';
 import '../album/album_screen.dart';
@@ -3971,13 +3971,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                AppIcon(
-                  _transcribingPodcast
-                      ? AppIcons.audioWave01
-                      : AppIcons.subtitle,
-                  color: context.appTextSecondary,
-                  size: 34,
-                ),
+                if (_transcribingPodcast)
+                  // Moving while the run gets ready, so it reads as work
+                  // under way rather than a still label.
+                  AnimatedWaveform(
+                    animating: true,
+                    color: context.appTextSecondary,
+                    size: 34,
+                  )
+                else
+                  AppIcon(
+                    AppIcons.subtitle,
+                    color: context.appTextSecondary,
+                    size: 34,
+                  ),
                 const SizedBox(height: 10),
                 Text(
                   _transcribingPodcast
@@ -4100,7 +4107,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const AppIcon(AppIcons.subtitle, size: 34),
+                          if (running)
+                            AnimatedWaveform(
+                              animating: true,
+                              color: context.appTextSecondary,
+                              size: 34,
+                            )
+                          else
+                            const AppIcon(AppIcons.subtitle, size: 34),
                           const SizedBox(height: 12),
                           Text(
                             running
@@ -4955,15 +4969,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   /// Moves while audio plays and holds still when paused.
-  Widget _buildNowPlayingIndicator(Color color) {
+  Widget _buildAnimatedWaveform(Color color) {
     final handler = ref.read(luminaAudioHandlerProvider).asData?.value;
     if (handler == null) {
-      return NowPlayingIndicator(animating: false, color: color);
+      return AnimatedWaveform(animating: false, color: color);
     }
     return StreamBuilder<bool>(
       stream: handler.playbackState.map((state) => state.playing).distinct(),
       initialData: handler.playbackState.value.playing,
-      builder: (context, snapshot) => NowPlayingIndicator(
+      builder: (context, snapshot) => AnimatedWaveform(
         animating: snapshot.data ?? false,
         color: color,
       ),
@@ -5070,7 +5084,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         selected: entry.current,
                         selectedTileColor: accent.withValues(alpha: 0.08),
                         trailing: entry.current
-                            ? _buildNowPlayingIndicator(accent)
+                            ? _buildAnimatedWaveform(accent)
                             : null,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(
