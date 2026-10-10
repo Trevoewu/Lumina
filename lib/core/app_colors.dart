@@ -22,6 +22,10 @@ class AppColors {
   /// 错误提示
   static const Color error = Color(0xFFE22134);
 
+  /// A saved book or episode's heart: a soft red that still reads at about
+  /// 3.3:1 on the light background.
+  static const Color savedHeart = Color(0xFFE25C61);
+
   /// Lyrics use an immersive dark palette in every app theme.
   static const Color lyricsBackground = Color(0xFF0D1511);
   static const Color lyricsTextPrimary = Colors.white;

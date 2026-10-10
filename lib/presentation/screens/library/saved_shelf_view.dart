@@ -9,6 +9,7 @@ import '../../../data/database/app_database.dart';
 import '../../widgets/book_list_card.dart';
 import '../../widgets/design_system/app_icon.dart';
 import '../../widgets/podcast_artwork.dart';
+import '../../widgets/saved_heart.dart';
 import '../podcast/podcast_episode_screen.dart';
 import '../podcast/podcast_formatters.dart';
 
@@ -251,17 +252,10 @@ class _UnsaveButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = Theme.of(context).colorScheme.primary;
     return IconButton(
       tooltip: context.tr('取消收藏', 'Remove from Saved', '保存を解除'),
       onPressed: onPressed,
-      icon: Stack(
-        alignment: Alignment.center,
-        children: [
-          Icon(Icons.favorite, size: 19, color: accent),
-          AppIcon(AppIcons.favourite, color: accent),
-        ],
-      ),
+      icon: SavedHeart(saved: true, color: context.appTextPrimary),
     );
   }
 }

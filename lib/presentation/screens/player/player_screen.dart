@@ -55,6 +55,7 @@ import '../../widgets/synced_lyrics_list.dart';
 import '../../widgets/animated_waveform.dart';
 import '../../widgets/transcript_slider_track.dart';
 import '../../widgets/subtitle_seek_points.dart';
+import '../../widgets/saved_heart.dart';
 import '../album/album_screen.dart';
 import '../library/library_screen.dart';
 import '../podcast/podcast_formatters.dart';
@@ -3777,7 +3778,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         }),
       );
     }
-    final accent = Theme.of(context).colorScheme.primary;
     final isSaved = saved ?? false;
     return IconButton(
       key: const ValueKey('player-save-button'),
@@ -3794,17 +3794,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   .setSaved(target.kind, target.id, !isSaved);
               ref.read(libraryRevisionProvider.notifier).bump();
             },
-      // The icon set only has an outlined heart; the saved state lays a
-      // filled one in the accent under the same outline.
-      icon: isSaved
-          ? Stack(
-              alignment: Alignment.center,
-              children: [
-                Icon(Icons.favorite, size: 19, color: accent),
-                AppIcon(AppIcons.favourite, color: accent),
-              ],
-            )
-          : AppIcon(AppIcons.favourite, color: context.appTextPrimary),
+      icon: SavedHeart(saved: isSaved, color: context.appTextPrimary),
     );
   }
 
