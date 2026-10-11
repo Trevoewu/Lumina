@@ -3915,11 +3915,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           'Transcription finished',
           '文字起こしが完了しました',
         ),
-        PodcastTranscriptionStage.transcribing || null => context.tr(
-          '正在设备上转写',
-          'Transcribing on device',
-          '端末で文字起こし中',
-        ),
+        PodcastTranscriptionStage.transcribing ||
+        null => context.tr('正在设备上转写', 'Transcribing on device', '端末で文字起こし中'),
       };
 
   /// Shown in the empty transcript while an episode is being transcribed or
@@ -4689,9 +4686,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             if (usesNativeMenus)
-              _buildNativeSpeedMenu(
-                speedIsCustomized ? accent : secondaryColor,
-              )
+              _buildNativeSpeedMenu(speedIsCustomized ? accent : secondaryColor)
             else
               Builder(
                 builder: (anchorContext) => AppControlTextButton(
@@ -5011,10 +5006,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     return StreamBuilder<bool>(
       stream: handler.playbackState.map((state) => state.playing).distinct(),
       initialData: handler.playbackState.value.playing,
-      builder: (context, snapshot) => AnimatedWaveform(
-        animating: snapshot.data ?? false,
-        color: color,
-      ),
+      builder: (context, snapshot) =>
+          AnimatedWaveform(animating: snapshot.data ?? false, color: color),
     );
   }
 
@@ -5289,19 +5282,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       key: const ValueKey('player-speed-toggle'),
       width: 56,
       height: 44,
-      child: CNPopupMenuButton(
-        buttonLabel: '${_speed.toStringAsFixed(1)}x',
-        buttonStyle: CNButtonStyle.plain,
-        tint: color,
-        height: 44,
-        items: [
-          for (final speed in speeds)
-            CNPopupMenuItem(
-              label: _speedLabel(speed),
-              checked: (speed - current).abs() < 0.001,
-            ),
-        ],
-        onSelected: (index) => unawaited(_applySpeed(speeds[index])),
+      child: AppNativeWhenSettled(
+        placeholder: Center(
+          child: Text(
+            '${_speed.toStringAsFixed(1)}x',
+            style: TextStyle(color: color, fontSize: 17),
+          ),
+        ),
+        builder: (context) => CNPopupMenuButton(
+          buttonLabel: '${_speed.toStringAsFixed(1)}x',
+          buttonStyle: CNButtonStyle.plain,
+          tint: color,
+          height: 44,
+          items: [
+            for (final speed in speeds)
+              CNPopupMenuItem(
+                label: _speedLabel(speed),
+                checked: (speed - current).abs() < 0.001,
+              ),
+          ],
+          onSelected: (index) => unawaited(_applySpeed(speeds[index])),
+        ),
       ),
     );
   }
@@ -5333,29 +5334,34 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     return SizedBox.square(
       key: const ValueKey('player-sleep-timer-toggle'),
       dimension: 44,
-      child: CNPopupMenuButton.icon(
-        buttonImageAsset: const CNImageAsset(
-          'assets/ui_icons/timer@3x.png',
-          size: 22,
+      child: AppNativeWhenSettled(
+        placeholder: Center(
+          child: AppIcon(AppIcons.timer01, size: 22, color: color),
         ),
-        buttonStyle: CNButtonStyle.plain,
-        tint: color,
-        size: 44,
-        items: items,
-        onSelected: (index) {
-          if (index < minutes.length) {
-            unawaited(
-              timerService.scheduleDuration(
-                Duration(minutes: minutes[index]),
-                handler,
-              ),
-            );
-          } else if (index == minutes.length) {
-            unawaited(timerService.scheduleChapterEnd(handler));
-          } else {
-            unawaited(timerService.cancel());
-          }
-        },
+        builder: (context) => CNPopupMenuButton.icon(
+          buttonImageAsset: const CNImageAsset(
+            'assets/ui_icons/timer@3x.png',
+            size: 22,
+          ),
+          buttonStyle: CNButtonStyle.plain,
+          tint: color,
+          size: 44,
+          items: items,
+          onSelected: (index) {
+            if (index < minutes.length) {
+              unawaited(
+                timerService.scheduleDuration(
+                  Duration(minutes: minutes[index]),
+                  handler,
+                ),
+              );
+            } else if (index == minutes.length) {
+              unawaited(timerService.scheduleChapterEnd(handler));
+            } else {
+              unawaited(timerService.cancel());
+            }
+          },
+        ),
       ),
     );
   }

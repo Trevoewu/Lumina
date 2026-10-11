@@ -73,21 +73,27 @@ class _AppGlassMenuButtonState<T> extends State<AppGlassMenuButton<T>> {
   /// view inside a Material route, which stuttered as it opened.
   Widget _buildNative(BuildContext context) {
     final entries = widget.itemBuilder(context);
+    final color = Theme.of(context).colorScheme.onSurface;
     return SizedBox.square(
       dimension: 44,
-      child: CNPopupMenuButton.icon(
-        buttonImageAsset: const CNImageAsset(
-          'assets/ui_icons/more@3x.png',
-          size: 22,
+      child: AppNativeWhenSettled(
+        placeholder: Center(
+          child: AppIcon(AppIcons.moreHorizontal, size: 22, color: color),
         ),
-        tint: Theme.of(context).colorScheme.onSurface,
-        buttonStyle: CNButtonStyle.plain,
-        size: 44,
-        items: nativeMenuItems(entries),
-        onSelected: (index) {
-          final value = nativeMenuValue(entries, index);
-          if (value != null) widget.onSelected(value);
-        },
+        builder: (context) => CNPopupMenuButton.icon(
+          buttonImageAsset: const CNImageAsset(
+            'assets/ui_icons/more@3x.png',
+            size: 22,
+          ),
+          tint: color,
+          buttonStyle: CNButtonStyle.plain,
+          size: 44,
+          items: nativeMenuItems(entries),
+          onSelected: (index) {
+            final value = nativeMenuValue(entries, index);
+            if (value != null) widget.onSelected(value);
+          },
+        ),
       ),
     );
   }
@@ -240,27 +246,78 @@ class AppNativeChoiceMenu<T> extends StatelessWidget {
       children: [
         child,
         Positioned.fill(
-          child: CNPopupMenuButton(
-            buttonLabel: choices[selected] ?? '',
-            buttonStyle: CNButtonStyle.plain,
-            // Present for the tap and the menu's anchor; [child] is the look.
-            tint: Colors.transparent,
-            autoHideOnModal: !insideModal,
-            items: [
-              for (final value in values)
-                CNPopupMenuItem(
-                  label: choices[value]!,
-                  checked: value == selected,
-                ),
-            ],
-            onSelected: (index) {
-              if (index >= 0 && index < values.length) {
-                onSelected(values[index]);
-              }
-            },
+          child: AppNativeWhenSettled(
+            placeholder: const SizedBox.shrink(),
+            builder: (context) => CNPopupMenuButton(
+              buttonLabel: choices[selected] ?? '',
+              buttonStyle: CNButtonStyle.plain,
+              // Present for the tap and the menu's anchor; [child] is the look.
+              tint: Colors.transparent,
+              autoHideOnModal: !insideModal,
+              items: [
+                for (final value in values)
+                  CNPopupMenuItem(
+                    label: choices[value]!,
+                    checked: value == selected,
+                  ),
+              ],
+              onSelected: (index) {
+                if (index >= 0 && index < values.length) {
+                  onSelected(values[index]);
+                }
+              },
+            ),
           ),
         ),
       ],
     );
+  }
+}
+
+/// Builds a native control only once its page has finished sliding in, and
+/// [placeholder] until then. A UIKit view makes Flutter split the page into
+/// extra layers on iOS, and while the page moves those layers can show for
+/// a frame as a blank white block; the placeholder draws the same look.
+class AppNativeWhenSettled extends StatefulWidget {
+  const AppNativeWhenSettled({
+    super.key,
+    required this.placeholder,
+    required this.builder,
+  });
+
+  final Widget placeholder;
+  final WidgetBuilder builder;
+
+  @override
+  State<AppNativeWhenSettled> createState() => _AppNativeWhenSettledState();
+}
+
+class _AppNativeWhenSettledState extends State<AppNativeWhenSettled> {
+  Animation<double>? _animation;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final animation = ModalRoute.of(context)?.animation;
+    if (identical(animation, _animation)) return;
+    _animation?.removeStatusListener(_onStatus);
+    _animation = animation?..addStatusListener(_onStatus);
+  }
+
+  @override
+  void dispose() {
+    _animation?.removeStatusListener(_onStatus);
+    super.dispose();
+  }
+
+  void _onStatus(AnimationStatus _) {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final animation = _animation;
+    if (animation != null && !animation.isCompleted) return widget.placeholder;
+    return widget.builder(context);
   }
 }
