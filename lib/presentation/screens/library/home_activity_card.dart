@@ -5,232 +5,161 @@ import 'package:flutter/material.dart';
 import '../../../core/app_colors.dart';
 import '../../../core/app_localizations.dart';
 import '../../../domain/models/listening_statistics.dart';
+import '../../widgets/design_system/editorial_type.dart';
 
-/// Weeks of history in the activity heat map.
-const _heatmapWeeks = 18;
+/// Height of a day that reached the scale's top.
+const _barMaxHeight = 36.0;
+const _barWidth = 8.0;
 
-/// The one piece of the old Me tab worth keeping in view: the current streak
-/// and the listening heat map, together on Home. Home loads the listening
+/// The least a full-height bar can stand for.
+const _scaleFloorMs = 15 * 60000;
+
+/// The one piece of the old Me tab worth keeping in view: this week's
+/// listening, Monday to Sunday, with the current streak. It sits flat on the
+/// page under a kicker like Home's other sections. Home loads the listening
 /// days with the rest of its data and refreshes them on the same reloads.
-class HomeActivityCard extends StatelessWidget {
+class HomeWeekActivity extends StatelessWidget {
   final Map<String, int> dailyMs;
-  final int goalMinutes;
 
-  const HomeActivityCard({
-    super.key,
-    required this.dailyMs,
-    required this.goalMinutes,
-  });
+  const HomeWeekActivity({super.key, required this.dailyMs});
 
   @override
   Widget build(BuildContext context) {
     final summary = ListeningSummary.fromDailyMs(dailyMs);
+    final today = dateOnly(DateTime.now());
+    final monday = today.subtract(Duration(days: today.weekday - 1));
+    final days = [for (var i = 0; i < 7; i++) monday.add(Duration(days: i))];
+    final dayMs = [for (final day in days) dailyMs[listeningDateKey(day)] ?? 0];
+    // The week's longest day fills the height, so ordinary days still read
+    // as bars; the floor keeps one short session from looking like a lot.
+    final scaleMs = math.max(_scaleFloorMs, dayMs.reduce(math.max));
 
-    return Container(
-      key: const ValueKey('home-activity-card'),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
-      decoration: BoxDecoration(
-        color: context.appSurface,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _StreakLine(summary: summary),
-          const SizedBox(height: 14),
-          _Heatmap(dailyMs: dailyMs, goalMinutes: goalMinutes),
-          const SizedBox(height: 12),
-          const _Legend(),
-        ],
-      ),
-    );
-  }
-}
-
-class _StreakLine extends StatelessWidget {
-  final ListeningSummary summary;
-
-  const _StreakLine({required this.summary});
-
-  @override
-  Widget build(BuildContext context) {
-    final streak = summary.currentStreak;
-    final theme = Theme.of(context);
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.baseline,
-      textBaseline: TextBaseline.alphabetic,
+    return Column(
+      key: const ValueKey('home-week-activity'),
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Text(
-            streak > 0
-                ? context.tr(
-                    '连续收听 $streak 天',
-                    '$streak-day streak',
-                    '$streak日連続',
-                  )
-                : context.tr(
-                    '今天听一会儿，开始连续记录',
-                    'Listen today to start a streak',
-                    '今日聴いて連続記録を始めましょう',
-                  ),
-            key: const ValueKey('home-activity-streak'),
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: context.appTextPrimary,
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Text(
+              context.tr('本周', 'THIS WEEK', '今週'),
+              style: kickerTextStyle(context),
             ),
-          ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                _summaryLine(context, summary),
+                key: const ValueKey('home-week-summary'),
+                textAlign: TextAlign.end,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: technicalTextStyle(context, size: 12, alpha: 0.4),
+              ),
+            ),
+          ],
         ),
-        Text(
-          context.tr(
-            '本周 ${formatListeningTime(summary.thisWeekMs)}',
-            '${formatListeningTime(summary.thisWeekMs)} this week',
-            '今週 ${formatListeningTime(summary.thisWeekMs)}',
-          ),
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: context.appTextSecondary,
-            fontFeatures: const [FontFeature.tabularFigures()],
-          ),
+        const SizedBox(height: 14),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            for (final (index, day) in days.indexed)
+              Expanded(
+                child: _DayBar(
+                  date: day,
+                  listenedMs: dayMs[index],
+                  scaleMs: scaleMs,
+                  isToday: day == today,
+                  isFuture: day.isAfter(today),
+                ),
+              ),
+          ],
         ),
       ],
     );
   }
-}
 
-class _Heatmap extends StatelessWidget {
-  final Map<String, int> dailyMs;
-  final int goalMinutes;
-
-  const _Heatmap({required this.dailyMs, required this.goalMinutes});
-
-  @override
-  Widget build(BuildContext context) {
-    final today = dateOnly(DateTime.now());
-    final start = today.subtract(
-      Duration(days: (_heatmapWeeks - 1) * 7 + today.weekday - 1),
-    );
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        const gap = 4.0;
-        final cell = math.min(
-          14.0,
-          (constraints.maxWidth - (_heatmapWeeks - 1) * gap) / _heatmapWeeks,
-        );
-
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            for (var week = 0; week < _heatmapWeeks; week++)
-              Column(
-                children: [
-                  for (var weekday = 0; weekday < 7; weekday++) ...[
-                    if (weekday > 0) const SizedBox(height: gap),
-                    _HeatCell(
-                      date: start.add(Duration(days: week * 7 + weekday)),
-                      today: today,
-                      listenedMs:
-                          dailyMs[listeningDateKey(
-                            start.add(Duration(days: week * 7 + weekday)),
-                          )] ??
-                          0,
-                      goalMinutes: goalMinutes,
-                      size: cell,
-                    ),
-                  ],
-                ],
-              ),
-          ],
-        );
-      },
-    );
+  String _summaryLine(BuildContext context, ListeningSummary summary) {
+    final streak = summary.currentStreak;
+    if (streak == 0 && summary.thisWeekMs == 0) {
+      return context.tr(
+        '今天听一会儿，开始连续记录',
+        'Listen today to start a streak',
+        '今日聴いて連続記録を始めましょう',
+      );
+    }
+    final week = formatListeningTime(summary.thisWeekMs);
+    if (streak == 0) return week;
+    return '${context.tr('连续 $streak 天', '$streak-day streak', '$streak日連続')}'
+        ' · $week';
   }
 }
 
-Color _levelColor(BuildContext context, int level) => level == 0
-    ? context.appTextPrimary.withValues(alpha: 0.07)
-    : Theme.of(context).colorScheme.primary.withValues(alpha: 0.18 + level * 0.2);
-
-class _HeatCell extends StatelessWidget {
+class _DayBar extends StatelessWidget {
   final DateTime date;
-  final DateTime today;
   final int listenedMs;
-  final int goalMinutes;
-  final double size;
+  final int scaleMs;
+  final bool isToday;
+  final bool isFuture;
 
-  const _HeatCell({
+  const _DayBar({
     required this.date,
-    required this.today,
     required this.listenedMs,
-    required this.goalMinutes,
-    required this.size,
+    required this.scaleMs,
+    required this.isToday,
+    required this.isFuture,
   });
 
   @override
   Widget build(BuildContext context) {
-    final minutes = listenedMs / 60000;
-    final level = minutes >= goalMinutes
-        ? 4
-        : minutes >= goalMinutes * 0.66
-        ? 3
-        : minutes >= goalMinutes * 0.33
-        ? 2
-        : minutes > 0
-        ? 1
-        : 0;
+    final localizations = MaterialLocalizations.of(context);
+    final ink = context.appTextPrimary;
+    final accent = Theme.of(context).colorScheme.primary;
+    final listened = listenedMs > 0;
+    // An empty or upcoming day is a faint dot, so the week reads as a row.
+    final height = listened
+        ? math.max(_barWidth, _barMaxHeight * listenedMs / scaleMs)
+        : _barWidth / 2;
+    final color = !listened
+        ? ink.withValues(alpha: isFuture ? 0.06 : 0.14)
+        : isToday
+        ? accent
+        : accent.withValues(alpha: 0.45);
 
-    return Tooltip(
-      message: '${listeningDateKey(date)} · ${formatListeningTime(listenedMs)}',
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: date.isAfter(today)
-              ? Colors.transparent
-              : _levelColor(context, level),
-          borderRadius: BorderRadius.circular(3.5),
-          // A ring marks the days that met the daily goal.
-          border: level >= 4
-              ? Border.all(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.primary.withValues(alpha: 0.85),
-                  width: 1.5,
-                )
-              : null,
-        ),
-      ),
-    );
-  }
-}
-
-class _Legend extends StatelessWidget {
-  const _Legend();
-
-  @override
-  Widget build(BuildContext context) {
-    final style = Theme.of(context).textTheme.labelSmall?.copyWith(
-      fontWeight: FontWeight.w400,
-      color: context.appTextSecondary,
-    );
-
-    return Row(
-      children: [
-        Text(context.tr('少', 'Less', '少ない'), style: style),
-        const SizedBox(width: 6),
-        for (final level in const [0, 1, 2, 3, 4]) ...[
-          Container(
-            width: 11,
-            height: 11,
-            decoration: BoxDecoration(
-              color: _levelColor(context, level),
-              borderRadius: BorderRadius.circular(3.5),
+    return Semantics(
+      label:
+          '${localizations.formatFullDate(date)}, '
+          '${formatListeningTime(listenedMs)}',
+      excludeSemantics: true,
+      child: Column(
+        children: [
+          SizedBox(
+            height: _barMaxHeight,
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: Container(
+                width: listened ? _barWidth : _barWidth / 2,
+                height: height,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(_barWidth / 2),
+                ),
+              ),
             ),
           ),
-          const SizedBox(width: 4),
+          const SizedBox(height: 8),
+          Text(
+            // Narrow weekdays start on Sunday.
+            localizations.narrowWeekdays[date.weekday % 7],
+            style: technicalTextStyle(
+              context,
+              size: 11,
+              alpha: isToday ? 0.85 : 0.4,
+              weight: isToday ? FontWeight.w600 : FontWeight.w400,
+            ),
+          ),
         ],
-        const SizedBox(width: 2),
-        Text(context.tr('多', 'More', '多い'), style: style),
-      ],
+      ),
     );
   }
 }

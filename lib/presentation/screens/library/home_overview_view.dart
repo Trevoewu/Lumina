@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/app_colors.dart';
 import '../../../core/app_design_tokens.dart';
 import '../../../core/app_localizations.dart';
-import '../../../core/listening_goals.dart';
 import '../../../core/relative_time.dart';
 import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart';
@@ -88,8 +87,6 @@ class _HomeOverviewViewState extends ConsumerState<HomeOverviewView> {
       database.getFinishedChapterIndexesByBook(),
       database.getListeningDays(),
     ]);
-    // The heat map shades days against the daily goal.
-    await ref.read(listeningGoalsProvider.notifier).load();
     final books = results[0] as List<Book>;
     final shows = results[1] as List<PodcastShow>;
     final episodes = results[2] as List<PodcastEpisode>;
@@ -109,7 +106,6 @@ class _HomeOverviewViewState extends ConsumerState<HomeOverviewView> {
       dailyListeningMs: {
         for (final day in listeningDays) day.dateKey: day.listenedMs,
       },
-      dailyGoalMinutes: ref.read(listeningGoalsProvider).dailyMinutes,
     );
   }
 }
@@ -183,11 +179,8 @@ class _HomeOverviewContentState extends State<_HomeOverviewContent> {
           child: _HeroBlock(entry: hero),
         ),
         Padding(
-          padding: EdgeInsets.fromLTRB(listGutter, 28, listGutter, 0),
-          child: HomeActivityCard(
-            dailyMs: widget.data.dailyListeningMs,
-            goalMinutes: widget.data.dailyGoalMinutes,
-          ),
+          padding: EdgeInsets.fromLTRB(gutter, 34, gutter, 0),
+          child: HomeWeekActivity(dailyMs: widget.data.dailyListeningMs),
         ),
         if (feed.isNotEmpty) ...[
           Padding(
@@ -757,7 +750,6 @@ class _HomeOverviewData {
   final Map<String, PodcastShow> showsById;
   final Map<String, Set<int>> finishedChapterIndexesByBook;
   final Map<String, int> dailyListeningMs;
-  final int dailyGoalMinutes;
 
   const _HomeOverviewData({
     required this.books,
@@ -765,6 +757,5 @@ class _HomeOverviewData {
     required this.showsById,
     required this.finishedChapterIndexesByBook,
     required this.dailyListeningMs,
-    required this.dailyGoalMinutes,
   });
 }
