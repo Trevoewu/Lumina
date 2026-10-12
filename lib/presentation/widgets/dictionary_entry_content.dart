@@ -144,65 +144,75 @@ class _DictionaryEntryContentState extends State<DictionaryEntryContent> {
             title: flat
                 ? context.tr('词源与用法', 'ORIGIN & USAGE', '語源と用法')
                 : context.tr('词源与用法', 'Origin & usage', '語源と用法'),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ClipRect(
-                  child: AnimatedSize(
-                    duration: const Duration(milliseconds: 420),
-                    curve: const Cubic(0.2, 0.8, 0.2, 1),
-                    alignment: Alignment.topCenter,
-                    child: _longExpanded
-                        ? Text(entry.longExplanation!, style: prose)
-                        : ShaderMask(
-                            shaderCallback: (bounds) => const LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [Colors.black, Colors.transparent],
-                              stops: [0.52, 1],
-                            ).createShader(bounds),
-                            blendMode: BlendMode.dstIn,
-                            child: Text(
-                              entry.longExplanation!,
-                              maxLines: 4,
-                              style: prose,
-                            ),
-                          ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                GestureDetector(
-                  key: const ValueKey('dictionary-long-explanation-toggle'),
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => setState(() => _longExpanded = !_longExpanded),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+            // The page has room to read it whole; the sheet folds it away.
+            child: flat
+                ? Text(entry.longExplanation!, style: prose)
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        _longExpanded
-                            ? context.tr('收起', 'Show less', '折りたたむ')
-                            : context.tr('展开全文', 'Read more', '続きを読む'),
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: context.appTextSecondary,
+                      ClipRect(
+                        child: AnimatedSize(
+                          duration: const Duration(milliseconds: 420),
+                          curve: const Cubic(0.2, 0.8, 0.2, 1),
+                          alignment: Alignment.topCenter,
+                          child: _longExpanded
+                              ? Text(entry.longExplanation!, style: prose)
+                              : ShaderMask(
+                                  shaderCallback: (bounds) =>
+                                      const LinearGradient(
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        colors: [
+                                          Colors.black,
+                                          Colors.transparent,
+                                        ],
+                                        stops: [0.52, 1],
+                                      ).createShader(bounds),
+                                  blendMode: BlendMode.dstIn,
+                                  child: Text(
+                                    entry.longExplanation!,
+                                    maxLines: 4,
+                                    style: prose,
+                                  ),
+                                ),
                         ),
                       ),
-                      const SizedBox(width: 6),
-                      AnimatedRotation(
-                        duration: const Duration(milliseconds: 300),
-                        turns: _longExpanded ? 0.5 : 0,
-                        child: AppIcon(
-                          AppIcons.arrowDown01,
-                          size: 17,
-                          color: context.appTextSecondary,
+                      const SizedBox(height: 14),
+                      GestureDetector(
+                        key: const ValueKey(
+                          'dictionary-long-explanation-toggle',
+                        ),
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () =>
+                            setState(() => _longExpanded = !_longExpanded),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _longExpanded
+                                  ? context.tr('收起', 'Show less', '折りたたむ')
+                                  : context.tr('展开全文', 'Read more', '続きを読む'),
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: context.appTextSecondary,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            AnimatedRotation(
+                              duration: const Duration(milliseconds: 300),
+                              turns: _longExpanded ? 0.5 : 0,
+                              child: AppIcon(
+                                AppIcons.arrowDown01,
+                                size: 17,
+                                color: context.appTextSecondary,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
-                ),
-              ],
-            ),
           ),
         ],
         if (lookupContext != null && _hasText(lookupContext.sentence)) ...[
