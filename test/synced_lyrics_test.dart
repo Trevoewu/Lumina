@@ -1267,12 +1267,13 @@ void main() {
 
       await tester.tapAt(tester.getTopLeft(selectionText) + const Offset(8, 8));
       await tester.pump();
-      expect(
-        tester
-            .widget<FilledButton>(find.widgetWithText(FilledButton, 'Ask AI'))
-            .onPressed,
-        isNotNull,
+      final askAi = find.ancestor(
+        of: find.text('Ask AI'),
+        matching: find.byWidgetPredicate(
+          (widget) => widget is ButtonStyleButton,
+        ),
       );
+      expect(tester.widget<ButtonStyleButton>(askAi).onPressed, isNotNull);
     },
   );
 

@@ -2922,15 +2922,17 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
         spans.add(TextSpan(text: source.substring(cursor, token.start)));
       }
       final selected = _selectedTokenIndices.contains(index);
+      // A soft tint like the system's text selection; the words keep their
+      // ink, and unselected words carry no marks at all.
       spans.add(
         TextSpan(
           text: source.substring(token.start, token.end),
-          style: tokenStyle.copyWith(
-            color: selected ? Colors.black : context.appTextPrimary,
-            backgroundColor: selected
-                ? accent
-                : context.appSurfaceHighlight.withValues(alpha: 0.3),
-          ),
+          style: selected
+              ? tokenStyle.copyWith(
+                  color: context.appTextPrimary,
+                  backgroundColor: accent.withValues(alpha: 0.28),
+                )
+              : tokenStyle.copyWith(color: context.appTextPrimary),
         ),
       );
       cursor = token.end;
@@ -2941,23 +2943,44 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
     return spans;
   }
 
+  /// A floating capsule like the mini player's. It scrolls with the
+  /// transcript, so it is drawn in Flutter rather than as a native glass view.
   Widget _buildWordSelectionToolbar() {
     final hasSelection = _selectedTokenIndices.isNotEmpty;
     final selectionLine = _lines
         .where((line) => line.id == _wordSelectionLineId)
         .firstOrNull;
-    return Material(
-      color: context.appSurface,
-      borderRadius: BorderRadius.circular(12),
+    final theme = Theme.of(context);
+    final ink = context.appTextPrimary;
+    final isDark = theme.brightness == Brightness.dark;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface.withValues(
+          alpha: isDark ? 0.88 : 0.92,
+        ),
+        borderRadius: BorderRadius.circular(32),
+        border: Border.all(color: ink.withValues(alpha: 0.08)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
         child: Row(
           children: [
             IconButton(
               visualDensity: VisualDensity.compact,
               tooltip: context.tr('取消', 'Cancel', 'キャンセル'),
               onPressed: _exitWordSelection,
-              icon: const AppIcon(AppIcons.cancel01),
+              icon: AppIcon(
+                AppIcons.cancel01,
+                size: 20,
+                color: context.appTextSecondary,
+              ),
             ),
             Expanded(
               child: Text(
@@ -2974,21 +2997,26 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
                       ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: context.appTextSecondary, fontSize: 13),
+                style: TextStyle(
+                  color: hasSelection ? ink : context.appTextSecondary,
+                  fontSize: 14,
+                  fontWeight: hasSelection ? FontWeight.w500 : null,
+                ),
               ),
             ),
-            TextButton(
+            _SelectionAction(
+              icon: AppIcons.bookOpen01,
+              label: context.tr('查词', 'Look up', '調べる'),
               onPressed: hasSelection
                   ? () => _submitWordSelection(askAi: false)
                   : null,
-              child: Text(context.tr('查词', 'Look Up', '調べる')),
             ),
-            const SizedBox(width: 2),
-            FilledButton(
+            _SelectionAction(
+              icon: AppIcons.aiMagic,
+              label: context.tr('询问 AI', 'Ask AI', 'AIに質問'),
               onPressed: hasSelection
                   ? () => _submitWordSelection(askAi: true)
                   : null,
-              child: const Text('Ask AI'),
             ),
           ],
         ),
@@ -3013,4 +3041,42 @@ class _SyncedLyricsListState extends State<SyncedLyricsList>
   Color get _primaryLyricTextColor => widget.expanded && !widget.focusMode
       ? AppColors.lyricsTextPrimary
       : context.appTextPrimary;
+}
+
+/// One of the selection toolbar's actions: an icon and label in ink, alike
+/// so neither shouts over the other.
+class _SelectionAction extends StatelessWidget {
+  final AppIconData icon;
+  final String label;
+  final VoidCallback? onPressed;
+
+  const _SelectionAction({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ink = context.appTextPrimary;
+    final color = onPressed == null ? ink.withValues(alpha: 0.3) : ink;
+    return TextButton.icon(
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        foregroundColor: ink,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        visualDensity: VisualDensity.compact,
+        shape: const StadiumBorder(),
+      ),
+      icon: AppIcon(icon, size: 18, color: color),
+      label: Text(
+        label,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
+      ),
+    );
+  }
 }
