@@ -2,13 +2,10 @@ import 'package:lumina/presentation/widgets/design_system/app_icon.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_chat_core/flutter_chat_core.dart' as chat;
-import 'package:flutter_chat_ui/flutter_chat_ui.dart' as chat_ui;
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'app_back_button.dart';
 import '../../ai/ai_models.dart';
 import '../../core/app_colors.dart';
 import '../../core/app_design_tokens.dart';
@@ -60,6 +57,7 @@ class _AiSummaryPanelState extends ConsumerState<AiSummaryPanel> {
   bool _transcriptAvailable = false;
   bool _loading = true;
   bool _running = false;
+  bool _expanded = false;
   StreamSubscription<AiAgentUpdate>? _subscription;
 
   @override
@@ -82,6 +80,7 @@ class _AiSummaryPanelState extends ConsumerState<AiSummaryPanel> {
       _error = null;
       _loading = true;
       _running = false;
+      _expanded = false;
       _transcriptAvailable = _resolveTranscriptAvailability();
       unawaited(_load());
     } else if (oldWidget.transcriptAvailable != widget.transcriptAvailable) {
@@ -220,7 +219,9 @@ class _AiSummaryPanelState extends ConsumerState<AiSummaryPanel> {
                       ),
               ),
             ),
-            if (hasSummary && !_running)
+            // The player page keeps the section to reading; regenerating
+            // stays with the summary sheet elsewhere.
+            if (!flat && hasSummary && !_running)
               IconButton(
                 key: const ValueKey('ai-summary-regenerate'),
                 tooltip: context.tr('重新生成', 'Generate again', '再生成'),
@@ -256,16 +257,23 @@ class _AiSummaryPanelState extends ConsumerState<AiSummaryPanel> {
               ).textTheme.bodySmall?.copyWith(color: context.appTextSecondary),
             ),
         ] else if (hasSummary) ...[
-          Text(
-            _summaryPreview(_summary!),
-            key: const ValueKey('ai-summary-collapsed-preview'),
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: context.appTextSecondary,
-              height: 1.45,
+          if (flat && _expanded)
+            AiAnswerText(
+              key: const ValueKey('ai-summary-expanded'),
+              text: _summary!,
+              onCitationTap: widget.onCitationTap,
+            )
+          else
+            Text(
+              _summaryPreview(_summary!),
+              key: const ValueKey('ai-summary-collapsed-preview'),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: flat ? context.appTextPrimary : context.appTextSecondary,
+                height: 1.45,
+              ),
             ),
-          ),
           if (_error != null) ...[
             SizedBox(height: design.spaceMd),
             Text(
@@ -277,25 +285,34 @@ class _AiSummaryPanelState extends ConsumerState<AiSummaryPanel> {
             ),
           ],
           SizedBox(height: design.spaceSm),
-          TextButton.icon(
-            key: const ValueKey('ai-summary-toggle'),
-            onPressed: () => showAppContentSheet(
-              context: context,
-              title: 'AI Summary',
-              builder: (sheetContext) => AiAnswerText(
-                text: _summary!,
-                onCitationTap: widget.onCitationTap == null
-                    ? null
-                    : (citation) {
-                        Navigator.of(sheetContext).pop();
-                        return widget.onCitationTap!(citation);
-                      },
+          if (flat)
+            AppMoreToggle(
+              key: const ValueKey('ai-summary-toggle'),
+              expanded: _expanded,
+              onPressed: () => setState(() => _expanded = !_expanded),
+            )
+          else
+            TextButton.icon(
+              key: const ValueKey('ai-summary-toggle'),
+              onPressed: () => showAppContentSheet(
+                context: context,
+                title: 'AI Summary',
+                builder: (sheetContext) => AiAnswerText(
+                  text: _summary!,
+                  onCitationTap: widget.onCitationTap == null
+                      ? null
+                      : (citation) {
+                          Navigator.of(sheetContext).pop();
+                          return widget.onCitationTap!(citation);
+                        },
+                ),
+              ),
+              iconAlignment: IconAlignment.end,
+              icon: const AppIcon(AppIcons.arrowDown01),
+              label: Text(
+                context.tr('查看完整摘要', 'Show full summary', '概要をすべて表示'),
               ),
             ),
-            iconAlignment: IconAlignment.end,
-            icon: const AppIcon(AppIcons.arrowDown01),
-            label: Text(context.tr('查看完整摘要', 'Show full summary', '概要をすべて表示')),
-          ),
         ] else ...[
           Text(
             context.tr(
@@ -536,448 +553,323 @@ String _linkifyCitations(String markdown) {
   );
 }
 
-class AiConversationSheet extends ConsumerStatefulWidget {
+/// A conversation about [scope] laid into the page: each question with its
+/// grounded answer, then a quiet field for the next one. It lives in the
+/// player's AI Chatbot section rather than a sheet of its own.
+class AiInlineConversation extends ConsumerStatefulWidget {
   final AiContentScope scope;
-  final ScrollController? scrollController;
   final AiCitationCallback? onCitationTap;
 
-  const AiConversationSheet({
+  const AiInlineConversation({
     super.key,
     required this.scope,
-    this.scrollController,
     this.onCitationTap,
   });
 
   @override
-  ConsumerState<AiConversationSheet> createState() =>
-      _AiConversationSheetState();
+  ConsumerState<AiInlineConversation> createState() =>
+      _AiInlineConversationState();
 }
 
-class _AiConversationSheetState extends ConsumerState<AiConversationSheet> {
-  static const _currentUserId = 'lumina-user';
-  static const _assistantUserId = 'lumina-assistant';
+class _ConversationTurn {
+  final String id;
+  final bool fromUser;
+  final String text;
 
+  const _ConversationTurn({
+    required this.id,
+    required this.fromUser,
+    required this.text,
+  });
+}
+
+class _AiInlineConversationState extends ConsumerState<AiInlineConversation> {
   final _question = TextEditingController();
-  late final chat.InMemoryChatController _chatController;
+  List<_ConversationTurn> _turns = const [];
   StreamSubscription<AiAgentUpdate>? _subscription;
-  chat.TextMessage? _draftMessage;
-  String? _status;
   bool _loading = true;
   bool _running = false;
-  int _ephemeralSequence = 0;
+
+  /// The question being answered, shown until the thread is reloaded with
+  /// it saved, and kept with [_error] when the answer fails.
+  String? _pendingQuestion;
+  String _draft = '';
+  String? _status;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _chatController = chat.InMemoryChatController();
-    unawaited(_loadMessages());
+    unawaited(_load());
+  }
+
+  @override
+  void didUpdateWidget(covariant AiInlineConversation oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.scope.id != widget.scope.id ||
+        oldWidget.scope.type != widget.scope.type) {
+      unawaited(_subscription?.cancel());
+      _subscription = null;
+      _turns = const [];
+      _loading = true;
+      _running = false;
+      _pendingQuestion = null;
+      _draft = '';
+      _status = null;
+      _error = null;
+      unawaited(_load());
+    }
   }
 
   @override
   void dispose() {
     _question.dispose();
-    _chatController.dispose();
     unawaited(_subscription?.cancel());
     super.dispose();
   }
 
-  Future<void> _loadMessages() async {
-    final thread = await ref
-        .read(aiThreadRepositoryProvider)
-        .load(widget.scope);
+  /// Reads the saved thread. With [settlePending], the question and answer
+  /// shown while streaming give way to their saved copies in the same frame.
+  Future<void> _load({bool settlePending = false}) async {
+    final repository = ref.read(aiThreadRepositoryProvider);
+    final thread = await repository.load(widget.scope);
     final messages = thread == null
         ? const <AiMessage>[]
-        : await ref.read(aiThreadRepositoryProvider).messages(thread.id);
-    if (!mounted) return;
-    await _chatController.setMessages(
-      messages
-          .where((message) => message.kind != 'summary')
-          .map(_toChatMessage)
-          .toList(growable: false),
-      animated: false,
-    );
+        : await repository.messages(thread.id);
     if (!mounted) return;
     setState(() {
+      _turns = [
+        for (final message in messages)
+          if (message.kind != 'summary')
+            _ConversationTurn(
+              id: message.id,
+              fromUser: message.role == 'user',
+              text: message.content,
+            ),
+      ];
       _loading = false;
-      _draftMessage = null;
+      if (settlePending && !_running) {
+        _pendingQuestion = null;
+        _draft = '';
+      }
     });
   }
 
-  chat.TextMessage _toChatMessage(AiMessage message) {
-    return chat.Message.text(
-          id: message.id,
-          authorId: message.role == 'user' ? _currentUserId : _assistantUserId,
-          createdAt: DateTime.fromMillisecondsSinceEpoch(
-            message.createdAt,
-            isUtc: true,
-          ),
-          sentAt: DateTime.fromMillisecondsSinceEpoch(
-            message.createdAt,
-            isUtc: true,
-          ),
-          metadata: {'kind': message.kind, 'persisted': true},
-          status: chat.MessageStatus.sent,
-          text: message.content,
-        )
-        as chat.TextMessage;
-  }
-
-  Future<void> _send(String rawValue) async {
-    final value = rawValue.trim();
+  Future<void> _send() async {
+    final value = _question.text.trim();
     if (value.isEmpty || _running) return;
-    final timestamp = DateTime.now().toUtc();
-    final sequence = _ephemeralSequence++;
-    final userMessage = chat.Message.text(
-      id: 'pending-user-${timestamp.microsecondsSinceEpoch}-$sequence',
-      authorId: _currentUserId,
-      createdAt: timestamp,
-      sentAt: timestamp,
-      status: chat.MessageStatus.sent,
-      text: value,
+    final checking = context.tr(
+      '正在核对 Transcript…',
+      'Checking transcript…',
+      '文字起こしを確認中…',
     );
-    final draft =
-        chat.Message.text(
-              id: 'pending-assistant-${timestamp.microsecondsSinceEpoch}-$sequence',
-              authorId: _assistantUserId,
-              createdAt: timestamp.add(const Duration(microseconds: 1)),
-              metadata: {
-                'draft': true,
-                'statusText': context.tr(
-                  '正在核对 Transcript…',
-                  'Checking transcript…',
-                  '文字起こしを確認中…',
-                ),
-              },
-              status: chat.MessageStatus.sending,
-              text: '',
-            )
-            as chat.TextMessage;
+    _question.clear();
     setState(() {
       _running = true;
-      _status = context.tr(
-        '正在核对 Transcript…',
-        'Checking transcript…',
-        '文字起こしを確認中…',
-      );
-      _draftMessage = draft;
+      _pendingQuestion = value;
+      _draft = '';
+      _status = checking;
+      _error = null;
     });
-    await _chatController.insertMessage(userMessage);
-    await _chatController.insertMessage(draft);
     await _subscription?.cancel();
     if (!mounted) return;
-    final languageCode = _resolvedAiServiceLanguageCode(ref);
     _subscription = ref
         .read(aiAssistantServiceProvider)
-        .ask(widget.scope, value, languageCode: languageCode)
-        .listen((update) => unawaited(_applyConversationUpdate(update)));
+        .ask(
+          widget.scope,
+          value,
+          languageCode: _resolvedAiServiceLanguageCode(ref),
+        )
+        .listen((update) => unawaited(_apply(update)));
   }
 
-  Future<void> _applyConversationUpdate(AiAgentUpdate update) async {
+  Future<void> _apply(AiAgentUpdate update) async {
     if (!mounted) return;
     switch (update.type) {
       case AiAgentUpdateType.status:
-        final status = update.text ?? '';
-        setState(() => _status = status);
-        await _updateDraft(statusText: status);
+        setState(() => _status = update.text ?? '');
       case AiAgentUpdateType.resetText:
-        await _updateDraft(text: '');
+        setState(() => _draft = '');
       case AiAgentUpdateType.textDelta:
-        await _updateDraft(
-          text: '${_draftMessage?.text ?? ''}${update.text ?? ''}',
-        );
+        setState(() => _draft += update.text ?? '');
       case AiAgentUpdateType.completed:
+        // The answer stays on screen as it streamed in until the saved
+        // thread replaces it, so nothing flickers while that loads.
         setState(() {
           _running = false;
           _status = null;
         });
-        await _loadMessages();
+        await _load(settlePending: true);
       case AiAgentUpdateType.failed:
-        final error =
-            update.text ?? context.tr('请求失败', 'Request failed', 'リクエストに失敗しました');
         setState(() {
           _running = false;
           _status = null;
+          _error =
+              update.text ??
+              context.tr('请求失败', 'Request failed', 'リクエストに失敗しました');
         });
-        await _updateDraft(
-          text: _draftMessage?.text.trim().isNotEmpty == true
-              ? _draftMessage!.text
-              : error,
-          statusText: error,
-          failed: true,
-        );
     }
   }
 
-  Future<void> _updateDraft({
-    String? text,
-    String? statusText,
-    bool failed = false,
-  }) async {
-    final previous = _draftMessage;
-    if (previous == null) return;
-    final updated = previous.copyWith(
-      text: text ?? previous.text,
-      updatedAt: DateTime.now().toUtc(),
-      failedAt: failed ? DateTime.now().toUtc() : previous.failedAt,
-      metadata: {
-        ...?previous.metadata,
-        'draft': true,
-        'statusText': statusText ?? _status,
-        'failed': failed,
-      },
-      status: failed ? chat.MessageStatus.error : chat.MessageStatus.sending,
-    );
-    _draftMessage = updated;
-    await _chatController.updateMessage(previous, updated);
-  }
-
-  Future<chat.User?> _resolveUser(chat.UserID id) async {
-    return chat.User(
-      id: id,
-      name: id == _currentUserId ? context.tr('你', 'You', 'あなた') : 'Lumina AI',
-    );
-  }
-
-  chat.ChatTheme _chatTheme(BuildContext context) {
-    return chat.ChatTheme(
-      colors: chat.ChatColors(
-        primary: context.appAccent,
-        onPrimary: Colors.black,
-        surface: context.appBackground,
-        onSurface: context.appTextPrimary,
-        surfaceContainer: context.appSurface,
-        surfaceContainerLow: context.appSurface,
-        surfaceContainerHigh: context.appSurfaceHighlight,
-      ),
-      typography: chat.ChatTypography.fromThemeData(Theme.of(context)),
-      shape: BorderRadius.circular(context.appDesign.radiusMedium),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final design = context.appDesign;
-    return Scaffold(
-      backgroundColor: context.appBackground,
-      resizeToAvoidBottomInset: true,
-      appBar: AppBar(
-        backgroundColor: context.appBackground,
-        foregroundColor: context.appTextPrimary,
-        title: const Text('AI Chatbot'),
-        leading: const Padding(
-          padding: EdgeInsets.all(6),
-          child: AppBackButton(),
-        ),
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : chat_ui.Chat(
-              currentUserId: _currentUserId,
-              resolveUser: _resolveUser,
-              chatController: _chatController,
-              theme: _chatTheme(context),
-              backgroundColor: context.appBackground,
-              onMessageSend: _send,
-              builders: chat.Builders(
-                chatAnimatedListBuilder: (context, itemBuilder) =>
-                    chat_ui.ChatAnimatedList(
-                      key: const ValueKey('ai-conversation-messages'),
-                      scrollController: widget.scrollController,
-                      itemBuilder: itemBuilder,
-                      topPadding: design.spaceMd,
-                      bottomPadding: design.spaceLg,
-                      initialScrollToEndMode:
-                          chat_ui.InitialScrollToEndMode.jump,
-                      keyboardDismissBehavior:
-                          ScrollViewKeyboardDismissBehavior.onDrag,
-                    ),
-                textMessageBuilder:
-                    (
-                      context,
-                      message,
-                      index, {
-                      required isSentByMe,
-                      groupStatus,
-                    }) => _ChatTextMessage(
-                      message: message,
-                      isSentByMe: isSentByMe,
-                      onCitationTap: widget.onCitationTap,
-                    ),
-                composerBuilder: (context) => chat_ui.Composer(
-                  key: const ValueKey('ai-follow-up-input'),
-                  textEditingController: _question,
-                  padding: EdgeInsets.fromLTRB(
-                    design.spaceLg,
-                    design.spaceMd,
-                    design.spaceLg,
-                    design.spaceLg,
+    final secondary = Theme.of(
+      context,
+    ).textTheme.bodySmall?.copyWith(color: context.appTextSecondary);
+    final pending = _pendingQuestion;
+
+    return Column(
+      key: const ValueKey('ai-conversation-messages'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (_loading)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: SizedBox.square(
+              dimension: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+        for (final turn in _turns)
+          Padding(
+            padding: EdgeInsets.only(bottom: design.spaceMd),
+            child: turn.fromUser
+                ? _QuestionText(turn.text)
+                : AiAnswerText(
+                    text: turn.text,
+                    onCitationTap: widget.onCitationTap,
                   ),
-                  sigmaX: 0,
-                  sigmaY: 0,
-                  backgroundColor: context.appSurface,
-                  inputFillColor: context.appSurfaceHighlight,
-                  inputBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: context.appSurfaceHighlight),
-                    borderRadius: BorderRadius.circular(design.radiusLarge),
+          ),
+        if (pending != null) ...[
+          _QuestionText(pending),
+          SizedBox(height: design.spaceMd),
+          if (_draft.trim().isNotEmpty)
+            AiAnswerText(text: _draft, onCitationTap: widget.onCitationTap),
+          // A spinner only until the first words arrive; after that the
+          // streaming answer shows the progress and the status is a note.
+          if (_running &&
+              _draft.trim().isNotEmpty &&
+              _status?.trim().isNotEmpty == true)
+            Padding(
+              padding: EdgeInsets.only(top: design.spaceSm),
+              child: Text(_status!, style: secondary),
+            ),
+          if (_running &&
+              _draft.trim().isEmpty &&
+              _status?.trim().isNotEmpty == true)
+            Padding(
+              padding: EdgeInsets.only(top: design.spaceSm),
+              child: Row(
+                children: [
+                  const SizedBox.square(
+                    dimension: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
                   ),
-                  hintText: context.tr(
-                    '继续提问…',
-                    'Ask a follow-up question…',
-                    '続けて質問…',
-                  ),
-                  hintColor: context.appTextSecondary,
-                  textColor: context.appTextPrimary,
-                  keyboardAppearance: Theme.of(context).brightness,
-                  minLines: 1,
-                  maxLines: 4,
-                  sendButtonDisabled: _running,
-                  sendButtonVisibilityMode:
-                      chat_ui.SendButtonVisibilityMode.disabled,
-                  sendIconColor: context.appAccent,
-                  emptyFieldSendIconColor: context.appTextSecondary,
-                  sendIcon: const AppIcon(
-                    AppIcons.arrowUp02,
-                    key: ValueKey('ai-follow-up-send'),
-                  ),
-                ),
-                emptyChatListBuilder: (context) =>
-                    const _ConversationEmptyState(),
+                  SizedBox(width: design.spaceSm),
+                  Flexible(child: Text(_status!, style: secondary)),
+                ],
               ),
             ),
+          if (_error != null)
+            Padding(
+              padding: EdgeInsets.only(top: design.spaceSm),
+              child: Text(
+                _error!,
+                style: secondary?.copyWith(color: Colors.redAccent),
+              ),
+            ),
+          SizedBox(height: design.spaceMd),
+        ],
+        _QuietComposer(
+          controller: _question,
+          hint: _turns.isEmpty && pending == null
+              ? context.tr(
+                  '针对当前内容提问…',
+                  'Ask about this content…',
+                  'この内容について質問…',
+                )
+              : context.tr('继续提问…', 'Ask a follow-up question…', '続けて質問…'),
+          sending: _running,
+          onSend: _send,
+        ),
+      ],
     );
   }
 }
 
-class _ConversationEmptyState extends StatelessWidget {
-  const _ConversationEmptyState();
+/// A question asked in the conversation, set apart from the answers by
+/// weight alone.
+class _QuestionText extends StatelessWidget {
+  final String text;
+
+  const _QuestionText(this.text);
 
   @override
   Widget build(BuildContext context) {
-    final design = context.appDesign;
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        design.spaceXl,
-        design.spaceXxl,
-        design.spaceXl,
-        design.spaceXl,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          AppIcon(
-            AppIcons.bubbleChat,
-            size: 28,
-            color: context.appTextSecondary.withValues(alpha: 0.8),
-          ),
-          SizedBox(height: design.spaceMd),
-          Text(
-            context.tr(
-              '针对当前内容继续提问',
-              'Ask about the current content',
-              '現在の内容について質問',
-            ),
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: context.appTextPrimary,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          SizedBox(height: design.spaceSm),
-          Text(
-            context.tr(
-              '回答会基于 Transcript，并附上可查看的引用。',
-              'Answers stay grounded in the transcript with tappable references.',
-              '回答は文字起こしに基づき、タップできる参照が付きます。',
-            ),
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: context.appTextSecondary,
-              height: 1.4,
-            ),
-          ),
-        ],
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 15,
+        height: 1.45,
+        fontWeight: FontWeight.w600,
+        color: context.appTextPrimary,
       ),
     );
   }
 }
 
-class _ChatTextMessage extends StatelessWidget {
-  final chat.TextMessage message;
-  final bool isSentByMe;
-  final AiCitationCallback? onCitationTap;
+/// The question field: a hairline capsule, like the section's quiet buttons,
+/// with the send arrow inside it.
+class _QuietComposer extends StatelessWidget {
+  final TextEditingController controller;
+  final String hint;
+  final bool sending;
+  final VoidCallback onSend;
 
-  const _ChatTextMessage({
-    required this.message,
-    required this.isSentByMe,
-    this.onCitationTap,
+  const _QuietComposer({
+    required this.controller,
+    required this.hint,
+    required this.sending,
+    required this.onSend,
   });
 
   @override
   Widget build(BuildContext context) {
-    final design = context.appDesign;
-    final isDraft = message.metadata?['draft'] == true;
-    final failed = message.metadata?['failed'] == true;
-    final statusText = message.metadata?['statusText'] as String?;
-    final waiting = isDraft && message.text.trim().isEmpty;
-
-    return Container(
-      constraints: BoxConstraints(
-        maxWidth: isSentByMe ? MediaQuery.sizeOf(context).width * 0.78 : 560,
+    final ink = context.appTextPrimary;
+    OutlineInputBorder border(double alpha) => OutlineInputBorder(
+      borderRadius: BorderRadius.circular(24),
+      borderSide: BorderSide(color: ink.withValues(alpha: alpha)),
+    );
+    return TextField(
+      key: const ValueKey('ai-follow-up-input'),
+      controller: controller,
+      minLines: 1,
+      maxLines: 4,
+      textInputAction: TextInputAction.send,
+      keyboardAppearance: Theme.of(context).brightness,
+      onSubmitted: (_) => onSend(),
+      style: TextStyle(fontSize: 15, color: ink),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(fontSize: 15, color: context.appTextSecondary),
+        filled: false,
+        isDense: true,
+        contentPadding: const EdgeInsets.fromLTRB(16, 12, 4, 12),
+        border: border(0.14),
+        enabledBorder: border(0.14),
+        focusedBorder: border(0.3),
+        suffixIcon: IconButton(
+          key: const ValueKey('ai-follow-up-send'),
+          tooltip: context.tr('发送', 'Send', '送信'),
+          onPressed: sending ? null : onSend,
+          icon: AppIcon(
+            AppIcons.arrowUp02,
+            size: 20,
+            color: sending ? ink.withValues(alpha: 0.3) : ink,
+          ),
+        ),
       ),
-      padding: EdgeInsets.all(design.spaceMd),
-      decoration: BoxDecoration(
-        color: isSentByMe ? context.appSurfaceHighlight : context.appSurface,
-        borderRadius: BorderRadius.circular(design.radiusMedium),
-        border: isSentByMe
-            ? null
-            : Border.all(
-                color: failed ? Colors.redAccent : context.appSurfaceHighlight,
-              ),
-      ),
-      child: waiting
-          ? Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox.square(
-                  dimension: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: failed ? Colors.redAccent : context.appAccent,
-                  ),
-                ),
-                SizedBox(width: design.spaceSm),
-                Flexible(
-                  child: Text(
-                    statusText ?? '',
-                    style: TextStyle(
-                      color: failed
-                          ? Colors.redAccent
-                          : context.appTextSecondary,
-                    ),
-                  ),
-                ),
-              ],
-            )
-          : isSentByMe
-          ? Text(message.text, style: TextStyle(color: context.appTextPrimary))
-          : Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                AiAnswerText(text: message.text, onCitationTap: onCitationTap),
-                if (isDraft && statusText?.trim().isNotEmpty == true) ...[
-                  SizedBox(height: design.spaceSm),
-                  Text(
-                    statusText!,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: failed
-                          ? Colors.redAccent
-                          : context.appTextSecondary,
-                    ),
-                  ),
-                ],
-              ],
-            ),
     );
   }
 }

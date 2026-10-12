@@ -2,7 +2,6 @@ import 'package:drift/native.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_chat_ui/flutter_chat_ui.dart' as chat_ui;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lumina/ai/ai_assistant_service.dart';
@@ -161,7 +160,7 @@ void main() {
     },
   );
 
-  testWidgets('conversation sheet keeps the package chatbot presentation', (
+  testWidgets('the inline conversation asks and shows the grounded answer', (
     tester,
   ) async {
     final database = AppDatabase.forTesting(NativeDatabase.memory());
@@ -183,18 +182,20 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.darkTheme(),
-          home: const AiConversationSheet(scope: scope),
+          home: const Scaffold(
+            body: SingleChildScrollView(
+              child: AiInlineConversation(scope: scope),
+            ),
+          ),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.byType(chat_ui.Chat), findsOneWidget);
-    expect(find.byType(chat_ui.ChatAnimatedList), findsOneWidget);
-    final composer = tester.widget<chat_ui.Composer>(
+    final composer = tester.widget<TextField>(
       find.byKey(const ValueKey('ai-follow-up-input')),
     );
-    expect(composer.textColor, AppColors.textPrimary);
+    expect(composer.style?.color, AppColors.textPrimary);
     expect(composer.keyboardAppearance, Brightness.dark);
     await tester.enterText(find.byType(TextField), 'Explain this chapter');
     await tester.pumpAndSettle();

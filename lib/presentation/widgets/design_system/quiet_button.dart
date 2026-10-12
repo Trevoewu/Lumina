@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/app_colors.dart';
+import '../../../core/app_localizations.dart';
 import 'app_icon.dart';
 
 /// A section's action on a flat page: ink on a hairline capsule, sized to its
@@ -36,6 +37,52 @@ class AppQuietButton extends StatelessWidget {
           fontSize: 14,
           fontWeight: FontWeight.w600,
           color: color,
+        ),
+      ),
+    );
+  }
+}
+
+/// Unfolds a section's clipped text in place: "More", then "Less", in
+/// secondary ink with a turning chevron.
+class AppMoreToggle extends StatelessWidget {
+  final bool expanded;
+  final VoidCallback onPressed;
+
+  const AppMoreToggle({
+    super.key,
+    required this.expanded,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = context.appTextSecondary;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onPressed,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              expanded
+                  ? context.tr('收起', 'Less', '閉じる')
+                  : context.tr('更多', 'More', 'もっと見る'),
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: color,
+              ),
+            ),
+            const SizedBox(width: 6),
+            AnimatedRotation(
+              duration: const Duration(milliseconds: 300),
+              turns: expanded ? 0.5 : 0,
+              child: AppIcon(AppIcons.arrowDown01, size: 17, color: color),
+            ),
+          ],
         ),
       ),
     );

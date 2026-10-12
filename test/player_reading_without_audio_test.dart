@@ -828,23 +828,14 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('ai-summary-card')), findsOneWidget);
-      expect(
-        find.byKey(const ValueKey('transcript-pointer-card')),
-        findsOneWidget,
-      );
+      expect(find.byKey(const ValueKey('ai-chatbot-card')), findsOneWidget);
       expect(
         tester.getTopLeft(find.byKey(const ValueKey('ai-summary-card'))).dy,
         lessThan(
-          tester
-              .getTopLeft(find.byKey(const ValueKey('transcript-pointer-card')))
-              .dy,
+          tester.getTopLeft(find.byKey(const ValueKey('ai-chatbot-card'))).dy,
         ),
       );
-      final lightOnSurface = AppTheme.lightTheme().colorScheme.onSurface;
-      expect(
-        tester.widget<Text>(find.text('AI Summary')).style?.color,
-        lightOnSurface,
-      );
+      expect(find.text('AI SUMMARY'), findsOneWidget);
 
       await tester.ensureVisible(
         find.byKey(const ValueKey('player-sleep-timer-toggle')),
@@ -872,10 +863,7 @@ void main() {
         findsNothing,
       );
       expect(find.byKey(const ValueKey('lyrics-card')), findsNothing);
-      expect(
-        find.byKey(const ValueKey('transcript-pointer-card')),
-        findsOneWidget,
-      );
+      expect(find.byKey(const ValueKey('ai-chatbot-card')), findsOneWidget);
 
       // Several sentences of context around the current one stay on screen,
       // which is the whole point of the lyric-style reading panel.
@@ -962,7 +950,7 @@ void main() {
         findsWidgets,
       );
       expect(
-        find.byKey(const ValueKey('transcript-pointer-card')).hitTestable(),
+        find.byKey(const ValueKey('ai-chatbot-card')).hitTestable(),
         findsOneWidget,
       );
       await tester.drag(

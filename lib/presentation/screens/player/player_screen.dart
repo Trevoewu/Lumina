@@ -6,7 +6,6 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:audio_service/audio_service.dart';
-import 'package:flutter/cupertino.dart' show showCupertinoSheet;
 import 'package:cupertino_native_better/cupertino_native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -472,6 +471,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _preparingStream = false;
   bool _streamPlaybackRequested = false;
   bool _startingPlayback = false;
+
+  /// The episode whose shownotes are unfolded, so moving to another episode
+  /// folds them again.
+  String? _expandedShownotesEpisodeId;
   double? _progressDragValue;
   Duration? _progressDragPosition;
   final ValueNotifier<Duration?> _subtitlePreviewPosition = ValueNotifier(null);
@@ -2652,17 +2655,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   RepaintBoundary(
                     child: _buildAiCard(handler: handler, manifest: manifest),
                   ),
-                  SizedBox(height: design.spaceMd),
+                  const _SectionBreak(),
                   RepaintBoundary(
                     child: _buildAiCard(
                       handler: handler,
                       manifest: manifest,
                       chatbot: true,
                     ),
-                  ),
-                  SizedBox(height: design.spaceMd),
-                  RepaintBoundary(
-                    child: _buildTranscriptPointerCard(onTap: onTranscriptTap),
                   ),
                 ],
               ),
@@ -2843,93 +2842,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       chatbot: true,
                     ),
                   ),
-                  const _SectionBreak(),
-                  RepaintBoundary(
-                    child: _buildTranscriptPointerCard(onTap: onTranscriptTap),
-                  ),
                 ],
               ),
             ),
           ),
         ),
       ],
-    );
-  }
-
-  /// The transcript no longer has a section of its own. This row tells a
-  /// reader who scrolls looking for it where it went, and doubles as a second
-  /// way into transcript mode.
-  Widget _buildTranscriptPointerCard({required VoidCallback? onTap}) {
-    final design = context.appDesign;
-    final cachedCount = _podcastTranscript?.timingCount ?? 0;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        key: const ValueKey('transcript-pointer-card'),
-        borderRadius: BorderRadius.circular(design.radiusLarge),
-        onTap: onTap,
-        child: Padding(
-          padding: EdgeInsets.symmetric(vertical: design.spaceSm),
-          child: Row(
-            children: [
-              AppIcon(
-                AppIcons.bubbleChat,
-                size: 20,
-                color: context.appTextSecondary,
-              ),
-              SizedBox(width: design.spaceMd),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _isPodcast
-                          ? context.tr(
-                              '转录已移至播放器',
-                              'Transcript moved to the player',
-                              '文字起こしをプレーヤーに移動しました',
-                            )
-                          : context.tr(
-                              '正文已移至播放器',
-                              'Chapter text moved to the player',
-                              '章の本文をプレーヤーに移動しました',
-                            ),
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.normal,
-                        color: context.appTextPrimary.withValues(alpha: 0.8),
-                      ),
-                    ),
-                    SizedBox(height: design.spaceXs),
-                    Text(
-                      cachedCount > 0
-                          ? context.tr(
-                              '点此以歌词方式跟读 · 已缓存 $cachedCount 段',
-                              'Read along lyric-style · $cachedCount segments cached',
-                              '歌詞のように読み進める · $cachedCount件をキャッシュ済み',
-                            )
-                          : context.tr(
-                              '点此以歌词方式跟读',
-                              'Read along lyric-style',
-                              '歌詞のように読み進める',
-                            ),
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: context.appTextSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              AppIcon(
-                AppIcons.arrowRight01,
-                size: 20,
-                color: context.appTextSecondary,
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 
@@ -3076,57 +2994,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           children: [
             _buildPlayerCardTitle(title: 'AI Chatbot'),
             SizedBox(height: context.appDesign.spaceMd),
-            Text(
-              !transcriptAvailable
-                  ? context.tr(
-                      '生成文字稿后，即可围绕当前内容提问。',
-                      'Generate a transcript to ask about this content.',
-                      '文字起こしを生成すると、この内容について質問できます。',
-                    )
-                  : !aiServiceReady
-                  ? context.tr(
-                      '配置 AI 服务后，即可开始对话。',
-                      'Set up an AI service to start chatting.',
-                      'AI サービスを設定すると会話を開始できます。',
-                    )
-                  : context.tr(
-                      '围绕当前内容提问、解释难点，并通过引用回到原文。',
-                      'Ask about this content, explore ideas, and follow references back to the transcript.',
-                      'この内容について質問し、理解を深め、参照から原文を確認できます。',
-                    ),
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: context.appTextSecondary,
-                height: 1.5,
+            // Once it can answer, the conversation lives right here on the
+            // page; until then the section is just the step that unlocks it.
+            if (transcriptAvailable && aiServiceReady)
+              AiInlineConversation(
+                key: ValueKey('ai-chatbot-conversation-${scope.id}'),
+                scope: scope,
+                onCitationTap: (citation) =>
+                    _handleAiCitation(citation, scope, handler, manifest),
+              )
+            else
+              AppQuietButton(
+                key: const ValueKey('ai-chatbot-open'),
+                onPressed: !transcriptAvailable
+                    ? onTranscriptRequired
+                    : _openAiServiceSettings,
+                icon: AppIcons.bubbleChat,
+                label: !transcriptAvailable
+                    ? context.tr('生成文字稿', 'Generate transcript', '文字起こしを生成')
+                    : context.tr('配置 AI 服务', 'Set up AI service', 'AI サービスを設定'),
               ),
-            ),
-            SizedBox(height: context.appDesign.spaceLg),
-            AppQuietButton(
-              key: const ValueKey('ai-chatbot-open'),
-              onPressed: !transcriptAvailable
-                  ? onTranscriptRequired
-                  : !aiServiceReady
-                  ? _openAiServiceSettings
-                  : () => showCupertinoSheet<void>(
-                      context: context,
-                      scrollableBuilder: (sheetContext, scrollController) =>
-                          AiConversationSheet(
-                            scope: scope,
-                            scrollController: scrollController,
-                            onCitationTap: (citation) => _handleAiCitation(
-                              citation,
-                              scope,
-                              handler,
-                              manifest,
-                            ),
-                          ),
-                    ),
-              icon: AppIcons.bubbleChat,
-              label: !transcriptAvailable
-                  ? context.tr('生成文字稿', 'Generate transcript', '文字起こしを生成')
-                  : !aiServiceReady
-                  ? context.tr('配置 AI 服务', 'Set up AI service', 'AI サービスを設定')
-                  : context.tr('开始对话', 'Start chatting', '会話を開始'),
-            ),
           ],
         ),
       );
@@ -3298,6 +3185,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }) {
     final notes = episode.description.trim();
     final canExpand = notes.length > 180;
+    final expanded = _expandedShownotesEpisodeId == episode.id;
     return _buildPlayerSectionCard(
       key: const ValueKey('podcast-shownotes-card'),
       child: Column(
@@ -3318,8 +3206,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             key: const ValueKey('podcast-episode-description'),
             onSeekTimestamp: (position) =>
                 _seekToPodcastShownoteTimestamp(handler, position),
-            maxLines: 5,
-            overflow: TextOverflow.ellipsis,
+            maxLines: expanded ? null : 5,
+            overflow: expanded ? TextOverflow.clip : TextOverflow.ellipsis,
             // The notes are the content here, so they read in full ink.
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               color: context.appTextPrimary,
@@ -3328,28 +3216,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           ),
           if (canExpand) ...[
             SizedBox(height: context.appDesign.spaceSm),
-            TextButton.icon(
+            AppMoreToggle(
               key: const ValueKey('podcast-shownotes-toggle'),
-              onPressed: () => showAppContentSheet(
-                context: context,
-                title: context.tr('节目笔记', 'Shownotes', '番組ノート'),
-                builder: (sheetContext) => PodcastLinkText(
-                  notes,
-                  onSeekTimestamp: (position) {
-                    Navigator.of(sheetContext).pop();
-                    return _seekToPodcastShownoteTimestamp(handler, position);
-                  },
-                  style: Theme.of(sheetContext).textTheme.bodyLarge?.copyWith(
-                    color: sheetContext.appTextSecondary,
-                    height: 1.5,
-                  ),
-                ),
-              ),
-              iconAlignment: IconAlignment.end,
-              icon: const AppIcon(AppIcons.arrowDown01),
-              label: Text(
-                context.tr('查看完整笔记', 'Show full notes', '番組ノートをすべて表示'),
-              ),
+              expanded: expanded,
+              onPressed: () => setState(() {
+                _expandedShownotesEpisodeId = expanded ? null : episode.id;
+              }),
             ),
           ],
         ],

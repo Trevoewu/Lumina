@@ -4,7 +4,6 @@ import 'package:audio_service/audio_service.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/cupertino.dart' show CupertinoSheetRoute;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -444,21 +443,16 @@ void main() {
       final transcriptToggle = find.byKey(
         const ValueKey('player-transcript-toggle'),
       );
-      await tester.ensureVisible(find.byKey(const ValueKey('ai-chatbot-open')));
-      await tester.tap(find.byKey(const ValueKey('ai-chatbot-open')));
+      // With a transcript and an AI service, the conversation sits in the
+      // AI Chatbot section itself rather than behind a button and a sheet.
+      final conversation = find.byType(AiInlineConversation);
+      await tester.ensureVisible(conversation);
       await tester.pumpAndSettle();
-      final conversation = find.byType(AiConversationSheet);
-      expect(conversation, findsOneWidget);
+      expect(find.byKey(const ValueKey('ai-chatbot-open')), findsNothing);
       expect(
-        tester.widget<AiConversationSheet>(conversation).scope.id,
+        tester.widget<AiInlineConversation>(conversation).scope.id,
         episode.id,
       );
-      expect(
-        ModalRoute.of(tester.element(conversation)),
-        isA<CupertinoSheetRoute<void>>(),
-      );
-      Navigator.of(tester.element(conversation)).pop();
-      await tester.pumpAndSettle();
       await tester.drag(
         find.byKey(const ValueKey('podcast-player-scroll-view')),
         const Offset(0, 2000),
@@ -537,16 +531,28 @@ void main() {
         find.byKey(const ValueKey('podcast-shownotes-card')).hitTestable(),
         findsOneWidget,
       );
+      // More unfolds the notes in place; Less folds them back.
+      expect(find.text('More'), findsWidgets);
       await tester.tap(find.byKey(const ValueKey('podcast-shownotes-toggle')));
       await tester.pumpAndSettle();
       expect(
         find.byKey(const ValueKey('app-content-sheet-close')),
+        findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('podcast-shownotes-toggle')),
+          matching: find.text('Less'),
+        ),
         findsOneWidget,
       );
-      await tester.tap(find.byKey(const ValueKey('app-content-sheet-close')));
+      await tester.tap(find.byKey(const ValueKey('podcast-shownotes-toggle')));
       await tester.pumpAndSettle();
       expect(
-        find.byKey(const ValueKey('podcast-shownotes-toggle')),
+        find.descendant(
+          of: find.byKey(const ValueKey('podcast-shownotes-toggle')),
+          matching: find.text('More'),
+        ),
         findsOneWidget,
       );
       expect(tester.takeException(), isNull);
