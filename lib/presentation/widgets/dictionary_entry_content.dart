@@ -8,6 +8,7 @@ import '../../data/dictionary/dictionary_repository.dart';
 import '../../domain/models/vocabulary_entry.dart';
 import '../../services/reading_level_estimator.dart';
 import 'design_system/editorial_type.dart';
+import 'design_system/hairline_divider.dart';
 
 /// Word entry body shared by the dictionary detail page and the lookup sheet.
 ///
@@ -122,7 +123,7 @@ class _DictionaryEntryContentState extends State<DictionaryEntryContent> {
         ],
         if (flat && hasExplanations) ...[
           const SizedBox(height: 13),
-          const _HairlineDivider(),
+          const HairlineDivider(),
           const SizedBox(height: 26),
         ],
         if (_hasText(entry.shortExplanation)) ...[
@@ -691,24 +692,4 @@ String _formatTimestamp(int milliseconds) {
   return duration.inHours > 0
       ? '${duration.inHours}:$minutes:$seconds'
       : '$minutes:$seconds';
-}
-
-/// The fading rule Home draws between its sections.
-class _HairlineDivider extends StatelessWidget {
-  const _HairlineDivider();
-
-  @override
-  Widget build(BuildContext context) {
-    final line = context.appTextPrimary.withValues(alpha: 0.09);
-
-    return Container(
-      height: 1,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.transparent, line, line, Colors.transparent],
-          stops: const [0, 0.12, 0.88, 1],
-        ),
-      ),
-    );
-  }
 }

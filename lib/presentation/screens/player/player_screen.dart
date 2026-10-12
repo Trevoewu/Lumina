@@ -16,8 +16,11 @@ import 'package:hugeicons/hugeicons.dart';
 
 import '../../widgets/app_sheet.dart';
 import '../../widgets/app_back_button.dart';
+import '../../widgets/design_system/editorial_type.dart';
+import '../../widgets/design_system/hairline_divider.dart';
 import '../../widgets/design_system/macos_window_toolbar.dart';
 import '../../widgets/design_system/macos_toolbar_providers.dart';
+import '../../widgets/design_system/quiet_button.dart';
 import '../../../ai/ai_models.dart';
 import '../../../ai/transcript_tool.dart';
 import '../../../core/app_colors.dart';
@@ -2828,11 +2831,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       handler: handler,
                     ),
                   ),
-                  SizedBox(height: design.spaceMd),
+                  const _SectionBreak(),
                   RepaintBoundary(
                     child: _buildAiCard(handler: handler, manifest: manifest),
                   ),
-                  SizedBox(height: design.spaceMd),
+                  const _SectionBreak(),
                   RepaintBoundary(
                     child: _buildAiCard(
                       handler: handler,
@@ -2840,7 +2843,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       chatbot: true,
                     ),
                   ),
-                  SizedBox(height: design.spaceMd),
+                  const _SectionBreak(),
                   RepaintBoundary(
                     child: _buildTranscriptPointerCard(onTap: onTranscriptTap),
                   ),
@@ -2853,7 +2856,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
-  /// The transcript no longer has a card of its own. This dashed row tells a
+  /// The transcript no longer has a section of its own. This row tells a
   /// reader who scrolls looking for it where it went, and doubles as a second
   /// way into transcript mode.
   Widget _buildTranscriptPointerCard({required VoidCallback? onTap}) {
@@ -2865,74 +2868,65 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         key: const ValueKey('transcript-pointer-card'),
         borderRadius: BorderRadius.circular(design.radiusLarge),
         onTap: onTap,
-        child: CustomPaint(
-          painter: _DashedBorderPainter(
-            color: context.appTextPrimary.withValues(alpha: 0.16),
-            radius: design.radiusLarge,
-          ),
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: design.spaceLg,
-              vertical: design.spaceLg,
-            ),
-            child: Row(
-              children: [
-                AppIcon(
-                  AppIcons.bubbleChat,
-                  size: 20,
-                  color: context.appTextSecondary,
-                ),
-                SizedBox(width: design.spaceMd),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _isPodcast
-                            ? context.tr(
-                                '转录已移至播放器',
-                                'Transcript moved to the player',
-                                '文字起こしをプレーヤーに移動しました',
-                              )
-                            : context.tr(
-                                '正文已移至播放器',
-                                'Chapter text moved to the player',
-                                '章の本文をプレーヤーに移動しました',
-                              ),
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.normal,
-                          color: context.appTextPrimary.withValues(alpha: 0.8),
-                        ),
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: design.spaceSm),
+          child: Row(
+            children: [
+              AppIcon(
+                AppIcons.bubbleChat,
+                size: 20,
+                color: context.appTextSecondary,
+              ),
+              SizedBox(width: design.spaceMd),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _isPodcast
+                          ? context.tr(
+                              '转录已移至播放器',
+                              'Transcript moved to the player',
+                              '文字起こしをプレーヤーに移動しました',
+                            )
+                          : context.tr(
+                              '正文已移至播放器',
+                              'Chapter text moved to the player',
+                              '章の本文をプレーヤーに移動しました',
+                            ),
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.normal,
+                        color: context.appTextPrimary.withValues(alpha: 0.8),
                       ),
-                      SizedBox(height: design.spaceXs),
-                      Text(
-                        cachedCount > 0
-                            ? context.tr(
-                                '点此以歌词方式跟读 · 已缓存 $cachedCount 段',
-                                'Read along lyric-style · $cachedCount segments cached',
-                                '歌詞のように読み進める · $cachedCount件をキャッシュ済み',
-                              )
-                            : context.tr(
-                                '点此以歌词方式跟读',
-                                'Read along lyric-style',
-                                '歌詞のように読み進める',
-                              ),
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: context.appTextSecondary,
-                        ),
+                    ),
+                    SizedBox(height: design.spaceXs),
+                    Text(
+                      cachedCount > 0
+                          ? context.tr(
+                              '点此以歌词方式跟读 · 已缓存 $cachedCount 段',
+                              'Read along lyric-style · $cachedCount segments cached',
+                              '歌詞のように読み進める · $cachedCount件をキャッシュ済み',
+                            )
+                          : context.tr(
+                              '点此以歌词方式跟读',
+                              'Read along lyric-style',
+                              '歌詞のように読み進める',
+                            ),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: context.appTextSecondary,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                AppIcon(
-                  AppIcons.arrowRight01,
-                  size: 20,
-                  color: context.appTextSecondary,
-                ),
-              ],
-            ),
+              ),
+              AppIcon(
+                AppIcons.arrowRight01,
+                size: 20,
+                color: context.appTextSecondary,
+              ),
+            ],
           ),
         ),
       ),
@@ -3080,10 +3074,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildPlayerCardTitle(
-              icon: AppIcons.bubbleChat,
-              title: 'AI Chatbot',
-            ),
+            _buildPlayerCardTitle(title: 'AI Chatbot'),
             SizedBox(height: context.appDesign.spaceMd),
             Text(
               !transcriptAvailable
@@ -3109,41 +3100,32 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ),
             ),
             SizedBox(height: context.appDesign.spaceLg),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                key: const ValueKey('ai-chatbot-open'),
-                onPressed: !transcriptAvailable
-                    ? onTranscriptRequired
-                    : !aiServiceReady
-                    ? _openAiServiceSettings
-                    : () => showCupertinoSheet<void>(
-                        context: context,
-                        scrollableBuilder: (sheetContext, scrollController) =>
-                            AiConversationSheet(
-                              scope: scope,
-                              scrollController: scrollController,
-                              onCitationTap: (citation) => _handleAiCitation(
-                                citation,
-                                scope,
-                                handler,
-                                manifest,
-                              ),
+            AppQuietButton(
+              key: const ValueKey('ai-chatbot-open'),
+              onPressed: !transcriptAvailable
+                  ? onTranscriptRequired
+                  : !aiServiceReady
+                  ? _openAiServiceSettings
+                  : () => showCupertinoSheet<void>(
+                      context: context,
+                      scrollableBuilder: (sheetContext, scrollController) =>
+                          AiConversationSheet(
+                            scope: scope,
+                            scrollController: scrollController,
+                            onCitationTap: (citation) => _handleAiCitation(
+                              citation,
+                              scope,
+                              handler,
+                              manifest,
                             ),
-                      ),
-                icon: const AppIcon(AppIcons.bubbleChat),
-                label: Text(
-                  !transcriptAvailable
-                      ? context.tr('生成文字稿', 'Generate transcript', '文字起こしを生成')
-                      : !aiServiceReady
-                      ? context.tr(
-                          '配置 AI 服务',
-                          'Set up AI service',
-                          'AI サービスを設定',
-                        )
-                      : context.tr('开始对话', 'Start chatting', '会話を開始'),
-                ),
-              ),
+                          ),
+                    ),
+              icon: AppIcons.bubbleChat,
+              label: !transcriptAvailable
+                  ? context.tr('生成文字稿', 'Generate transcript', '文字起こしを生成')
+                  : !aiServiceReady
+                  ? context.tr('配置 AI 服务', 'Set up AI service', 'AI サービスを設定')
+                  : context.tr('开始对话', 'Start chatting', '会話を開始'),
             ),
           ],
         ),
@@ -3152,6 +3134,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     return _buildPlayerSectionCard(
       key: const ValueKey('ai-summary-card'),
       child: AiSummaryPanel(
+        flat: true,
         scope: scope,
         transcriptAvailable: transcriptAvailable,
         onCitationTap: (citation) =>
@@ -3321,7 +3304,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildPlayerCardTitle(
-            icon: AppIcons.note01,
             title: context.tr('节目笔记', 'Shownotes', '番組ノート'),
           ),
           SizedBox(height: context.appDesign.spaceMd),
@@ -3338,8 +3320,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 _seekToPodcastShownoteTimestamp(handler, position),
             maxLines: 5,
             overflow: TextOverflow.ellipsis,
+            // The notes are the content here, so they read in full ink.
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: context.appTextSecondary,
+              color: context.appTextPrimary,
               height: 1.5,
             ),
           ),
@@ -3374,62 +3357,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
-  Widget _buildPlayerSectionCard({
-    required Key key,
-    required Widget child,
-    EdgeInsetsGeometry? padding,
-  }) {
-    final design = context.appDesign;
-    return Container(
-      key: key,
-      width: double.infinity,
-      padding: padding ?? EdgeInsets.all(design.spaceLg),
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: context.appSurface.withValues(
-          alpha: Theme.of(context).brightness == Brightness.dark ? 0.9 : 0.94,
-        ),
-        borderRadius: BorderRadius.circular(design.radiusLarge),
-        border: Border.all(
-          color: context.appTextPrimary.withValues(alpha: 0.07),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(
-              alpha: Theme.of(context).brightness == Brightness.dark
-                  ? 0.16
-                  : 0.08,
-            ),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: child,
-    );
+  /// A section below the controls, laid flat on the page like Home's;
+  /// [_SectionBreak]s draw the rules between them.
+  Widget _buildPlayerSectionCard({required Key key, required Widget child}) {
+    return SizedBox(key: key, width: double.infinity, child: child);
   }
 
-  Widget _buildPlayerCardTitle({
-    required AppIconData icon,
-    required String title,
-  }) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        AppIcon(icon, size: 20, color: context.appTextSecondary),
-        SizedBox(width: context.appDesign.spaceSm),
-        Flexible(
-          child: Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: context.appTextPrimary,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ],
+  /// A section's kicker. Sections no longer carry icons: the label alone
+  /// names them, as on Home.
+  Widget _buildPlayerCardTitle({required String title}) {
+    return Text(
+      title.toUpperCase(),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: kickerTextStyle(context),
     );
   }
 
@@ -5474,43 +5415,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
 /// Draws the rounded dashed outline used by the "transcript moved" pointer.
 /// A dashed edge marks the row as a signpost rather than one more content card.
-class _DashedBorderPainter extends CustomPainter {
-  static const double dashLength = 6;
-  static const double gapLength = 5;
-
-  final Color color;
-  final double radius;
-
-  const _DashedBorderPainter({required this.color, required this.radius});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final outline = Path()
-      ..addRRect(
-        RRect.fromRectAndRadius(
-          Offset.zero & size,
-          Radius.circular(radius),
-        ).deflate(0.75),
-      );
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5
-      ..color = color;
-    for (final metric in outline.computeMetrics()) {
-      var distance = 0.0;
-      while (distance < metric.length) {
-        final end = math.min(distance + dashLength, metric.length);
-        canvas.drawPath(metric.extractPath(distance, end), paint);
-        distance = end + gapLength;
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _DashedBorderPainter oldDelegate) =>
-      oldDelegate.color != color || oldDelegate.radius != radius;
-}
-
 class _WhisperModelSetupSheet extends StatefulWidget {
   final PodcastTranscriptionService service;
   final int expectedBytes;
@@ -5788,4 +5692,15 @@ class _TranscriptionStatusBar extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The space and hairline between the sections below the player controls.
+class _SectionBreak extends StatelessWidget {
+  const _SectionBreak();
+
+  @override
+  Widget build(BuildContext context) => const Padding(
+    padding: EdgeInsets.symmetric(vertical: 26),
+    child: HairlineDivider(),
+  );
 }

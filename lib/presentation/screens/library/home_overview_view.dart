@@ -11,6 +11,7 @@ import '../../../data/database/app_database.dart';
 import '../../../services/playback_progress_service.dart';
 import '../../widgets/book_card_metadata.dart';
 import '../../widgets/design_system/editorial_type.dart';
+import '../../widgets/design_system/hairline_divider.dart';
 import '../../widgets/book_cover.dart';
 import '../../widgets/podcast_artwork.dart';
 import '../podcast/podcast_episode_screen.dart';
@@ -185,7 +186,7 @@ class _HomeOverviewContentState extends State<_HomeOverviewContent> {
         if (feed.isNotEmpty) ...[
           Padding(
             padding: EdgeInsets.fromLTRB(listGutter, 34, listGutter, 0),
-            child: const _HairlineDivider(),
+            child: const HairlineDivider(),
           ),
           Padding(
             padding: EdgeInsets.fromLTRB(gutter, 22, gutter, 0),
@@ -553,25 +554,6 @@ class _EntryArtwork extends StatelessWidget {
               iconSize: size * 0.34,
               placeholderIcon: AppIcons.bookOpen02,
             ),
-    );
-  }
-}
-
-class _HairlineDivider extends StatelessWidget {
-  const _HairlineDivider();
-
-  @override
-  Widget build(BuildContext context) {
-    final line = context.appTextPrimary.withValues(alpha: 0.09);
-
-    return Container(
-      height: 1,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.transparent, line, line, Colors.transparent],
-          stops: const [0, 0.12, 0.88, 1],
-        ),
-      ),
     );
   }
 }

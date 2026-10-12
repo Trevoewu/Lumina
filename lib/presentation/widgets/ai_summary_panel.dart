@@ -17,6 +17,8 @@ import '../../core/app_preferences.dart';
 import '../../core/providers.dart';
 import '../../data/database/app_database.dart';
 import 'app_sheet.dart';
+import 'design_system/editorial_type.dart';
+import 'design_system/quiet_button.dart';
 
 typedef AiCitationCallback = Future<void> Function(AiCitation citation);
 
@@ -32,8 +34,13 @@ class AiSummaryPanel extends ConsumerStatefulWidget {
   final bool? transcriptAvailable;
   final bool aiServiceReady;
 
+  /// Laid flat on the player page: a kicker for the title and quiet buttons.
+  /// Elsewhere it keeps its titled header and filled buttons.
+  final bool flat;
+
   const AiSummaryPanel({
     super.key,
+    this.flat = false,
     required this.scope,
     this.onCitationTap,
     this.onTranscriptRequired,
@@ -187,25 +194,30 @@ class _AiSummaryPanelState extends ConsumerState<AiSummaryPanel> {
   Widget build(BuildContext context) {
     final design = context.appDesign;
     final hasSummary = _summary?.trim().isNotEmpty ?? false;
+    final flat = widget.flat;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            AppIcon(
-              AppIcons.aiMagic,
-              size: 20,
-              color: context.appTextSecondary,
-            ),
-            SizedBox(width: design.spaceSm),
+            if (!flat) ...[
+              AppIcon(
+                AppIcons.aiMagic,
+                size: 20,
+                color: context.appTextSecondary,
+              ),
+              SizedBox(width: design.spaceSm),
+            ],
             Expanded(
               child: Text(
-                'AI Summary',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: context.appTextPrimary,
-                  fontWeight: FontWeight.w600,
-                ),
+                flat ? 'AI SUMMARY' : 'AI Summary',
+                style: flat
+                    ? kickerTextStyle(context)
+                    : Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: context.appTextPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
               ),
             ),
             if (hasSummary && !_running)
@@ -221,9 +233,15 @@ class _AiSummaryPanelState extends ConsumerState<AiSummaryPanel> {
         if (_loading)
           const Center(child: CircularProgressIndicator())
         else if (!_transcriptAvailable)
-          _TranscriptRequiredState(onPressed: widget.onTranscriptRequired)
+          _TranscriptRequiredState(
+            onPressed: widget.onTranscriptRequired,
+            flat: flat,
+          )
         else if (!widget.aiServiceReady)
-          _AiServiceRequiredState(onPressed: widget.onAiServiceRequired)
+          _AiServiceRequiredState(
+            onPressed: widget.onAiServiceRequired,
+            flat: flat,
+          )
         else if (_running) ...[
           LinearProgressIndicator(
             key: const ValueKey('ai-summary-progress'),
@@ -301,14 +319,12 @@ class _AiSummaryPanelState extends ConsumerState<AiSummaryPanel> {
             ),
           ],
           SizedBox(height: design.spaceLg),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              key: const ValueKey('ai-summary-generate'),
-              onPressed: _generate,
-              icon: const AppIcon(AppIcons.aiMagic, size: 18),
-              label: Text(context.tr('生成摘要', 'Generate summary', '概要を生成')),
-            ),
+          _PanelAction(
+            key: const ValueKey('ai-summary-generate'),
+            flat: flat,
+            onPressed: _generate,
+            icon: AppIcons.aiMagic,
+            label: context.tr('生成摘要', 'Generate summary', '概要を生成'),
           ),
         ],
       ],
@@ -326,8 +342,9 @@ String _summaryPreview(String markdown) {
 
 class _AiServiceRequiredState extends StatelessWidget {
   final VoidCallback? onPressed;
+  final bool flat;
 
-  const _AiServiceRequiredState({this.onPressed});
+  const _AiServiceRequiredState({this.onPressed, this.flat = false});
 
   @override
   Widget build(BuildContext context) {
@@ -348,16 +365,12 @@ class _AiServiceRequiredState extends StatelessWidget {
         ),
         if (onPressed != null) ...[
           SizedBox(height: context.appDesign.spaceLg),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              key: const ValueKey('ai-summary-configure-service'),
-              onPressed: onPressed,
-              icon: const AppIcon(AppIcons.aiNetwork, size: 18),
-              label: Text(
-                context.tr('连接 AI 服务', 'Connect AI service', 'AIサービスに接続'),
-              ),
-            ),
+          _PanelAction(
+            key: const ValueKey('ai-summary-configure-service'),
+            flat: flat,
+            onPressed: onPressed,
+            icon: AppIcons.aiNetwork,
+            label: context.tr('连接 AI 服务', 'Connect AI service', 'AIサービスに接続'),
           ),
         ],
       ],
@@ -367,8 +380,9 @@ class _AiServiceRequiredState extends StatelessWidget {
 
 class _TranscriptRequiredState extends StatelessWidget {
   final VoidCallback? onPressed;
+  final bool flat;
 
-  const _TranscriptRequiredState({this.onPressed});
+  const _TranscriptRequiredState({this.onPressed, this.flat = false});
 
   @override
   Widget build(BuildContext context) {
@@ -388,23 +402,51 @@ class _TranscriptRequiredState extends StatelessWidget {
         ),
         if (onPressed != null) ...[
           SizedBox(height: context.appDesign.spaceLg),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              key: const ValueKey('ai-summary-transcribe'),
-              onPressed: onPressed,
-              icon: const AppIcon(AppIcons.subtitle, size: 18),
-              label: Text(
-                context.tr(
-                  '先生成 Transcript',
-                  'Create transcript first',
-                  '先に文字起こしを作成',
-                ),
-              ),
+          _PanelAction(
+            key: const ValueKey('ai-summary-transcribe'),
+            flat: flat,
+            onPressed: onPressed,
+            icon: AppIcons.subtitle,
+            label: context.tr(
+              '先生成 Transcript',
+              'Create transcript first',
+              '先に文字起こしを作成',
             ),
           ),
         ],
       ],
+    );
+  }
+}
+
+/// The panel's main action: a quiet button on a flat page, a full-width
+/// filled one elsewhere.
+class _PanelAction extends StatelessWidget {
+  final bool flat;
+  final VoidCallback? onPressed;
+  final AppIconData icon;
+  final String label;
+
+  const _PanelAction({
+    super.key,
+    required this.flat,
+    required this.onPressed,
+    required this.icon,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (flat) {
+      return AppQuietButton(icon: icon, label: label, onPressed: onPressed);
+    }
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton.icon(
+        onPressed: onPressed,
+        icon: AppIcon(icon, size: 18),
+        label: Text(label),
+      ),
     );
   }
 }
