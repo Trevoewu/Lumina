@@ -61,6 +61,64 @@ void main() {
     expect(repaired?.coverPath, cover.path);
   });
 
+  test('repairs downloaded episode audio when the container moved', () async {
+    final tempDir = Directory.systemTemp.createTempSync('lumina_support_');
+    final oldSupport = '${tempDir.path}/OLD/Library/Application Support';
+    final newSupport = Directory(
+      '${tempDir.path}/NEW/Library/Application Support',
+    );
+    final audio = File('${newSupport.path}/podcasts/audio/episode-1.mp3')
+      ..createSync(recursive: true)
+      ..writeAsStringSync('audio');
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(() async {
+      await database.close();
+      if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
+    });
+    await database.upsertPodcastShow(
+      const PodcastShow(
+        id: 'show',
+        feedUrl: 'https://example.com/feed.xml',
+        title: 'Show',
+        description: '',
+        subscribedAt: 1,
+        lastRefreshedAt: 1,
+      ),
+    );
+    PodcastEpisode episode(String id, String? path) => PodcastEpisode(
+      id: id,
+      showId: 'show',
+      guid: id,
+      title: id,
+      description: '',
+      audioUrl: 'https://example.com/$id.mp3',
+      publishedAt: 1,
+      durationMs: 1,
+      playbackPositionMs: 0,
+      lastPlayedAt: 0,
+      isPlayed: false,
+      transcriptStatus: 'complete',
+      transcriptProgressMs: 0,
+      localAudioPath: path,
+    );
+    await database.upsertPodcastEpisode(
+      episode('episode-1', '$oldSupport/podcasts/audio/episode-1.mp3'),
+    );
+    // Its file is gone from both containers, so the path stays as it was.
+    final missing = '$oldSupport/podcasts/audio/episode-2.mp3';
+    await database.upsertPodcastEpisode(episode('episode-2', missing));
+
+    await database.repairMovedSupportPaths(newSupport.path);
+
+    final repaired = await database.getPodcastEpisodesByIds([
+      'episode-1',
+      'episode-2',
+    ]);
+    final paths = {for (final e in repaired) e.id: e.localAudioPath};
+    expect(paths['episode-1'], audio.path);
+    expect(paths['episode-2'], missing);
+  });
+
   test('schema 1 books migrate to schema 20 without data loss', () async {
     final tempDir = Directory.systemTemp.createTempSync('lumina_migration_');
     final databaseFile = File('${tempDir.path}/lumina.db');

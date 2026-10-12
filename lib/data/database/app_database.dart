@@ -586,6 +586,8 @@ class AppDatabase extends _$AppDatabase {
       if (_repairPathsOnOpen) {
         final documents = await getApplicationDocumentsDirectory();
         await repairMovedDocumentPaths(documents.path);
+        final support = await getApplicationSupportDirectory();
+        await repairMovedSupportPaths(support.path);
       }
     },
   );
@@ -615,9 +617,9 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Newest first.
-  Future<List<SavedItem>> getSavedItems() =>
-      (select(savedItems)..orderBy([(row) => OrderingTerm.desc(row.savedAt)]))
-          .get();
+  Future<List<SavedItem>> getSavedItems() => (select(
+    savedItems,
+  )..orderBy([(row) => OrderingTerm.desc(row.savedAt)])).get();
 
   // ── 书籍 ──
 
@@ -692,6 +694,26 @@ class AppDatabase extends _$AppDatabase {
               : Value(coverPath),
         ),
       );
+    }
+  }
+
+  /// The same repair for files under Application Support: episode audio
+  /// downloaded for transcription. A stale path made the player think the
+  /// download was gone and stream the episode from the network instead.
+  Future<void> repairMovedSupportPaths(String currentSupportPath) async {
+    final downloaded = await (select(
+      podcastEpisodes,
+    )..where((episode) => episode.localAudioPath.isNotNull())).get();
+    for (final episode in downloaded) {
+      final stored = episode.localAudioPath!;
+      final repaired = await _existingRebasedPath(
+        stored,
+        currentSupportPath,
+        marker: _supportMarker,
+      );
+      if (repaired == stored) continue;
+      await (update(podcastEpisodes)..where((row) => row.id.equals(episode.id)))
+          .write(PodcastEpisodesCompanion(localAudioPath: Value(repaired)));
     }
   }
 
@@ -1730,15 +1752,20 @@ class AppDatabase extends _$AppDatabase {
   }
 }
 
+const _documentsMarker = '/Documents/';
+const _supportMarker = '/Library/Application Support/';
+
 Future<String> _existingRebasedPath(
   String storedPath,
-  String currentDocumentsPath,
-) async {
+  String currentDirectoryPath, {
+  String marker = _documentsMarker,
+}) async {
   if (await File(storedPath).exists()) return storedPath;
 
-  final candidate = rebaseApplicationDocumentsPath(
+  final candidate = rebaseApplicationPath(
     storedPath,
-    currentDocumentsPath,
+    currentDirectoryPath,
+    marker: marker,
   );
   if (candidate != storedPath && await File(candidate).exists()) {
     return candidate;
@@ -1751,9 +1778,17 @@ Future<String> _existingRebasedPath(
 String rebaseApplicationDocumentsPath(
   String storedPath,
   String currentDocumentsPath,
-) {
+) => rebaseApplicationPath(storedPath, currentDocumentsPath);
+
+/// Moves [storedPath] from an old app container into
+/// [currentDirectoryPath]: everything after [marker] is kept. Paths without
+/// the marker, or that would land outside the directory, are left unchanged.
+String rebaseApplicationPath(
+  String storedPath,
+  String currentDirectoryPath, {
+  String marker = _documentsMarker,
+}) {
   final normalized = storedPath.replaceAll('\\', '/');
-  const marker = '/Documents/';
   final markerIndex = normalized.lastIndexOf(marker);
   if (markerIndex < 0) return storedPath;
 
@@ -1761,10 +1796,10 @@ String rebaseApplicationDocumentsPath(
   if (relativePath.isEmpty) return storedPath;
 
   final candidate = p.normalize(
-    p.joinAll([currentDocumentsPath, ...p.posix.split(relativePath)]),
+    p.joinAll([currentDirectoryPath, ...p.posix.split(relativePath)]),
   );
-  final documents = p.normalize(currentDocumentsPath);
-  if (!p.isWithin(documents, candidate)) return storedPath;
+  final directory = p.normalize(currentDirectoryPath);
+  if (!p.isWithin(directory, candidate)) return storedPath;
   return candidate;
 }
 
