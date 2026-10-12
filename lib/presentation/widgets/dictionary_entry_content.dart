@@ -12,7 +12,8 @@ import 'design_system/editorial_type.dart';
 /// Word entry body shared by the dictionary detail page and the lookup sheet.
 ///
 /// The detail page hoists the bookmark into its own top bar, so it renders
-/// this with [showFavoriteAction] off.
+/// this with [showFavoriteAction] off, and lays the explanations flat on the
+/// page with [flatSections]; the lookup sheet keeps them as cards.
 class DictionaryEntryContent extends StatefulWidget {
   final DictionaryLookupResult result;
   final bool favorite;
@@ -21,6 +22,7 @@ class DictionaryEntryContent extends StatefulWidget {
   final VoidCallback onPlayUk;
   final VoidCallback? onPlayContext;
   final bool showFavoriteAction;
+  final bool flatSections;
 
   const DictionaryEntryContent({
     super.key,
@@ -31,6 +33,7 @@ class DictionaryEntryContent extends StatefulWidget {
     required this.onPlayUk,
     this.onPlayContext,
     this.showFavoriteAction = true,
+    this.flatSections = false,
   });
 
   @override
@@ -46,6 +49,10 @@ class _DictionaryEntryContentState extends State<DictionaryEntryContent> {
     final entry = widget.result.entry;
     final lookupContext = widget.result.context;
     final cefr = _cefrLabel(entry);
+    final flat = widget.flatSections;
+    final prose = _proseStyle(context, flat: flat);
+    final hasExplanations =
+        _hasText(entry.shortExplanation) || _hasText(entry.longExplanation);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -113,19 +120,30 @@ class _DictionaryEntryContentState extends State<DictionaryEntryContent> {
               child: _SenseRow(definition: definition),
             ),
         ],
+        if (flat && hasExplanations) ...[
+          const SizedBox(height: 13),
+          const _HairlineDivider(),
+          const SizedBox(height: 26),
+        ],
         if (_hasText(entry.shortExplanation)) ...[
-          const SizedBox(height: 15),
+          if (!flat) const SizedBox(height: 15),
           _EntryCard(
+            flat: flat,
             icon: AppIcons.bulb,
-            title: context.tr('一句话理解', 'In one sentence', '一言で言うと'),
-            child: Text(entry.shortExplanation!, style: _proseStyle(context)),
+            title: flat
+                ? context.tr('一句话理解', 'IN ONE SENTENCE', '一言で言うと')
+                : context.tr('一句话理解', 'In one sentence', '一言で言うと'),
+            child: Text(entry.shortExplanation!, style: prose),
           ),
         ],
         if (_hasText(entry.longExplanation)) ...[
-          const SizedBox(height: 22),
+          SizedBox(height: flat ? 30 : 22),
           _EntryCard(
+            flat: flat,
             icon: AppIcons.bookOpen01,
-            title: context.tr('词源与用法', 'Origin & usage', '語源と用法'),
+            title: flat
+                ? context.tr('词源与用法', 'ORIGIN & USAGE', '語源と用法')
+                : context.tr('词源与用法', 'Origin & usage', '語源と用法'),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -135,10 +153,7 @@ class _DictionaryEntryContentState extends State<DictionaryEntryContent> {
                     curve: const Cubic(0.2, 0.8, 0.2, 1),
                     alignment: Alignment.topCenter,
                     child: _longExpanded
-                        ? Text(
-                            entry.longExplanation!,
-                            style: _proseStyle(context),
-                          )
+                        ? Text(entry.longExplanation!, style: prose)
                         : ShaderMask(
                             shaderCallback: (bounds) => const LinearGradient(
                               begin: Alignment.topCenter,
@@ -150,7 +165,7 @@ class _DictionaryEntryContentState extends State<DictionaryEntryContent> {
                             child: Text(
                               entry.longExplanation!,
                               maxLines: 4,
-                              style: _proseStyle(context),
+                              style: prose,
                             ),
                           ),
                   ),
@@ -243,10 +258,14 @@ class _DictionaryEntryContentState extends State<DictionaryEntryContent> {
   }
 }
 
-TextStyle _proseStyle(BuildContext context) => TextStyle(
+/// On a card the prose sits back from the card's title; laid flat under a
+/// kicker it is the content itself, in full ink.
+TextStyle _proseStyle(BuildContext context, {bool flat = false}) => TextStyle(
   fontSize: 15.5,
   height: 1.6,
-  color: context.appTextPrimary.withValues(alpha: 0.62),
+  color: flat
+      ? context.appTextPrimary
+      : context.appTextPrimary.withValues(alpha: 0.62),
 );
 
 bool _hasText(String? value) => value != null && value.trim().isNotEmpty;
@@ -302,15 +321,29 @@ class _EntryCard extends StatelessWidget {
   final String title;
   final Widget child;
 
+  /// A kicker over the content on the page itself, with no card or icon.
+  final bool flat;
+
   const _EntryCard({
     required this.icon,
     required this.title,
     required this.child,
+    this.flat = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final ink = context.appTextPrimary;
+    if (flat) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: kickerTextStyle(context)),
+          const SizedBox(height: 12),
+          child,
+        ],
+      );
+    }
 
     return Container(
       width: double.infinity,
@@ -648,4 +681,24 @@ String _formatTimestamp(int milliseconds) {
   return duration.inHours > 0
       ? '${duration.inHours}:$minutes:$seconds'
       : '$minutes:$seconds';
+}
+
+/// The fading rule Home draws between its sections.
+class _HairlineDivider extends StatelessWidget {
+  const _HairlineDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    final line = context.appTextPrimary.withValues(alpha: 0.09);
+
+    return Container(
+      height: 1,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.transparent, line, line, Colors.transparent],
+          stops: const [0, 0.12, 0.88, 1],
+        ),
+      ),
+    );
+  }
 }

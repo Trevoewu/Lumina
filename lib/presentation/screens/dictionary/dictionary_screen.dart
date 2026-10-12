@@ -743,6 +743,7 @@ class _DictionaryWordScreenState extends ConsumerState<DictionaryWordScreen> {
                 ? _playContext
                 : null,
             showFavoriteAction: false,
+            flatSections: true,
           ),
         ],
       );
